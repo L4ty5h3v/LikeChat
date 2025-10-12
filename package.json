@@ -1,0 +1,36 @@
+{
+  "name": "likechat-farcaster",
+  "version": "1.0.0",
+  "description": "ЛайкЧат: Взаимная любовь от Миссис Крипто 💌",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test:upstash": "node scripts/test-upstash.js"
+  },
+  "dependencies": {
+    "@rainbow-me/rainbowkit": "^2.0.0",
+    "@supabase/supabase-js": "^2.39.0",
+    "@tanstack/react-query": "^5.28.0",
+    "@upstash/redis": "^1.35.5",
+    "axios": "^1.6.7",
+    "ethers": "^6.11.0",
+    "next": "^14.2.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "viem": "^2.7.0",
+    "wagmi": "^2.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/react": "^18.2.48",
+    "@types/react-dom": "^18.2.18",
+    "autoprefixer": "^10.4.17",
+    "eslint": "^8.56.0",
+    "eslint-config-next": "^14.2.0",
+    "postcss": "^8.4.33",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.3.3"
+  }
+}
