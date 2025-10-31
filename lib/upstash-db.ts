@@ -2,13 +2,14 @@ import { Redis } from '@upstash/redis';
 import type { LinkSubmission, UserProgress, ActivityType } from '@/types';
 
 // Инициализация Redis клиента
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-});
+let redis: Redis | null = null;
 
-// Проверка инициализации Redis
-if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
+if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+  redis = new Redis({
+    url: process.env.UPSTASH_REDIS_REST_URL,
+    token: process.env.UPSTASH_REDIS_REST_TOKEN,
+  });
+} else {
   console.warn('⚠️ Upstash Redis credentials not found. Using fallback mode.');
 }
 
@@ -117,13 +118,14 @@ export async function getUserProgress(userFid: number): Promise<UserProgress | n
   if (!redis) return null;
   
   try {
-    const progress = await redis.hget(KEYS.USER_PROGRESS, userFid.toString());
-    if (!progress) return null;
+    const progressStr = await redis.hget<string>(KEYS.USER_PROGRESS, userFid.toString());
+    if (!progressStr) return null;
     
+    const progress = JSON.parse(progressStr) as UserProgress;
     return {
-      ...progress as UserProgress,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      ...progress,
+      created_at: progress.created_at || new Date().toISOString(),
+      updated_at: progress.updated_at || new Date().toISOString(),
     };
   } catch (error) {
     console.error('Error getting user progress from Upstash:', error);
@@ -153,7 +155,7 @@ export async function upsertUserProgress(
       updated_at: new Date().toISOString(),
     };
 
-    await redis.hset(KEYS.USER_PROGRESS, userFid.toString(), progress);
+    await redis.hset(KEYS.USER_PROGRESS, { [userFid.toString()]: JSON.stringify(progress) });
     return progress;
   } catch (error) {
     console.error('Error upserting user progress to Upstash:', error);
@@ -215,3 +217,4 @@ export function subscribeToLinks(callback: (payload: any) => void): { unsubscrib
     },
   };
 }
+
