@@ -31,7 +31,7 @@ export default function Chat() {
       loadData(userData.fid);
       
       // Подписка на обновления в реальном времени
-      const subscription = subscribeToLinks((payload) => {
+      const subscription = subscribeToLinks((payload: unknown) => {
         console.log('Change received!', payload);
         loadData(userData.fid);
       });
