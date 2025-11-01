@@ -135,10 +135,10 @@ export default function Home() {
 
             <div className="relative mt-16 sm:mt-32">
               <h1 className="text-white mb-12 sm:mb-24 leading-none flex items-center justify-center gap-4 sm:gap-8 px-4 sm:px-16">
-                <span className="text-5xl sm:text-8xl md:text-10xl lg:text-[12rem] font-black text-white">
+                <span className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-white">
                   MULTI
                 </span>
-                <span className="text-5xl sm:text-8xl md:text-10xl lg:text-[12rem] font-black text-white">
+                <span className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-white">
                   LIKE
                 </span>
               </h1>
