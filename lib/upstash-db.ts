@@ -25,11 +25,14 @@ export async function getLastTenLinks(): Promise<LinkSubmission[]> {
   if (!redis) return [];
   
   try {
-    const links = await redis.lrange(KEYS.LINKS, 0, 9);
-    return links.map((link: any) => ({
-      ...link,
-      created_at: new Date(link.created_at).toISOString(),
-    }));
+    const links = await redis.lrange<string>(KEYS.LINKS, 0, 9);
+    return links.map((linkStr: string) => {
+      const link = JSON.parse(linkStr) as LinkSubmission;
+      return {
+        ...link,
+        created_at: link.created_at || new Date().toISOString(),
+      };
+    });
   } catch (error) {
     console.error('Error getting links from Upstash:', error);
     return [];
@@ -40,11 +43,14 @@ export async function getAllLinks(): Promise<LinkSubmission[]> {
   if (!redis) return [];
   
   try {
-    const links = await redis.lrange(KEYS.LINKS, 0, -1);
-    return links.map((link: any) => ({
-      ...link,
-      created_at: new Date(link.created_at).toISOString(),
-    }));
+    const links = await redis.lrange<string>(KEYS.LINKS, 0, -1);
+    return links.map((linkStr: string) => {
+      const link = JSON.parse(linkStr) as LinkSubmission;
+      return {
+        ...link,
+        created_at: link.created_at || new Date().toISOString(),
+      };
+    });
   } catch (error) {
     console.error('Error getting all links from Upstash:', error);
     return [];
@@ -88,8 +94,8 @@ export async function submitLink(
       created_at: new Date().toISOString(),
     };
 
-    // Добавляем ссылку в начало списка
-    await redis.lpush(KEYS.LINKS, newLink);
+    // Добавляем ссылку в начало списка (сериализуем в JSON)
+    await redis.lpush(KEYS.LINKS, JSON.stringify(newLink));
     
     // Обновляем счетчик
     await redis.incr(KEYS.TOTAL_LINKS_COUNT);
@@ -208,7 +214,7 @@ export async function setUserActivity(userFid: number, activity: ActivityType): 
 }
 
 // Функция для подписки на обновления (заглушка для совместимости)
-export function subscribeToLinks(callback: (payload: any) => void): { unsubscribe: () => void } {
+export function subscribeToLinks(callback: (payload: unknown) => void): { unsubscribe: () => void } {
   // В Upstash Redis нет встроенной подписки на изменения
   // Можно использовать polling или webhooks для обновлений
   return {
