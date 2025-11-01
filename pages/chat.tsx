@@ -67,7 +67,7 @@ export default function Chat() {
   const userLink = links.find((link) => link.id === userLinkId);
 
   return (
-    <Layout title="LikeChat - Feed">
+    <Layout title="Multi Like - Feed">
       <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="mb-8">

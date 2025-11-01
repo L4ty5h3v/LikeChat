@@ -148,7 +148,7 @@ export default function Tasks() {
   }
 
   return (
-    <Layout title="Like Chat - Tasks">
+    <Layout title="Multi Like - Tasks">
       {/* Hero Section с градиентом */}
       <div className="relative min-h-screen overflow-hidden">
         {/* Анимированный градиент фон */}

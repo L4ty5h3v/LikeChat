@@ -117,7 +117,7 @@ export default function Home() {
   };
 
   return (
-    <Layout title="Like Chat - Authorization">
+    <Layout title="Multi Like - Authorization">
       {/* Hero Section с градиентом */}
       <div className="relative min-h-screen overflow-hidden">
         {/* Анимированный градиент фон */}

@@ -125,7 +125,7 @@ export default function BuyToken() {
   };
 
   return (
-    <Layout title="LikeChat - Buy Token">
+    <Layout title="Multi Like - Buy Token">
       <div className="max-w-4xl mx-auto">
         {/* Заголовок */}
         <div className="text-center mb-8">

@@ -8,7 +8,7 @@ interface LayoutProps {
   title?: string;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, title = 'Like Chat 💌' }) => {
+const Layout: React.FC<LayoutProps> = ({ children, title = 'Multi Like 💌' }) => {
   return (
     <>
       <Head>
@@ -33,8 +33,8 @@ const Layout: React.FC<LayoutProps> = ({ children, title = 'Like Chat 💌' }) =
                     priority
                   />
                 </div>
-                <span className="hidden xs:inline">Like Chat</span>
-                <span className="xs:hidden">LC</span>
+                <span className="hidden xs:inline">Multi Like</span>
+                <span className="xs:hidden">ML</span>
                 <span className="animate-pulse-slow">💌</span>
               </h1>
               <p className="text-xs sm:text-sm text-gray-600 hidden sm:block">
@@ -51,7 +51,7 @@ const Layout: React.FC<LayoutProps> = ({ children, title = 'Like Chat 💌' }) =
         <footer className="bg-white border-t border-gray-200 mt-8 sm:mt-12">
           <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6 lg:px-8">
             <p className="text-center text-gray-500 text-xs sm:text-sm">
-              © 2024 Like Chat. Created with ❤️ for Farcaster community
+              © 2024 Multi Like. Created with ❤️ for Farcaster community
             </p>
           </div>
         </footer>

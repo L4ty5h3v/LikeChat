@@ -1,7 +1,7 @@
 {
   "name": "likechat-farcaster",
   "version": "1.0.0",
-  "description": "ЛайкЧат: Взаимная любовь от Миссис Крипто 💌",
+  "description": "Multi Like: Mutual love from Mrs. Crypto 💌",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

@@ -127,7 +127,7 @@ export default function Submit() {
   }
 
   return (
-    <Layout title="ЛайкЧат - Публикация ссылки">
+    <Layout title="Multi Like - Publish Link">
       <div className="max-w-3xl mx-auto">
         {/* Заголовок с анимацией */}
         <div className="text-center mb-8">
