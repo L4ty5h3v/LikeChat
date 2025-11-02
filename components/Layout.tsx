@@ -77,7 +77,7 @@ const Layout: React.FC<LayoutProps> = ({ children, title = 'Like Chat 💌' }) =
         <footer className="bg-white border-t border-gray-200 mt-8 sm:mt-12">
           <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6 lg:px-8">
             <p className="text-center text-gray-500 text-xs sm:text-sm">
-              © 2024 Like Chat. Created with ❤️ for Farcaster community
+              © 2025 Like Chat. Created with ❤️ for Farcaster community
             </p>
           </div>
         </footer>
