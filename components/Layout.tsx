@@ -1,7 +1,9 @@
 // Основной layout компонент
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Image from 'next/image';
+import { useRouter } from 'next/router';
+import type { FarcasterUser } from '@/types';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -9,6 +11,28 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children, title = 'Multi Like 💌' }) => {
+  const router = useRouter();
+  const [user, setUser] = useState<FarcasterUser | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    if (typeof window !== 'undefined') {
+      const savedUser = localStorage.getItem('farcaster_user');
+      if (savedUser) {
+        try {
+          setUser(JSON.parse(savedUser));
+        } catch (error) {
+          console.error('Error parsing user data:', error);
+        }
+      }
+    }
+  }, []);
+
+  const handleAvatarClick = () => {
+    router.push('/');
+  };
+
   return (
     <>
       <Head>
@@ -37,9 +61,26 @@ const Layout: React.FC<LayoutProps> = ({ children, title = 'Multi Like 💌' }) 
                 <span className="xs:hidden">ML</span>
                 <span className="animate-pulse-slow">💌</span>
               </h1>
-              <p className="text-xs sm:text-sm text-gray-600 hidden sm:block">
-                Mutual love from Mrs. Crypto
-              </p>
+              <div className="flex items-center gap-3 sm:gap-4">
+                <p className="text-xs sm:text-sm text-gray-600 hidden sm:block">
+                  Mutual love from Mrs. Crypto
+                </p>
+                {mounted && user && (
+                  <button
+                    onClick={handleAvatarClick}
+                    className="relative w-8 h-8 sm:w-10 sm:h-10 rounded-full overflow-hidden border-2 border-primary hover:border-primary-dark transition-all hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                    aria-label="Go to homepage"
+                  >
+                    <Image
+                      src={user.pfp_url || '/images/mrs-crypto.jpg'}
+                      alt={user.display_name || user.username || 'User'}
+                      width={40}
+                      height={40}
+                      className="w-full h-full object-cover"
+                    />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </header>
