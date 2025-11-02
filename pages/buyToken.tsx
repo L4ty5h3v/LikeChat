@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import Button from '@/components/Button';
-import { buyToken, getWalletAddress, checkTokenBalance, getTokenInfo } from '@/lib/web3';
+import { buyToken, getWalletAddress, checkTokenBalance, getTokenInfo, isBaseNetwork, switchToBaseNetwork } from '@/lib/web3';
 import { markTokenPurchased, getUserProgress } from '@/lib/db-config';
 import type { FarcasterUser } from '@/types';
 
@@ -68,7 +68,25 @@ export default function BuyToken() {
     setTokenInfo(info);
   };
 
-  const handleBuyToken = () => {
+  const handleBuyToken = async () => {
+    // Проверить подключение кошелька
+    const address = await getWalletAddress();
+    if (!address) {
+      setError('Пожалуйста, подключите кошелек для покупки токена');
+      return;
+    }
+
+    // Проверить и переключить на Base сеть
+    const isBase = await isBaseNetwork();
+    if (!isBase) {
+      try {
+        await switchToBaseNetwork();
+      } catch (err: any) {
+        setError(`Пожалуйста, переключитесь на сеть Base в вашем кошельке. ${err.message}`);
+        return;
+      }
+    }
+
     setShowConfirmModal(true);
   };
 
@@ -109,19 +127,32 @@ export default function BuyToken() {
     setError('');
     setShowConfirmModal(false);
 
-    // Автоматически переходим в кошелек Farcaster
-    handleBuyInFarcasterWallet();
-    
-    // Имитируем успешную покупку (так как покупка происходит в кошельке)
-    setTimeout(() => {
-      setPurchased(true);
-      setLoading(false);
+    try {
+      // Реальная покупка токена через Base
+      const result = await buyToken();
       
-      // Переход к публикации ссылки через 3 секунды
-      setTimeout(() => {
-        router.push('/submit');
-      }, 3000);
-    }, 2000);
+      if (result.success && result.txHash) {
+        setTxHash(result.txHash);
+        setPurchased(true);
+        
+        // Отметить покупку в базе данных
+        if (user.fid) {
+          await markTokenPurchased(user.fid);
+        }
+        
+        // Переход к публикации ссылки через 3 секунды
+        setTimeout(() => {
+          router.push('/submit');
+        }, 3000);
+      } else {
+        setError(result.error || 'Ошибка при покупке токена');
+      }
+    } catch (err: any) {
+      console.error('Error in confirmBuyToken:', err);
+      setError(err.message || 'Неожиданная ошибка при покупке токена');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -213,8 +244,16 @@ export default function BuyToken() {
 
               <div className="bg-white rounded-lg p-3">
                 <p className="text-xs text-gray-600 mb-1">Transaction hash:</p>
-                <p className="font-mono text-sm break-all text-gray-800">
+                <a
+                  href={`https://basescan.org/tx/${txHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-mono text-sm break-all text-primary hover:text-primary-dark underline"
+                >
                   {txHash}
+                </a>
+                <p className="text-xs text-gray-500 mt-1">
+                  View on BaseScan ↗
                 </p>
               </div>
 
@@ -316,11 +355,12 @@ export default function BuyToken() {
             Important Information
           </h3>
           <ul className="space-y-2 text-sm">
-            <li>• 🦄 Purchase will redirect to your Farcaster wallet</li>
+            <li>• 🦄 Purchase through Base network smart contract</li>
+            <li>• Network will automatically switch to Base if needed</li>
             <li>• Token will be sent to your connected wallet</li>
-            <li>• Transaction will take a few seconds</li>
+            <li>• Transaction will take a few seconds to confirm</li>
             <li>• After purchase you will be able to publish your link</li>
-            <li>• Make sure you have enough ETH for network fees</li>
+            <li>• Make sure you have enough ETH on Base for purchase and gas fees</li>
           </ul>
         </div>
       </div>

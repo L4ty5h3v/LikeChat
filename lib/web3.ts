@@ -1,19 +1,49 @@
-// Web3 функции для покупки токена Миссис Крипто
+// Web3 функции для покупки токена Миссис Крипто через Base
 import { ethers } from 'ethers';
 
 const TOKEN_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_TOKEN_CONTRACT_ADDRESS || '0x04D388DA70C32FC5876981097c536c51c8d3D236';
 const TOKEN_PRICE_USD = parseFloat(process.env.NEXT_PUBLIC_TOKEN_PRICE_USD || '0.1');
-const CHAIN_ID = parseInt(process.env.NEXT_PUBLIC_CHAIN_ID || '8453'); // Base mainnet
+const BASE_CHAIN_ID = 8453; // Base mainnet
+const BASE_CHAIN_ID_HEX = '0x2105'; // Base mainnet hex
 
-// ABI для покупки токена (может быть swap или buy функция)
-const TOKEN_ABI = [
-  'function buy() payable',
-  'function swap() payable', 
-  'function getPrice() view returns (uint256)',
+// Base Network RPC endpoints
+const BASE_RPC_URL = process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org';
+
+// Base Network Configuration
+const BASE_NETWORK = {
+  chainId: BASE_CHAIN_ID_HEX,
+  chainName: 'Base',
+  nativeCurrency: {
+    name: 'Ethereum',
+    symbol: 'ETH',
+    decimals: 18,
+  },
+  rpcUrls: [BASE_RPC_URL],
+  blockExplorerUrls: ['https://basescan.org'],
+};
+
+// ABI для ERC20 токена
+const ERC20_ABI = [
   'function balanceOf(address owner) view returns (uint256)',
   'function decimals() view returns (uint8)',
   'function symbol() view returns (string)',
   'function name() view returns (string)',
+  'function transfer(address to, uint256 amount) returns (bool)',
+];
+
+// ABI для покупки токена через смарт-контракт (может быть swap или buy функция)
+const BUY_CONTRACT_ABI = [
+  'function buy() payable',
+  'function buyTokens(uint256 amount) payable',
+  'function swap() payable',
+  'function purchase() payable',
+  'function getPrice() view returns (uint256)',
+  'function tokenPrice() view returns (uint256)',
+  'function balanceOf(address owner) view returns (uint256)',
+  'function decimals() view returns (uint8)',
+  'function symbol() view returns (string)',
+  'function name() view returns (string)',
+  'event TokensPurchased(address indexed buyer, uint256 amount, uint256 price)',
 ];
 
 // Получить провайдер
@@ -22,6 +52,63 @@ export function getProvider(): ethers.BrowserProvider | null {
     return new ethers.BrowserProvider((window as any).ethereum);
   }
   return null;
+}
+
+// Получить провайдер для Base (с RPC fallback)
+export function getBaseProvider(): ethers.JsonRpcProvider {
+  return new ethers.JsonRpcProvider(BASE_RPC_URL);
+}
+
+// Переключить сеть на Base
+export async function switchToBaseNetwork(): Promise<boolean> {
+  try {
+    if (typeof window === 'undefined' || !(window as any).ethereum) {
+      throw new Error('MetaMask не установлен');
+    }
+
+    const ethereum = (window as any).ethereum;
+
+    try {
+      // Пытаемся переключиться на Base
+      await ethereum.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: BASE_CHAIN_ID_HEX }],
+      });
+      return true;
+    } catch (switchError: any) {
+      // Если сеть не добавлена, добавляем её
+      if (switchError.code === 4902 || switchError.code === -32603) {
+        try {
+          await ethereum.request({
+            method: 'wallet_addEthereumChain',
+            params: [BASE_NETWORK],
+          });
+          return true;
+        } catch (addError) {
+          console.error('Error adding Base network:', addError);
+          throw new Error('Не удалось добавить сеть Base. Пожалуйста, добавьте её вручную в MetaMask.');
+        }
+      }
+      throw switchError;
+    }
+  } catch (error: any) {
+    console.error('Error switching to Base network:', error);
+    throw new Error(error.message || 'Ошибка при переключении на сеть Base');
+  }
+}
+
+// Проверить, подключена ли сеть Base
+export async function isBaseNetwork(): Promise<boolean> {
+  try {
+    const provider = getProvider();
+    if (!provider) return false;
+
+    const network = await provider.getNetwork();
+    return Number(network.chainId) === BASE_CHAIN_ID;
+  } catch (error) {
+    console.error('Error checking network:', error);
+    return false;
+  }
 }
 
 // Подключить кошелек
@@ -71,7 +158,21 @@ async function getEthAmountForUsd(usdAmount: number): Promise<string> {
   }
 }
 
-// Купить токен
+// Получить текущую цену ETH в USD (можно использовать API или оракул)
+async function getEthPriceUsd(): Promise<number> {
+  try {
+    // Здесь можно использовать реальный API, например CoinGecko
+    // Для упрощения используем фиксированное значение или можем добавить API
+    const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd');
+    const data = await response.json();
+    return data.ethereum?.usd || 2500; // Fallback цена
+  } catch (error) {
+    console.error('Error fetching ETH price:', error);
+    return 2500; // Fallback цена ETH в USD
+  }
+}
+
+// Купить токен $MCT через Base
 export async function buyToken(): Promise<{
   success: boolean;
   txHash?: string;
@@ -80,72 +181,122 @@ export async function buyToken(): Promise<{
   try {
     const provider = getProvider();
     if (!provider) {
-      throw new Error('Провайдер Web3 не найден');
+      throw new Error('Провайдер Web3 не найден. Установите MetaMask или другой Web3 кошелек.');
+    }
+
+    // Проверить и переключить на Base сеть
+    const isBase = await isBaseNetwork();
+    if (!isBase) {
+      await switchToBaseNetwork();
+      // Подождать немного для переключения сети
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
     const signer = await provider.getSigner();
     const address = await signer.getAddress();
 
-    // Проверить сеть
-    const network = await provider.getNetwork();
-    if (Number(network.chainId) !== CHAIN_ID) {
-      throw new Error(`Пожалуйста, переключитесь на сеть Chain ID ${CHAIN_ID}`);
-    }
+    // Получить сумму в ETH для покупки
+    const ethPriceUsd = await getEthPriceUsd();
+    const ethAmount = TOKEN_PRICE_USD / ethPriceUsd;
+    const value = ethers.parseEther(ethAmount.toFixed(18));
 
-    // Получить контракт
-    const contract = new ethers.Contract(TOKEN_CONTRACT_ADDRESS, TOKEN_ABI, signer);
-
-    // Получить сумму в ETH
-    const ethAmount = await getEthAmountForUsd(TOKEN_PRICE_USD);
-    const value = ethers.parseEther(ethAmount);
+    // Получить контракт для покупки
+    const contract = new ethers.Contract(TOKEN_CONTRACT_ADDRESS, BUY_CONTRACT_ABI, signer);
 
     // Попробовать разные функции покупки
     let tx;
+    let errorMsg = '';
+    
     try {
       // Сначала попробуем buy()
-      tx = await contract.buy({ value });
-    } catch (buyError) {
+      tx = await contract.buy({ value, gasLimit: 300000 });
+    } catch (buyError: any) {
+      errorMsg = buyError.message || '';
       try {
-        // Если buy() не работает, попробуем swap()
-        tx = await contract.swap({ value });
-      } catch (swapError) {
-        throw new Error('Contract does not support buy() or swap() functions. Please check the contract address and ABI.');
+        // Если buy() не работает, попробуем purchase()
+        tx = await contract.purchase({ value, gasLimit: 300000 });
+      } catch (purchaseError: any) {
+        errorMsg = purchaseError.message || '';
+        try {
+          // Если purchase() не работает, попробуем swap()
+          tx = await contract.swap({ value, gasLimit: 300000 });
+        } catch (swapError: any) {
+          // Если swap() не работает, попробуем buyTokens с 1 токеном
+          try {
+            const oneToken = ethers.parseEther('1'); // 1 токен
+            tx = await contract.buyTokens(oneToken, { value, gasLimit: 300000 });
+          } catch (buyTokensError: any) {
+            throw new Error(
+              'Смарт-контракт не поддерживает стандартные функции покупки. ' +
+              'Пожалуйста, проверьте адрес контракта. ' +
+              `Последняя ошибка: ${buyTokensError.message || errorMsg}`
+            );
+          }
+        }
       }
     }
     
-    // Дождаться подтверждения
-    await tx.wait();
+    if (!tx) {
+      throw new Error('Не удалось создать транзакцию покупки');
+    }
 
-    return {
-      success: true,
-      txHash: tx.hash,
-    };
+    console.log('Transaction sent:', tx.hash);
+    
+    // Дождаться подтверждения транзакции
+    const receipt = await tx.wait();
+    
+    if (receipt.status === 1) {
+      return {
+        success: true,
+        txHash: tx.hash,
+      };
+    } else {
+      throw new Error('Транзакция не была подтверждена');
+    }
   } catch (error: any) {
     console.error('Error buying token:', error);
+    
+    // Обработка специфических ошибок
+    let errorMessage = 'Ошибка при покупке токена';
+    
+    if (error.message?.includes('user rejected')) {
+      errorMessage = 'Транзакция отменена пользователем';
+    } else if (error.message?.includes('insufficient funds')) {
+      errorMessage = 'Недостаточно средств для покупки. Убедитесь, что у вас есть ETH для оплаты покупки и комиссий сети.';
+    } else if (error.message?.includes('network')) {
+      errorMessage = 'Ошибка сети. Убедитесь, что вы подключены к сети Base.';
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
     return {
       success: false,
-      error: error.message || 'Ошибка при покупке токена',
+      error: errorMessage,
     };
   }
 }
 
-// Проверить баланс токена
+// Проверить баланс токена $MCT
 export async function checkTokenBalance(address: string): Promise<string> {
   try {
-    const provider = getProvider();
-    if (!provider) return '0';
+    // Используем Base RPC для проверки баланса, если основной провайдер не доступен
+    let provider = getProvider();
+    if (!provider) {
+      provider = getBaseProvider();
+    }
 
-    const contract = new ethers.Contract(TOKEN_CONTRACT_ADDRESS, TOKEN_ABI, provider);
+    const contract = new ethers.Contract(TOKEN_CONTRACT_ADDRESS, ERC20_ABI, provider);
     const balance = await contract.balanceOf(address);
+    const decimals = await contract.decimals().catch(() => 18);
     
-    return ethers.formatEther(balance);
+    return ethers.formatUnits(balance, decimals);
   } catch (error) {
     console.error('Error checking token balance:', error);
     return '0';
   }
 }
 
-// Получить информацию о токене
+// Получить информацию о токене $MCT
 export async function getTokenInfo(): Promise<{
   name: string;
   symbol: string;
@@ -153,20 +304,23 @@ export async function getTokenInfo(): Promise<{
   decimals: number;
 }> {
   try {
-    const provider = getProvider();
+    // Используем Base RPC для получения информации о токене
+    let provider = getProvider();
     if (!provider) {
-      throw new Error('Провайдер Web3 не найден');
+      provider = getBaseProvider();
     }
 
-    const contract = new ethers.Contract(TOKEN_CONTRACT_ADDRESS, TOKEN_ABI, provider);
+    const contract = new ethers.Contract(TOKEN_CONTRACT_ADDRESS, ERC20_ABI, provider);
     
-    const [decimals] = await Promise.all([
+    const [name, symbol, decimals] = await Promise.all([
+      contract.name().catch(() => 'Mrs Crypto'),
+      contract.symbol().catch(() => 'MCT'),
       contract.decimals().catch(() => 18)
     ]);
 
     return {
-      name: 'Mrs Crypto',
-      symbol: '$MCT',
+      name: name || 'Mrs Crypto',
+      symbol: symbol || 'MCT',
       address: TOKEN_CONTRACT_ADDRESS,
       decimals: Number(decimals)
     };
@@ -174,7 +328,7 @@ export async function getTokenInfo(): Promise<{
     console.error('Error getting token info:', error);
     return {
       name: 'Mrs Crypto',
-      symbol: '$MCT',
+      symbol: 'MCT',
       address: TOKEN_CONTRACT_ADDRESS,
       decimals: 18
     };
