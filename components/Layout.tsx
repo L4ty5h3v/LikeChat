@@ -65,18 +65,19 @@ const Layout: React.FC<LayoutProps> = ({ children, title = 'Multi Like 💌' }) 
                 <p className="text-xs sm:text-sm text-gray-600 hidden sm:block">
                   Mutual love from Mrs. Crypto
                 </p>
-                {mounted && user && (
+                {mounted && (
                   <button
                     onClick={handleAvatarClick}
                     className="relative w-8 h-8 sm:w-10 sm:h-10 rounded-full overflow-hidden border-2 border-primary hover:border-primary-dark transition-all hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
                     aria-label="Go to homepage"
                   >
                     <Image
-                      src={user.pfp_url || '/images/mrs-crypto.jpg'}
-                      alt={user.display_name || user.username || 'User'}
+                      src="/images/mrs-crypto.jpg"
+                      alt="Mrs. Crypto"
                       width={40}
                       height={40}
                       className="w-full h-full object-cover"
+                      priority
                     />
                   </button>
                 )}
