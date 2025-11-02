@@ -280,11 +280,8 @@ export async function buyToken(): Promise<{
 export async function checkTokenBalance(address: string): Promise<string> {
   try {
     // Используем Base RPC для проверки баланса, если основной провайдер не доступен
-    let provider = getProvider();
-    if (!provider) {
-      provider = getBaseProvider();
-    }
-
+    let provider: ethers.Provider = getProvider() || getBaseProvider();
+    
     const contract = new ethers.Contract(TOKEN_CONTRACT_ADDRESS, ERC20_ABI, provider);
     const balance = await contract.balanceOf(address);
     const decimals = await contract.decimals().catch(() => 18);
@@ -305,10 +302,7 @@ export async function getTokenInfo(): Promise<{
 }> {
   try {
     // Используем Base RPC для получения информации о токене
-    let provider = getProvider();
-    if (!provider) {
-      provider = getBaseProvider();
-    }
+    const provider: ethers.Provider = getProvider() || getBaseProvider();
 
     const contract = new ethers.Contract(TOKEN_CONTRACT_ADDRESS, ERC20_ABI, provider);
     
