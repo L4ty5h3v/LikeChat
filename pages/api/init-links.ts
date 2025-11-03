@@ -1,6 +1,6 @@
 // API endpoint для начальной загрузки ссылок
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { initializeLinks } from '@/lib/upstash-db';
+import { initializeLinks } from '@/lib/db-config';
 
 export default async function handler(
   req: NextApiRequest,
@@ -16,8 +16,24 @@ export default async function handler(
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
+  // Проверяем, доступна ли функция initializeLinks
+  if (!initializeLinks) {
+    return res.status(500).json({ 
+      success: false,
+      error: 'InitializeLinks function not available',
+      message: 'Upstash Redis is not configured. Please set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN environment variables.'
+    });
+  }
+
   try {
     const result = await initializeLinks();
+
+    if (!result) {
+      return res.status(500).json({ 
+        error: 'Failed to initialize links',
+        message: 'No result returned from initializeLinks'
+      });
+    }
 
     if (result.success) {
       return res.status(200).json({ 
@@ -27,15 +43,17 @@ export default async function handler(
       });
     } else {
       return res.status(400).json({ 
+        success: false,
         error: result.error || 'Ошибка при инициализации',
-        count: result.count
+        count: result.count || 0
       });
     }
   } catch (error: any) {
     console.error('Error initializing links:', error);
     return res.status(500).json({ 
+      success: false,
       error: 'Failed to initialize links',
-      message: error.message 
+      message: error?.message || 'Unknown error'
     });
   }
 }

@@ -27,14 +27,26 @@ export default function InitLinks() {
         body: JSON.stringify({ secretKey: secretKey || '' }),
       });
 
-      const data = await response.json();
+      // Проверяем, есть ли содержимое в ответе
+      const text = await response.text();
+      let data;
+      
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError, 'Response text:', text);
+        setResult({ error: `Ошибка ответа сервера: ${text || 'пустой ответ'}` });
+        setLoading(false);
+        return;
+      }
 
       if (response.ok) {
         setResult({ success: true, message: data.message || 'Ссылки успешно инициализированы!' });
       } else {
-        setResult({ error: data.error || 'Ошибка при инициализации' });
+        setResult({ error: data.error || data.message || `Ошибка при инициализации (${response.status})` });
       }
     } catch (error: any) {
+      console.error('Init error:', error);
       setResult({ error: error.message || 'Неизвестная ошибка' });
     } finally {
       setLoading(false);

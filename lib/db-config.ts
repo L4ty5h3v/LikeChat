@@ -33,6 +33,11 @@ export const getAllLinks = db.getAllLinks;
 export const getTotalLinksCount = db.getTotalLinksCount;
 export const subscribeToLinks = db.subscribeToLinks;
 
+// Экспортируем initializeLinks только из upstash-db (если доступна)
+export const initializeLinks = (USE_UPSTASH && upstashDb?.initializeLinks) 
+  ? upstashDb.initializeLinks 
+  : undefined;
+
 // Информация о текущей базе данных
 export const DB_INFO = {
   type: USE_UPSTASH && upstashDb ? 'upstash' : 'memory',
@@ -51,3 +56,7 @@ if (typeof window === 'undefined') {
     console.log('✅ Using Upstash Redis for persistent storage');
   }
 }
+
+
+
+
