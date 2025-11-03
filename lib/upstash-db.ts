@@ -216,6 +216,24 @@ export async function setUserActivity(userFid: number, activity: ActivityType): 
   }
 }
 
+// Функция для очистки всех ссылок
+async function clearAllLinks(): Promise<void> {
+  if (!redis) return;
+  
+  try {
+    // Удаляем все элементы из списка
+    const listLength = await redis.llen(KEYS.LINKS);
+    if (listLength > 0) {
+      await redis.del(KEYS.LINKS);
+    }
+    
+    // Сбрасываем счетчик
+    await redis.set(KEYS.TOTAL_LINKS_COUNT, 0);
+  } catch (error) {
+    console.error('Error clearing links:', error);
+  }
+}
+
 // Функция для инициализации начальных ссылок
 export async function initializeLinks(): Promise<{ success: boolean; count: number; error?: string }> {
   if (!redis) {
@@ -226,11 +244,8 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
     // Проверяем, не добавлены ли уже ссылки
     const existingCount = await getTotalLinksCount();
     if (existingCount > 0) {
-      return { 
-        success: false, 
-        count: existingCount, 
-        error: `Links already initialized (${existingCount} links exist)` 
-      };
+      // Если ссылки уже есть, очищаем их перед повторной инициализацией
+      await clearAllLinks();
     }
 
     // Список начальных ссылок
@@ -249,8 +264,9 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
 
     // Создаем ссылки с фиктивными пользователями
     const activityTypes: ActivityType[] = ['like', 'recast', 'comment'];
+    const baseTimestamp = Date.now();
     const linksToAdd: LinkSubmission[] = initialLinks.map((castUrl, index) => ({
-      id: `init_link_${index + 1}_${Date.now()}`,
+      id: `init_link_${index + 1}_${baseTimestamp + index}`,
       user_fid: 1000 + index, // Фиктивные FID
       username: `user${index + 1}`,
       pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=init${index}`,
