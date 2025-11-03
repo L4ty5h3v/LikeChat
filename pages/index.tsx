@@ -367,20 +367,16 @@ export default function Home() {
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
                   <span className="text-3xl font-black text-accent">02</span>
-                  <span className="font-bold text-xl">Complete 10 participant links</span>
-                </div>
-                <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
-                  <span className="text-3xl font-black text-accent">03</span>
-                  <span className="font-bold text-xl">Perform activity on each</span>
+                  <span className="font-bold text-xl">Complete tasks on 10 participants links</span>
                 </div>
               </div>
               <div className="space-y-3">
                 <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
-                  <span className="text-3xl font-black text-accent">04</span>
+                  <span className="text-3xl font-black text-accent">03</span>
                   <span className="font-bold text-xl">Buy Mrs. Crypto token $0.10</span>
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
-                  <span className="text-3xl font-black text-accent">05</span>
+                  <span className="text-3xl font-black text-accent">04</span>
                   <span className="font-bold text-xl">Publish your link</span>
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-accent to-secondary rounded-xl">
