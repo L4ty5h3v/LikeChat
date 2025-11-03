@@ -29,9 +29,10 @@ export async function getLastTenLinks(): Promise<LinkSubmission[]> {
   if (!redis) return [];
   
   try {
-    const links = await redis.lrange<string>(KEYS.LINKS, 0, 9);
-    return links.map((linkStr: string) => {
-      const link = JSON.parse(linkStr) as LinkSubmission;
+    const links = await redis.lrange(KEYS.LINKS, 0, 9);
+    return links.map((linkStr: any) => {
+      // Try to parse as JSON, or use as-is if already parsed
+      const link = typeof linkStr === 'string' ? JSON.parse(linkStr) : linkStr;
       return {
         ...link,
         created_at: link.created_at || new Date().toISOString(),
@@ -47,9 +48,10 @@ export async function getAllLinks(): Promise<LinkSubmission[]> {
   if (!redis) return [];
   
   try {
-    const links = await redis.lrange<string>(KEYS.LINKS, 0, -1);
-    return links.map((linkStr: string) => {
-      const link = JSON.parse(linkStr) as LinkSubmission;
+    const links = await redis.lrange(KEYS.LINKS, 0, -1);
+    return links.map((linkStr: any) => {
+      // Try to parse as JSON, or use as-is if already parsed
+      const link = typeof linkStr === 'string' ? JSON.parse(linkStr) : linkStr;
       return {
         ...link,
         created_at: link.created_at || new Date().toISOString(),
