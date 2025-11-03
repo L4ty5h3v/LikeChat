@@ -213,6 +213,69 @@ export async function setUserActivity(userFid: number, activity: ActivityType): 
   }
 }
 
+// Функция для инициализации начальных ссылок
+export async function initializeLinks(): Promise<{ success: boolean; count: number; error?: string }> {
+  if (!redis) {
+    return { success: false, count: 0, error: 'Redis not available' };
+  }
+
+  try {
+    // Проверяем, не добавлены ли уже ссылки
+    const existingCount = await getTotalLinksCount();
+    if (existingCount > 0) {
+      return { 
+        success: false, 
+        count: existingCount, 
+        error: `Links already initialized (${existingCount} links exist)` 
+      };
+    }
+
+    // Список начальных ссылок
+    const initialLinks = [
+      'https://farcaster.xyz/svs-smm/0xf9660a16',
+      'https://farcaster.xyz/svs-smm/0xf17842cb',
+      'https://farcaster.xyz/svs-smm/0x4fce02cd',
+      'https://farcaster.xyz/svs-smm/0xd976e9a8',
+      'https://farcaster.xyz/svs-smm/0x4349a0e0',
+      'https://farcaster.xyz/svs-smm/0x3bfa3788',
+      'https://farcaster.xyz/svs-smm/0xef39e991',
+      'https://farcaster.xyz/svs-smm/0xea43ddbf',
+      'https://farcaster.xyz/svs-smm/0x31157f15',
+      'https://farcaster.xyz/svs-smm/0xd4a09fb3',
+    ];
+
+    // Создаем ссылки с фиктивными пользователями
+    const activityTypes: ActivityType[] = ['like', 'recast', 'comment'];
+    const linksToAdd: LinkSubmission[] = initialLinks.map((castUrl, index) => ({
+      id: `init_link_${index + 1}_${Date.now()}`,
+      user_fid: 1000 + index, // Фиктивные FID
+      username: `user${index + 1}`,
+      pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=init${index}`,
+      cast_url: castUrl,
+      activity_type: activityTypes[index % activityTypes.length],
+      completed_by: [],
+      created_at: new Date().toISOString(),
+    }));
+
+    // Добавляем ссылки в Redis (в правильном порядке, первая - последняя)
+    for (const link of linksToAdd.reverse()) {
+      await redis.lpush(KEYS.LINKS, JSON.stringify(link));
+    }
+
+    // Устанавливаем счетчик
+    await redis.set(KEYS.TOTAL_LINKS_COUNT, initialLinks.length);
+
+    return { success: true, count: initialLinks.length };
+  } catch (error: any) {
+    console.error('Error initializing links:', error);
+    return { 
+      success: false, 
+      count: 0, 
+      error: error.message || 'Failed to initialize links' 
+    };
+  }
+}
+
 // Функция для подписки на обновления (заглушка для совместимости)
 export function subscribeToLinks(callback: (payload: unknown) => void): { unsubscribe: () => void } {
   // В Upstash Redis нет встроенной подписки на изменения
