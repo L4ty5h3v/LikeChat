@@ -59,62 +59,62 @@ export async function getUserProgress(userFid: number): Promise<UserProgress | n
 }
 
 // Создать или обновить прогресс пользователя
-export async function upsertUserProgress(progress: Partial<UserProgress>): Promise<boolean> {
-  if (!progress.user_fid) return false;
+export async function upsertUserProgress(
+  userFid: number,
+  updates: Partial<UserProgress>
+): Promise<UserProgress> {
+  const existing = await getUserProgress(userFid);
   
-  const existing = await getUserProgress(progress.user_fid);
   if (existing) {
-    Object.assign(existing, progress, { updated_at: new Date().toISOString() });
-    userProgress.set(progress.user_fid, existing);
+    const updated = {
+      ...existing,
+      ...updates,
+      updated_at: new Date().toISOString(),
+    };
+    userProgress.set(userFid, updated);
+    return updated;
   } else {
     const newProgress: UserProgress = {
-      id: `progress-${progress.user_fid}`,
-      user_fid: progress.user_fid,
-      completed_links: [],
-      token_purchased: false,
-      selected_activity: undefined,
-      current_link_id: undefined,
+      id: `progress_${userFid}_${Date.now()}`,
+      user_fid: userFid,
+      completed_links: updates.completed_links || [],
+      token_purchased: updates.token_purchased ?? false,
+      selected_activity: updates.selected_activity,
+      current_link_id: updates.current_link_id,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      ...progress
     };
-    userProgress.set(progress.user_fid, newProgress);
+    userProgress.set(userFid, newProgress);
+    return newProgress;
   }
-  
-  return true;
 }
 
 // Добавить завершенную ссылку
-export async function markLinkCompleted(userFid: number, linkId: string): Promise<boolean> {
+export async function markLinkCompleted(userFid: number, linkId: string): Promise<void> {
   const progress = await getUserProgress(userFid);
-  if (!progress) return false;
+  if (!progress) return;
   
   if (!progress.completed_links.includes(linkId)) {
-    progress.completed_links.push(linkId);
-    progress.updated_at = new Date().toISOString();
-    userProgress.set(userFid, progress);
+    await upsertUserProgress(userFid, {
+      completed_links: [...progress.completed_links, linkId],
+    });
   }
-  
-  return true;
 }
 
 // Установить флаг покупки токена
-export async function markTokenPurchased(userFid: number, txHash: string): Promise<boolean> {
+export async function markTokenPurchased(userFid: number): Promise<void> {
   const progress = await getUserProgress(userFid);
-  if (!progress) return false;
+  if (!progress) return;
   
   progress.token_purchased = true;
   progress.updated_at = new Date().toISOString();
   userProgress.set(userFid, progress);
-  
-  return true;
 }
 
 // Установить выбранную активность
-export async function setUserActivity(userFid: number, activityType: ActivityType): Promise<boolean> {
-  return await upsertUserProgress({
-    user_fid: userFid,
-    selected_activity: activityType
+export async function setUserActivity(userFid: number, activity: ActivityType): Promise<void> {
+  await upsertUserProgress(userFid, {
+    selected_activity: activity,
   });
 }
 
@@ -153,9 +153,8 @@ export async function submitLink(
   linkSubmissions.push(newLink);
   
   // Сохранить ID в прогресс пользователя
-  await upsertUserProgress({
-    user_fid: userFid,
-    current_link_id: newLink.id
+  await upsertUserProgress(userFid, {
+    current_link_id: newLink.id,
   });
   
   return newLink;
