@@ -6,7 +6,7 @@ import Layout from '@/components/Layout';
 import TaskCard from '@/components/TaskCard';
 import ProgressBar from '@/components/ProgressBar';
 import Button from '@/components/Button';
-import { getLastTenLinks, getUserProgress, markLinkCompleted } from '@/lib/db-config';
+import { getUserProgress, markLinkCompleted } from '@/lib/db-config';
 import { checkUserActivity } from '@/lib/neynar';
 import type { LinkSubmission, FarcasterUser, ActivityType, TaskProgress } from '@/types';
 
@@ -42,7 +42,11 @@ export default function Tasks() {
   const loadTasks = async (userFid: number) => {
     setLoading(true);
     try {
-      const links = await getLastTenLinks();
+      // Fetch links from API endpoint (server-side)
+      const linksResponse = await fetch('/api/tasks');
+      const linksData = await linksResponse.json();
+      const links = linksData.links || [];
+      
       const progress = await getUserProgress(userFid);
       const completedLinks = progress?.completed_links || [];
 
