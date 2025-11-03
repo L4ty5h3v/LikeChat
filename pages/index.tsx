@@ -379,7 +379,7 @@ export default function Home() {
                   <span className="text-3xl font-black text-accent">04</span>
                   <span className="font-bold text-xl">Add link to a cast you want to promote</span>
                 </div>
-                <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-accent to-secondary rounded-xl">
+                <div className="flex items-center justify-center gap-3 p-3 bg-gradient-to-r from-accent to-secondary rounded-xl md:col-span-2 text-center">
                   <span className="text-3xl">💎</span>
                   <span className="font-bold text-xl">Get mutual support!</span>
                 </div>
