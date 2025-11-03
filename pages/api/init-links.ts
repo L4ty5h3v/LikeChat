@@ -1,6 +1,6 @@
 // API endpoint для начальной загрузки ссылок
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { initializeLinks } from '@/lib/upstash-db';
+import { initializeLinks } from '@/lib/db-config';
 
 export default async function handler(
   req: NextApiRequest,
@@ -17,6 +17,13 @@ export default async function handler(
   }
 
   try {
+    if (!initializeLinks) {
+      return res.status(500).json({ 
+        error: 'Failed to initialize links',
+        message: 'Upstash Redis not configured'
+      });
+    }
+    
     const result = await initializeLinks();
 
     if (!result) {
