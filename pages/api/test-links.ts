@@ -18,7 +18,7 @@ export default async function handler(
       success: true,
       count,
       linksCount: links.length,
-      links: links.map(link => ({
+      links: links.map((link: any) => ({
         id: link.id,
         cast_url: link.cast_url,
         username: link.username,
