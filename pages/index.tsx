@@ -133,7 +133,7 @@ export default function Home() {
           <div className="text-center mb-16">
 
 
-            <div className="relative mt-16 sm:mt-32">
+            <div className="relative mt-4 sm:mt-8">
               <h1 className="text-white mb-12 sm:mb-24 leading-none flex items-center justify-center gap-4 sm:gap-8 px-4 sm:px-16">
                 <span className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-white">
                   MULTI
