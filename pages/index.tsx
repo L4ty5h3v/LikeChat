@@ -128,12 +128,12 @@ export default function Home() {
         <div className="absolute bottom-32 left-20 w-24 h-24 bg-white bg-opacity-15 rounded-full animate-float" style={{animationDelay: '2s'}}></div>
         
         
-        <div className="relative z-10 max-w-7xl mx-auto px-6 py-20">
+        <div className="relative z-10 max-w-7xl mx-auto px-6 py-8">
           {/* Заголовок в стиле модного сайта */}
           <div className="text-center mb-16">
 
 
-            <div className="relative mt-4 sm:mt-8">
+            <div className="relative -mt-2 sm:mt-0">
               <h1 className="text-white mb-12 sm:mb-24 leading-none flex items-center justify-center gap-4 sm:gap-8 px-4 sm:px-16">
                 <span className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-white">
                   MULTI
