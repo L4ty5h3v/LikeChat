@@ -171,7 +171,7 @@ export default function Home() {
           </div>
 
           {/* Модная карточка авторизации */}
-          <div className="bg-white bg-opacity-95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 sm:p-12 mb-12 border border-white border-opacity-20 mt-16 sm:mt-32">
+          <div className="bg-white bg-opacity-95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 sm:p-12 mb-12 border border-white border-opacity-20 mt-6 sm:mt-12">
             {!mounted || !user ? (
               <div className="text-center">
                 <div className="mb-6 sm:mb-8">
