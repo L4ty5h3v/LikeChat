@@ -5,9 +5,12 @@ import type { LinkSubmission, UserProgress, ActivityType } from '@/types';
 let redis: Redis | null = null;
 
 if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+  // Убираем пробелы и переносы строк из URL и токена
+  const url = process.env.UPSTASH_REDIS_REST_URL.trim();
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN.trim();
   redis = new Redis({
-    url: process.env.UPSTASH_REDIS_REST_URL,
-    token: process.env.UPSTASH_REDIS_REST_TOKEN,
+    url,
+    token,
   });
 } else {
   console.warn('⚠️ Upstash Redis credentials not found. Using fallback mode.');
