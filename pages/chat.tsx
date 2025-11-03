@@ -4,7 +4,7 @@ import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import LinkCard from '@/components/LinkCard';
 import Button from '@/components/Button';
-import { getAllLinks, subscribeToLinks, getUserProgress } from '@/lib/db-config';
+import { getAllLinks, subscribeToLinks, getUserProgress, submitLink } from '@/lib/db-config';
 import type { LinkSubmission, FarcasterUser } from '@/types';
 
 export default function Chat() {
@@ -14,6 +14,9 @@ export default function Chat() {
   const [links, setLinks] = useState<LinkSubmission[]>([]);
   const [userLinkId, setUserLinkId] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'like' | 'recast' | 'comment'>('all');
+  const [castUrl, setCastUrl] = useState('');
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   useEffect(() => {
     // Проверяем, что код выполняется на клиенте
@@ -65,6 +68,48 @@ export default function Chat() {
   });
 
   const userLink = links.find((link) => link.id === userLinkId);
+
+  const validateUrl = (url: string): boolean => {
+    const urlPattern = /^https?:\/\/(warpcast\.com|farcaster\.xyz)\/.+/i;
+    return urlPattern.test(url);
+  };
+
+  const handleQuickSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    const savedActivity = typeof window !== 'undefined' ? localStorage.getItem('selected_activity') : null;
+    if (!savedActivity) {
+      router.push('/');
+      return;
+    }
+    if (!validateUrl(castUrl)) {
+      setSubmitError('Введите корректную ссылку на каст Farcaster/Warpcast');
+      return;
+    }
+    setSubmitError('');
+    setSubmitLoading(true);
+    try {
+      const res = await submitLink(
+        user.fid,
+        user.username,
+        user.pfp_url,
+        castUrl,
+        savedActivity as any
+      );
+      if (res) {
+        setCastUrl('');
+        await loadData(user.fid);
+        // Прокрутка к началу списка
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        setSubmitError('Не удалось опубликовать ссылку');
+      }
+    } catch (err: any) {
+      setSubmitError(err?.message || 'Ошибка при публикации');
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
 
   return (
     <Layout title="Multi Like - Feed">
@@ -120,6 +165,30 @@ export default function Chat() {
             <div className="border-4 border-primary border-opacity-30 rounded-2xl p-2">
               <LinkCard link={userLink} />
             </div>
+          </div>
+        )}
+
+        {/* Быстрая публикация ссылки */}
+        {user && !userLink && (
+          <div className="bg-white rounded-xl shadow-md p-4 mb-6">
+            <h3 className="text-lg font-bold text-gray-900 mb-3">Быстрая публикация ссылки</h3>
+            <form onSubmit={handleQuickSubmit} className="flex flex-col md:flex-row gap-3">
+              <input
+                type="url"
+                value={castUrl}
+                onChange={(e) => setCastUrl(e.target.value)}
+                placeholder="https://warpcast.com/username/0x123abc..."
+                className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-primary focus:outline-none"
+                required
+              />
+              <Button type="submit" loading={submitLoading} disabled={!castUrl}>
+                Submit
+              </Button>
+            </form>
+            {submitError && (
+              <p className="text-red-600 text-sm mt-2">{submitError}</p>
+            )}
+            <p className="text-xs text-gray-500 mt-2">Ссылка на ваш каст Farcaster/Warpcast</p>
           </div>
         )}
 
