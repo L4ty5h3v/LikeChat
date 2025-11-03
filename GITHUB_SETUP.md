@@ -152,3 +152,8 @@ git remote add origin https://github.com/YOUR_USERNAME/likechat-farcaster.git
 
 ### Большой размер репозитория
 **Решение**: Убедитесь, что .gitignore настроен правильно и исключает node_modules/
+
+
+
+
+

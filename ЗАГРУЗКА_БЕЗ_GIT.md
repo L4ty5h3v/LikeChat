@@ -156,3 +156,8 @@
 - `GITHUB_SETUP.md` - для Git
 - `VERCEL_DEPLOY.md` - для деплоя
 - `UPSTASH_SETUP.md` - для базы данных
+
+
+
+
+

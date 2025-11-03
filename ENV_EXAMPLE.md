@@ -30,3 +30,8 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 Добавьте эти переменные в настройках проекта Vercel:
 - Settings → Environment Variables
 - Добавьте все переменные для Production, Preview, Development
+
+
+
+
+
