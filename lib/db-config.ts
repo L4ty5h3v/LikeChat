@@ -1,5 +1,6 @@
 // Конфигурация базы данных - автоматический выбор между Upstash и Memory
 import * as memoryDb from './memory-db';
+import * as upstashDb from './upstash-db';
 
 // Проверяем наличие переменных окружения Upstash
 const USE_UPSTASH = !!(
@@ -7,19 +8,8 @@ const USE_UPSTASH = !!(
   process.env.UPSTASH_REDIS_REST_TOKEN
 );
 
-// Динамический импорт Upstash (только если доступен)
-let upstashDb: any = null;
-
-if (USE_UPSTASH) {
-  try {
-    upstashDb = require('./upstash-db');
-  } catch (error) {
-    console.warn('Failed to load Upstash Redis:', error);
-  }
-}
-
 // Выбираем базу данных
-const db = USE_UPSTASH && upstashDb ? upstashDb : memoryDb;
+const db = USE_UPSTASH ? upstashDb : memoryDb;
 
 // Экспортируем все функции
 export const getLastTenLinks = db.getLastTenLinks;
@@ -34,14 +24,12 @@ export const getTotalLinksCount = db.getTotalLinksCount;
 export const subscribeToLinks = db.subscribeToLinks;
 
 // Экспортируем initializeLinks только из upstash-db (если доступна)
-export const initializeLinks = (USE_UPSTASH && upstashDb?.initializeLinks) 
-  ? upstashDb.initializeLinks 
-  : undefined;
+export const initializeLinks = USE_UPSTASH ? (upstashDb as any).initializeLinks : undefined;
 
 // Информация о текущей базе данных
 export const DB_INFO = {
-  type: USE_UPSTASH && upstashDb ? 'upstash' : 'memory',
-  persistent: USE_UPSTASH && upstashDb,
+  type: USE_UPSTASH ? 'upstash' : 'memory',
+  persistent: USE_UPSTASH,
   realtime: false,
 };
 
