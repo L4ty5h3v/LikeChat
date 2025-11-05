@@ -65,8 +65,15 @@ export default function Home() {
       );
       
       if (fidInput && !isNaN(Number(fidInput))) {
-        const fid = Number(fidInput);
-        console.log(`🔍 Fetching Farcaster user data for FID: ${fid}`);
+        const inputFid = Number(fidInput);
+        console.log(`🔍 Fetching Farcaster user data for FID: ${inputFid}`);
+        
+        // Валидация FID
+        if (inputFid <= 0 || !Number.isInteger(inputFid)) {
+          alert('FID должен быть положительным целым числом. Пожалуйста, введите корректный FID.');
+          setLoading(false);
+          return;
+        }
         
         try {
           // Используем серверный API для получения данных пользователя
@@ -75,18 +82,31 @@ export default function Home() {
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ fid }),
+            body: JSON.stringify({ fid: inputFid }),
           });
 
           const data = await response.json();
           console.log('📊 API response:', data);
           
           if (data.user && data.user.fid) {
-            farcasterUser = data.user;
+            // Используем FID из ответа API (он должен совпадать с введенным)
+            const apiFid = Number(data.user.fid);
+            if (apiFid !== inputFid) {
+              console.warn(`⚠️ FID mismatch: input=${inputFid}, API returned=${apiFid}. Using API FID.`);
+            }
+            
+            farcasterUser = {
+              fid: apiFid, // Используем FID из API ответа
+              username: data.user.username || `user${apiFid}`,
+              pfp_url: data.user.pfp_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${apiFid}`,
+              display_name: data.user.display_name || data.user.username || `User ${apiFid}`,
+            };
+            
             console.log('✅ Farcaster user data loaded:', farcasterUser);
+            console.log(`✅ FID verified: ${farcasterUser.fid} (input: ${inputFid})`);
           } else {
-            console.warn('⚠️ Farcaster user not found for FID:', fid);
-            alert(`Пользователь с FID ${fid} не найден в Farcaster.\n\nПроверьте правильность FID и попробуйте снова.`);
+            console.warn('⚠️ Farcaster user not found for FID:', inputFid);
+            alert(`Пользователь с FID ${inputFid} не найден в Farcaster.\n\nПроверьте правильность FID и попробуйте снова.`);
           }
         } catch (error: any) {
           console.error('❌ Failed to fetch Farcaster user data:', error);
@@ -123,6 +143,19 @@ export default function Home() {
         setUser(farcasterUser);
         if (typeof window !== 'undefined') {
           localStorage.setItem('farcaster_user', JSON.stringify(farcasterUser));
+          
+          // Проверяем, есть ли уже выбранная активность
+          const savedActivity = localStorage.getItem('selected_activity');
+          if (savedActivity) {
+            // Если активность уже выбрана, переходим на страницу задач
+            console.log('✅ Activity already selected, redirecting to /tasks');
+            setTimeout(() => {
+              router.push('/tasks');
+            }, 500); // Небольшая задержка для плавного перехода
+          } else {
+            // Если активности нет, остаемся на странице для выбора
+            console.log('✅ User authorized, waiting for activity selection');
+          }
         }
         console.log('✅ Farcaster user authorized:', farcasterUser);
       }
@@ -139,6 +172,17 @@ export default function Home() {
   const handleActivitySelect = (activity: ActivityType) => {
     setSelectedActivity(activity);
     localStorage.setItem('selected_activity', activity);
+    
+    // Сохраняем активность в БД
+    if (user) {
+      setUserActivity(user.fid, activity);
+    }
+    
+    // Автоматически переходим на страницу задач после выбора активности
+    console.log('✅ Activity selected, redirecting to /tasks');
+    setTimeout(() => {
+      router.push('/tasks');
+    }, 500); // Небольшая задержка для плавного перехода
   };
 
   // Переход к заданиям
