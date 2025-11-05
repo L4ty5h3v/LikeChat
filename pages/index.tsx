@@ -18,17 +18,25 @@ export default function Home() {
 
   // Проверка сохраненной сессии
   useEffect(() => {
+    // Устанавливаем mounted сразу, чтобы кнопка была видна
     setMounted(true);
     
-    const savedUser = localStorage.getItem('farcaster_user');
-    const savedActivity = localStorage.getItem('selected_activity');
-    
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-    
-    if (savedActivity) {
-      setSelectedActivity(savedActivity as ActivityType);
+    // Проверяем localStorage только на клиенте
+    if (typeof window !== 'undefined') {
+      const savedUser = localStorage.getItem('farcaster_user');
+      const savedActivity = localStorage.getItem('selected_activity');
+      
+      if (savedUser) {
+        try {
+          setUser(JSON.parse(savedUser));
+        } catch (error) {
+          console.error('Error parsing saved user:', error);
+        }
+      }
+      
+      if (savedActivity) {
+        setSelectedActivity(savedActivity as ActivityType);
+      }
     }
   }, []);
 
@@ -234,10 +242,12 @@ export default function Home() {
                     transform transition-all duration-300
                     bg-gradient-to-r from-primary via-red-600 to-accent text-white
                     hover:from-red-500 hover:via-purple-500 hover:to-accent
+                    ${loading 
+                      ? 'opacity-50 cursor-wait' 
+                      : 'opacity-100 cursor-pointer hover:scale-105 active:scale-95'
+                    }
                     disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:transform-none
-                    ${loading ? 'cursor-wait' : 'cursor-pointer hover:scale-105'}
                   `}
-                  style={{ pointerEvents: loading ? 'none' : 'auto' }}
                 >
                   {loading ? (
                     <div className="flex items-center justify-center gap-2">
