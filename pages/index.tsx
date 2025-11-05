@@ -7,7 +7,6 @@ import ActivityButton from '@/components/ActivityButton';
 import Button from '@/components/Button';
 import { setUserActivity } from '@/lib/db-config';
 import { getUserByFid } from '@/lib/neynar';
-import { connectWallet } from '@/lib/web3';
 import type { ActivityType, FarcasterUser } from '@/types';
 
 export default function Home() {
@@ -41,7 +40,7 @@ export default function Home() {
     }
   }, []);
 
-  // Авторизация через Farcaster с подключением кошелька
+  // Авторизация через Farcaster кошелек
   const handleConnect = async () => {
     console.log('🔗 Farcaster authorization called');
     console.log('🔍 Current state:', { loading, user, mounted });
@@ -58,26 +57,50 @@ export default function Home() {
       let farcasterUser: FarcasterUser | null = null;
       let walletAddress: string | null = null;
       
-      // Подключаем кошелек для получения адреса
+      // Пытаемся получить адрес кошелька Farcaster через Warpcast или другие Farcaster провайдеры
       try {
-        const ethereum = typeof window !== 'undefined' ? (window as any).ethereum : null;
-        if (!ethereum) {
-          alert('MetaMask не установлен. Пожалуйста, установите MetaMask для подключения кошелька.');
-          setLoading(false);
-          return;
+        // Проверяем наличие Farcaster провайдера
+        const farcasterProvider = typeof window !== 'undefined' 
+          ? (window as any).farcaster 
+          : null;
+        
+        // Проверяем наличие Ethereum провайдера (может быть Farcaster кошелек)
+        const ethereum = typeof window !== 'undefined' 
+          ? (window as any).ethereum 
+          : null;
+        
+        if (ethereum) {
+          // Пытаемся подключить кошелек (может быть Farcaster кошелек)
+          console.log('🔄 Connecting Farcaster wallet...');
+          
+          try {
+            const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
+            if (accounts && accounts.length > 0) {
+              walletAddress = accounts[0];
+              console.log('📍 Farcaster wallet address:', walletAddress);
+            }
+          } catch (error: any) {
+            console.warn('⚠️ Direct wallet connection failed, trying alternative:', error.message);
+          }
         }
         
-        console.log('🔄 Connecting wallet...');
-        walletAddress = await connectWallet();
-        console.log('📍 Wallet address:', walletAddress);
+        // Если не получили адрес напрямую, пробуем через Farcaster Connect
+        if (!walletAddress && farcasterProvider) {
+          console.log('🔄 Using Farcaster provider...');
+          // Здесь можно добавить логику для Farcaster Connect SDK
+        }
+        
+        if (!walletAddress) {
+          // Если кошелек не найден, используем альтернативный способ
+          console.log('⚠️ Farcaster wallet not detected, trying alternative method');
+          // Можно предложить пользователю ввести адрес вручную или использовать другой способ
+        }
       } catch (walletError: any) {
-        console.error('❌ Wallet connection failed:', walletError);
-        alert(`Ошибка подключения кошелька: ${walletError.message || 'Неизвестная ошибка'}`);
-        setLoading(false);
-        return;
+        console.warn('⚠️ Wallet connection issue:', walletError.message);
+        // Продолжаем без кошелька, попробуем найти пользователя другим способом
       }
       
-      // Ищем пользователя Farcaster по адресу кошелька
+      // Ищем пользователя Farcaster по адресу кошелька (если есть)
       if (walletAddress) {
         console.log('🔍 Looking for Farcaster user by wallet address:', walletAddress);
         try {
@@ -97,24 +120,23 @@ export default function Home() {
             console.log('✅ Farcaster user found by wallet address:', farcasterUser);
           } else {
             console.warn('⚠️ Farcaster user not found for wallet address:', walletAddress);
-            alert(`Пользователь Farcaster не найден для адреса ${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}.\n\nУбедитесь, что ваш кошелек связан с Farcaster аккаунтом.`);
-            setLoading(false);
-            return;
           }
         } catch (error: any) {
-          console.error('❌ Failed to fetch Farcaster user by address:', error);
-          alert(`Ошибка при получении данных пользователя Farcaster: ${error.message || 'Неизвестная ошибка'}`);
-          setLoading(false);
-          return;
+          console.warn('⚠️ Failed to fetch Farcaster user by address:', error.message);
         }
       }
       
-      // Если не нашли пользователя, прерываем авторизацию
-      if (!farcasterUser || !farcasterUser.fid) {
-        console.error('❌ Farcaster user not found');
-        alert('Не удалось получить данные пользователя Farcaster. Убедитесь, что ваш кошелек связан с Farcaster аккаунтом.');
-        setLoading(false);
-        return;
+      // Если не нашли по адресу, пробуем другие способы или создаем демо пользователя
+      if (!farcasterUser) {
+        if (walletAddress) {
+          alert(`Пользователь Farcaster не найден для адреса ${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}.\n\nУбедитесь, что ваш Farcaster кошелек связан с Farcaster аккаунтом.`);
+          setLoading(false);
+          return;
+        } else {
+          alert('Farcaster кошелек не обнаружен. Пожалуйста, используйте кошелек Farcaster (например, через Warpcast) для авторизации.');
+          setLoading(false);
+          return;
+        }
       }
       
       console.log('✅ Setting Farcaster user:', farcasterUser);
@@ -304,7 +326,7 @@ export default function Home() {
 
                 <div className="mt-6 p-3 sm:p-4 bg-gradient-to-r from-accent to-secondary rounded-xl">
                   <p className="text-base sm:text-xl text-white font-bold">
-                    Connect wallet to authorize with Farcaster
+                    Connect Farcaster wallet to authorize
                   </p>
                   <p className="text-sm text-white text-opacity-90 mt-2">
                     We'll find your Farcaster account by wallet address and load your real FID, username and avatar
