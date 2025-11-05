@@ -97,21 +97,32 @@ export default function Tasks() {
 
     setVerifying(true);
     const incomplete: string[] = [];
+    let verificationErrors: string[] = [];
 
     try {
       for (const task of tasks) {
         if (!task.completed) {
-          const isCompleted = await checkUserActivity(
-            task.cast_url,
-            user.fid,
-            activity
-          );
+          console.log(`🔍 Verifying task: ${task.cast_url} for user ${user.fid}`);
+          
+          try {
+            const isCompleted = await checkUserActivity(
+              task.cast_url,
+              user.fid,
+              activity
+            );
 
-          if (isCompleted) {
-            await markLinkCompleted(user.fid, task.link_id);
-            task.completed = true;
-            task.verified = true;
-          } else {
+            console.log(`✅ Verification result for ${task.cast_url}: ${isCompleted ? 'COMPLETED' : 'NOT COMPLETED'}`);
+
+            if (isCompleted) {
+              await markLinkCompleted(user.fid, task.link_id);
+              task.completed = true;
+              task.verified = true;
+            } else {
+              incomplete.push(task.cast_url);
+            }
+          } catch (error: any) {
+            console.error(`❌ Error verifying ${task.cast_url}:`, error);
+            verificationErrors.push(`${task.cast_url}: ${error.message || 'Unknown error'}`);
             incomplete.push(task.cast_url);
           }
         }
@@ -121,15 +132,20 @@ export default function Tasks() {
       setCompletedCount(newCompletedCount);
       setIncompleteLinks(incomplete);
 
-      if (incomplete.length === 0) {
+      if (verificationErrors.length > 0) {
+        console.warn('⚠️ Verification errors:', verificationErrors);
+        alert(`Ошибки при проверке:\n${verificationErrors.join('\n')}\n\nВозможно, API ключ Neynar не настроен. Проверьте консоль браузера для деталей.`);
+      }
+
+      if (incomplete.length === 0 && newCompletedCount === tasks.length) {
         // Все задания выполнены, переходим к покупке токена
         setTimeout(() => {
           router.push('/buyToken');
         }, 1500);
       }
-    } catch (error) {
-      console.error('Error verifying tasks:', error);
-      alert('Error verifying tasks');
+    } catch (error: any) {
+      console.error('❌ Error verifying tasks:', error);
+      alert(`Ошибка при проверке заданий: ${error.message || 'Unknown error'}\n\nПроверьте консоль браузера для деталей.`);
     } finally {
       setVerifying(false);
     }

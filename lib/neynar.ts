@@ -32,6 +32,11 @@ export async function checkUserLiked(
   castHash: string,
   userFid: number
 ): Promise<boolean> {
+  if (!NEYNAR_API_KEY) {
+    console.warn('⚠️ NEXT_PUBLIC_NEYNAR_API_KEY not configured');
+    return false;
+  }
+
   try {
     const response = await neynarClient.get('/farcaster/reactions', {
       params: {
@@ -42,12 +47,15 @@ export async function checkUserLiked(
     });
 
     const reactions = response.data.reactions || [];
-    return reactions.some(
+    const found = reactions.some(
       (r: NeynarReaction) => 
         r.reactor_fid === userFid && r.reaction_type === 'like'
     );
-  } catch (error) {
-    console.error('Error checking like:', error);
+    
+    console.log(`🔍 Checked like for cast ${castHash}, user ${userFid}: ${found ? '✅ FOUND' : '❌ NOT FOUND'}`);
+    return found;
+  } catch (error: any) {
+    console.error('❌ Error checking like:', error?.response?.data || error?.message || error);
     return false;
   }
 }
@@ -57,6 +65,11 @@ export async function checkUserRecasted(
   castHash: string,
   userFid: number
 ): Promise<boolean> {
+  if (!NEYNAR_API_KEY) {
+    console.warn('⚠️ NEXT_PUBLIC_NEYNAR_API_KEY not configured');
+    return false;
+  }
+
   try {
     const response = await neynarClient.get('/farcaster/reactions', {
       params: {
@@ -67,12 +80,15 @@ export async function checkUserRecasted(
     });
 
     const reactions = response.data.reactions || [];
-    return reactions.some(
+    const found = reactions.some(
       (r: NeynarReaction) => 
         r.reactor_fid === userFid && r.reaction_type === 'recast'
     );
-  } catch (error) {
-    console.error('Error checking recast:', error);
+    
+    console.log(`🔍 Checked recast for cast ${castHash}, user ${userFid}: ${found ? '✅ FOUND' : '❌ NOT FOUND'}`);
+    return found;
+  } catch (error: any) {
+    console.error('❌ Error checking recast:', error?.response?.data || error?.message || error);
     return false;
   }
 }
@@ -82,6 +98,11 @@ export async function checkUserCommented(
   castHash: string,
   userFid: number
 ): Promise<boolean> {
+  if (!NEYNAR_API_KEY) {
+    console.warn('⚠️ NEXT_PUBLIC_NEYNAR_API_KEY not configured');
+    return false;
+  }
+
   try {
     const response = await neynarClient.get('/farcaster/casts', {
       params: {
@@ -90,11 +111,14 @@ export async function checkUserCommented(
     });
 
     const casts = response.data.casts || [];
-    return casts.some(
+    const found = casts.some(
       (cast: NeynarComment) => cast.author_fid === userFid
     );
-  } catch (error) {
-    console.error('Error checking comment:', error);
+    
+    console.log(`🔍 Checked comment for cast ${castHash}, user ${userFid}: ${found ? '✅ FOUND' : '❌ NOT FOUND'}`);
+    return found;
+  } catch (error: any) {
+    console.error('❌ Error checking comment:', error?.response?.data || error?.message || error);
     return false;
   }
 }
@@ -107,9 +131,11 @@ export async function checkUserActivity(
 ): Promise<boolean> {
   const castHash = extractCastHash(castUrl);
   if (!castHash) {
-    console.error('Invalid cast URL:', castUrl);
+    console.error('❌ Invalid cast URL - cannot extract hash:', castUrl);
     return false;
   }
+
+  console.log(`🔍 Checking ${activityType} for cast ${castHash} (${castUrl}), user ${userFid}`);
 
   switch (activityType) {
     case 'like':
@@ -119,6 +145,7 @@ export async function checkUserActivity(
     case 'comment':
       return await checkUserCommented(castHash, userFid);
     default:
+      console.error('❌ Unknown activity type:', activityType);
       return false;
   }
 }
