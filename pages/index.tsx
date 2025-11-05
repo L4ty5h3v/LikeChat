@@ -87,6 +87,7 @@ export default function Home() {
 
           const data = await response.json();
           console.log('📊 API response:', data);
+          console.log('📊 API response data.user:', data.user);
           
           if (data.user && data.user.fid) {
             // Используем FID из ответа API (он должен совпадать с введенным)
@@ -105,8 +106,14 @@ export default function Home() {
             console.log('✅ Farcaster user data loaded:', farcasterUser);
             console.log(`✅ FID verified: ${farcasterUser.fid} (input: ${inputFid})`);
           } else {
-            console.warn('⚠️ Farcaster user not found for FID:', inputFid);
-            alert(`Пользователь с FID ${inputFid} не найден в Farcaster.\n\nПроверьте правильность FID и попробуйте снова.`);
+            console.error('❌ Farcaster user not found in API response:', {
+              hasUser: !!data.user,
+              userFid: data.user?.fid,
+              fullResponse: data
+            });
+            alert(`Пользователь с FID ${inputFid} не найден в Farcaster.\n\nПроверьте правильность FID и попробуйте снова.\n\nОтвет API: ${JSON.stringify(data)}`);
+            setLoading(false);
+            return;
           }
         } catch (error: any) {
           console.error('❌ Failed to fetch Farcaster user data:', error);
@@ -139,25 +146,47 @@ export default function Home() {
         return;
       }
       
-      if (farcasterUser) {
+      if (farcasterUser && farcasterUser.fid) {
+        console.log('✅ Setting user state:', farcasterUser);
         setUser(farcasterUser);
+        
         if (typeof window !== 'undefined') {
-          localStorage.setItem('farcaster_user', JSON.stringify(farcasterUser));
+          const userJson = JSON.stringify(farcasterUser);
+          console.log('💾 Saving user to localStorage:', userJson);
+          localStorage.setItem('farcaster_user', userJson);
+          
+          // Проверяем, что данные действительно сохранились
+          const savedUserCheck = localStorage.getItem('farcaster_user');
+          console.log('✅ Saved user check:', savedUserCheck);
+          
+          if (!savedUserCheck) {
+            console.error('❌ Failed to save user to localStorage');
+            alert('Ошибка при сохранении данных пользователя. Попробуйте снова.');
+            setLoading(false);
+            return;
+          }
           
           // Проверяем, есть ли уже выбранная активность
           const savedActivity = localStorage.getItem('selected_activity');
+          console.log('📋 Saved activity:', savedActivity);
+          
           if (savedActivity) {
             // Если активность уже выбрана, переходим на страницу задач
             console.log('✅ Activity already selected, redirecting to /tasks');
             setTimeout(() => {
+              console.log('🚀 Navigating to /tasks');
               router.push('/tasks');
             }, 500); // Небольшая задержка для плавного перехода
           } else {
             // Если активности нет, остаемся на странице для выбора
             console.log('✅ User authorized, waiting for activity selection');
+            console.log('👤 Current user state:', farcasterUser);
           }
         }
-        console.log('✅ Farcaster user authorized:', farcasterUser);
+        console.log('✅ Farcaster user authorized successfully:', farcasterUser);
+      } else {
+        console.error('❌ Invalid farcasterUser:', farcasterUser);
+        alert('Ошибка: данные пользователя не получены. Попробуйте снова.');
       }
     } catch (error: any) {
       console.error('❌ Error during Farcaster authorization:', error);
