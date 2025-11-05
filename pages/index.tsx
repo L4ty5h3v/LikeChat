@@ -38,12 +38,56 @@ export default function Home() {
   const handleConnect = async () => {
     console.log('🔗 handleConnect called');
     setLoading(true);
+    
+    // Проверяем наличие MetaMask перед попыткой подключения
+    const ethereum = typeof window !== 'undefined' ? (window as any).ethereum : null;
+    const hasMetaMask = !!ethereum;
+    
+    console.log('🔍 MetaMask check:', { hasMetaMask, ethereum: !!ethereum });
+    
     try {
-      // Попытка подключения к кошельку
-      console.log('🔄 Connecting wallet...');
-      const address = await connectWallet();
-      console.log('📍 Wallet address:', address);
+      let address: string | null = null;
       
+      // Попытка подключения к кошельку только если MetaMask доступен
+      if (hasMetaMask) {
+        console.log('🔄 Connecting wallet...');
+        try {
+          address = await connectWallet();
+          console.log('📍 Wallet address:', address);
+        } catch (walletError: any) {
+          console.error('❌ Wallet connection error:', walletError);
+          
+          // Если пользователь отменил, не показываем ошибку
+          if (walletError.message?.includes('отменил') || walletError.message?.includes('rejected')) {
+            setLoading(false);
+            return;
+          }
+          
+          // Для других ошибок пробрасываем дальше
+          throw walletError;
+        }
+      } else {
+        // Если MetaMask не установлен, сразу предлагаем демо-режим
+        console.log('⚠️ MetaMask not found, using demo mode');
+        const useDemo = confirm(
+          'MetaMask не установлен.\n\n' +
+          'Для тестирования можно использовать демо-режим.\n\n' +
+          'Нажмите "OK" для демо-режима или "Отмена" для установки MetaMask.'
+        );
+        
+        if (!useDemo) {
+          setLoading(false);
+          window.open('https://metamask.io/download/', '_blank');
+          return;
+        }
+      }
+      
+      if (!address && !hasMetaMask) {
+        // Используем демо-режим
+        address = '0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6'; // Демо адрес
+        console.log('📝 Using demo address:', address);
+      }
+
       if (!address) {
         throw new Error('Не удалось получить адрес кошелька');
       }
