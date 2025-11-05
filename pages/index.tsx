@@ -75,53 +75,49 @@ export default function Home() {
       console.log(`🔍 Fetching Farcaster user data for FID: ${inputFid}`);
       
       try {
-          // Используем серверный API для получения данных пользователя
-          const response = await fetch('/api/farcaster-user', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ fid: inputFid }),
-          });
+        // Используем серверный API для получения данных пользователя
+        const response = await fetch('/api/farcaster-user', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ fid: inputFid }),
+        });
 
-          const data = await response.json();
-          console.log('📊 API response:', data);
-          console.log('📊 API response data.user:', data.user);
-          
-          if (data.user && data.user.fid) {
-            // Используем FID из ответа API (он должен совпадать с введенным)
-            const apiFid = Number(data.user.fid);
-            if (apiFid !== inputFid) {
-              console.warn(`⚠️ FID mismatch: input=${inputFid}, API returned=${apiFid}. Using API FID.`);
-            }
-            
-            farcasterUser = {
-              fid: apiFid, // Используем FID из API ответа
-              username: data.user.username || `user${apiFid}`,
-              pfp_url: data.user.pfp_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${apiFid}`,
-              display_name: data.user.display_name || data.user.username || `User ${apiFid}`,
-            };
-            
-            console.log('✅ Farcaster user data loaded:', farcasterUser);
-            console.log(`✅ FID verified: ${farcasterUser.fid} (input: ${inputFid})`);
-          } else {
-            console.error('❌ Farcaster user not found in API response:', {
-              hasUser: !!data.user,
-              userFid: data.user?.fid,
-              fullResponse: data
-            });
-            alert(`Пользователь с FID ${inputFid} не найден в Farcaster.\n\nПроверьте правильность FID и попробуйте снова.\n\nОтвет API: ${JSON.stringify(data)}`);
-            setLoading(false);
-            return;
+        const data = await response.json();
+        console.log('📊 API response:', data);
+        console.log('📊 API response data.user:', data.user);
+        
+        if (data.user && data.user.fid) {
+          // Используем FID из ответа API (он должен совпадать с введенным)
+          const apiFid = Number(data.user.fid);
+          if (apiFid !== inputFid) {
+            console.warn(`⚠️ FID mismatch: input=${inputFid}, API returned=${apiFid}. Using API FID.`);
           }
-        } catch (error: any) {
-          console.error('❌ Failed to fetch Farcaster user data:', error);
-          alert(`Ошибка при получении данных пользователя Farcaster: ${error.message || 'Неизвестная ошибка'}`);
+          
+          farcasterUser = {
+            fid: apiFid, // Используем FID из API ответа
+            username: data.user.username || `user${apiFid}`,
+            pfp_url: data.user.pfp_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${apiFid}`,
+            display_name: data.user.display_name || data.user.username || `User ${apiFid}`,
+          };
+          
+          console.log('✅ Farcaster user data loaded:', farcasterUser);
+          console.log(`✅ FID verified: ${farcasterUser.fid} (input: ${inputFid})`);
+        } else {
+          console.error('❌ Farcaster user not found in API response:', {
+            hasUser: !!data.user,
+            userFid: data.user?.fid,
+            fullResponse: data
+          });
+          alert(`Пользователь с FID ${inputFid} не найден в Farcaster.\n\nПроверьте правильность FID и попробуйте снова.\n\nОтвет API: ${JSON.stringify(data)}`);
           setLoading(false);
           setFidInput('');
           return;
         }
-      } else {
+      } catch (error: any) {
+        console.error('❌ Failed to fetch Farcaster user data:', error);
+        alert(`Ошибка при получении данных пользователя Farcaster: ${error.message || 'Неизвестная ошибка'}`);
         setLoading(false);
         setFidInput('');
         return;
