@@ -213,7 +213,7 @@ export default function Home() {
 
           {/* Модная карточка авторизации */}
           <div className="bg-white bg-opacity-95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 sm:p-12 mb-12 border border-white border-opacity-20 mt-6 sm:mt-12">
-            {!mounted || !user ? (
+            {!user ? (
               <div className="text-center">
                 <div className="mb-6 sm:mb-8">
                   {/* Фото Миссис Крипто */}
@@ -237,9 +237,13 @@ export default function Home() {
                     }
                   }}
                   disabled={loading}
+                  style={{ 
+                    pointerEvents: loading ? 'none' : 'auto',
+                    cursor: loading ? 'wait' : 'pointer'
+                  }}
                   className={`
                     text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold rounded-2xl shadow-2xl 
-                    transform transition-all duration-300
+                    transform transition-all duration-300 relative z-10
                     bg-gradient-to-r from-primary via-red-600 to-accent text-white
                     hover:from-red-500 hover:via-purple-500 hover:to-accent
                     ${loading 
