@@ -5,8 +5,8 @@ import Image from 'next/image';
 import Layout from '@/components/Layout';
 import ActivityButton from '@/components/ActivityButton';
 import Button from '@/components/Button';
-import { connectWallet } from '@/lib/web3';
 import { setUserActivity } from '@/lib/db-config';
+import { getUserByFid } from '@/lib/neynar';
 import type { ActivityType, FarcasterUser } from '@/types';
 
 export default function Home() {
@@ -14,7 +14,6 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<FarcasterUser | null>(null);
   const [selectedActivity, setSelectedActivity] = useState<ActivityType | null>(null);
-  const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
 
   // Проверка сохраненной сессии
@@ -33,193 +32,89 @@ export default function Home() {
     }
   }, []);
 
-  // Подключение кошелька и получение данных Farcaster
+  // Авторизация через Farcaster (только FID)
   const handleConnect = async () => {
-    console.log('🔗 handleConnect called');
+    console.log('🔗 Farcaster authorization called');
     setLoading(true);
     
-    // Проверяем наличие MetaMask перед попыткой подключения
-    const ethereum = typeof window !== 'undefined' ? (window as any).ethereum : null;
-    const hasMetaMask = !!ethereum;
-    
-    console.log('🔍 MetaMask check:', { hasMetaMask, ethereum: !!ethereum });
-    
     try {
-      let address: string | null = null;
-      
-      // Попытка подключения к кошельку только если MetaMask доступен
-      if (hasMetaMask) {
-        console.log('🔄 Connecting wallet...');
-        try {
-          address = await connectWallet();
-          console.log('📍 Wallet address:', address);
-        } catch (walletError: any) {
-          console.error('❌ Wallet connection error:', walletError);
-          
-          // Если пользователь отменил, не показываем ошибку
-          if (walletError.message?.includes('отменил') || walletError.message?.includes('rejected')) {
-            setLoading(false);
-            return;
-          }
-          
-          // Для других ошибок пробрасываем дальше
-          throw walletError;
-        }
-      } else {
-        // Если MetaMask не установлен, сразу предлагаем демо-режим
-        console.log('⚠️ MetaMask not found, using demo mode');
-        const useDemo = confirm(
-          'MetaMask не установлен.\n\n' +
-          'Для тестирования можно использовать демо-режим.\n\n' +
-          'Нажмите "OK" для демо-режима или "Отмена" для установки MetaMask.'
-        );
-        
-        if (!useDemo) {
-          setLoading(false);
-          window.open('https://metamask.io/download/', '_blank');
-          return;
-        }
-      }
-      
-      if (!address && !hasMetaMask) {
-        // Используем демо-режим
-        address = '0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6'; // Демо адрес
-        console.log('📝 Using demo address:', address);
-      }
-
-      if (!address) {
-        throw new Error('Не удалось получить адрес кошелька');
-      }
-
-      setWalletAddress(address);
-      
-      // Пытаемся получить данные Farcaster через серверный API
       let farcasterUser: FarcasterUser | null = null;
       
-      // Сначала пытаемся найти пользователя Farcaster по адресу кошелька
-      console.log('🔍 Looking for Farcaster user by wallet address:', address);
-      try {
-        const response = await fetch('/api/farcaster-user', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ walletAddress: address }),
-        });
-
-        if (!response.ok) {
-          console.warn(`⚠️ API returned status ${response.status}`);
-        }
-
-        const data = await response.json();
-        console.log('📊 API response:', data);
-        
-        if (data.user && data.user.fid) {
-          farcasterUser = data.user;
-          console.log('✅ Farcaster user found by wallet address:', farcasterUser);
-        } else {
-          console.log('⚠️ Farcaster user not found by wallet address', data.warning || '');
-        }
-      } catch (error: any) {
-        console.error('❌ Failed to fetch Farcaster user by address:', error);
-        console.error('Error details:', {
-          message: error.message,
-          stack: error.stack,
-        });
-      }
-      
-      // Если не нашли по адресу, запрашиваем FID у пользователя
-      if (!farcasterUser) {
-        const fidInput = prompt(
-          'Ваш кошелек не связан с Farcaster.\n\n' +
-          'Введите ваш Farcaster FID (FID) для авторизации:\n\n' +
-          'Если у вас нет FID, нажмите "Отмена" для использования режима без Farcaster.'
-        );
-        
-        if (fidInput && !isNaN(Number(fidInput))) {
-          const fid = Number(fidInput);
-          console.log(`🔍 Fetching Farcaster user data for FID: ${fid}`);
-          
-          try {
-            const response = await fetch('/api/farcaster-user', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({ fid }),
-            });
-
-            const data = await response.json();
-            
-            if (data.user) {
-              farcasterUser = data.user;
-              console.log('✅ Farcaster user data loaded by FID:', farcasterUser);
-            }
-          } catch (error: any) {
-            console.warn('⚠️ Failed to fetch Farcaster user data:', error.message);
-          }
-        }
-      }
-      
-      // Если не удалось получить данные Farcaster, создаем пользователя на основе адреса
-      if (!farcasterUser) {
-        console.log('📝 Creating user from wallet address');
-        farcasterUser = {
-          fid: Math.floor(Math.random() * 1000000) + 100000, // Генерируем случайный FID
-          username: `user_${address.slice(2, 8)}`,
-          pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${address}`,
-          display_name: `User ${address.slice(0, 6)}...${address.slice(-4)}`,
-        };
-      }
-
-      setUser(farcasterUser);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('farcaster_user', JSON.stringify(farcasterUser));
-        localStorage.setItem('wallet_address', address);
-      }
-    } catch (error: any) {
-      console.error('❌ Error connecting wallet:', error);
-      
-      // Определяем тип ошибки
-      let errorMessage = error.message || 'Не удалось подключить кошелек';
-      let showDemoOption = false;
-      
-      if (errorMessage.includes('MetaMask не установлен') || errorMessage.includes('not available')) {
-        errorMessage = 'MetaMask не установлен или не найден';
-        showDemoOption = true;
-      } else if (errorMessage.includes('отменил') || errorMessage.includes('rejected')) {
-        errorMessage = 'Вы отменили подключение кошелька';
-      } else if (errorMessage.includes('User rejected')) {
-        errorMessage = 'Подключение было отклонено';
-      }
-      
-      // Показываем ошибку с опцией демо-режима
-      const useDemo = showDemoOption && confirm(
-        `Ошибка подключения: ${errorMessage}\n\n` +
-        `Для тестирования можно использовать демо-режим.\n\n` +
-        `Нажмите "OK" для демо-режима или "Отмена" чтобы попробовать снова.\n\n` +
-        `Для реального подключения:\n` +
-        `1. Установите MetaMask\n` +
-        `2. Разблокируйте кошелек\n` +
-        `3. Разрешите подключение к сайту`
+      // Запрашиваем FID у пользователя для авторизации через Farcaster
+      const fidInput = prompt(
+        'Введите ваш Farcaster FID (FID) для авторизации:\n\n' +
+        'FID - это ваш уникальный идентификатор в Farcaster.\n' +
+        'Вы можете найти его в профиле Warpcast или других Farcaster приложений.\n\n' +
+        'Если у вас нет FID, нажмите "Отмена" для использования демо-режима.'
       );
       
-      if (useDemo) {
-        // Создаем демо-пользователя для тестирования
-        const demoUser: FarcasterUser = {
-          fid: Math.floor(Math.random() * 1000000) + 100000,
-          username: 'demo_user',
-          pfp_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=demo',
-          display_name: 'Demo User',
-        };
+      if (fidInput && !isNaN(Number(fidInput))) {
+        const fid = Number(fidInput);
+        console.log(`🔍 Fetching Farcaster user data for FID: ${fid}`);
         
-        setUser(demoUser);
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('farcaster_user', JSON.stringify(demoUser));
+        try {
+          // Используем серверный API для получения данных пользователя
+          const response = await fetch('/api/farcaster-user', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ fid }),
+          });
+
+          const data = await response.json();
+          console.log('📊 API response:', data);
+          
+          if (data.user && data.user.fid) {
+            farcasterUser = data.user;
+            console.log('✅ Farcaster user data loaded:', farcasterUser);
+          } else {
+            console.warn('⚠️ Farcaster user not found for FID:', fid);
+            alert(`Пользователь с FID ${fid} не найден в Farcaster.\n\nПроверьте правильность FID и попробуйте снова.`);
+          }
+        } catch (error: any) {
+          console.error('❌ Failed to fetch Farcaster user data:', error);
+          alert(`Ошибка при получении данных пользователя Farcaster: ${error.message || 'Неизвестная ошибка'}`);
         }
+      } else if (fidInput === null) {
+        // Пользователь нажал "Отмена" - предлагаем демо-режим
+        const useDemo = confirm(
+          'Вы отменили ввод FID.\n\n' +
+          'Для тестирования можно использовать демо-режим.\n\n' +
+          'Нажмите "OK" для демо-режима или "Отмена" чтобы попробовать снова.'
+        );
+        
+        if (useDemo) {
+          farcasterUser = {
+            fid: Math.floor(Math.random() * 1000000) + 100000,
+            username: 'demo_user',
+            pfp_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=demo',
+            display_name: 'Demo User',
+          };
+          console.log('📝 Using demo user:', farcasterUser);
+        } else {
+          setLoading(false);
+          return;
+        }
+      } else {
+        // Пустой или неверный ввод
+        alert('Пожалуйста, введите корректный FID (число) или нажмите "Отмена" для демо-режима.');
+        setLoading(false);
+        return;
       }
+      
+      if (farcasterUser) {
+        setUser(farcasterUser);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('farcaster_user', JSON.stringify(farcasterUser));
+        }
+        console.log('✅ Farcaster user authorized:', farcasterUser);
+      }
+    } catch (error: any) {
+      console.error('❌ Error during Farcaster authorization:', error);
+      alert(`Ошибка при авторизации: ${error.message || 'Неизвестная ошибка'}`);
     } finally {
-      console.log('✅ handleConnect completed');
+      console.log('✅ Farcaster authorization completed');
       setLoading(false);
     }
   };
@@ -318,12 +213,15 @@ export default function Home() {
                   variant="primary"
                   className="text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold rounded-2xl shadow-2xl transform hover:scale-105 transition-all duration-300"
                 >
-                  CONNECT FARCASTER WALLET
+                  {loading ? 'AUTHORIZING...' : 'CONNECT FARCASTER'}
                 </Button>
 
                 <div className="mt-6 p-3 sm:p-4 bg-gradient-to-r from-accent to-secondary rounded-xl">
                   <p className="text-base sm:text-xl text-white font-bold">
-                    We'll save your FID, username and avatar
+                    Enter your Farcaster FID to authorize
+                  </p>
+                  <p className="text-sm text-white text-opacity-90 mt-2">
+                    We'll save your FID, username and avatar from Farcaster
                   </p>
                 </div>
               </div>
