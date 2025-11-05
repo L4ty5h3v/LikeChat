@@ -112,34 +112,70 @@ export default function Home() {
             body: JSON.stringify({ walletAddress }),
           });
 
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
           const data = await response.json();
           console.log('📊 API response for wallet:', data);
+          console.log('📊 API response data.user:', data.user);
           
           if (data.user && data.user.fid) {
-            farcasterUser = data.user;
+            farcasterUser = {
+              fid: Number(data.user.fid),
+              username: data.user.username || `user_${data.user.fid}`,
+              pfp_url: data.user.pfp_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.user.fid}`,
+              display_name: data.user.display_name || data.user.username || `User ${data.user.fid}`,
+            };
             console.log('✅ Farcaster user found by wallet address:', farcasterUser);
           } else {
             console.warn('⚠️ Farcaster user not found for wallet address:', walletAddress);
+            console.warn('⚠️ API response:', data);
+            
+            // Если API вернул предупреждение, выводим его
+            if (data.warning) {
+              console.warn('⚠️ API warning:', data.warning);
+            }
           }
         } catch (error: any) {
-          console.warn('⚠️ Failed to fetch Farcaster user by address:', error.message);
+          console.error('❌ Failed to fetch Farcaster user by address:', error);
+          console.error('❌ Error details:', {
+            message: error.message,
+            stack: error.stack,
+          });
         }
       }
       
-      // Если не нашли по адресу, пробуем другие способы или создаем демо пользователя
+      // Если не нашли по адресу, пробуем другие способы
       if (!farcasterUser) {
         if (walletAddress) {
-          alert(`Пользователь Farcaster не найден для адреса ${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}.\n\nУбедитесь, что ваш Farcaster кошелек связан с Farcaster аккаунтом.`);
+          console.error('❌ Farcaster user not found for wallet:', walletAddress);
+          alert(`Пользователь Farcaster не найден для адреса ${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}.\n\nВозможные причины:\n1. Кошелек не связан с Farcaster аккаунтом\n2. Neynar API ключ не настроен\n3. API не может найти пользователя по этому адресу\n\nПроверьте консоль браузера для деталей.`);
           setLoading(false);
           return;
         } else {
+          console.error('❌ Farcaster wallet not detected');
           alert('Farcaster кошелек не обнаружен. Пожалуйста, используйте кошелек Farcaster (например, через Warpcast) для авторизации.');
           setLoading(false);
           return;
         }
       }
       
+      // Проверяем, что данные пользователя валидны
+      if (!farcasterUser.fid || !farcasterUser.username) {
+        console.error('❌ Invalid Farcaster user data:', farcasterUser);
+        alert('Получены невалидные данные пользователя Farcaster. Попробуйте снова.');
+        setLoading(false);
+        return;
+      }
+      
       console.log('✅ Setting Farcaster user:', farcasterUser);
+      console.log('✅ User data validation:', {
+        fid: farcasterUser.fid,
+        username: farcasterUser.username,
+        pfp_url: farcasterUser.pfp_url,
+        display_name: farcasterUser.display_name,
+      });
       setUser(farcasterUser);
       
       if (typeof window !== 'undefined') {

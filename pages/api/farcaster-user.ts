@@ -28,58 +28,102 @@ export default async function handler(
       try {
         console.log(`🔍 Looking for Farcaster user by address: ${walletAddress}`);
         
+        // Нормализуем адрес (убираем префикс 0x если есть, делаем lowercase)
+        const normalizedAddress = walletAddress.toLowerCase().startsWith('0x') 
+          ? walletAddress.toLowerCase() 
+          : `0x${walletAddress.toLowerCase()}`;
+        
+        console.log(`📍 Normalized address: ${normalizedAddress}`);
+        
         // Пробуем разные варианты endpoint
         let user = null;
         
         // Вариант 1: /farcaster/user/by_verification
         try {
+          console.log('🔍 Trying by_verification endpoint...');
           const response1 = await axios.get(`${NEYNAR_BASE_URL}/farcaster/user/by_verification`, {
             params: {
-              address: walletAddress,
+              address: normalizedAddress,
             },
             headers: {
               'api_key': NEYNAR_API_KEY,
             },
           });
           
+          console.log('📊 by_verification response status:', response1.status);
+          console.log('📊 by_verification response data:', JSON.stringify(response1.data, null, 2));
+          
           user = response1.data.result?.user || response1.data.user || response1.data;
-          console.log('✅ Response from by_verification:', response1.data);
+          
+          if (user && user.fid) {
+            console.log('✅ User found via by_verification:', {
+              fid: user.fid,
+              username: user.username,
+              hasPfp: !!user.pfp,
+            });
+          }
         } catch (error1: any) {
-          console.log('⚠️ by_verification failed, trying alternative:', error1?.response?.data || error1?.message);
+          console.error('❌ by_verification failed:', {
+            status: error1?.response?.status,
+            statusText: error1?.response?.statusText,
+            data: error1?.response?.data,
+            message: error1?.message,
+          });
           
           // Вариант 2: /farcaster/user/search (если доступен)
           try {
+            console.log('🔍 Trying search endpoint...');
             const response2 = await axios.get(`${NEYNAR_BASE_URL}/farcaster/user/search`, {
               params: {
-                q: walletAddress,
+                q: normalizedAddress,
               },
               headers: {
                 'api_key': NEYNAR_API_KEY,
               },
             });
             
+            console.log('📊 search response data:', JSON.stringify(response2.data, null, 2));
+            
             user = response2.data.result?.users?.[0] || response2.data.users?.[0];
-            console.log('✅ Response from search:', response2.data);
+            
+            if (user && user.fid) {
+              console.log('✅ User found via search:', {
+                fid: user.fid,
+                username: user.username,
+              });
+            }
           } catch (error2: any) {
-            console.log('⚠️ search also failed:', error2?.response?.data || error2?.message);
+            console.error('❌ search also failed:', {
+              status: error2?.response?.status,
+              statusText: error2?.response?.statusText,
+              data: error2?.response?.data,
+              message: error2?.message,
+            });
           }
         }
         
         if (user && user.fid) {
+          const userData = {
+            fid: Number(user.fid),
+            username: user.username || `user_${user.fid}`,
+            pfp_url: user.pfp?.url || user.pfp_url || user.pfp || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.fid}`,
+            display_name: user.display_name || user.username || `User ${user.fid}`,
+          };
+          
+          console.log('✅ Returning user data:', userData);
           return res.status(200).json({
-            user: {
-              fid: user.fid,
-              username: user.username,
-              pfp_url: user.pfp?.url || user.pfp_url || user.pfp || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.fid}`,
-              display_name: user.display_name || user.username,
-            }
+            user: userData
           });
+        } else {
+          console.warn('⚠️ User not found or invalid response:', user);
         }
       } catch (error: any) {
         console.error('❌ Error fetching user by address:', {
           status: error?.response?.status,
+          statusText: error?.response?.statusText,
           data: error?.response?.data,
           message: error?.message,
+          stack: error?.stack,
         });
         // Продолжаем, если не нашли по адресу
       }
