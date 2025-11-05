@@ -107,16 +107,25 @@ export default function Home() {
           body: JSON.stringify({ walletAddress: address }),
         });
 
+        if (!response.ok) {
+          console.warn(`⚠️ API returned status ${response.status}`);
+        }
+
         const data = await response.json();
+        console.log('📊 API response:', data);
         
-        if (data.user) {
+        if (data.user && data.user.fid) {
           farcasterUser = data.user;
           console.log('✅ Farcaster user found by wallet address:', farcasterUser);
         } else {
-          console.log('⚠️ Farcaster user not found by wallet address');
+          console.log('⚠️ Farcaster user not found by wallet address', data.warning || '');
         }
       } catch (error: any) {
-        console.warn('⚠️ Failed to fetch Farcaster user by address:', error.message);
+        console.error('❌ Failed to fetch Farcaster user by address:', error);
+        console.error('Error details:', {
+          message: error.message,
+          stack: error.stack,
+        });
       }
       
       // Если не нашли по адресу, запрашиваем FID у пользователя
