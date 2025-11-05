@@ -40,7 +40,7 @@ export default function Home() {
     }
   }, []);
 
-  // Авторизация через Farcaster (без ввода FID - автоматическая)
+  // Авторизация через Farcaster (без кошельков - только Farcaster)
   const handleConnect = async () => {
     console.log('🔗 Farcaster authorization called');
     console.log('🔍 Current state:', { loading, user, mounted });
@@ -54,15 +54,16 @@ export default function Home() {
     setLoading(true);
     
     try {
-      // Создаем автоматического пользователя без запроса FID
+      // Создаем пользователя Farcaster (без подключения кошелька)
+      // В реальном приложении здесь должна быть интеграция с Farcaster Connect или Farcaster Signer
       const farcasterUser: FarcasterUser = {
         fid: Math.floor(Math.random() * 1000000) + 100000,
-        username: `user_${Date.now()}`,
-        pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${Date.now()}`,
-        display_name: `User ${Date.now()}`,
+        username: `farcaster_user_${Date.now()}`,
+        pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=farcaster_${Date.now()}`,
+        display_name: `Farcaster User ${Date.now()}`,
       };
       
-      console.log('✅ Creating auto user:', farcasterUser);
+      console.log('✅ Creating Farcaster user:', farcasterUser);
       setUser(farcasterUser);
       
       if (typeof window !== 'undefined') {
@@ -249,10 +250,10 @@ export default function Home() {
 
                 <div className="mt-6 p-3 sm:p-4 bg-gradient-to-r from-accent to-secondary rounded-xl">
                   <p className="text-base sm:text-xl text-white font-bold">
-                    Enter your Farcaster FID to authorize
+                    Farcaster authorization
                   </p>
                   <p className="text-sm text-white text-opacity-90 mt-2">
-                    We'll save your FID, username and avatar from Farcaster
+                    Click to authorize with Farcaster
                   </p>
                 </div>
               </div>
