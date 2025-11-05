@@ -28,9 +28,33 @@ export default function Home() {
       
       if (savedUser) {
         try {
-          setUser(JSON.parse(savedUser));
+          const parsedUser = JSON.parse(savedUser);
+          console.log('🔍 Loading saved user from localStorage:', parsedUser);
+          
+          // Проверяем валидность данных пользователя
+          // Если данные не валидны (например, случайный пользователь), очищаем их
+          if (parsedUser && parsedUser.fid && parsedUser.username) {
+            // Проверяем, что это не случайный пользователь (например, user_176369225243)
+            const isRandomUser = parsedUser.username.startsWith('user_') && 
+                                 parsedUser.username.match(/^user_\d+$/);
+            
+            if (isRandomUser) {
+              console.warn('⚠️ Random user detected in localStorage, clearing...');
+              localStorage.removeItem('farcaster_user');
+              setUser(null);
+            } else {
+              console.log('✅ Valid user data loaded from localStorage');
+              setUser(parsedUser);
+            }
+          } else {
+            console.warn('⚠️ Invalid user data in localStorage, clearing...');
+            localStorage.removeItem('farcaster_user');
+            setUser(null);
+          }
         } catch (error) {
-          console.error('Error parsing saved user:', error);
+          console.error('❌ Error parsing saved user:', error);
+          localStorage.removeItem('farcaster_user');
+          setUser(null);
         }
       }
       
@@ -49,6 +73,13 @@ export default function Home() {
     if (loading) {
       console.warn('⚠️ Already loading');
       return;
+    }
+    
+    // Очищаем старые данные перед подключением
+    if (typeof window !== 'undefined') {
+      console.log('🧹 Clearing old user data from localStorage');
+      localStorage.removeItem('farcaster_user');
+      setUser(null);
     }
     
     setLoading(true);
@@ -137,7 +168,14 @@ export default function Home() {
       // Ищем пользователя Farcaster по адресу кошелька (если есть)
       if (walletAddress) {
         console.log('🔍 Looking for Farcaster user by wallet address:', walletAddress);
+        console.log('🔍 Wallet address validation:', {
+          startsWith0x: walletAddress.startsWith('0x'),
+          length: walletAddress.length,
+          isValid: walletAddress.startsWith('0x') && walletAddress.length === 42,
+        });
+        
         try {
+          console.log('📡 Sending request to /api/farcaster-user...');
           const response = await fetch('/api/farcaster-user', {
             method: 'POST',
             headers: {
@@ -146,41 +184,65 @@ export default function Home() {
             body: JSON.stringify({ walletAddress }),
           });
 
+          console.log('📡 Response status:', response.status);
+          console.log('📡 Response ok:', response.ok);
+          
           if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            const errorText = await response.text();
+            console.error('❌ HTTP error response:', errorText);
+            throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
           }
 
           const data = await response.json();
-          console.log('📊 API response for wallet:', data);
+          console.log('📊 Full API response:', JSON.stringify(data, null, 2));
           console.log('📊 API response data.user:', data.user);
+          console.log('📊 API response data.user type:', typeof data.user);
+          console.log('📊 API response data.user value:', data.user);
           
           if (data.user && data.user.fid) {
             // Используем реальные данные из API
+            console.log('✅ Valid user data received from API:', {
+              fid: data.user.fid,
+              username: data.user.username,
+              pfp_url: data.user.pfp_url,
+              display_name: data.user.display_name,
+            });
+            
             farcasterUser = {
               fid: Number(data.user.fid),
               username: data.user.username || `user_${data.user.fid}`,
               pfp_url: data.user.pfp_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.user.fid}`,
               display_name: data.user.display_name || data.user.username || `User ${data.user.fid}`,
             };
-            console.log('✅ Farcaster user found by wallet address:', farcasterUser);
-            console.log('✅ Real user data:', {
-              fid: farcasterUser.fid,
-              username: farcasterUser.username,
-              pfp_url: farcasterUser.pfp_url,
-              display_name: farcasterUser.display_name,
+            
+            console.log('✅ Farcaster user object created:', farcasterUser);
+            console.log('✅ Real user data validation:', {
+              hasFid: !!farcasterUser.fid,
+              hasUsername: !!farcasterUser.username,
+              hasPfpUrl: !!farcasterUser.pfp_url,
+              hasDisplayName: !!farcasterUser.display_name,
             });
           } else {
             console.warn('⚠️ Farcaster user not found for wallet address:', walletAddress);
+            console.warn('⚠️ API response structure:', {
+              hasUser: !!data.user,
+              userValue: data.user,
+              userType: typeof data.user,
+              hasWarning: !!data.warning,
+              hasError: !!data.error,
+            });
             console.warn('⚠️ Full API response:', JSON.stringify(data, null, 2));
             
             // Если API вернул предупреждение, выводим его
             if (data.warning) {
               console.warn('⚠️ API warning:', data.warning);
+              alert(`⚠️ Предупреждение: ${data.warning}\n\nПроверьте, что Neynar API ключ настроен в переменных окружения.`);
             }
             
             // Если API вернул ошибку, выводим её
             if (data.error) {
               console.error('❌ API error:', data.error);
+              alert(`❌ Ошибка API: ${data.error}`);
             }
           }
         } catch (error: any) {
@@ -188,7 +250,11 @@ export default function Home() {
           console.error('❌ Error details:', {
             message: error.message,
             stack: error.stack,
+            name: error.name,
           });
+          
+          // Показываем пользователю детальную ошибку
+          alert(`❌ Ошибка при получении данных пользователя Farcaster:\n\n${error.message}\n\nПроверьте консоль браузера для деталей.`);
         }
       }
       
