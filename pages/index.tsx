@@ -72,15 +72,49 @@ export default function Home() {
         if (ethereum) {
           // Пытаемся подключить кошелек (может быть Farcaster кошелек)
           console.log('🔄 Connecting Farcaster wallet...');
+          console.log('🔍 Ethereum provider:', {
+            isMetaMask: ethereum.isMetaMask,
+            isCoinbaseWallet: ethereum.isCoinbaseWallet,
+            selectedAddress: ethereum.selectedAddress,
+            providers: ethereum.providers,
+          });
           
           try {
-            const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
-            if (accounts && accounts.length > 0) {
-              walletAddress = accounts[0];
-              console.log('📍 Farcaster wallet address:', walletAddress);
+            // Сначала проверяем, есть ли уже подключенные аккаунты
+            if (ethereum.selectedAddress) {
+              walletAddress = ethereum.selectedAddress;
+              console.log('📍 Using already selected address:', walletAddress);
+            } else {
+              // Запрашиваем подключение
+              const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
+              if (accounts && accounts.length > 0) {
+                walletAddress = accounts[0];
+                console.log('📍 Farcaster wallet address from request:', walletAddress);
+              }
+            }
+            
+            // Если получили адрес, проверяем его валидность
+            if (walletAddress) {
+              if (!walletAddress.startsWith('0x') || walletAddress.length !== 42) {
+                console.warn('⚠️ Invalid wallet address format:', walletAddress);
+                walletAddress = null;
+              } else {
+                console.log('✅ Valid wallet address:', walletAddress);
+              }
             }
           } catch (error: any) {
-            console.warn('⚠️ Direct wallet connection failed, trying alternative:', error.message);
+            console.error('❌ Wallet connection error:', {
+              code: error.code,
+              message: error.message,
+              data: error.data,
+            });
+            
+            // Если пользователь отклонил запрос, не показываем ошибку
+            if (error.code === 4001) {
+              console.log('ℹ️ User rejected wallet connection');
+              setLoading(false);
+              return;
+            }
           }
         }
         
@@ -121,6 +155,7 @@ export default function Home() {
           console.log('📊 API response data.user:', data.user);
           
           if (data.user && data.user.fid) {
+            // Используем реальные данные из API
             farcasterUser = {
               fid: Number(data.user.fid),
               username: data.user.username || `user_${data.user.fid}`,
@@ -128,13 +163,24 @@ export default function Home() {
               display_name: data.user.display_name || data.user.username || `User ${data.user.fid}`,
             };
             console.log('✅ Farcaster user found by wallet address:', farcasterUser);
+            console.log('✅ Real user data:', {
+              fid: farcasterUser.fid,
+              username: farcasterUser.username,
+              pfp_url: farcasterUser.pfp_url,
+              display_name: farcasterUser.display_name,
+            });
           } else {
             console.warn('⚠️ Farcaster user not found for wallet address:', walletAddress);
-            console.warn('⚠️ API response:', data);
+            console.warn('⚠️ Full API response:', JSON.stringify(data, null, 2));
             
             // Если API вернул предупреждение, выводим его
             if (data.warning) {
               console.warn('⚠️ API warning:', data.warning);
+            }
+            
+            // Если API вернул ошибку, выводим её
+            if (data.error) {
+              console.error('❌ API error:', data.error);
             }
           }
         } catch (error: any) {
