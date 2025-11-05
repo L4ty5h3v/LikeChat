@@ -7,6 +7,7 @@ import ActivityButton from '@/components/ActivityButton';
 import Button from '@/components/Button';
 import { setUserActivity } from '@/lib/db-config';
 import { getUserByFid } from '@/lib/neynar';
+import { connectWallet } from '@/lib/web3';
 import type { ActivityType, FarcasterUser } from '@/types';
 
 export default function Home() {
@@ -40,7 +41,7 @@ export default function Home() {
     }
   }, []);
 
-  // Авторизация через Farcaster (без кошельков - только Farcaster)
+  // Авторизация через Farcaster с подключением кошелька
   const handleConnect = async () => {
     console.log('🔗 Farcaster authorization called');
     console.log('🔍 Current state:', { loading, user, mounted });
@@ -54,16 +55,69 @@ export default function Home() {
     setLoading(true);
     
     try {
-      // Создаем пользователя Farcaster (без подключения кошелька)
-      // В реальном приложении здесь должна быть интеграция с Farcaster Connect или Farcaster Signer
-      const farcasterUser: FarcasterUser = {
-        fid: Math.floor(Math.random() * 1000000) + 100000,
-        username: `farcaster_user_${Date.now()}`,
-        pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=farcaster_${Date.now()}`,
-        display_name: `Farcaster User ${Date.now()}`,
-      };
+      let farcasterUser: FarcasterUser | null = null;
+      let walletAddress: string | null = null;
       
-      console.log('✅ Creating Farcaster user:', farcasterUser);
+      // Подключаем кошелек для получения адреса
+      try {
+        const ethereum = typeof window !== 'undefined' ? (window as any).ethereum : null;
+        if (!ethereum) {
+          alert('MetaMask не установлен. Пожалуйста, установите MetaMask для подключения кошелька.');
+          setLoading(false);
+          return;
+        }
+        
+        console.log('🔄 Connecting wallet...');
+        walletAddress = await connectWallet();
+        console.log('📍 Wallet address:', walletAddress);
+      } catch (walletError: any) {
+        console.error('❌ Wallet connection failed:', walletError);
+        alert(`Ошибка подключения кошелька: ${walletError.message || 'Неизвестная ошибка'}`);
+        setLoading(false);
+        return;
+      }
+      
+      // Ищем пользователя Farcaster по адресу кошелька
+      if (walletAddress) {
+        console.log('🔍 Looking for Farcaster user by wallet address:', walletAddress);
+        try {
+          const response = await fetch('/api/farcaster-user', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ walletAddress }),
+          });
+
+          const data = await response.json();
+          console.log('📊 API response for wallet:', data);
+          
+          if (data.user && data.user.fid) {
+            farcasterUser = data.user;
+            console.log('✅ Farcaster user found by wallet address:', farcasterUser);
+          } else {
+            console.warn('⚠️ Farcaster user not found for wallet address:', walletAddress);
+            alert(`Пользователь Farcaster не найден для адреса ${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}.\n\nУбедитесь, что ваш кошелек связан с Farcaster аккаунтом.`);
+            setLoading(false);
+            return;
+          }
+        } catch (error: any) {
+          console.error('❌ Failed to fetch Farcaster user by address:', error);
+          alert(`Ошибка при получении данных пользователя Farcaster: ${error.message || 'Неизвестная ошибка'}`);
+          setLoading(false);
+          return;
+        }
+      }
+      
+      // Если не нашли пользователя, прерываем авторизацию
+      if (!farcasterUser || !farcasterUser.fid) {
+        console.error('❌ Farcaster user not found');
+        alert('Не удалось получить данные пользователя Farcaster. Убедитесь, что ваш кошелек связан с Farcaster аккаунтом.');
+        setLoading(false);
+        return;
+      }
+      
+      console.log('✅ Setting Farcaster user:', farcasterUser);
       setUser(farcasterUser);
       
       if (typeof window !== 'undefined') {
@@ -250,10 +304,10 @@ export default function Home() {
 
                 <div className="mt-6 p-3 sm:p-4 bg-gradient-to-r from-accent to-secondary rounded-xl">
                   <p className="text-base sm:text-xl text-white font-bold">
-                    Farcaster authorization
+                    Connect wallet to authorize with Farcaster
                   </p>
                   <p className="text-sm text-white text-opacity-90 mt-2">
-                    Click to authorize with Farcaster
+                    We'll find your Farcaster account by wallet address and load your real FID, username and avatar
                   </p>
                 </div>
               </div>
