@@ -102,11 +102,44 @@ export default function Home() {
     } catch (error: any) {
       console.error('❌ Error connecting wallet:', error);
       
-      // Показываем ошибку пользователю
-      const errorMessage = error.message || 'Не удалось подключить кошелек';
-      alert(`Ошибка подключения: ${errorMessage}\n\nПопробуйте:\n1. Установить MetaMask\n2. Разблокировать кошелек\n3. Разрешить подключение к сайту`);
+      // Определяем тип ошибки
+      let errorMessage = error.message || 'Не удалось подключить кошелек';
+      let showDemoOption = false;
       
-      // Не создаем демо-пользователя автоматически, чтобы пользователь мог повторить попытку
+      if (errorMessage.includes('MetaMask не установлен') || errorMessage.includes('not available')) {
+        errorMessage = 'MetaMask не установлен или не найден';
+        showDemoOption = true;
+      } else if (errorMessage.includes('отменил') || errorMessage.includes('rejected')) {
+        errorMessage = 'Вы отменили подключение кошелька';
+      } else if (errorMessage.includes('User rejected')) {
+        errorMessage = 'Подключение было отклонено';
+      }
+      
+      // Показываем ошибку с опцией демо-режима
+      const useDemo = showDemoOption && confirm(
+        `Ошибка подключения: ${errorMessage}\n\n` +
+        `Для тестирования можно использовать демо-режим.\n\n` +
+        `Нажмите "OK" для демо-режима или "Отмена" чтобы попробовать снова.\n\n` +
+        `Для реального подключения:\n` +
+        `1. Установите MetaMask\n` +
+        `2. Разблокируйте кошелек\n` +
+        `3. Разрешите подключение к сайту`
+      );
+      
+      if (useDemo) {
+        // Создаем демо-пользователя для тестирования
+        const demoUser: FarcasterUser = {
+          fid: Math.floor(Math.random() * 1000000) + 100000,
+          username: 'demo_user',
+          pfp_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=demo',
+          display_name: 'Demo User',
+        };
+        
+        setUser(demoUser);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('farcaster_user', JSON.stringify(demoUser));
+        }
+      }
     } finally {
       console.log('✅ handleConnect completed');
       setLoading(false);

@@ -19,12 +19,72 @@ export function extractCastHash(castUrl: string): string | null {
     // Примеры форматов:
     // https://warpcast.com/username/0x123abc
     // https://warpcast.com/~/conversations/0x123abc
+    // https://farcaster.xyz/svs-smm/0x123abc
     const match = castUrl.match(/0x[a-fA-F0-9]+/);
     return match ? match[0] : null;
   } catch (error) {
     console.error('Error extracting cast hash:', error);
     return null;
   }
+}
+
+// Получить информацию о касте по хэшу
+export async function getCastByHash(castHash: string) {
+  if (!NEYNAR_API_KEY) {
+    console.warn('⚠️ NEXT_PUBLIC_NEYNAR_API_KEY not configured');
+    return null;
+  }
+
+  try {
+    console.log(`🔍 Fetching cast by hash: ${castHash}`);
+    const response = await neynarClient.get('/farcaster/cast', {
+      params: {
+        hash: castHash,
+      },
+    });
+
+    console.log(`✅ Cast data received:`, response.data);
+    return response.data.result?.cast || response.data.cast || response.data;
+  } catch (error: any) {
+    console.error('❌ Error fetching cast:', {
+      status: error?.response?.status,
+      data: error?.response?.data,
+      message: error?.message,
+    });
+    return null;
+  }
+}
+
+// Получить данные автора каста по URL
+export async function getCastAuthor(castUrl: string) {
+  const castHash = extractCastHash(castUrl);
+  if (!castHash) {
+    console.error('❌ Invalid cast URL - cannot extract hash:', castUrl);
+    return null;
+  }
+
+  console.log(`🔍 Getting author for cast: ${castUrl} (hash: ${castHash})`);
+  const cast = await getCastByHash(castHash);
+  
+  if (!cast) {
+    console.warn(`⚠️ Cast not found for hash: ${castHash}`);
+    return null;
+  }
+
+  if (!cast.author) {
+    console.warn(`⚠️ Cast author not found in response:`, cast);
+    return null;
+  }
+
+  const authorData = {
+    fid: cast.author.fid,
+    username: cast.author.username,
+    pfp_url: cast.author.pfp?.url || cast.author.pfp_url || cast.author.pfp || `https://api.dicebear.com/7.x/avataaars/svg?seed=${cast.author.fid}`,
+    display_name: cast.author.display_name || cast.author.username,
+  };
+
+  console.log(`✅ Author data extracted:`, authorData);
+  return authorData;
 }
 
 // Проверка лайка
@@ -152,14 +212,18 @@ export async function checkUserActivity(
 
 // Получить информацию о пользователе по FID
 export async function getUserByFid(fid: number) {
+  if (!NEYNAR_API_KEY) {
+    console.warn('⚠️ NEXT_PUBLIC_NEYNAR_API_KEY not configured');
+    return null;
+  }
+
   try {
     const response = await neynarClient.get('/farcaster/user/bulk', {
       params: { fids: fid },
     });
-    return response.data.users[0];
-  } catch (error) {
-    console.error('Error fetching user:', error);
+    return response.data.users?.[0] || null;
+  } catch (error: any) {
+    console.error('❌ Error fetching user:', error?.response?.data || error?.message || error);
     return null;
   }
 }
-

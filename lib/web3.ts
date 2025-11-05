@@ -118,8 +118,20 @@ export async function connectWallet(): Promise<string | null> {
       throw new Error('Window is not available');
     }
 
-    if (!(window as any).ethereum) {
+    // Проверяем наличие Ethereum провайдера
+    const ethereum = (window as any).ethereum;
+    
+    if (!ethereum) {
+      // Проверяем разные варианты провайдеров
+      if ((window as any).web3) {
+        throw new Error('Обнаружен старый Web3 провайдер. Пожалуйста, установите MetaMask или другой современный кошелек.');
+      }
       throw new Error('MetaMask не установлен. Пожалуйста, установите MetaMask или другой Ethereum кошелек.');
+    }
+
+    // Проверяем, что провайдер доступен
+    if (!ethereum.isMetaMask && !ethereum.isConnected) {
+      console.warn('⚠️ Ethereum provider found but may not be ready');
     }
 
     const provider = getProvider();
@@ -128,14 +140,26 @@ export async function connectWallet(): Promise<string | null> {
     }
 
     console.log('🔄 Requesting wallet connection...');
-    const accounts = await provider.send('eth_requestAccounts', []);
     
-    if (!accounts || accounts.length === 0) {
-      throw new Error('Пользователь отменил подключение кошелька');
-    }
+    try {
+      const accounts = await provider.send('eth_requestAccounts', []);
+      
+      if (!accounts || accounts.length === 0) {
+        throw new Error('Пользователь отменил подключение кошелька');
+      }
 
-    console.log('✅ Wallet connected:', accounts[0]);
-    return accounts[0];
+      console.log('✅ Wallet connected:', accounts[0]);
+      return accounts[0];
+    } catch (requestError: any) {
+      // Обрабатываем специфичные ошибки MetaMask
+      if (requestError.code === 4001) {
+        throw new Error('Пользователь отменил подключение кошелька');
+      } else if (requestError.code === -32002) {
+        throw new Error('Запрос на подключение уже обрабатывается. Проверьте MetaMask.');
+      } else {
+        throw new Error(requestError.message || 'Ошибка при запросе подключения кошелька');
+      }
+    }
   } catch (error: any) {
     console.error('❌ Error connecting wallet:', error);
     throw error; // Пробрасываем ошибку дальше, чтобы показать пользователю

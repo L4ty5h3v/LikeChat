@@ -1,5 +1,6 @@
 import { Redis } from '@upstash/redis';
 import type { LinkSubmission, UserProgress, ActivityType } from '@/types';
+import { getCastAuthor } from '@/lib/neynar';
 
 // Инициализация Redis клиента
 let redis: Redis | null = null;
@@ -265,19 +266,65 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
       'https://farcaster.xyz/svs-smm/0xd4a09fb3',
     ];
 
-    // Создаем ссылки с фиктивными пользователями
+    // Получаем реальные данные авторов кастов через Neynar API
     const activityTypes: ActivityType[] = ['like', 'recast', 'comment'];
     const baseTimestamp = Date.now();
-    const linksToAdd: LinkSubmission[] = initialLinks.map((castUrl, index) => ({
-      id: `init_link_${index + 1}_${baseTimestamp + index}`,
-      user_fid: 1000 + index, // Фиктивные FID
-      username: `user${index + 1}`,
-      pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=init${index}`,
-      cast_url: castUrl,
-      activity_type: activityTypes[index % activityTypes.length],
-      completed_by: [],
-      created_at: new Date().toISOString(),
-    }));
+    const linksToAdd: LinkSubmission[] = [];
+
+    for (let index = 0; index < initialLinks.length; index++) {
+      const castUrl = initialLinks[index];
+      console.log(`🔍 Fetching cast author data for: ${castUrl}`);
+      
+      try {
+        // Получаем реальные данные автора каста
+        const authorData = await getCastAuthor(castUrl);
+        
+        if (authorData) {
+          linksToAdd.push({
+            id: `init_link_${index + 1}_${baseTimestamp + index}`,
+            user_fid: authorData.fid,
+            username: authorData.username,
+            pfp_url: authorData.pfp_url,
+            cast_url: castUrl,
+            activity_type: activityTypes[index % activityTypes.length],
+            completed_by: [],
+            created_at: new Date().toISOString(),
+          });
+          console.log(`✅ Loaded real data for ${authorData.username} (FID: ${authorData.fid})`);
+        } else {
+          // Если не удалось получить данные, используем fallback
+          console.warn(`⚠️ Failed to get author data for ${castUrl}, using fallback`);
+          linksToAdd.push({
+            id: `init_link_${index + 1}_${baseTimestamp + index}`,
+            user_fid: 1000 + index,
+            username: `user${index + 1}`,
+            pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=init${index}`,
+            cast_url: castUrl,
+            activity_type: activityTypes[index % activityTypes.length],
+            completed_by: [],
+            created_at: new Date().toISOString(),
+          });
+        }
+      } catch (error: any) {
+        console.error(`❌ Error fetching author data for ${castUrl}:`, error);
+        // Fallback на фиктивные данные при ошибке
+        linksToAdd.push({
+          id: `init_link_${index + 1}_${baseTimestamp + index}`,
+          user_fid: 1000 + index,
+          username: `user${index + 1}`,
+          pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=init${index}`,
+          cast_url: castUrl,
+          activity_type: activityTypes[index % activityTypes.length],
+          completed_by: [],
+          created_at: new Date().toISOString(),
+        });
+      }
+      
+      // Небольшая задержка между запросами, чтобы не перегружать API
+      if (index < initialLinks.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
 
     // Добавляем ссылки в Redis (в правильном порядке, первая - последняя)
     for (const link of linksToAdd.reverse()) {
