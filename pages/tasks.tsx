@@ -98,9 +98,11 @@ export default function Tasks() {
     const incomplete: string[] = [];
     let verificationErrors: string[] = [];
     let warnings: string[] = [];
+    let updatedTasks = [...tasks]; // Создаем копию массива для обновления
 
     try {
-      for (const task of tasks) {
+      for (let i = 0; i < updatedTasks.length; i++) {
+        const task = updatedTasks[i];
         if (!task.completed) {
           console.log(`🔍 Verifying task: ${task.cast_url} for user ${user.fid}`);
           
@@ -127,9 +129,16 @@ export default function Tasks() {
             }
 
             if (data.completed) {
+              // Сохраняем в БД
               await markLinkCompleted(user.fid, task.link_id);
-              task.completed = true;
-              task.verified = true;
+              console.log(`✅ Marked link ${task.link_id} as completed for user ${user.fid}`);
+              
+              // Обновляем состояние задачи
+              updatedTasks[i] = {
+                ...task,
+                completed: true,
+                verified: true,
+              };
             } else {
               incomplete.push(task.cast_url);
             }
@@ -139,7 +148,11 @@ export default function Tasks() {
             // В случае ошибки сети, отмечаем как выполненное для продолжения тестирования
             if (error.message?.includes('fetch') || error.message?.includes('network')) {
               await markLinkCompleted(user.fid, task.link_id);
-              task.completed = true;
+              updatedTasks[i] = {
+                ...task,
+                completed: true,
+                verified: true,
+              };
               warnings.push(`Network error for ${task.cast_url} - marked as completed`);
             } else {
               incomplete.push(task.cast_url);
@@ -148,7 +161,25 @@ export default function Tasks() {
         }
       }
 
-      const newCompletedCount = tasks.filter(t => t.completed).length;
+      // Перезагружаем прогресс из БД для подтверждения
+      const updatedProgress = await getUserProgress(user.fid);
+      const completedLinks = updatedProgress?.completed_links || [];
+      
+      // Обновляем задачи на основе данных из БД
+      const finalTasks = updatedTasks.map(task => ({
+        ...task,
+        completed: completedLinks.includes(task.link_id),
+        verified: completedLinks.includes(task.link_id),
+      }));
+      
+      const newCompletedCount = finalTasks.filter(t => t.completed).length;
+      
+      console.log(`📊 Progress update: ${newCompletedCount}/${tasks.length} tasks completed`);
+      console.log(`📊 Completed links in DB:`, completedLinks);
+      console.log(`📊 Tasks updated:`, finalTasks.map(t => ({ id: t.link_id, completed: t.completed })));
+      
+      // Обновляем состояние
+      setTasks(finalTasks);
       setCompletedCount(newCompletedCount);
       setIncompleteLinks(incomplete);
 

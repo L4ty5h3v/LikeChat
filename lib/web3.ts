@@ -114,19 +114,31 @@ export async function isBaseNetwork(): Promise<boolean> {
 // Подключить кошелек
 export async function connectWallet(): Promise<string | null> {
   try {
-    const provider = getProvider();
-    if (!provider) {
-      // Для демо режима возвращаем тестовый адрес
-      console.log('MetaMask не установлен, используем демо режим');
-      return '0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6'; // Тестовый адрес
+    if (typeof window === 'undefined') {
+      throw new Error('Window is not available');
     }
 
+    if (!(window as any).ethereum) {
+      throw new Error('MetaMask не установлен. Пожалуйста, установите MetaMask или другой Ethereum кошелек.');
+    }
+
+    const provider = getProvider();
+    if (!provider) {
+      throw new Error('Не удалось получить провайдер кошелька');
+    }
+
+    console.log('🔄 Requesting wallet connection...');
     const accounts = await provider.send('eth_requestAccounts', []);
+    
+    if (!accounts || accounts.length === 0) {
+      throw new Error('Пользователь отменил подключение кошелька');
+    }
+
+    console.log('✅ Wallet connected:', accounts[0]);
     return accounts[0];
-  } catch (error) {
-    console.error('Error connecting wallet:', error);
-    // В случае ошибки возвращаем тестовый адрес
-    return '0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6';
+  } catch (error: any) {
+    console.error('❌ Error connecting wallet:', error);
+    throw error; // Пробрасываем ошибку дальше, чтобы показать пользователю
   }
 }
 

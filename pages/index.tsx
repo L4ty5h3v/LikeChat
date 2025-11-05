@@ -7,6 +7,7 @@ import ActivityButton from '@/components/ActivityButton';
 import Button from '@/components/Button';
 import { connectWallet } from '@/lib/web3';
 import { setUserActivity } from '@/lib/db-config';
+import { getUserByFid } from '@/lib/neynar';
 import type { ActivityType, FarcasterUser } from '@/types';
 
 export default function Home() {
@@ -33,7 +34,7 @@ export default function Home() {
     }
   }, []);
 
-  // Подключение кошелька (симуляция Farcaster авторизации)
+  // Подключение кошелька и получение данных Farcaster
   const handleConnect = async () => {
     console.log('🔗 handleConnect called');
     setLoading(true);
@@ -43,51 +44,69 @@ export default function Home() {
       const address = await connectWallet();
       console.log('📍 Wallet address:', address);
       
-      if (address) {
-        setWalletAddress(address);
-        
-        // В реальном приложении здесь будет интеграция с Farcaster API
-        // Для демонстрации создаем тестового пользователя
-        const mockUser: FarcasterUser = {
-          fid: 12345, // Фиксированный ID для демонстрации
-          username: address.slice(0, 8),
-          pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${address}`,
-          display_name: `User ${address.slice(0, 6)}`,
-        };
-
-        setUser(mockUser);
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('farcaster_user', JSON.stringify(mockUser));
-        }
-      } else {
-        // Если кошелёк не подключился, создаём демо-пользователя
-        const demoUser: FarcasterUser = {
-          fid: 67890, // Фиксированный ID для демонстрации
-          username: 'demo123',
-          pfp_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=demo',
-          display_name: 'Demo User',
-        };
-
-        setUser(demoUser);
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('farcaster_user', JSON.stringify(demoUser));
-        }
+      if (!address) {
+        throw new Error('Не удалось получить адрес кошелька');
       }
-    } catch (error) {
-      console.error('Error connecting wallet:', error);
+
+      setWalletAddress(address);
       
-      // В случае ошибки создаём демо-пользователя
-      const demoUser: FarcasterUser = {
-        fid: 11111, // Фиксированный ID для демонстрации
-        username: 'demo456',
-        pfp_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=error',
-        display_name: 'Demo User',
-      };
-
-      setUser(demoUser);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('farcaster_user', JSON.stringify(demoUser));
+      // Пытаемся получить данные Farcaster через Neynar API
+      // Для этого нужно либо знать FID, либо запросить у пользователя
+      // Временно используем промпт для ввода FID
+      let farcasterUser: FarcasterUser | null = null;
+      
+      // Проверяем наличие API ключа Neynar
+      if (process.env.NEXT_PUBLIC_NEYNAR_API_KEY) {
+        // Запрашиваем FID у пользователя (в реальном приложении можно использовать Farcaster Signer)
+        const fidInput = prompt('Введите ваш Farcaster FID (FID):\n\nЕсли у вас нет FID, нажмите "Отмена" для использования демо-режима.');
+        
+        if (fidInput && !isNaN(Number(fidInput))) {
+          const fid = Number(fidInput);
+          console.log(`🔍 Fetching Farcaster user data for FID: ${fid}`);
+          
+          try {
+            const userData = await getUserByFid(fid);
+            
+            if (userData) {
+              farcasterUser = {
+                fid: userData.fid || fid,
+                username: userData.username || `user${fid}`,
+                pfp_url: userData.pfp_url || userData.pfp?.url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${fid}`,
+                display_name: userData.display_name || userData.username || `User ${fid}`,
+              };
+              console.log('✅ Farcaster user data loaded:', farcasterUser);
+            }
+          } catch (error: any) {
+            console.warn('⚠️ Failed to fetch Farcaster user data:', error.message);
+            // Продолжаем с созданием пользователя на основе адреса
+          }
+        }
       }
+      
+      // Если не удалось получить данные Farcaster, создаем пользователя на основе адреса
+      if (!farcasterUser) {
+        console.log('📝 Creating user from wallet address');
+        farcasterUser = {
+          fid: Math.floor(Math.random() * 1000000) + 100000, // Генерируем случайный FID
+          username: `user_${address.slice(2, 8)}`,
+          pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${address}`,
+          display_name: `User ${address.slice(0, 6)}...${address.slice(-4)}`,
+        };
+      }
+
+      setUser(farcasterUser);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('farcaster_user', JSON.stringify(farcasterUser));
+        localStorage.setItem('wallet_address', address);
+      }
+    } catch (error: any) {
+      console.error('❌ Error connecting wallet:', error);
+      
+      // Показываем ошибку пользователю
+      const errorMessage = error.message || 'Не удалось подключить кошелек';
+      alert(`Ошибка подключения: ${errorMessage}\n\nПопробуйте:\n1. Установить MetaMask\n2. Разблокировать кошелек\n3. Разрешить подключение к сайту`);
+      
+      // Не создаем демо-пользователя автоматически, чтобы пользователь мог повторить попытку
     } finally {
       console.log('✅ handleConnect completed');
       setLoading(false);
