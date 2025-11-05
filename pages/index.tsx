@@ -7,7 +7,6 @@ import ActivityButton from '@/components/ActivityButton';
 import Button from '@/components/Button';
 import { connectWallet } from '@/lib/web3';
 import { setUserActivity } from '@/lib/db-config';
-import { getUserByFid } from '@/lib/neynar';
 import type { ActivityType, FarcasterUser } from '@/types';
 
 export default function Home() {
@@ -94,35 +93,61 @@ export default function Home() {
 
       setWalletAddress(address);
       
-      // Пытаемся получить данные Farcaster через Neynar API
-      // Для этого нужно либо знать FID, либо запросить у пользователя
-      // Временно используем промпт для ввода FID
+      // Пытаемся получить данные Farcaster через серверный API
       let farcasterUser: FarcasterUser | null = null;
       
-      // Проверяем наличие API ключа Neynar
-      if (process.env.NEXT_PUBLIC_NEYNAR_API_KEY) {
-        // Запрашиваем FID у пользователя (в реальном приложении можно использовать Farcaster Signer)
-        const fidInput = prompt('Введите ваш Farcaster FID (FID):\n\nЕсли у вас нет FID, нажмите "Отмена" для использования демо-режима.');
+      // Сначала пытаемся найти пользователя Farcaster по адресу кошелька
+      console.log('🔍 Looking for Farcaster user by wallet address:', address);
+      try {
+        const response = await fetch('/api/farcaster-user', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ walletAddress: address }),
+        });
+
+        const data = await response.json();
+        
+        if (data.user) {
+          farcasterUser = data.user;
+          console.log('✅ Farcaster user found by wallet address:', farcasterUser);
+        } else {
+          console.log('⚠️ Farcaster user not found by wallet address');
+        }
+      } catch (error: any) {
+        console.warn('⚠️ Failed to fetch Farcaster user by address:', error.message);
+      }
+      
+      // Если не нашли по адресу, запрашиваем FID у пользователя
+      if (!farcasterUser) {
+        const fidInput = prompt(
+          'Ваш кошелек не связан с Farcaster.\n\n' +
+          'Введите ваш Farcaster FID (FID) для авторизации:\n\n' +
+          'Если у вас нет FID, нажмите "Отмена" для использования режима без Farcaster.'
+        );
         
         if (fidInput && !isNaN(Number(fidInput))) {
           const fid = Number(fidInput);
           console.log(`🔍 Fetching Farcaster user data for FID: ${fid}`);
           
           try {
-            const userData = await getUserByFid(fid);
+            const response = await fetch('/api/farcaster-user', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ fid }),
+            });
+
+            const data = await response.json();
             
-            if (userData) {
-              farcasterUser = {
-                fid: userData.fid || fid,
-                username: userData.username || `user${fid}`,
-                pfp_url: userData.pfp_url || userData.pfp?.url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${fid}`,
-                display_name: userData.display_name || userData.username || `User ${fid}`,
-              };
-              console.log('✅ Farcaster user data loaded:', farcasterUser);
+            if (data.user) {
+              farcasterUser = data.user;
+              console.log('✅ Farcaster user data loaded by FID:', farcasterUser);
             }
           } catch (error: any) {
             console.warn('⚠️ Failed to fetch Farcaster user data:', error.message);
-            // Продолжаем с созданием пользователя на основе адреса
           }
         }
       }
