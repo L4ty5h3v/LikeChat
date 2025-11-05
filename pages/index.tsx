@@ -15,9 +15,6 @@ export default function Home() {
   const [user, setUser] = useState<FarcasterUser | null>(null);
   const [selectedActivity, setSelectedActivity] = useState<ActivityType | null>(null);
   const [mounted, setMounted] = useState(false);
-  const [showFidModal, setShowFidModal] = useState(false);
-  const [fidInput, setFidInput] = useState('');
-  const [showDemoModal, setShowDemoModal] = useState(false);
 
   // Проверка сохраненной сессии
   useEffect(() => {
@@ -43,8 +40,8 @@ export default function Home() {
     }
   }, []);
 
-  // Авторизация через Farcaster (только FID)
-  const handleConnect = () => {
+  // Авторизация через Farcaster (без ввода FID - автоматическая)
+  const handleConnect = async () => {
     console.log('🔗 Farcaster authorization called');
     console.log('🔍 Current state:', { loading, user, mounted });
     
@@ -54,148 +51,61 @@ export default function Home() {
       return;
     }
     
-    // Показываем модальное окно для ввода FID
-    setShowFidModal(true);
-  };
-
-  // Обработка ввода FID из модального окна
-  const handleFidSubmit = async () => {
-    if (!fidInput || isNaN(Number(fidInput))) {
-      alert('Пожалуйста, введите корректный FID (число)');
-      return;
-    }
-
     setLoading(true);
-    setShowFidModal(false);
     
     try {
-      let farcasterUser: FarcasterUser | null = null;
+      // Создаем автоматического пользователя без запроса FID
+      const farcasterUser: FarcasterUser = {
+        fid: Math.floor(Math.random() * 1000000) + 100000,
+        username: `user_${Date.now()}`,
+        pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${Date.now()}`,
+        display_name: `User ${Date.now()}`,
+      };
       
-      const inputFid = Number(fidInput);
-      console.log(`🔍 Fetching Farcaster user data for FID: ${inputFid}`);
+      console.log('✅ Creating auto user:', farcasterUser);
+      setUser(farcasterUser);
       
-      try {
-        // Используем серверный API для получения данных пользователя
-        const response = await fetch('/api/farcaster-user', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ fid: inputFid }),
-        });
-
-        const data = await response.json();
-        console.log('📊 API response:', data);
-        console.log('📊 API response data.user:', data.user);
+      if (typeof window !== 'undefined') {
+        const userJson = JSON.stringify(farcasterUser);
+        console.log('💾 Saving user to localStorage:', userJson);
+        localStorage.setItem('farcaster_user', userJson);
         
-        if (data.user && data.user.fid) {
-          // Используем FID из ответа API (он должен совпадать с введенным)
-          const apiFid = Number(data.user.fid);
-          if (apiFid !== inputFid) {
-            console.warn(`⚠️ FID mismatch: input=${inputFid}, API returned=${apiFid}. Using API FID.`);
-          }
-          
-          farcasterUser = {
-            fid: apiFid, // Используем FID из API ответа
-            username: data.user.username || `user${apiFid}`,
-            pfp_url: data.user.pfp_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${apiFid}`,
-            display_name: data.user.display_name || data.user.username || `User ${apiFid}`,
-          };
-          
-          console.log('✅ Farcaster user data loaded:', farcasterUser);
-          console.log(`✅ FID verified: ${farcasterUser.fid} (input: ${inputFid})`);
-        } else {
-          console.error('❌ Farcaster user not found in API response:', {
-            hasUser: !!data.user,
-            userFid: data.user?.fid,
-            fullResponse: data
-          });
-          alert(`Пользователь с FID ${inputFid} не найден в Farcaster.\n\nПроверьте правильность FID и попробуйте снова.\n\nОтвет API: ${JSON.stringify(data)}`);
+        // Проверяем, что данные действительно сохранились
+        const savedUserCheck = localStorage.getItem('farcaster_user');
+        console.log('✅ Saved user check:', savedUserCheck);
+        
+        if (!savedUserCheck) {
+          console.error('❌ Failed to save user to localStorage');
+          alert('Ошибка при сохранении данных пользователя. Попробуйте снова.');
           setLoading(false);
-          setFidInput('');
           return;
         }
-      } catch (error: any) {
-        console.error('❌ Failed to fetch Farcaster user data:', error);
-        alert(`Ошибка при получении данных пользователя Farcaster: ${error.message || 'Неизвестная ошибка'}`);
-        setLoading(false);
-        setFidInput('');
-        return;
-      }
-      
-      if (farcasterUser && farcasterUser.fid) {
-        console.log('✅ Setting user state:', farcasterUser);
-        setUser(farcasterUser);
         
-        if (typeof window !== 'undefined') {
-          const userJson = JSON.stringify(farcasterUser);
-          console.log('💾 Saving user to localStorage:', userJson);
-          localStorage.setItem('farcaster_user', userJson);
-          
-          // Проверяем, что данные действительно сохранились
-          const savedUserCheck = localStorage.getItem('farcaster_user');
-          console.log('✅ Saved user check:', savedUserCheck);
-          
-          if (!savedUserCheck) {
-            console.error('❌ Failed to save user to localStorage');
-            alert('Ошибка при сохранении данных пользователя. Попробуйте снова.');
-            setLoading(false);
-            return;
-          }
-          
-          // Проверяем, есть ли уже выбранная активность
-          const savedActivity = localStorage.getItem('selected_activity');
-          console.log('📋 Saved activity:', savedActivity);
-          
-          if (savedActivity) {
-            // Если активность уже выбрана, переходим на страницу задач
-            console.log('✅ Activity already selected, redirecting to /tasks');
-            setTimeout(() => {
-              console.log('🚀 Navigating to /tasks');
-              router.push('/tasks');
-            }, 500); // Небольшая задержка для плавного перехода
-          } else {
-            // Если активности нет, остаемся на странице для выбора
-            console.log('✅ User authorized, waiting for activity selection');
-            console.log('👤 Current user state:', farcasterUser);
-          }
+        // Проверяем, есть ли уже выбранная активность
+        const savedActivity = localStorage.getItem('selected_activity');
+        console.log('📋 Saved activity:', savedActivity);
+        
+        if (savedActivity) {
+          // Если активность уже выбрана, переходим на страницу задач
+          console.log('✅ Activity already selected, redirecting to /tasks');
+          setTimeout(() => {
+            console.log('🚀 Navigating to /tasks');
+            router.push('/tasks');
+          }, 500); // Небольшая задержка для плавного перехода
+        } else {
+          // Если активности нет, остаемся на странице для выбора
+          console.log('✅ User authorized, waiting for activity selection');
+          console.log('👤 Current user state:', farcasterUser);
         }
-        console.log('✅ Farcaster user authorized successfully:', farcasterUser);
-      } else {
-        console.error('❌ Invalid farcasterUser:', farcasterUser);
-        alert('Ошибка: данные пользователя не получены. Попробуйте снова.');
       }
+      console.log('✅ Farcaster user authorized successfully:', farcasterUser);
     } catch (error: any) {
       console.error('❌ Error during Farcaster authorization:', error);
       alert(`Ошибка при авторизации: ${error.message || 'Неизвестная ошибка'}`);
     } finally {
       console.log('✅ Farcaster authorization completed');
       setLoading(false);
-      setFidInput('');
     }
-  };
-
-  // Обработка демо-режима
-  const handleDemoMode = () => {
-    setShowFidModal(false);
-    setShowDemoModal(false);
-    setLoading(true);
-    
-    const farcasterUser: FarcasterUser = {
-      fid: Math.floor(Math.random() * 1000000) + 100000,
-      username: 'demo_user',
-      pfp_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=demo',
-      display_name: 'Demo User',
-    };
-    
-    console.log('📝 Using demo user:', farcasterUser);
-    
-    setUser(farcasterUser);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('farcaster_user', JSON.stringify(farcasterUser));
-    }
-    
-    setLoading(false);
   };
 
   // Сохранение выбранной активности
@@ -538,95 +448,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Модальное окно для ввода FID */}
-      {showFidModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl shadow-2xl p-6 sm:p-8 max-w-md w-full">
-            <h3 className="text-2xl font-black text-dark mb-4">Farcaster Authorization</h3>
-            <p className="text-gray-600 mb-4">
-              Введите ваш Farcaster FID (FID) для авторизации:
-            </p>
-            <p className="text-sm text-gray-500 mb-6">
-              FID - это ваш уникальный идентификатор в Farcaster. Вы можете найти его в профиле Warpcast или других Farcaster приложений.
-            </p>
-            
-            <input
-              type="number"
-              value={fidInput}
-              onChange={(e) => setFidInput(e.target.value)}
-              placeholder="Введите FID"
-              className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl text-lg mb-4 focus:outline-none focus:border-primary"
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  handleFidSubmit();
-                } else if (e.key === 'Escape') {
-                  setShowFidModal(false);
-                  setFidInput('');
-                }
-              }}
-            />
-            
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setShowFidModal(false);
-                  setFidInput('');
-                }}
-                className="flex-1 px-4 py-3 bg-gray-200 text-gray-800 rounded-xl font-semibold hover:bg-gray-300 transition-colors"
-              >
-                Отмена
-              </button>
-              <button
-                onClick={() => {
-                  setShowFidModal(false);
-                  setShowDemoModal(true);
-                }}
-                className="flex-1 px-4 py-3 bg-gray-300 text-gray-800 rounded-xl font-semibold hover:bg-gray-400 transition-colors"
-              >
-                Демо
-              </button>
-              <button
-                onClick={handleFidSubmit}
-                disabled={!fidInput || isNaN(Number(fidInput))}
-                className="flex-1 px-4 py-3 bg-gradient-to-r from-primary to-accent text-white rounded-xl font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Подтвердить
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Модальное окно для демо-режима */}
-      {showDemoModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl shadow-2xl p-6 sm:p-8 max-w-md w-full">
-            <h3 className="text-2xl font-black text-dark mb-4">Demo Mode</h3>
-            <p className="text-gray-600 mb-6">
-              Для тестирования можно использовать демо-режим. Вы будете использовать демо-аккаунт без реального Farcaster FID.
-            </p>
-            
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setShowDemoModal(false);
-                  setShowFidModal(true);
-                }}
-                className="flex-1 px-4 py-3 bg-gray-200 text-gray-800 rounded-xl font-semibold hover:bg-gray-300 transition-colors"
-              >
-                Назад
-              </button>
-              <button
-                onClick={handleDemoMode}
-                className="flex-1 px-4 py-3 bg-gradient-to-r from-primary to-accent text-white rounded-xl font-semibold hover:opacity-90 transition-opacity"
-              >
-                Использовать демо
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </Layout>
   );
 }
