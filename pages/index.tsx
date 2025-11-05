@@ -15,6 +15,9 @@ export default function Home() {
   const [user, setUser] = useState<FarcasterUser | null>(null);
   const [selectedActivity, setSelectedActivity] = useState<ActivityType | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [showFidModal, setShowFidModal] = useState(false);
+  const [fidInput, setFidInput] = useState('');
+  const [showDemoModal, setShowDemoModal] = useState(false);
 
   // Проверка сохраненной сессии
   useEffect(() => {
@@ -41,7 +44,7 @@ export default function Home() {
   }, []);
 
   // Авторизация через Farcaster (только FID)
-  const handleConnect = async () => {
+  const handleConnect = () => {
     console.log('🔗 Farcaster authorization called');
     console.log('🔍 Current state:', { loading, user, mounted });
     
@@ -51,31 +54,27 @@ export default function Home() {
       return;
     }
     
+    // Показываем модальное окно для ввода FID
+    setShowFidModal(true);
+  };
+
+  // Обработка ввода FID из модального окна
+  const handleFidSubmit = async () => {
+    if (!fidInput || isNaN(Number(fidInput))) {
+      alert('Пожалуйста, введите корректный FID (число)');
+      return;
+    }
+
     setLoading(true);
+    setShowFidModal(false);
     
     try {
       let farcasterUser: FarcasterUser | null = null;
       
-      // Запрашиваем FID у пользователя для авторизации через Farcaster
-      const fidInput = prompt(
-        'Введите ваш Farcaster FID (FID) для авторизации:\n\n' +
-        'FID - это ваш уникальный идентификатор в Farcaster.\n' +
-        'Вы можете найти его в профиле Warpcast или других Farcaster приложений.\n\n' +
-        'Если у вас нет FID, нажмите "Отмена" для использования демо-режима.'
-      );
+      const inputFid = Number(fidInput);
+      console.log(`🔍 Fetching Farcaster user data for FID: ${inputFid}`);
       
-      if (fidInput && !isNaN(Number(fidInput))) {
-        const inputFid = Number(fidInput);
-        console.log(`🔍 Fetching Farcaster user data for FID: ${inputFid}`);
-        
-        // Валидация FID
-        if (inputFid <= 0 || !Number.isInteger(inputFid)) {
-          alert('FID должен быть положительным целым числом. Пожалуйста, введите корректный FID.');
-          setLoading(false);
-          return;
-        }
-        
-        try {
+      try {
           // Используем серверный API для получения данных пользователя
           const response = await fetch('/api/farcaster-user', {
             method: 'POST',
@@ -118,31 +117,13 @@ export default function Home() {
         } catch (error: any) {
           console.error('❌ Failed to fetch Farcaster user data:', error);
           alert(`Ошибка при получении данных пользователя Farcaster: ${error.message || 'Неизвестная ошибка'}`);
-        }
-      } else if (fidInput === null) {
-        // Пользователь нажал "Отмена" - предлагаем демо-режим
-        const useDemo = confirm(
-          'Вы отменили ввод FID.\n\n' +
-          'Для тестирования можно использовать демо-режим.\n\n' +
-          'Нажмите "OK" для демо-режима или "Отмена" чтобы попробовать снова.'
-        );
-        
-        if (useDemo) {
-          farcasterUser = {
-            fid: Math.floor(Math.random() * 1000000) + 100000,
-            username: 'demo_user',
-            pfp_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=demo',
-            display_name: 'Demo User',
-          };
-          console.log('📝 Using demo user:', farcasterUser);
-        } else {
           setLoading(false);
+          setFidInput('');
           return;
         }
       } else {
-        // Пустой или неверный ввод
-        alert('Пожалуйста, введите корректный FID (число) или нажмите "Отмена" для демо-режима.');
         setLoading(false);
+        setFidInput('');
         return;
       }
       
@@ -194,7 +175,31 @@ export default function Home() {
     } finally {
       console.log('✅ Farcaster authorization completed');
       setLoading(false);
+      setFidInput('');
     }
+  };
+
+  // Обработка демо-режима
+  const handleDemoMode = () => {
+    setShowFidModal(false);
+    setShowDemoModal(false);
+    setLoading(true);
+    
+    const farcasterUser: FarcasterUser = {
+      fid: Math.floor(Math.random() * 1000000) + 100000,
+      username: 'demo_user',
+      pfp_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=demo',
+      display_name: 'Demo User',
+    };
+    
+    console.log('📝 Using demo user:', farcasterUser);
+    
+    setUser(farcasterUser);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('farcaster_user', JSON.stringify(farcasterUser));
+    }
+    
+    setLoading(false);
   };
 
   // Сохранение выбранной активности
@@ -536,6 +541,96 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {/* Модальное окно для ввода FID */}
+      {showFidModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl shadow-2xl p-6 sm:p-8 max-w-md w-full">
+            <h3 className="text-2xl font-black text-dark mb-4">Farcaster Authorization</h3>
+            <p className="text-gray-600 mb-4">
+              Введите ваш Farcaster FID (FID) для авторизации:
+            </p>
+            <p className="text-sm text-gray-500 mb-6">
+              FID - это ваш уникальный идентификатор в Farcaster. Вы можете найти его в профиле Warpcast или других Farcaster приложений.
+            </p>
+            
+            <input
+              type="number"
+              value={fidInput}
+              onChange={(e) => setFidInput(e.target.value)}
+              placeholder="Введите FID"
+              className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl text-lg mb-4 focus:outline-none focus:border-primary"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleFidSubmit();
+                } else if (e.key === 'Escape') {
+                  setShowFidModal(false);
+                  setFidInput('');
+                }
+              }}
+            />
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowFidModal(false);
+                  setFidInput('');
+                }}
+                className="flex-1 px-4 py-3 bg-gray-200 text-gray-800 rounded-xl font-semibold hover:bg-gray-300 transition-colors"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={() => {
+                  setShowFidModal(false);
+                  setShowDemoModal(true);
+                }}
+                className="flex-1 px-4 py-3 bg-gray-300 text-gray-800 rounded-xl font-semibold hover:bg-gray-400 transition-colors"
+              >
+                Демо
+              </button>
+              <button
+                onClick={handleFidSubmit}
+                disabled={!fidInput || isNaN(Number(fidInput))}
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-primary to-accent text-white rounded-xl font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Подтвердить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Модальное окно для демо-режима */}
+      {showDemoModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl shadow-2xl p-6 sm:p-8 max-w-md w-full">
+            <h3 className="text-2xl font-black text-dark mb-4">Demo Mode</h3>
+            <p className="text-gray-600 mb-6">
+              Для тестирования можно использовать демо-режим. Вы будете использовать демо-аккаунт без реального Farcaster FID.
+            </p>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowDemoModal(false);
+                  setShowFidModal(true);
+                }}
+                className="flex-1 px-4 py-3 bg-gray-200 text-gray-800 rounded-xl font-semibold hover:bg-gray-300 transition-colors"
+              >
+                Назад
+              </button>
+              <button
+                onClick={handleDemoMode}
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-primary to-accent text-white rounded-xl font-semibold hover:opacity-90 transition-opacity"
+              >
+                Использовать демо
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }
