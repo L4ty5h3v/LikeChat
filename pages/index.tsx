@@ -37,9 +37,9 @@ export default function Home() {
     console.log('🔗 Farcaster authorization called');
     console.log('🔍 Current state:', { loading, user, mounted });
     
-    // Проверяем, что компонент смонтирован
-    if (!mounted) {
-      console.warn('⚠️ Component not mounted yet');
+    // Предотвращаем повторные вызовы
+    if (loading) {
+      console.warn('⚠️ Already loading');
       return;
     }
     
@@ -216,21 +216,28 @@ export default function Home() {
                 </div>
 
                 <button
+                  type="button"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     console.log('🔘 Button clicked');
-                    handleConnect();
+                    console.log('🔍 State before click:', { loading, user, mounted });
+                    if (!loading) {
+                      handleConnect();
+                    } else {
+                      console.warn('⚠️ Already loading, ignoring click');
+                    }
                   }}
-                  disabled={loading || !mounted}
+                  disabled={loading}
                   className={`
                     text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold rounded-2xl shadow-2xl 
-                    transform hover:scale-105 transition-all duration-300
+                    transform transition-all duration-300
                     bg-gradient-to-r from-primary via-red-600 to-accent text-white
                     hover:from-red-500 hover:via-purple-500 hover:to-accent
-                    disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100
-                    ${loading ? 'cursor-wait' : 'cursor-pointer'}
+                    disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:transform-none
+                    ${loading ? 'cursor-wait' : 'cursor-pointer hover:scale-105'}
                   `}
+                  style={{ pointerEvents: loading ? 'none' : 'auto' }}
                 >
                   {loading ? (
                     <div className="flex items-center justify-center gap-2">
