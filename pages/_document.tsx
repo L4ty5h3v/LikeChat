@@ -14,6 +14,15 @@ export default function Document() {
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
+                // Shim для окружений, где SDK не инжектится, но Dev overlay его ожидает
+                if (!window.sdk) {
+                  window.sdk = { actions: { ready: function() { try { console.log('✅ sdk.actions.ready() shim called'); window.__READY_CALLED__ = true; } catch(e){} } } };
+                } else if (!window.sdk.actions) {
+                  window.sdk.actions = { ready: function() { try { console.log('✅ sdk.actions.ready() shim called'); window.__READY_CALLED__ = true; } catch(e){} } };
+                } else if (!window.sdk.actions.ready) {
+                  window.sdk.actions.ready = function() { try { console.log('✅ sdk.actions.ready() shim called'); window.__READY_CALLED__ = true; } catch(e){} };
+                }
+                
                 function callVercelReady() {
                   try {
                     // Проверяем различные возможные пути к Vercel SDK
