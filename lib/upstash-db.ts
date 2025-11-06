@@ -31,7 +31,7 @@ export async function getLastTenLinks(): Promise<LinkSubmission[]> {
   
   try {
     const links = await redis.lrange(KEYS.LINKS, 0, 9);
-    return links.map((linkStr: any) => {
+    const parsedLinks = links.map((linkStr: any) => {
       // Try to parse as JSON, or use as-is if already parsed
       const link = typeof linkStr === 'string' ? JSON.parse(linkStr) : linkStr;
       return {
@@ -39,6 +39,20 @@ export async function getLastTenLinks(): Promise<LinkSubmission[]> {
         created_at: link.created_at || new Date().toISOString(),
       };
     });
+    
+    // Логируем данные для диагностики
+    console.log(`📖 Loaded ${parsedLinks.length} links from Redis:`, 
+      parsedLinks.map((link, index) => ({
+        index: index + 1,
+        id: link.id,
+        username: link.username,
+        user_fid: link.user_fid,
+        pfp_url: link.pfp_url,
+        has_real_pfp: !!link.pfp_url && !link.pfp_url.includes('dicebear'),
+      }))
+    );
+    
+    return parsedLinks;
   } catch (error) {
     console.error('Error getting links from Upstash:', error);
     return [];
