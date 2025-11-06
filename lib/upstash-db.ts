@@ -1,6 +1,6 @@
 import { Redis } from '@upstash/redis';
 import type { LinkSubmission, UserProgress, ActivityType } from '@/types';
-import { getCastAuthor } from '@/lib/neynar';
+import { getCastAuthor, getUserByUsername } from '@/lib/neynar';
 
 // Инициализация Redis клиента
 let redis: Redis | null = null;
@@ -292,11 +292,10 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
           });
           console.log(`✅ [${index + 1}/${initialLinks.length}] Loaded real data for @${authorData.username} (FID: ${authorData.fid})`);
         } else {
-          // Если не удалось получить данные, используем временный fallback для продолжения работы
-          // Это позволяет системе работать даже если Neynar API не может найти каст
-          console.warn(`⚠️ [${index + 1}/${initialLinks.length}] Failed to get author data for ${castUrl}, using fallback`);
+          // Если не удалось получить данные из каста, пытаемся получить данные пользователя по username из URL
+          console.warn(`⚠️ [${index + 1}/${initialLinks.length}] Failed to get author data from cast for ${castUrl}`);
           console.warn(`⚠️ Author data received:`, authorData);
-          console.warn(`⚠️ Cast may not exist in Neynar API or hash is incorrect`);
+          console.warn(`⚠️ Cast may not exist in Neynar API, trying to get user by username from URL...`);
           
           // Извлекаем hash из URL для использования в fallback
           const castHash = castUrl.match(/0x[a-fA-F0-9]+/)?.[0] || `hash_${index}`;
@@ -306,17 +305,47 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
           const urlMatch = castUrl.match(/farcaster\.xyz\/([^\/]+)/);
           const usernameFromUrl = urlMatch ? urlMatch[1] : null;
           
-          linksToAdd.push({
-            id: `init_link_${index + 1}_${baseTimestamp + index}`,
-            user_fid: 0, // Временный FID
-            username: usernameFromUrl || `user_${index + 1}`, // Используем username из URL если есть
-            pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${castHash}`,
-            cast_url: castUrl,
-            activity_type: activityTypes[index % activityTypes.length],
-            completed_by: [],
-            created_at: new Date().toISOString(),
-          });
-          console.log(`⚠️ [${index + 1}/${initialLinks.length}] Using fallback data for ${castUrl} (username: ${usernameFromUrl || `user_${index + 1}`})`);
+          // Пытаемся получить данные пользователя по username через Neynar API
+          let userData = null;
+          if (usernameFromUrl && usernameFromUrl !== 'svs-smm') {
+            try {
+              console.log(`🔍 Trying to get user data by username: ${usernameFromUrl}`);
+              userData = await getUserByUsername(usernameFromUrl);
+              if (userData && userData.fid) {
+                console.log(`✅ Got user data by username: @${userData.username} (FID: ${userData.fid})`);
+              }
+            } catch (userError: any) {
+              console.warn(`⚠️ Failed to get user by username:`, userError?.message);
+            }
+          }
+          
+          // Если получили данные пользователя, используем их
+          if (userData && userData.fid) {
+            linksToAdd.push({
+              id: `init_link_${index + 1}_${baseTimestamp + index}`,
+              user_fid: userData.fid,
+              username: userData.username || usernameFromUrl || `user_${index + 1}`,
+              pfp_url: userData.pfp?.url || userData.pfp_url || userData.pfp || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.fid}`,
+              cast_url: castUrl,
+              activity_type: activityTypes[index % activityTypes.length],
+              completed_by: [],
+              created_at: new Date().toISOString(),
+            });
+            console.log(`✅ [${index + 1}/${initialLinks.length}] Loaded real user data by username: @${userData.username} (FID: ${userData.fid})`);
+          } else {
+            // Если не удалось получить данные пользователя, используем fallback
+            linksToAdd.push({
+              id: `init_link_${index + 1}_${baseTimestamp + index}`,
+              user_fid: 0, // Временный FID
+              username: usernameFromUrl || `user_${index + 1}`, // Используем username из URL если есть
+              pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${castHash}`,
+              cast_url: castUrl,
+              activity_type: activityTypes[index % activityTypes.length],
+              completed_by: [],
+              created_at: new Date().toISOString(),
+            });
+            console.log(`⚠️ [${index + 1}/${initialLinks.length}] Using fallback data for ${castUrl} (username: ${usernameFromUrl || `user_${index + 1}`})`);
+          }
         }
       } catch (error: any) {
         console.error(`❌ [${index + 1}/${initialLinks.length}] Error fetching author data for ${castUrl}:`, error);

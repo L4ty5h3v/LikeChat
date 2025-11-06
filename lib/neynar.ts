@@ -374,3 +374,94 @@ export async function getUserByFid(fid: number) {
     return null;
   }
 }
+
+// Получить информацию о пользователе по username
+export async function getUserByUsername(username: string) {
+  if (!NEYNAR_API_KEY) {
+    console.warn('⚠️ NEXT_PUBLIC_NEYNAR_API_KEY not configured');
+    return null;
+  }
+
+  if (!username || username.trim() === '') {
+    console.warn('⚠️ Username is empty');
+    return null;
+  }
+
+  try {
+    console.log(`🔍 Fetching user by username: ${username}`);
+    
+    // Попробуем несколько вариантов endpoint'ов
+    let response;
+    
+    // Вариант 1: /farcaster/user/by_username
+    try {
+      response = await neynarClient.get('/farcaster/user/by_username', {
+        params: {
+          username: username.trim(),
+        },
+      });
+      console.log(`✅ User data received (by_username):`, response.data);
+    } catch (error1: any) {
+      console.warn(`⚠️ Method 1 failed:`, error1?.response?.status, error1?.response?.data);
+      
+      // Вариант 2: /farcaster/user с параметром identifier
+      try {
+        response = await neynarClient.get('/farcaster/user', {
+          params: {
+            identifier: username.trim(),
+            type: 'username',
+          },
+        });
+        console.log(`✅ User data received (identifier):`, response.data);
+      } catch (error2: any) {
+        console.warn(`⚠️ Method 2 failed:`, error2?.response?.status, error2?.response?.data);
+        
+        // Вариант 3: /farcaster/user/search
+        try {
+          response = await neynarClient.get('/farcaster/user/search', {
+            params: {
+              q: username.trim(),
+            },
+          });
+          console.log(`✅ User data received (search):`, response.data);
+          
+          // Если это поиск, берем первый результат
+          if (response.data.result && Array.isArray(response.data.result)) {
+            const foundUser = response.data.result.find((u: any) => 
+              u.username?.toLowerCase() === username.trim().toLowerCase()
+            );
+            if (foundUser) {
+              return foundUser;
+            }
+            return response.data.result[0] || null;
+          }
+        } catch (error3: any) {
+          console.error(`❌ All methods failed:`, error3?.response?.data || error3?.message);
+          return null;
+        }
+      }
+    }
+
+    // Обрабатываем различные форматы ответа
+    const user = response.data?.result?.user || 
+                 response.data?.user || 
+                 response.data?.result || 
+                 response.data;
+    
+    if (!user) {
+      console.warn(`⚠️ User data is null or undefined for username: ${username}`);
+      return null;
+    }
+
+    return user;
+  } catch (error: any) {
+    console.error('❌ Error fetching user by username:', {
+      username: username,
+      status: error?.response?.status,
+      statusText: error?.response?.statusText,
+      data: error?.response?.data,
+      message: error?.message,
+    });
+    return null;
+  }
+}
