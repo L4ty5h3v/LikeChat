@@ -391,22 +391,73 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
         const urlMatch = castUrl.match(/farcaster\.xyz\/([^\/]+)/);
         const usernameFromUrl = urlMatch ? urlMatch[1] : null;
         
-        linksToAdd.push({
-          id: `init_link_${index + 1}_${baseTimestamp + index}`,
-          user_fid: 0,
-          username: usernameFromUrl || `user_${index + 1}`, // Используем username из URL если есть
-          pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${castHash}`,
-          cast_url: castUrl,
-          activity_type: activityTypes[index % activityTypes.length],
-          completed_by: [],
-          created_at: new Date().toISOString(),
-        });
-        console.log(`⚠️ [${index + 1}/${initialLinks.length}] Using fallback data due to error for ${castUrl} (username: ${usernameFromUrl || `user_${index + 1}`})`);
+        // Пытаемся получить данные пользователя по username даже при ошибке
+        let userData = null;
+        if (usernameFromUrl) {
+          try {
+            console.log(`🔍 Retrying to get user data by username after error: ${usernameFromUrl}`);
+            // Добавляем небольшую задержку перед повторной попыткой
+            await new Promise(resolve => setTimeout(resolve, 500));
+            userData = await getUserByUsername(usernameFromUrl);
+            if (userData && userData.fid) {
+              console.log(`✅ Got user data by username after error: @${userData.username} (FID: ${userData.fid})`);
+            }
+          } catch (retryError: any) {
+            console.warn(`⚠️ Retry failed to get user by username:`, retryError?.message);
+          }
+        }
+        
+        // Если получили данные пользователя, используем их
+        if (userData && userData.fid) {
+          let pfpUrl = null;
+          if (userData.pfp?.url) {
+            pfpUrl = userData.pfp.url;
+          } else if (userData.pfp_url) {
+            pfpUrl = userData.pfp_url;
+          } else if (userData.pfp) {
+            pfpUrl = typeof userData.pfp === 'string' ? userData.pfp : userData.pfp.url;
+          } else if (userData.profile?.pfp?.url) {
+            pfpUrl = userData.profile.pfp.url;
+          } else if (userData.profile?.pfp_url) {
+            pfpUrl = userData.profile.pfp_url;
+          }
+          
+          if (!pfpUrl) {
+            pfpUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.fid}`;
+          }
+          
+          linksToAdd.push({
+            id: `init_link_${index + 1}_${baseTimestamp + index}`,
+            user_fid: userData.fid,
+            username: userData.username || userData.display_name || usernameFromUrl || `user_${index + 1}`,
+            pfp_url: pfpUrl,
+            cast_url: castUrl,
+            activity_type: activityTypes[index % activityTypes.length],
+            completed_by: [],
+            created_at: new Date().toISOString(),
+          });
+          console.log(`✅ [${index + 1}/${initialLinks.length}] Loaded real user data after error: @${userData.username || userData.display_name} (FID: ${userData.fid}, pfp: ${pfpUrl})`);
+        } else {
+          // Если не удалось получить данные пользователя, используем fallback
+          linksToAdd.push({
+            id: `init_link_${index + 1}_${baseTimestamp + index}`,
+            user_fid: 0,
+            username: usernameFromUrl || `user_${index + 1}`, // Используем username из URL если есть
+            pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${castHash}`,
+            cast_url: castUrl,
+            activity_type: activityTypes[index % activityTypes.length],
+            completed_by: [],
+            created_at: new Date().toISOString(),
+          });
+          console.log(`⚠️ [${index + 1}/${initialLinks.length}] Using fallback data due to error for ${castUrl} (username: ${usernameFromUrl || `user_${index + 1}`})`);
+        }
       }
       
-      // Небольшая задержка между запросами, чтобы не перегружать API
+      // Задержка между запросами, чтобы не перегружать API и избежать rate limiting
+      // Увеличиваем задержку для последних элементов, так как они могут быть более проблемными
+      const delay = index < 6 ? 500 : 1000; // Больше задержка для элементов 7-10
       if (index < initialLinks.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
 
