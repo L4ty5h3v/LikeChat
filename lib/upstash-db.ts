@@ -302,7 +302,8 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
           const castHash = castUrl.match(/0x[a-fA-F0-9]+/)?.[0] || `hash_${index}`;
           
           // Пытаемся извлечь username из URL (если есть)
-          const urlMatch = castUrl.match(/farcaster\.xyz\/([^\/]+)\//);
+          // Формат: https://farcaster.xyz/svs-smm/0xf9660a16
+          const urlMatch = castUrl.match(/farcaster\.xyz\/([^\/]+)/);
           const usernameFromUrl = urlMatch ? urlMatch[1] : null;
           
           linksToAdd.push({
@@ -327,17 +328,21 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
         // Используем fallback вместо выброса ошибки, чтобы система могла работать
         const castHash = castUrl.match(/0x[a-fA-F0-9]+/)?.[0] || `hash_${index}`;
         
+        // Пытаемся извлечь username из URL (если есть)
+        const urlMatch = castUrl.match(/farcaster\.xyz\/([^\/]+)/);
+        const usernameFromUrl = urlMatch ? urlMatch[1] : null;
+        
         linksToAdd.push({
           id: `init_link_${index + 1}_${baseTimestamp + index}`,
           user_fid: 0,
-          username: `user_${index + 1}`,
+          username: usernameFromUrl || `user_${index + 1}`, // Используем username из URL если есть
           pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${castHash}`,
           cast_url: castUrl,
           activity_type: activityTypes[index % activityTypes.length],
           completed_by: [],
           created_at: new Date().toISOString(),
         });
-        console.log(`⚠️ [${index + 1}/${initialLinks.length}] Using fallback data due to error for ${castUrl}`);
+        console.log(`⚠️ [${index + 1}/${initialLinks.length}] Using fallback data due to error for ${castUrl} (username: ${usernameFromUrl || `user_${index + 1}`})`);
       }
       
       // Небольшая задержка между запросами, чтобы не перегружать API
