@@ -307,12 +307,14 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
           
           // Пытаемся получить данные пользователя по username через Neynar API
           let userData = null;
-          if (usernameFromUrl && usernameFromUrl !== 'svs-smm') {
+          if (usernameFromUrl) {
             try {
               console.log(`🔍 Trying to get user data by username: ${usernameFromUrl}`);
               userData = await getUserByUsername(usernameFromUrl);
               if (userData && userData.fid) {
                 console.log(`✅ Got user data by username: @${userData.username} (FID: ${userData.fid})`);
+              } else {
+                console.warn(`⚠️ User data not found for username: ${usernameFromUrl}`);
               }
             } catch (userError: any) {
               console.warn(`⚠️ Failed to get user by username:`, userError?.message);
