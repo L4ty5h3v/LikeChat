@@ -332,17 +332,36 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
           
           // Если получили данные пользователя, используем их
           if (userData && userData.fid) {
+            // Извлекаем pfp_url из различных форматов ответа Neynar API
+            let pfpUrl = null;
+            if (userData.pfp?.url) {
+              pfpUrl = userData.pfp.url;
+            } else if (userData.pfp_url) {
+              pfpUrl = userData.pfp_url;
+            } else if (userData.pfp) {
+              pfpUrl = typeof userData.pfp === 'string' ? userData.pfp : userData.pfp.url;
+            } else if (userData.profile?.pfp?.url) {
+              pfpUrl = userData.profile.pfp.url;
+            } else if (userData.profile?.pfp_url) {
+              pfpUrl = userData.profile.pfp_url;
+            }
+            
+            // Если не нашли pfp_url, используем fallback
+            if (!pfpUrl) {
+              pfpUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.fid}`;
+            }
+            
             linksToAdd.push({
               id: `init_link_${index + 1}_${baseTimestamp + index}`,
               user_fid: userData.fid,
-              username: userData.username || usernameFromUrl || `user_${index + 1}`,
-              pfp_url: userData.pfp?.url || userData.pfp_url || userData.pfp || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.fid}`,
+              username: userData.username || userData.display_name || usernameFromUrl || `user_${index + 1}`,
+              pfp_url: pfpUrl,
               cast_url: castUrl,
               activity_type: activityTypes[index % activityTypes.length],
               completed_by: [],
               created_at: new Date().toISOString(),
             });
-            console.log(`✅ [${index + 1}/${initialLinks.length}] Loaded real user data by username: @${userData.username} (FID: ${userData.fid})`);
+            console.log(`✅ [${index + 1}/${initialLinks.length}] Loaded real user data by username: @${userData.username || userData.display_name} (FID: ${userData.fid}, pfp: ${pfpUrl})`);
           } else {
             // Если не удалось получить данные пользователя, используем fallback
             linksToAdd.push({
