@@ -101,31 +101,63 @@ export default function Home() {
         if (typeof window !== 'undefined') {
           try {
             // Динамический импорт SDK
-            const { sdk } = await import('@farcaster/miniapp-sdk');
+            const sdkModule = await import('@farcaster/miniapp-sdk');
+            const { sdk } = sdkModule;
             
-            // Пробуем получить адрес кошелька через Ethereum провайдер
-            // В Farcaster Mini App кошелек должен быть доступен через window.ethereum
-            const ethereum = (window as any).ethereum;
-            if (ethereum) {
-              console.log('🔄 Trying window.ethereum...');
-              try {
-                if (ethereum.selectedAddress) {
-                  walletAddress = ethereum.selectedAddress;
-                  console.log('📍 Using already selected address:', walletAddress);
-                } else {
-                  const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
+            // Пробуем получить Ethereum провайдер через SDK
+            console.log('🔄 Trying to get Ethereum provider via SDK...');
+            try {
+              // Импортируем getEthereumProvider напрямую из ethereumProvider
+              const { getEthereumProvider } = await import('@farcaster/miniapp-sdk/dist/ethereumProvider');
+              const provider = await getEthereumProvider();
+              if (provider) {
+                console.log('✅ Ethereum provider obtained from SDK');
+                // Получаем адрес кошелька через провайдер
+                try {
+                  const accounts = await provider.request({ method: 'eth_requestAccounts' });
                   if (accounts && accounts.length > 0) {
                     walletAddress = accounts[0];
-                    console.log('📍 Wallet address from ethereum.request:', walletAddress);
+                    console.log('✅ Wallet address from SDK provider:', walletAddress);
                   }
+                } catch (requestError: any) {
+                  if (requestError.code === 4001) {
+                    console.log('ℹ️ User rejected wallet connection');
+                    setLoading(false);
+                    return;
+                  }
+                  console.warn('⚠️ Provider request error:', requestError.message);
                 }
-              } catch (ethError: any) {
-                if (ethError.code === 4001) {
-                  console.log('ℹ️ User rejected wallet connection');
-                  setLoading(false);
-                  return;
+              } else {
+                console.log('ℹ️ SDK provider not available, trying window.ethereum...');
+              }
+            } catch (providerError: any) {
+              console.log('ℹ️ Failed to get SDK provider, trying window.ethereum:', providerError.message);
+            }
+            
+            // Fallback на window.ethereum если SDK провайдер недоступен
+            if (!walletAddress) {
+              const ethereum = (window as any).ethereum;
+              if (ethereum) {
+                console.log('🔄 Trying window.ethereum...');
+                try {
+                  if (ethereum.selectedAddress) {
+                    walletAddress = ethereum.selectedAddress;
+                    console.log('📍 Using already selected address:', walletAddress);
+                  } else {
+                    const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
+                    if (accounts && accounts.length > 0) {
+                      walletAddress = accounts[0];
+                      console.log('📍 Wallet address from ethereum.request:', walletAddress);
+                    }
+                  }
+                } catch (ethError: any) {
+                  if (ethError.code === 4001) {
+                    console.log('ℹ️ User rejected wallet connection');
+                    setLoading(false);
+                    return;
+                  }
+                  console.warn('⚠️ Ethereum provider error:', ethError.message);
                 }
-                console.warn('⚠️ Ethereum provider error:', ethError.message);
               }
             }
             
