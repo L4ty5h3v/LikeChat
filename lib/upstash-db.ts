@@ -323,19 +323,35 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
           let userData = null;
           if (usernameFromUrl) {
             try {
-              console.log(`🔍 Trying to get user data by username: ${usernameFromUrl}`);
+              console.log(`🔍 [${index + 1}/${initialLinks.length}] Trying to get user data by username: ${usernameFromUrl}`);
               userData = await getUserByUsername(usernameFromUrl);
+              
+              console.log(`🔍 [${index + 1}/${initialLinks.length}] getUserByUsername returned:`, {
+                hasData: !!userData,
+                fid: userData?.fid,
+                username: userData?.username,
+                display_name: userData?.display_name,
+                hasPfp: !!(userData?.pfp || userData?.pfp_url || userData?.profile?.pfp),
+                pfpUrl: userData?.pfp?.url || userData?.pfp_url || userData?.profile?.pfp?.url,
+                rawData: userData,
+              });
+              
               if (userData && userData.fid) {
-                console.log(`✅ Got user data by username: @${userData.username} (FID: ${userData.fid})`);
+                console.log(`✅ [${index + 1}/${initialLinks.length}] Got user data by username: @${userData.username || userData.display_name} (FID: ${userData.fid})`);
               } else {
-                console.warn(`⚠️ User data not found for username: ${usernameFromUrl}`);
-                // Если username не найден, попробуем использовать известные реальные username'ы
-                // Например, попробуем найти пользователя через поиск
-                console.log(`🔍 Trying to search for user with similar username...`);
+                console.warn(`⚠️ [${index + 1}/${initialLinks.length}] User data not found or invalid for username: ${usernameFromUrl}`);
+                console.warn(`⚠️ [${index + 1}/${initialLinks.length}] UserData received:`, userData);
               }
             } catch (userError: any) {
-              console.warn(`⚠️ Failed to get user by username:`, userError?.message);
+              console.error(`❌ [${index + 1}/${initialLinks.length}] Failed to get user by username:`, {
+                message: userError?.message,
+                stack: userError?.stack,
+                response: userError?.response?.data,
+                status: userError?.response?.status,
+              });
             }
+          } else {
+            console.warn(`⚠️ [${index + 1}/${initialLinks.length}] No username extracted from URL: ${castUrl}`);
           }
           
           // Если username из URL не найден, но это может быть реальный пользователь,
