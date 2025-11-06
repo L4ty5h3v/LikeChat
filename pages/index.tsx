@@ -15,6 +15,8 @@ export default function Home() {
   const [user, setUser] = useState<FarcasterUser | null>(null);
   const [selectedActivity, setSelectedActivity] = useState<ActivityType | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [errorModal, setErrorModal] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
+  const [success, setSuccess] = useState(false);
 
   // Проверка сохраненной сессии
   useEffect(() => {
@@ -82,6 +84,9 @@ export default function Home() {
       setUser(null);
     }
     
+    // Сбрасываем состояние ошибки и успеха
+    setErrorModal({ show: false, message: '' });
+    setSuccess(false);
     setLoading(true);
     
     try {
@@ -156,13 +161,33 @@ export default function Home() {
         }
         
         if (!walletAddress) {
-          // Если кошелек не найден, используем альтернативный способ
-          console.log('⚠️ Farcaster wallet not detected, trying alternative method');
-          // Можно предложить пользователю ввести адрес вручную или использовать другой способ
+          // Если кошелек не найден, показываем ошибку и останавливаем выполнение
+          console.error('❌ Farcaster wallet not detected');
+          console.error('❌ Available providers:', {
+            hasEthereum: !!ethereum,
+            hasFarcaster: !!farcasterProvider,
+            windowEthereum: typeof window !== 'undefined' ? !!(window as any).ethereum : false,
+            windowFarcaster: typeof window !== 'undefined' ? !!(window as any).farcaster : false,
+          });
+          setErrorModal({
+            show: true,
+            message: '❌ Farcaster кошелек не обнаружен.\n\nПожалуйста, убедитесь, что:\n1. Установлен кошелек Farcaster (например, через Warpcast)\n2. Кошелек открыт и разблокирован\n3. Разрешены запросы на подключение\n\nПопробуйте обновить страницу и подключить кошелек снова.'
+          });
+          setLoading(false);
+          return;
         }
       } catch (walletError: any) {
-        console.warn('⚠️ Wallet connection issue:', walletError.message);
-        // Продолжаем без кошелька, попробуем найти пользователя другим способом
+        console.error('❌ Wallet connection error:', {
+          message: walletError.message,
+          code: walletError.code,
+          stack: walletError.stack,
+        });
+        setErrorModal({
+          show: true,
+          message: `❌ Ошибка подключения кошелька:\n\n${walletError.message}\n\nПроверьте консоль браузера для деталей.`
+        });
+        setLoading(false);
+        return;
       }
       
       // Ищем пользователя Farcaster по адресу кошелька (если есть)
@@ -236,13 +261,19 @@ export default function Home() {
             // Если API вернул предупреждение, выводим его
             if (data.warning) {
               console.warn('⚠️ API warning:', data.warning);
-              alert(`⚠️ Предупреждение: ${data.warning}\n\nПроверьте, что Neynar API ключ настроен в переменных окружения.`);
+              setErrorModal({
+                show: true,
+                message: `⚠️ Предупреждение: ${data.warning}\n\nПроверьте, что Neynar API ключ настроен в переменных окружения.`
+              });
             }
             
             // Если API вернул ошибку, выводим её
             if (data.error) {
               console.error('❌ API error:', data.error);
-              alert(`❌ Ошибка API: ${data.error}`);
+              setErrorModal({
+                show: true,
+                message: `❌ Ошибка API: ${data.error}`
+              });
             }
           }
         } catch (error: any) {
@@ -254,7 +285,10 @@ export default function Home() {
           });
           
           // Показываем пользователю детальную ошибку
-          alert(`❌ Ошибка при получении данных пользователя Farcaster:\n\n${error.message}\n\nПроверьте консоль браузера для деталей.`);
+          setErrorModal({
+            show: true,
+            message: `❌ Ошибка при получении данных пользователя Farcaster:\n\n${error.message}\n\nПроверьте консоль браузера для деталей.`
+          });
         }
       }
       
@@ -262,12 +296,18 @@ export default function Home() {
       if (!farcasterUser) {
         if (walletAddress) {
           console.error('❌ Farcaster user not found for wallet:', walletAddress);
-          alert(`Пользователь Farcaster не найден для адреса ${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}.\n\nВозможные причины:\n1. Кошелек не связан с Farcaster аккаунтом\n2. Neynar API ключ не настроен\n3. API не может найти пользователя по этому адресу\n\nПроверьте консоль браузера для деталей.`);
+          setErrorModal({
+            show: true,
+            message: `Пользователь Farcaster не найден для адреса ${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}.\n\nВозможные причины:\n1. Кошелек не связан с Farcaster аккаунтом\n2. Neynar API ключ не настроен\n3. API не может найти пользователя по этому адресу\n\nПроверьте консоль браузера для деталей.`
+          });
           setLoading(false);
           return;
         } else {
           console.error('❌ Farcaster wallet not detected');
-          alert('Farcaster кошелек не обнаружен. Пожалуйста, используйте кошелек Farcaster (например, через Warpcast) для авторизации.');
+          setErrorModal({
+            show: true,
+            message: 'Farcaster кошелек не обнаружен. Пожалуйста, используйте кошелек Farcaster (например, через Warpcast) для авторизации.'
+          });
           setLoading(false);
           return;
         }
@@ -276,7 +316,10 @@ export default function Home() {
       // Проверяем, что данные пользователя валидны
       if (!farcasterUser.fid || !farcasterUser.username) {
         console.error('❌ Invalid Farcaster user data:', farcasterUser);
-        alert('Получены невалидные данные пользователя Farcaster. Попробуйте снова.');
+        setErrorModal({
+          show: true,
+          message: 'Получены невалидные данные пользователя Farcaster. Попробуйте снова.'
+        });
         setLoading(false);
         return;
       }
@@ -301,7 +344,10 @@ export default function Home() {
         
         if (!savedUserCheck) {
           console.error('❌ Failed to save user to localStorage');
-          alert('Ошибка при сохранении данных пользователя. Попробуйте снова.');
+          setErrorModal({
+            show: true,
+            message: 'Ошибка при сохранении данных пользователя. Попробуйте снова.'
+          });
           setLoading(false);
           return;
         }
@@ -324,11 +370,22 @@ export default function Home() {
         }
       }
       console.log('✅ Farcaster user authorized successfully:', farcasterUser);
+      setSuccess(true);
     } catch (error: any) {
       console.error('❌ Error during Farcaster authorization:', error);
-      alert(`Ошибка при авторизации: ${error.message || 'Неизвестная ошибка'}`);
+      setErrorModal({
+        show: true,
+        message: `Ошибка при авторизации: ${error.message || 'Неизвестная ошибка'}`
+      });
+      setSuccess(false);
     } finally {
-      console.log('✅ Farcaster authorization completed');
+      // Проверяем успешность авторизации по наличию пользователя
+      const wasSuccessful = typeof window !== 'undefined' && localStorage.getItem('farcaster_user');
+      if (wasSuccessful) {
+        console.log('✅ Farcaster authorization completed');
+      } else {
+        console.log('❌ Farcaster authorization failed');
+      }
       setLoading(false);
     }
   };
@@ -360,7 +417,10 @@ export default function Home() {
       router.push('/tasks');
     } catch (error) {
       console.error('Error saving activity:', error);
-      alert('Ошибка сохранения настроек');
+      setErrorModal({
+        show: true,
+        message: 'Ошибка сохранения настроек'
+      });
     } finally {
       setLoading(false);
     }
@@ -673,6 +733,34 @@ export default function Home() {
         </div>
       </div>
 
+      {/* Модальное окно для ошибок */}
+      {errorModal.show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 max-w-md w-full mx-4 border-2 border-red-200">
+            <div className="flex items-start justify-between mb-4">
+              <h3 className="text-xl sm:text-2xl font-bold text-red-600">Ошибка</h3>
+              <button
+                onClick={() => setErrorModal({ show: false, message: '' })}
+                className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
+                aria-label="Закрыть"
+              >
+                ×
+              </button>
+            </div>
+            <div className="mb-6">
+              <p className="text-sm sm:text-base text-gray-700 whitespace-pre-line">
+                {errorModal.message}
+              </p>
+            </div>
+            <button
+              onClick={() => setErrorModal({ show: false, message: '' })}
+              className="w-full px-6 py-3 bg-gradient-to-r from-primary to-accent text-white font-bold rounded-xl hover:opacity-90 transition-opacity"
+            >
+              Понятно
+            </button>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }
