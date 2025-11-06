@@ -37,19 +37,51 @@ export async function getCastByHash(castHash: string) {
 
   try {
     console.log(`🔍 Fetching cast by hash: ${castHash}`);
-    const response = await neynarClient.get('/farcaster/cast', {
-      params: {
-        hash: castHash,
-      },
-    });
+    console.log(`🔍 Using Neynar API key: ${NEYNAR_API_KEY ? `${NEYNAR_API_KEY.substring(0, 8)}...` : 'NOT SET'}`);
+    
+    // Попробуем несколько вариантов endpoint'ов
+    let response;
+    try {
+      // Вариант 1: /farcaster/cast с параметром hash
+      response = await neynarClient.get('/farcaster/cast', {
+        params: {
+          hash: castHash,
+        },
+      });
+      console.log(`✅ Cast data received (method 1):`, response.data);
+    } catch (error1: any) {
+      console.warn(`⚠️ Method 1 failed:`, error1?.response?.status, error1?.response?.data);
+      
+      // Вариант 2: /farcaster/cast с параметром identifier
+      try {
+        response = await neynarClient.get('/farcaster/cast', {
+          params: {
+            identifier: castHash,
+            type: 'hash',
+          },
+        });
+        console.log(`✅ Cast data received (method 2):`, response.data);
+      } catch (error2: any) {
+        console.warn(`⚠️ Method 2 failed:`, error2?.response?.status, error2?.response?.data);
+        throw error2;
+      }
+    }
 
-    console.log(`✅ Cast data received:`, response.data);
-    return response.data.result?.cast || response.data.cast || response.data;
+    const cast = response.data.result?.cast || response.data.cast || response.data;
+    
+    if (!cast) {
+      console.error('❌ Cast data is null or undefined. Full response:', JSON.stringify(response.data, null, 2));
+      return null;
+    }
+
+    return cast;
   } catch (error: any) {
     console.error('❌ Error fetching cast:', {
       status: error?.response?.status,
+      statusText: error?.response?.statusText,
       data: error?.response?.data,
       message: error?.message,
+      castHash: castHash,
     });
     return null;
   }

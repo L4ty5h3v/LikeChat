@@ -12,8 +12,16 @@ export default async function handler(
 
   // Проверяем секретный ключ для безопасности (опционально, если не установлен - пропускаем проверку)
   const secretKey = req.body.secretKey || req.query.secretKey;
-  if (process.env.INIT_LINKS_SECRET_KEY && secretKey !== process.env.INIT_LINKS_SECRET_KEY) {
-    return res.status(401).json({ error: 'Unauthorized' });
+  const requiredSecretKey = process.env.INIT_LINKS_SECRET_KEY;
+  
+  // Если секретный ключ установлен в переменных окружения, проверяем его
+  if (requiredSecretKey && requiredSecretKey.trim() !== '') {
+    if (!secretKey || secretKey !== requiredSecretKey) {
+      return res.status(401).json({ 
+        error: 'Unauthorized',
+        message: 'Секретный ключ не указан или неверен. Установите INIT_LINKS_SECRET_KEY в Vercel или введите правильный ключ.'
+      });
+    }
   }
 
   try {
