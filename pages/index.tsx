@@ -166,12 +166,23 @@ export default function Home() {
               const context = await sdk.context;
               console.log('📊 Farcaster SDK context:', context);
               
-              // Если получили context с пользователем, можем использовать его данные
-              if (context?.user) {
+              // Если получили context с пользователем, используем его данные напрямую
+              if (context?.user && context.user.fid) {
                 console.log('✅ Farcaster user from SDK context:', {
                   fid: context.user.fid,
                   username: context.user.username,
+                  displayName: context.user.displayName,
                 });
+                
+                // Используем данные пользователя из SDK context
+                farcasterUser = {
+                  fid: Number(context.user.fid),
+                  username: context.user.username || `user_${context.user.fid}`,
+                  pfp_url: (context.user as any).pfp?.url || (context.user as any).pfpUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${context.user.fid}`,
+                  display_name: (context.user as any).displayName || context.user.username || `User ${context.user.fid}`,
+                };
+                
+                console.log('✅ Using Farcaster user from SDK context:', farcasterUser);
               }
             } catch (contextError: any) {
               console.log('ℹ️ SDK context not available:', contextError.message);
@@ -204,25 +215,30 @@ export default function Home() {
           }
         }
         
-        // Проверяем валидность адреса
-        if (walletAddress) {
-          if (!walletAddress.startsWith('0x') || walletAddress.length !== 42) {
-            console.warn('⚠️ Invalid wallet address format:', walletAddress);
-            walletAddress = null;
-          } else {
-            console.log('✅ Valid wallet address:', walletAddress);
+        // Если получили пользователя из SDK context, не требуем адрес кошелька
+        if (farcasterUser && farcasterUser.fid) {
+          console.log('✅ User obtained from SDK context, skipping wallet address requirement');
+        } else {
+          // Проверяем валидность адреса только если не получили пользователя из SDK
+          if (walletAddress) {
+            if (!walletAddress.startsWith('0x') || walletAddress.length !== 42) {
+              console.warn('⚠️ Invalid wallet address format:', walletAddress);
+              walletAddress = null;
+            } else {
+              console.log('✅ Valid wallet address:', walletAddress);
+            }
           }
-        }
-        
-        if (!walletAddress) {
-          // Если кошелек не найден, показываем ошибку и останавливаем выполнение
-          console.error('❌ Farcaster wallet not detected');
-          setErrorModal({
-            show: true,
-            message: '❌ Farcaster кошелек не обнаружен.\n\nПожалуйста, убедитесь, что:\n1. Вы используете Farcaster Mini App (например, через Warpcast)\n2. Кошелек подключен и разблокирован\n3. Разрешены запросы на подключение\n\nПопробуйте обновить страницу и подключить кошелек снова.'
-          });
-          setLoading(false);
-          return;
+          
+          if (!walletAddress) {
+            // Если кошелек не найден и нет пользователя из SDK, показываем ошибку
+            console.error('❌ Farcaster wallet not detected and no user from SDK context');
+            setErrorModal({
+              show: true,
+              message: '❌ Farcaster кошелек не обнаружен.\n\nПожалуйста, убедитесь, что:\n1. Вы используете Farcaster Mini App (например, через Warpcast)\n2. Кошелек подключен и разблокирован\n3. Разрешены запросы на подключение\n\nПопробуйте обновить страницу и подключить кошелек снова.'
+            });
+            setLoading(false);
+            return;
+          }
         }
       } catch (walletError: any) {
         console.error('❌ Wallet connection error:', {
@@ -238,8 +254,8 @@ export default function Home() {
         return;
       }
       
-      // Ищем пользователя Farcaster по адресу кошелька (если есть)
-      if (walletAddress) {
+      // Ищем пользователя Farcaster по адресу кошелька (если есть и еще не получили из SDK context)
+      if (walletAddress && !farcasterUser) {
         console.log('🔍 Looking for Farcaster user by wallet address:', walletAddress);
         console.log('🔍 Wallet address validation:', {
           startsWith0x: walletAddress.startsWith('0x'),
