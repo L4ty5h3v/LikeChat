@@ -127,16 +127,37 @@ export async function getCastAuthor(castUrl: string) {
     return null;
   }
 
-  if (!cast.author) {
+  // Обрабатываем различные форматы ответа от Neynar API
+  let author: any = null;
+  
+  if (cast.author) {
+    // Стандартный формат: cast.author
+    author = cast.author;
+  } else if (cast.author_fid) {
+    // Альтернативный формат: только author_fid, нужно получить данные пользователя
+    console.log(`⚠️ Cast has only author_fid (${cast.author_fid}), fetching user data...`);
+    const user = await getUserByFid(cast.author_fid);
+    if (user) {
+      author = user;
+    } else {
+      console.warn(`⚠️ Could not fetch user data for FID: ${cast.author_fid}`);
+      return null;
+    }
+  } else {
     console.warn(`⚠️ Cast author not found in response:`, cast);
     return null;
   }
 
+  if (!author || !author.fid) {
+    console.warn(`⚠️ Invalid author data:`, author);
+    return null;
+  }
+
   const authorData = {
-    fid: cast.author.fid,
-    username: cast.author.username,
-    pfp_url: cast.author.pfp?.url || cast.author.pfp_url || cast.author.pfp || `https://api.dicebear.com/7.x/avataaars/svg?seed=${cast.author.fid}`,
-    display_name: cast.author.display_name || cast.author.username,
+    fid: author.fid,
+    username: author.username || `user_${author.fid}`,
+    pfp_url: author.pfp?.url || author.pfp_url || author.pfp || `https://api.dicebear.com/7.x/avataaars/svg?seed=${author.fid}`,
+    display_name: author.display_name || author.username || `User ${author.fid}`,
   };
 
   console.log(`✅ Author data extracted:`, authorData);
