@@ -11,6 +11,9 @@ const neynarClient = axios.create({
     'api_key': NEYNAR_API_KEY,
     'Content-Type': 'application/json',
   },
+  params: {
+    'api_key': NEYNAR_API_KEY, // Также добавляем в query параметры на случай, если API требует это
+  },
 });
 
 // Извлечь hash каста из URL
@@ -43,7 +46,7 @@ export async function getCastByHash(castHash: string) {
     let response;
     let lastError: any = null;
     
-    // Вариант 1: /farcaster/cast с параметром identifier и type
+    // Вариант 1: /farcaster/cast с параметром identifier и type (правильный формат для Neynar API v2)
     try {
       response = await neynarClient.get('/farcaster/cast', {
         params: {
@@ -54,28 +57,71 @@ export async function getCastByHash(castHash: string) {
       console.log(`✅ Cast data received (method 1 - identifier):`, response.data);
     } catch (error1: any) {
       lastError = error1;
-      console.warn(`⚠️ Method 1 failed:`, error1?.response?.status, error1?.response?.data);
+      console.warn(`⚠️ Method 1 failed:`, {
+        status: error1?.response?.status,
+        statusText: error1?.response?.statusText,
+        data: error1?.response?.data,
+        message: error1?.message,
+      });
       
-      // Вариант 2: /farcaster/cast с параметром hash напрямую
+      // Вариант 2: Попробуем без type параметра
       try {
         response = await neynarClient.get('/farcaster/cast', {
           params: {
-            hash: castHash,
+            identifier: castHash,
           },
         });
-        console.log(`✅ Cast data received (method 2 - hash):`, response.data);
+        console.log(`✅ Cast data received (method 2 - identifier only):`, response.data);
       } catch (error2: any) {
         lastError = error2;
-        console.warn(`⚠️ Method 2 failed:`, error2?.response?.status, error2?.response?.data);
+        console.warn(`⚠️ Method 2 failed:`, {
+          status: error2?.response?.status,
+          statusText: error2?.response?.statusText,
+          data: error2?.response?.data,
+          message: error2?.message,
+        });
         
-        // Вариант 3: Попробуем через /farcaster/cast с identifier в URL
+        // Вариант 3: Попробуем с параметром hash
         try {
-          response = await neynarClient.get(`/farcaster/cast?identifier=${castHash}&type=hash`);
-          console.log(`✅ Cast data received (method 3 - URL params):`, response.data);
+          response = await neynarClient.get('/farcaster/cast', {
+            params: {
+              hash: castHash,
+            },
+          });
+          console.log(`✅ Cast data received (method 3 - hash):`, response.data);
         } catch (error3: any) {
           lastError = error3;
-          console.warn(`⚠️ Method 3 failed:`, error3?.response?.status, error3?.response?.data);
-          throw error3;
+          console.warn(`⚠️ Method 3 failed:`, {
+            status: error3?.response?.status,
+            statusText: error3?.response?.statusText,
+            data: error3?.response?.data,
+            message: error3?.message,
+          });
+          
+          // Вариант 4: Попробуем прямой GET запрос с axios без клиента
+          try {
+            const directResponse = await axios.get(`${NEYNAR_BASE_URL}/farcaster/cast`, {
+              params: {
+                identifier: castHash,
+                type: 'hash',
+              },
+              headers: {
+                'api_key': NEYNAR_API_KEY,
+                'Content-Type': 'application/json',
+              },
+            });
+            response = directResponse;
+            console.log(`✅ Cast data received (method 4 - direct axios):`, response.data);
+          } catch (error4: any) {
+            lastError = error4;
+            console.error(`❌ All methods failed. Last error:`, {
+              status: error4?.response?.status,
+              statusText: error4?.response?.statusText,
+              data: error4?.response?.data,
+              message: error4?.message,
+            });
+            throw error4;
+          }
         }
       }
     }
