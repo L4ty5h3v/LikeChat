@@ -6,25 +6,40 @@ import Button from '@/components/Button';
 export default function InitLinks() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ success?: boolean; error?: string; message?: string } | null>(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showSecretKeyModal, setShowSecretKeyModal] = useState(false);
+  const [secretKey, setSecretKey] = useState('');
 
-  const handleInit = async () => {
-    if (!confirm('Вы уверены, что хотите инициализировать систему начальными ссылками? Это действие нельзя отменить.')) {
-      return;
+  const handleInitClick = () => {
+    setShowConfirmModal(true);
+  };
+
+  const handleConfirm = () => {
+    setShowConfirmModal(false);
+    // Если установлен INIT_LINKS_SECRET_KEY, запрашиваем его
+    if (process.env.NEXT_PUBLIC_INIT_LINKS_SECRET_KEY) {
+      setShowSecretKeyModal(true);
+    } else {
+      performInit('');
     }
+  };
 
+  const handleSecretKeySubmit = () => {
+    setShowSecretKeyModal(false);
+    performInit(secretKey);
+  };
+
+  const performInit = async (secretKeyValue: string) => {
     setLoading(true);
     setResult(null);
 
     try {
-      // Если установлен INIT_LINKS_SECRET_KEY, запрашиваем его
-      const secretKey = prompt('Введите секретный ключ для инициализации (если требуется):');
-      
       const response = await fetch('/api/init-links', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ secretKey: secretKey || '' }),
+        body: JSON.stringify({ secretKey: secretKeyValue || '' }),
       });
 
       // Проверяем, есть ли содержимое в ответе
@@ -95,7 +110,7 @@ export default function InitLinks() {
           )}
 
           <Button
-            onClick={handleInit}
+            onClick={handleInitClick}
             loading={loading}
             variant="primary"
             fullWidth
@@ -103,6 +118,73 @@ export default function InitLinks() {
           >
             {loading ? 'Инициализация...' : 'Инициализировать систему'}
           </Button>
+
+          {/* Модальное окно подтверждения */}
+          {showConfirmModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
+              <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 max-w-md w-full mx-4">
+                <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">
+                  Подтверждение
+                </h3>
+                <p className="text-gray-700 mb-6">
+                  Вы уверены, что хотите инициализировать систему начальными ссылками? Это действие нельзя отменить.
+                </p>
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => setShowConfirmModal(false)}
+                    className="flex-1 px-6 py-3 bg-gray-200 text-gray-800 font-bold rounded-xl hover:bg-gray-300 transition-colors"
+                  >
+                    Отмена
+                  </button>
+                  <button
+                    onClick={handleConfirm}
+                    className="flex-1 px-6 py-3 bg-gradient-to-r from-primary to-accent text-white font-bold rounded-xl hover:opacity-90 transition-opacity"
+                  >
+                    Подтвердить
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Модальное окно для секретного ключа */}
+          {showSecretKeyModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
+              <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 max-w-md w-full mx-4">
+                <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">
+                  Секретный ключ
+                </h3>
+                <p className="text-gray-700 mb-4">
+                  Введите секретный ключ для инициализации (если требуется):
+                </p>
+                <input
+                  type="text"
+                  value={secretKey}
+                  onChange={(e) => setSecretKey(e.target.value)}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl mb-6 focus:outline-none focus:border-primary"
+                  placeholder="Секретный ключ"
+                  autoFocus
+                />
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => {
+                      setShowSecretKeyModal(false);
+                      setSecretKey('');
+                    }}
+                    className="flex-1 px-6 py-3 bg-gray-200 text-gray-800 font-bold rounded-xl hover:bg-gray-300 transition-colors"
+                  >
+                    Отмена
+                  </button>
+                  <button
+                    onClick={handleSecretKeySubmit}
+                    className="flex-1 px-6 py-3 bg-gradient-to-r from-primary to-accent text-white font-bold rounded-xl hover:opacity-90 transition-opacity"
+                  >
+                    Продолжить
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="bg-yellow-50 border-2 border-yellow-300 rounded-2xl p-6">
