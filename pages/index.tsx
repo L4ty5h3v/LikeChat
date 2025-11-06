@@ -25,10 +25,10 @@ export default function Home() {
     
     // Проверяем localStorage только на клиенте
     if (typeof window !== 'undefined') {
-      const savedUser = localStorage.getItem('farcaster_user');
-      const savedActivity = localStorage.getItem('selected_activity');
-      
-      if (savedUser) {
+    const savedUser = localStorage.getItem('farcaster_user');
+    const savedActivity = localStorage.getItem('selected_activity');
+    
+    if (savedUser) {
         try {
           const parsedUser = JSON.parse(savedUser);
           console.log('🔍 Loading saved user from localStorage:', parsedUser);
@@ -58,10 +58,10 @@ export default function Home() {
           localStorage.removeItem('farcaster_user');
           setUser(null);
         }
-      }
-      
-      if (savedActivity) {
-        setSelectedActivity(savedActivity as ActivityType);
+    }
+    
+    if (savedActivity) {
+      setSelectedActivity(savedActivity as ActivityType);
       }
     }
   }, []);
@@ -93,85 +93,101 @@ export default function Home() {
       let farcasterUser: FarcasterUser | null = null;
       let walletAddress: string | null = null;
       
-      // Пытаемся получить адрес кошелька Farcaster через Warpcast или другие Farcaster провайдеры
+      // Пытаемся получить адрес кошелька через Farcaster Mini App SDK
       try {
-        // Проверяем наличие Farcaster провайдера
-        const farcasterProvider = typeof window !== 'undefined' 
-          ? (window as any).farcaster 
-          : null;
+        console.log('🔄 Connecting Farcaster wallet via SDK...');
         
-        // Проверяем наличие Ethereum провайдера (может быть Farcaster кошелек)
-        const ethereum = typeof window !== 'undefined' 
-          ? (window as any).ethereum 
-          : null;
-        
-        if (ethereum) {
-          // Пытаемся подключить кошелек (может быть Farcaster кошелек)
-          console.log('🔄 Connecting Farcaster wallet...');
-          console.log('🔍 Ethereum provider:', {
-            isMetaMask: ethereum.isMetaMask,
-            isCoinbaseWallet: ethereum.isCoinbaseWallet,
-            selectedAddress: ethereum.selectedAddress,
-            providers: ethereum.providers,
-          });
-          
+        // Используем Farcaster Mini App SDK для получения адреса кошелька
+        if (typeof window !== 'undefined') {
           try {
-            // Сначала проверяем, есть ли уже подключенные аккаунты
-            if (ethereum.selectedAddress) {
-              walletAddress = ethereum.selectedAddress;
-              console.log('📍 Using already selected address:', walletAddress);
-            } else {
-              // Запрашиваем подключение
-              const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
-              if (accounts && accounts.length > 0) {
-                walletAddress = accounts[0];
-                console.log('📍 Farcaster wallet address from request:', walletAddress);
+            // Динамический импорт SDK
+            const { sdk } = await import('@farcaster/miniapp-sdk');
+            
+            // Пробуем получить адрес кошелька через Ethereum провайдер
+            // В Farcaster Mini App кошелек должен быть доступен через window.ethereum
+            const ethereum = (window as any).ethereum;
+            if (ethereum) {
+              console.log('🔄 Trying window.ethereum...');
+              try {
+                if (ethereum.selectedAddress) {
+                  walletAddress = ethereum.selectedAddress;
+                  console.log('📍 Using already selected address:', walletAddress);
+                } else {
+                  const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
+                  if (accounts && accounts.length > 0) {
+                    walletAddress = accounts[0];
+                    console.log('📍 Wallet address from ethereum.request:', walletAddress);
+                  }
+                }
+              } catch (ethError: any) {
+                if (ethError.code === 4001) {
+                  console.log('ℹ️ User rejected wallet connection');
+                  setLoading(false);
+                  return;
+                }
+                console.warn('⚠️ Ethereum provider error:', ethError.message);
               }
             }
             
-            // Если получили адрес, проверяем его валидность
-            if (walletAddress) {
-              if (!walletAddress.startsWith('0x') || walletAddress.length !== 42) {
-                console.warn('⚠️ Invalid wallet address format:', walletAddress);
-                walletAddress = null;
-              } else {
-                console.log('✅ Valid wallet address:', walletAddress);
+            // Также пробуем получить информацию о пользователе из SDK context
+            try {
+              const context = await sdk.context;
+              console.log('📊 Farcaster SDK context:', context);
+              
+              // Если получили context с пользователем, можем использовать его данные
+              if (context?.user) {
+                console.log('✅ Farcaster user from SDK context:', {
+                  fid: context.user.fid,
+                  username: context.user.username,
+                });
               }
+            } catch (contextError: any) {
+              console.log('ℹ️ SDK context not available:', contextError.message);
             }
-          } catch (error: any) {
-            console.error('❌ Wallet connection error:', {
-              code: error.code,
-              message: error.message,
-              data: error.data,
-            });
+          } catch (importError: any) {
+            console.log('ℹ️ SDK import failed, trying window.ethereum:', importError.message);
             
-            // Если пользователь отклонил запрос, не показываем ошибку
-            if (error.code === 4001) {
-              console.log('ℹ️ User rejected wallet connection');
-              setLoading(false);
-              return;
+            // Fallback на window.ethereum
+            const ethereum = (window as any).ethereum;
+            if (ethereum) {
+              try {
+                if (ethereum.selectedAddress) {
+                  walletAddress = ethereum.selectedAddress;
+                  console.log('📍 Using already selected address (fallback):', walletAddress);
+                } else {
+                  const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
+                  if (accounts && accounts.length > 0) {
+                    walletAddress = accounts[0];
+                    console.log('📍 Wallet address from ethereum.request (fallback):', walletAddress);
+                  }
+                }
+              } catch (ethError: any) {
+                if (ethError.code === 4001) {
+                  console.log('ℹ️ User rejected wallet connection');
+                  setLoading(false);
+                  return;
+                }
+              }
             }
           }
         }
         
-        // Если не получили адрес напрямую, пробуем через Farcaster Connect
-        if (!walletAddress && farcasterProvider) {
-          console.log('🔄 Using Farcaster provider...');
-          // Здесь можно добавить логику для Farcaster Connect SDK
+        // Проверяем валидность адреса
+        if (walletAddress) {
+          if (!walletAddress.startsWith('0x') || walletAddress.length !== 42) {
+            console.warn('⚠️ Invalid wallet address format:', walletAddress);
+            walletAddress = null;
+          } else {
+            console.log('✅ Valid wallet address:', walletAddress);
+          }
         }
         
         if (!walletAddress) {
           // Если кошелек не найден, показываем ошибку и останавливаем выполнение
           console.error('❌ Farcaster wallet not detected');
-          console.error('❌ Available providers:', {
-            hasEthereum: !!ethereum,
-            hasFarcaster: !!farcasterProvider,
-            windowEthereum: typeof window !== 'undefined' ? !!(window as any).ethereum : false,
-            windowFarcaster: typeof window !== 'undefined' ? !!(window as any).farcaster : false,
-          });
           setErrorModal({
             show: true,
-            message: '❌ Farcaster кошелек не обнаружен.\n\nПожалуйста, убедитесь, что:\n1. Установлен кошелек Farcaster (например, через Warpcast)\n2. Кошелек открыт и разблокирован\n3. Разрешены запросы на подключение\n\nПопробуйте обновить страницу и подключить кошелек снова.'
+            message: '❌ Farcaster кошелек не обнаружен.\n\nПожалуйста, убедитесь, что:\n1. Вы используете Farcaster Mini App (например, через Warpcast)\n2. Кошелек подключен и разблокирован\n3. Разрешены запросы на подключение\n\nПопробуйте обновить страницу и подключить кошелек снова.'
           });
           setLoading(false);
           return;
@@ -302,7 +318,7 @@ export default function Home() {
           });
           setLoading(false);
           return;
-        } else {
+      } else {
           console.error('❌ Farcaster wallet not detected');
           setErrorModal({
             show: true,
@@ -451,7 +467,7 @@ export default function Home() {
                 <span className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-white">
                   LIKE
                 </span>
-              </h1>
+            </h1>
             </div>
 
 
