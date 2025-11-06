@@ -5,6 +5,9 @@ import axios from 'axios';
 const NEYNAR_API_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '';
 const NEYNAR_BASE_URL = 'https://api.neynar.com/v2';
 
+// Очищаем API ключ от пробелов и недопустимых символов
+const cleanApiKey = NEYNAR_API_KEY ? NEYNAR_API_KEY.trim().replace(/[\r\n\t]/g, '') : '';
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
@@ -17,7 +20,7 @@ export default async function handler(
   const testResults: any[] = [];
 
   // Проверяем наличие API ключа
-  if (!NEYNAR_API_KEY) {
+  if (!NEYNAR_API_KEY || !cleanApiKey) {
     return res.status(200).json({
       error: 'NEXT_PUBLIC_NEYNAR_API_KEY not configured',
       apiKeyPresent: false,
@@ -33,7 +36,7 @@ export default async function handler(
         type: 'hash',
       },
       headers: {
-        'api_key': NEYNAR_API_KEY,
+        'api_key': cleanApiKey,
         'Content-Type': 'application/json',
       },
     });
@@ -63,7 +66,7 @@ export default async function handler(
         identifier: castHash,
       },
       headers: {
-        'api_key': NEYNAR_API_KEY,
+        'api_key': cleanApiKey,
         'Content-Type': 'application/json',
       },
     });
@@ -93,7 +96,7 @@ export default async function handler(
         hash: castHash,
       },
       headers: {
-        'api_key': NEYNAR_API_KEY,
+        'api_key': cleanApiKey,
         'Content-Type': 'application/json',
       },
     });
@@ -122,7 +125,7 @@ export default async function handler(
       params: {
         identifier: castHash,
         type: 'hash',
-        api_key: NEYNAR_API_KEY,
+        api_key: cleanApiKey,
       },
       headers: {
         'Content-Type': 'application/json',
@@ -147,9 +150,41 @@ export default async function handler(
     });
   }
 
+  // Добавим тест с x-api-key заголовком
+  try {
+    const response5 = await axios.get(`${NEYNAR_BASE_URL}/farcaster/cast`, {
+      params: {
+        identifier: castHash,
+        type: 'hash',
+      },
+      headers: {
+        'x-api-key': cleanApiKey,
+        'Content-Type': 'application/json',
+      },
+    });
+    testResults.push({
+      method: 'x-api-key header',
+      success: true,
+      status: response5.status,
+      hasData: !!response5.data,
+      dataKeys: response5.data ? Object.keys(response5.data) : [],
+      cast: response5.data?.result?.cast || response5.data?.cast || response5.data?.result || response5.data,
+      author: response5.data?.result?.cast?.author || response5.data?.cast?.author || null,
+    });
+  } catch (error: any) {
+    testResults.push({
+      method: 'x-api-key header',
+      success: false,
+      status: error?.response?.status,
+      statusText: error?.response?.statusText,
+      error: error?.response?.data || error?.message,
+    });
+  }
+
   return res.status(200).json({
     apiKeyPresent: true,
-    apiKeyPreview: NEYNAR_API_KEY ? `${NEYNAR_API_KEY.substring(0, 8)}...` : 'NOT SET',
+    apiKeyPreview: cleanApiKey ? `${cleanApiKey.substring(0, 8)}...` : 'NOT SET',
+    apiKeyLength: cleanApiKey.length,
     castHash: castHash,
     testResults: testResults,
     summary: {

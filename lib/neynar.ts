@@ -5,14 +5,14 @@ import type { ActivityType, NeynarReaction, NeynarComment } from '@/types';
 const NEYNAR_API_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '';
 const NEYNAR_BASE_URL = 'https://api.neynar.com/v2';
 
+// Очищаем API ключ от пробелов и недопустимых символов
+const cleanApiKey = NEYNAR_API_KEY ? NEYNAR_API_KEY.trim().replace(/[\r\n\t]/g, '') : '';
+
 const neynarClient = axios.create({
   baseURL: NEYNAR_BASE_URL,
   headers: {
-    'api_key': NEYNAR_API_KEY,
+    'api_key': cleanApiKey,
     'Content-Type': 'application/json',
-  },
-  params: {
-    'api_key': NEYNAR_API_KEY, // Также добавляем в query параметры на случай, если API требует это
   },
 });
 
@@ -98,7 +98,7 @@ export async function getCastByHash(castHash: string) {
             message: error3?.message,
           });
           
-          // Вариант 4: Попробуем прямой GET запрос с axios без клиента
+          // Вариант 4: Попробуем с заголовком x-api-key
           try {
             const directResponse = await axios.get(`${NEYNAR_BASE_URL}/farcaster/cast`, {
               params: {
@@ -106,21 +106,45 @@ export async function getCastByHash(castHash: string) {
                 type: 'hash',
               },
               headers: {
-                'api_key': NEYNAR_API_KEY,
+                'x-api-key': cleanApiKey,
                 'Content-Type': 'application/json',
               },
             });
             response = directResponse;
-            console.log(`✅ Cast data received (method 4 - direct axios):`, response.data);
+            console.log(`✅ Cast data received (method 4 - x-api-key):`, response.data);
           } catch (error4: any) {
             lastError = error4;
-            console.error(`❌ All methods failed. Last error:`, {
+            console.warn(`⚠️ Method 4 failed:`, {
               status: error4?.response?.status,
               statusText: error4?.response?.statusText,
               data: error4?.response?.data,
               message: error4?.message,
             });
-            throw error4;
+            
+            // Вариант 5: Попробуем с Authorization заголовком
+            try {
+              const authResponse = await axios.get(`${NEYNAR_BASE_URL}/farcaster/cast`, {
+                params: {
+                  identifier: castHash,
+                  type: 'hash',
+                },
+                headers: {
+                  'Authorization': `Bearer ${cleanApiKey}`,
+                  'Content-Type': 'application/json',
+                },
+              });
+              response = authResponse;
+              console.log(`✅ Cast data received (method 5 - Authorization):`, response.data);
+            } catch (error5: any) {
+              lastError = error5;
+              console.error(`❌ All methods failed. Last error:`, {
+                status: error5?.response?.status,
+                statusText: error5?.response?.statusText,
+                data: error5?.response?.data,
+                message: error5?.message,
+              });
+              throw error5;
+            }
           }
         }
       }
