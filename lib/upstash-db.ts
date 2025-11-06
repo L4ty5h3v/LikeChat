@@ -462,14 +462,24 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
     }
 
     // Добавляем ссылки в Redis (в правильном порядке, первая - последняя)
-    for (const link of linksToAdd.reverse()) {
+    console.log(`📝 Adding ${linksToAdd.length} links to Redis...`);
+    for (let i = 0; i < linksToAdd.length; i++) {
+      const link = linksToAdd[i];
+      console.log(`📝 [${i + 1}/${linksToAdd.length}] Adding link:`, {
+        id: link.id,
+        username: link.username,
+        user_fid: link.user_fid,
+        pfp_url: link.pfp_url,
+        has_pfp: !!link.pfp_url && link.pfp_url !== `https://api.dicebear.com/7.x/avataaars/svg?seed=${link.user_fid || 'hash'}`,
+      });
       await redis.lpush(KEYS.LINKS, JSON.stringify(link));
     }
 
     // Устанавливаем счетчик
     await redis.set(KEYS.TOTAL_LINKS_COUNT, initialLinks.length);
 
-    return { success: true, count: initialLinks.length };
+    console.log(`✅ Successfully initialized ${linksToAdd.length} links`);
+    return { success: true, count: linksToAdd.length };
   } catch (error: any) {
     console.error('Error initializing links:', error);
     return { 
