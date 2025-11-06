@@ -162,16 +162,20 @@ export default function Home() {
             }
             
             // Также пробуем получить информацию о пользователе из SDK context
+            console.log('🔄 Attempting to get SDK context...');
             try {
               const context = await sdk.context;
-              console.log('📊 Farcaster SDK context:', context);
+              console.log('📊 Farcaster SDK context received:', JSON.stringify(context, null, 2));
+              console.log('📊 SDK context.user:', context?.user);
+              console.log('📊 SDK context.user type:', typeof context?.user);
               
               // Если получили context с пользователем, используем его данные напрямую
               if (context?.user && context.user.fid) {
-                console.log('✅ Farcaster user from SDK context:', {
+                console.log('✅ Farcaster user found in SDK context:', {
                   fid: context.user.fid,
                   username: context.user.username,
-                  displayName: context.user.displayName,
+                  displayName: (context.user as any).displayName,
+                  hasPfp: !!(context.user as any).pfp || !!(context.user as any).pfpUrl,
                 });
                 
                 // Используем данные пользователя из SDK context
@@ -183,9 +187,19 @@ export default function Home() {
                 };
                 
                 console.log('✅ Using Farcaster user from SDK context:', farcasterUser);
+              } else {
+                console.warn('⚠️ SDK context does not contain user data:', {
+                  hasContext: !!context,
+                  hasUser: !!context?.user,
+                  userFid: context?.user?.fid,
+                });
               }
             } catch (contextError: any) {
-              console.log('ℹ️ SDK context not available:', contextError.message);
+              console.error('❌ SDK context error:', {
+                message: contextError.message,
+                stack: contextError.stack,
+                name: contextError.name,
+              });
             }
           } catch (importError: any) {
             console.log('ℹ️ SDK import failed, trying window.ethereum:', importError.message);
