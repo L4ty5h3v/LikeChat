@@ -279,7 +279,7 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
         // Получаем реальные данные автора каста
         const authorData = await getCastAuthor(castUrl);
         
-        if (authorData) {
+        if (authorData && authorData.fid && authorData.username) {
           linksToAdd.push({
             id: `init_link_${index + 1}_${baseTimestamp + index}`,
             user_fid: authorData.fid,
@@ -290,34 +290,21 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
             completed_by: [],
             created_at: new Date().toISOString(),
           });
-          console.log(`✅ Loaded real data for ${authorData.username} (FID: ${authorData.fid})`);
+          console.log(`✅ [${index + 1}/${initialLinks.length}] Loaded real data for @${authorData.username} (FID: ${authorData.fid})`);
         } else {
-          // Если не удалось получить данные, используем fallback
-          console.warn(`⚠️ Failed to get author data for ${castUrl}, using fallback`);
-          linksToAdd.push({
-            id: `init_link_${index + 1}_${baseTimestamp + index}`,
-            user_fid: 1000 + index,
-            username: `user${index + 1}`,
-            pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=init${index}`,
-            cast_url: castUrl,
-            activity_type: activityTypes[index % activityTypes.length],
-            completed_by: [],
-            created_at: new Date().toISOString(),
-          });
+          // Если не удалось получить данные, выбрасываем ошибку вместо fallback
+          console.error(`❌ [${index + 1}/${initialLinks.length}] Failed to get author data for ${castUrl}`);
+          console.error(`❌ Author data received:`, authorData);
+          throw new Error(`Failed to get author data for ${castUrl}. Author data: ${JSON.stringify(authorData)}`);
         }
       } catch (error: any) {
-        console.error(`❌ Error fetching author data for ${castUrl}:`, error);
-        // Fallback на фиктивные данные при ошибке
-        linksToAdd.push({
-          id: `init_link_${index + 1}_${baseTimestamp + index}`,
-          user_fid: 1000 + index,
-          username: `user${index + 1}`,
-          pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=init${index}`,
-          cast_url: castUrl,
-          activity_type: activityTypes[index % activityTypes.length],
-          completed_by: [],
-          created_at: new Date().toISOString(),
+        console.error(`❌ [${index + 1}/${initialLinks.length}] Error fetching author data for ${castUrl}:`, error);
+        console.error(`❌ Error details:`, {
+          message: error.message,
+          stack: error.stack,
         });
+        // Не используем fallback - выбрасываем ошибку, чтобы пользователь знал о проблеме
+        throw new Error(`Failed to initialize link ${index + 1} (${castUrl}): ${error.message}. Please ensure Neynar API key is configured and the cast URL is valid.`);
       }
       
       // Небольшая задержка между запросами, чтобы не перегружать API
