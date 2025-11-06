@@ -39,38 +39,62 @@ export async function getCastByHash(castHash: string) {
     console.log(`🔍 Fetching cast by hash: ${castHash}`);
     console.log(`🔍 Using Neynar API key: ${NEYNAR_API_KEY ? `${NEYNAR_API_KEY.substring(0, 8)}...` : 'NOT SET'}`);
     
-    // Попробуем несколько вариантов endpoint'ов
+    // Попробуем несколько вариантов endpoint'ов согласно документации Neynar API v2
     let response;
+    let lastError: any = null;
+    
+    // Вариант 1: /farcaster/cast с параметром identifier и type
     try {
-      // Вариант 1: /farcaster/cast с параметром hash
       response = await neynarClient.get('/farcaster/cast', {
         params: {
-          hash: castHash,
+          identifier: castHash,
+          type: 'hash',
         },
       });
-      console.log(`✅ Cast data received (method 1):`, response.data);
+      console.log(`✅ Cast data received (method 1 - identifier):`, response.data);
     } catch (error1: any) {
+      lastError = error1;
       console.warn(`⚠️ Method 1 failed:`, error1?.response?.status, error1?.response?.data);
       
-      // Вариант 2: /farcaster/cast с параметром identifier
+      // Вариант 2: /farcaster/cast с параметром hash напрямую
       try {
         response = await neynarClient.get('/farcaster/cast', {
           params: {
-            identifier: castHash,
-            type: 'hash',
+            hash: castHash,
           },
         });
-        console.log(`✅ Cast data received (method 2):`, response.data);
+        console.log(`✅ Cast data received (method 2 - hash):`, response.data);
       } catch (error2: any) {
+        lastError = error2;
         console.warn(`⚠️ Method 2 failed:`, error2?.response?.status, error2?.response?.data);
-        throw error2;
+        
+        // Вариант 3: Попробуем через /farcaster/cast с identifier в URL
+        try {
+          response = await neynarClient.get(`/farcaster/cast?identifier=${castHash}&type=hash`);
+          console.log(`✅ Cast data received (method 3 - URL params):`, response.data);
+        } catch (error3: any) {
+          lastError = error3;
+          console.warn(`⚠️ Method 3 failed:`, error3?.response?.status, error3?.response?.data);
+          throw error3;
+        }
       }
     }
 
-    const cast = response.data.result?.cast || response.data.cast || response.data;
+    // Обрабатываем различные форматы ответа от Neynar API
+    const cast = response.data?.result?.cast || 
+                 response.data?.cast || 
+                 response.data?.result || 
+                 response.data;
     
     if (!cast) {
       console.error('❌ Cast data is null or undefined. Full response:', JSON.stringify(response.data, null, 2));
+      console.error('❌ Last error:', lastError?.response?.data || lastError?.message);
+      return null;
+    }
+
+    // Проверяем, что cast имеет необходимую структуру
+    if (!cast.author && !cast.author_fid) {
+      console.warn('⚠️ Cast does not have author data:', cast);
       return null;
     }
 
