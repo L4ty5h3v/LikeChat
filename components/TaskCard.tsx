@@ -59,7 +59,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
           onClick={onOpen}
           disabled={task.completed && task.verified}
           className={`
-            px-6 py-2 rounded-lg font-medium transition-all duration-300
+            px-4 py-1.5 rounded-lg font-medium text-sm transition-all duration-300
             ${
               task.completed && task.verified
                 ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
@@ -67,7 +67,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
             }
           `}
         >
-          {task.completed && task.verified ? 'Выполнено' : 'Открыть'}
+          {task.completed && task.verified ? 'Completed' : 'Open'}
         </button>
       </div>
 
