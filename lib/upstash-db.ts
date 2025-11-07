@@ -268,7 +268,7 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
 
     // Список начальных ссылок
     const initialLinks = [
-      'https://farcaster.xyz/svs-smm/0xf9660a16',
+      'https://farcaster.xyz/gladness/0xaa4214bf',
       'https://farcaster.xyz/svs-smm/0xf17842cb',
       'https://farcaster.xyz/svs-smm/0x4fce02cd',
       'https://farcaster.xyz/svs-smm/0xd976e9a8',
@@ -284,6 +284,7 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
     const activityTypes: ActivityType[] = ['like', 'recast', 'comment'];
     const baseTimestamp = Date.now();
     const linksToAdd: LinkSubmission[] = [];
+    const userCache = new Map<string, { fid: number; username: string; pfp_url: string }>();
 
     for (let index = 0; index < initialLinks.length; index++) {
       const castUrl = initialLinks[index];
@@ -294,6 +295,11 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
         const authorData = await getCastAuthor(castUrl);
         
         if (authorData && authorData.fid && authorData.username) {
+          userCache.set(authorData.username.toLowerCase(), {
+            fid: authorData.fid,
+            username: authorData.username,
+            pfp_url: authorData.pfp_url,
+          });
           linksToAdd.push({
             id: `init_link_${index + 1}_${baseTimestamp + index}`,
             user_fid: authorData.fid,
@@ -321,7 +327,12 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
           
           // Пытаемся получить данные пользователя по username через Neynar API
           let userData = null;
+          let cachedUser = null;
           if (usernameFromUrl) {
+            cachedUser = userCache.get(usernameFromUrl.toLowerCase()) || null;
+          }
+
+          if (usernameFromUrl && !cachedUser) {
             try {
               console.log(`🔍 [${index + 1}/${initialLinks.length}] Trying to get user data by username: ${usernameFromUrl}`);
               userData = await getUserByUsername(usernameFromUrl);
@@ -342,6 +353,14 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
                 console.warn(`⚠️ [${index + 1}/${initialLinks.length}] User data not found or invalid for username: ${usernameFromUrl}`);
                 console.warn(`⚠️ [${index + 1}/${initialLinks.length}] UserData received:`, userData);
               }
+
+              if (userData && userData.fid && userData.username) {
+                userCache.set(userData.username.toLowerCase(), {
+                  fid: userData.fid,
+                  username: userData.username,
+                  pfp_url: userData?.pfp?.url || userData?.pfp_url || userData?.profile?.pfp?.url || '',
+                });
+              }
             } catch (userError: any) {
               console.error(`❌ [${index + 1}/${initialLinks.length}] Failed to get user by username:`, {
                 message: userError?.message,
@@ -356,6 +375,10 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
           
           // Если username из URL не найден, но это может быть реальный пользователь,
           // попробуем использовать данные из других источников или создать временные данные с более реалистичными значениями
+          if (!userData && cachedUser) {
+            userData = cachedUser;
+          }
+
           if (!userData && usernameFromUrl) {
             console.warn(`⚠️ Could not fetch real user data for ${usernameFromUrl}, but will use it as username`);
           }
@@ -380,6 +403,12 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
             if (!pfpUrl) {
               pfpUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.fid}`;
             }
+
+            userCache.set((userData.username || usernameFromUrl || `user_${index + 1}`).toLowerCase(), {
+              fid: userData.fid,
+              username: userData.username || usernameFromUrl || `user_${index + 1}`,
+              pfp_url: pfpUrl,
+            });
             
             linksToAdd.push({
               id: `init_link_${index + 1}_${baseTimestamp + index}`,
@@ -424,13 +453,19 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
         // Пытаемся получить данные пользователя по username даже при ошибке
         let userData = null;
         if (usernameFromUrl) {
+          const cachedUser = userCache.get(usernameFromUrl.toLowerCase()) || null;
           try {
             console.log(`🔍 Retrying to get user data by username after error: ${usernameFromUrl}`);
             // Добавляем небольшую задержку перед повторной попыткой
             await new Promise(resolve => setTimeout(resolve, 500));
-            userData = await getUserByUsername(usernameFromUrl);
+            userData = cachedUser || await getUserByUsername(usernameFromUrl);
             if (userData && userData.fid) {
               console.log(`✅ Got user data by username after error: @${userData.username} (FID: ${userData.fid})`);
+              userCache.set((userData.username || usernameFromUrl).toLowerCase(), {
+                fid: userData.fid,
+                username: userData.username || usernameFromUrl,
+                pfp_url: userData?.pfp?.url || userData?.pfp_url || userData?.profile?.pfp?.url || '',
+              });
             }
           } catch (retryError: any) {
             console.warn(`⚠️ Retry failed to get user by username:`, retryError?.message);
@@ -438,6 +473,10 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
         }
         
         // Если получили данные пользователя, используем их
+        if (!userData && usernameFromUrl) {
+          userData = userCache.get(usernameFromUrl.toLowerCase()) || null;
+        }
+
         if (userData && userData.fid) {
           let pfpUrl = null;
           if (userData.pfp?.url) {
@@ -455,6 +494,12 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
           if (!pfpUrl) {
             pfpUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.fid}`;
           }
+
+          userCache.set((userData.username || usernameFromUrl || `user_${index + 1}`).toLowerCase(), {
+            fid: userData.fid,
+            username: userData.username || usernameFromUrl || `user_${index + 1}`,
+            pfp_url: pfpUrl,
+          });
           
           linksToAdd.push({
             id: `init_link_${index + 1}_${baseTimestamp + index}`,

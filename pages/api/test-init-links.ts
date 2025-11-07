@@ -3,7 +3,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getUserByUsername } from '@/lib/neynar';
 
 const initialLinks = [
-  'https://farcaster.xyz/svs-smm/0xf9660a16',
+  'https://farcaster.xyz/gladness/0xaa4214bf',
   'https://farcaster.xyz/svs-smm/0xf17842cb',
   'https://farcaster.xyz/svs-smm/0x4fce02cd',
   'https://farcaster.xyz/svs-smm/0xd976e9a8',
