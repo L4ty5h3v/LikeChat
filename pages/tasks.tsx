@@ -369,7 +369,7 @@ export default function Tasks() {
               )}
             </button>
 
-            {completedCount === tasks.length && (
+            {tasks.length > 0 && completedCount === tasks.length && (
               <p className="text-center text-black font-black mt-8 text-2xl md:text-3xl">
                 Excellent! Moving to token Mrs Crypto purchase... 🚀
               </p>
