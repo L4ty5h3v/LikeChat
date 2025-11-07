@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import Button from '@/components/Button';
-import { buyToken, getWalletAddress, checkTokenBalance, getTokenInfo, isBaseNetwork, switchToBaseNetwork } from '@/lib/web3';
+import { buyToken, getWalletAddress, checkTokenBalance, getTokenInfo, isBaseNetwork, switchToBaseNetwork, connectWallet } from '@/lib/web3';
 import { markTokenPurchased, getUserProgress } from '@/lib/db-config';
 import type { FarcasterUser } from '@/types';
 
@@ -17,6 +17,7 @@ export default function BuyToken() {
   const [purchased, setPurchased] = useState(false);
   const [error, setError] = useState<string>('');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [connecting, setConnecting] = useState(false);
   const [tokenInfo, setTokenInfo] = useState<{
     name: string;
     symbol: string;
@@ -56,16 +57,42 @@ export default function BuyToken() {
   };
 
   const loadWalletInfo = async () => {
-    const address = await getWalletAddress();
-    if (address) {
-      setWalletAddress(address);
-      const balance = await checkTokenBalance(address);
-      setTokenBalance(balance);
+    try {
+      const address = await getWalletAddress();
+
+      if (address) {
+        setWalletAddress(address);
+        const balance = await checkTokenBalance(address);
+        setTokenBalance(balance);
+      } else {
+        setWalletAddress('');
+        setTokenBalance('0');
+      }
+
+      const info = await getTokenInfo();
+      setTokenInfo(info);
+    } catch (err: any) {
+      console.error('Error loading wallet info:', err);
     }
-    
-    // Загрузить информацию о токене
-    const info = await getTokenInfo();
-    setTokenInfo(info);
+  };
+
+  const handleConnectWallet = async () => {
+    setError('');
+    setConnecting(true);
+
+    try {
+      const address = await connectWallet();
+
+      if (address) {
+        setWalletAddress(address);
+        const balance = await checkTokenBalance(address);
+        setTokenBalance(balance);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Не удалось подключить кошелек');
+    } finally {
+      setConnecting(false);
+    }
   };
 
   const handleBuyToken = async () => {
@@ -188,6 +215,20 @@ export default function BuyToken() {
                   {parseFloat(tokenBalance).toFixed(2)} $MCT
                 </span>
               </div>
+            </div>
+          )}
+
+          {!walletAddress && (
+            <div className="mb-6">
+              <Button
+                onClick={handleConnectWallet}
+                loading={connecting}
+                variant="secondary"
+                fullWidth
+                className="text-lg py-4"
+              >
+                Connect Wallet
+              </Button>
             </div>
           )}
 
