@@ -2,7 +2,8 @@
 import { ethers } from 'ethers';
 
 const TOKEN_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_TOKEN_CONTRACT_ADDRESS || '0x454b4180bc715ba6a8568a16f1f9a4b114a329a6';
-const TOKEN_PRICE_USD = parseFloat(process.env.NEXT_PUBLIC_TOKEN_PRICE_USD || '0.1');
+const TOKEN_SALE_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_TOKEN_SALE_CONTRACT_ADDRESS || '';
+const DEFAULT_TOKEN_DECIMALS = 18;
 const BASE_CHAIN_ID = 8453; // Base mainnet
 const BASE_CHAIN_ID_HEX = '0x2105'; // Base mainnet hex
 
@@ -31,19 +32,12 @@ const ERC20_ABI = [
   'function transfer(address to, uint256 amount) returns (bool)',
 ];
 
-// ABI для покупки токена через смарт-контракт (может быть swap или buy функция)
-const BUY_CONTRACT_ABI = [
-  'function buy() payable',
-  'function buyTokens(uint256 amount) payable',
-  'function swap() payable',
-  'function purchase() payable',
-  'function getPrice() view returns (uint256)',
-  'function tokenPrice() view returns (uint256)',
-  'function balanceOf(address owner) view returns (uint256)',
-  'function decimals() view returns (uint8)',
-  'function symbol() view returns (string)',
-  'function name() view returns (string)',
-  'event TokensPurchased(address indexed buyer, uint256 amount, uint256 price)',
+// ABI для контракта продажи Mrs Crypto
+const TOKEN_SALE_ABI = [
+  'function pricePerToken() view returns (uint256)',
+  'function buyTokens(uint256 tokenAmount) payable',
+  'function costFor(uint256 tokenAmount) view returns (uint256)',
+  'function availableTokens() view returns (uint256)',
 ];
 
 let cachedFarcasterProvider: ethers.BrowserProvider | null = null;
@@ -195,34 +189,6 @@ export async function getBalance(address: string): Promise<string> {
   }
 }
 
-// Конвертировать USD в ETH (примерно, нужен оракул для точной цены)
-async function getEthAmountForUsd(usdAmount: number): Promise<string> {
-  try {
-    // В реальном приложении использовать Chainlink или другой оракул
-    // Для примера используем фиксированную цену ETH = $2500
-    const ETH_PRICE_USD = 2500;
-    const ethAmount = usdAmount / ETH_PRICE_USD;
-    return ethAmount.toFixed(18);
-  } catch (error) {
-    console.error('Error converting USD to ETH:', error);
-    return '0';
-  }
-}
-
-// Получить текущую цену ETH в USD (можно использовать API или оракул)
-async function getEthPriceUsd(): Promise<number> {
-  try {
-    // Здесь можно использовать реальный API, например CoinGecko
-    // Для упрощения используем фиксированное значение или можем добавить API
-    const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd');
-    const data = await response.json();
-    return data.ethereum?.usd || 2500; // Fallback цена
-  } catch (error) {
-    console.error('Error fetching ETH price:', error);
-    return 2500; // Fallback цена ETH в USD
-  }
-}
-
 // Купить токен $MCT через Base
 export async function buyToken(): Promise<{
   success: boolean;
@@ -235,6 +201,10 @@ export async function buyToken(): Promise<{
       throw new Error('Farcaster Wallet не найден. Откройте приложение в Farcaster Mini App.');
     }
 
+    if (!TOKEN_SALE_CONTRACT_ADDRESS) {
+      throw new Error('Адрес смарт-контракта продажи не настроен. Установите NEXT_PUBLIC_TOKEN_SALE_CONTRACT_ADDRESS.');
+    }
+
     // Проверить и переключить на Base сеть
     const isBase = await isBaseNetwork();
     if (!isBase) {
@@ -244,52 +214,24 @@ export async function buyToken(): Promise<{
     }
 
     const signer = await provider.getSigner();
-    const address = await signer.getAddress();
 
-    // Получить сумму в ETH для покупки
-    const ethPriceUsd = await getEthPriceUsd();
-    const ethAmount = TOKEN_PRICE_USD / ethPriceUsd;
-    const value = ethers.parseEther(ethAmount.toFixed(18));
+    const tokenContract = new ethers.Contract(TOKEN_CONTRACT_ADDRESS, ERC20_ABI, signer);
+    const saleContract = new ethers.Contract(TOKEN_SALE_CONTRACT_ADDRESS, TOKEN_SALE_ABI, signer);
 
-    // Получить контракт для покупки
-    const contract = new ethers.Contract(TOKEN_CONTRACT_ADDRESS, BUY_CONTRACT_ABI, signer);
+    const decimals: number = await tokenContract.decimals().catch(() => DEFAULT_TOKEN_DECIMALS);
+    const tokenAmount = ethers.parseUnits('1', decimals);
+    const pricePerToken: bigint = await saleContract.pricePerToken();
+    const unit = BigInt(10) ** BigInt(decimals);
+    const cost: bigint = (pricePerToken * tokenAmount) / unit;
 
-    // Попробовать разные функции покупки
-    let tx;
-    let errorMsg = '';
-    
-    try {
-      // Сначала попробуем buy()
-      tx = await contract.buy({ value, gasLimit: 300000 });
-    } catch (buyError: any) {
-      errorMsg = buyError.message || '';
-      try {
-        // Если buy() не работает, попробуем purchase()
-        tx = await contract.purchase({ value, gasLimit: 300000 });
-      } catch (purchaseError: any) {
-        errorMsg = purchaseError.message || '';
-        try {
-          // Если purchase() не работает, попробуем swap()
-          tx = await contract.swap({ value, gasLimit: 300000 });
-        } catch (swapError: any) {
-          // Если swap() не работает, попробуем buyTokens с 1 токеном
-          try {
-            const oneToken = ethers.parseEther('1'); // 1 токен
-            tx = await contract.buyTokens(oneToken, { value, gasLimit: 300000 });
-          } catch (buyTokensError: any) {
-            throw new Error(
-              'Смарт-контракт не поддерживает стандартные функции покупки. ' +
-              'Пожалуйста, проверьте адрес контракта. ' +
-              `Последняя ошибка: ${buyTokensError.message || errorMsg}`
-            );
-          }
-        }
-      }
+    if (cost <= 0n) {
+      throw new Error('Цена покупки возвращает ноль. Проверьте контракт продажи.');
     }
-    
-    if (!tx) {
-      throw new Error('Не удалось создать транзакцию покупки');
-    }
+
+    const tx = await saleContract.buyTokens(tokenAmount, {
+      value: cost,
+      gasLimit: 350000,
+    });
 
     console.log('Transaction sent:', tx.hash);
     
@@ -338,7 +280,7 @@ export async function checkTokenBalance(address: string): Promise<string> {
     
     const contract = new ethers.Contract(TOKEN_CONTRACT_ADDRESS, ERC20_ABI, provider);
     const balance = await contract.balanceOf(address);
-    const decimals = await contract.decimals().catch(() => 18);
+    const decimals = await contract.decimals().catch(() => DEFAULT_TOKEN_DECIMALS);
     
     return ethers.formatUnits(balance, decimals);
   } catch (error) {
@@ -364,7 +306,7 @@ export async function getTokenInfo(): Promise<{
     const [name, symbol, decimals] = await Promise.all([
       contract.name().catch(() => 'Mrs Crypto'),
       contract.symbol().catch(() => 'MCT'),
-      contract.decimals().catch(() => 18)
+      contract.decimals().catch(() => DEFAULT_TOKEN_DECIMALS)
     ]);
 
     return {
@@ -379,8 +321,42 @@ export async function getTokenInfo(): Promise<{
       name: 'Mrs Crypto',
       symbol: 'MCT',
       address: TOKEN_CONTRACT_ADDRESS,
-      decimals: 18
+      decimals: DEFAULT_TOKEN_DECIMALS
     };
+  }
+}
+
+export async function getTokenSalePriceEth(): Promise<string | null> {
+  if (!TOKEN_SALE_CONTRACT_ADDRESS) {
+    return null;
+  }
+
+  try {
+    const farcasterProvider = await getProvider();
+    const provider: ethers.Provider = farcasterProvider || getBaseProvider();
+    const saleContract = new ethers.Contract(TOKEN_SALE_CONTRACT_ADDRESS, TOKEN_SALE_ABI, provider);
+    const priceWei: bigint = await saleContract.pricePerToken();
+    return ethers.formatEther(priceWei);
+  } catch (error) {
+    console.error('Error getting token sale price:', error);
+    return null;
+  }
+}
+
+export async function getTokenSaleAvailability(decimals: number = DEFAULT_TOKEN_DECIMALS): Promise<string | null> {
+  if (!TOKEN_SALE_CONTRACT_ADDRESS) {
+    return null;
+  }
+
+  try {
+    const farcasterProvider = await getProvider();
+    const provider: ethers.Provider = farcasterProvider || getBaseProvider();
+    const saleContract = new ethers.Contract(TOKEN_SALE_CONTRACT_ADDRESS, TOKEN_SALE_ABI, provider);
+    const available: bigint = await saleContract.availableTokens();
+    return ethers.formatUnits(available, decimals);
+  } catch (error) {
+    console.error('Error getting token sale availability:', error);
+    return null;
   }
 }
 

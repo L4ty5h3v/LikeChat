@@ -3,9 +3,21 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import Button from '@/components/Button';
-import { buyToken, getWalletAddress, checkTokenBalance, getTokenInfo, isBaseNetwork, switchToBaseNetwork, connectWallet } from '@/lib/web3';
+import { buyToken, getWalletAddress, checkTokenBalance, getTokenInfo, isBaseNetwork, switchToBaseNetwork, connectWallet, getTokenSalePriceEth } from '@/lib/web3';
 import { markTokenPurchased, getUserProgress } from '@/lib/db-config';
 import type { FarcasterUser } from '@/types';
+
+async function fetchEthUsdPrice(): Promise<number | null> {
+  try {
+    const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd');
+    const data = await response.json();
+    const price = data?.ethereum?.usd;
+    return typeof price === 'number' ? price : null;
+  } catch (error) {
+    console.error('Error fetching ETH price in USD:', error);
+    return null;
+  }
+}
 
 export default function BuyToken() {
   const router = useRouter();
@@ -24,6 +36,15 @@ export default function BuyToken() {
     address: string;
     decimals: number;
   } | null>(null);
+  const [tokenPriceEth, setTokenPriceEth] = useState<string | null>(null);
+  const [tokenPriceUsd, setTokenPriceUsd] = useState<string | null>(null);
+
+  const parsedEthPrice = tokenPriceEth ? Number(tokenPriceEth) : null;
+  const displayEthPrice = parsedEthPrice !== null && !Number.isNaN(parsedEthPrice)
+    ? `${parsedEthPrice.toFixed(6)} ETH`
+    : null;
+  const displayUsdPrice = tokenPriceUsd ? `$${tokenPriceUsd}` : null;
+  const purchasePriceLabel = displayUsdPrice || displayEthPrice || 'the configured price';
 
   useEffect(() => {
     // Проверяем, что код выполняется на клиенте
@@ -71,6 +92,21 @@ export default function BuyToken() {
 
       const info = await getTokenInfo();
       setTokenInfo(info);
+
+      const priceEth = await getTokenSalePriceEth();
+      setTokenPriceEth(priceEth);
+
+      if (priceEth) {
+        const ethUsd = await fetchEthUsdPrice();
+        if (ethUsd) {
+          const usd = parseFloat(priceEth) * ethUsd;
+          setTokenPriceUsd(usd.toFixed(2));
+        } else {
+          setTokenPriceUsd(null);
+        }
+      } else {
+        setTokenPriceUsd(null);
+      }
     } catch (err: any) {
       console.error('Error loading wallet info:', err);
     }
@@ -245,7 +281,14 @@ export default function BuyToken() {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xl text-gray-600">Price:</span>
-                <span className="font-bold text-primary text-3xl">$0.10</span>
+                <div className="text-right">
+                  <span className="font-bold text-primary text-3xl block">
+                    {displayUsdPrice || '—'}
+                  </span>
+                  <span className="text-sm text-gray-500">
+                    {displayEthPrice || ''}
+                  </span>
+                </div>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xl text-gray-600">You will receive:</span>
@@ -313,7 +356,7 @@ export default function BuyToken() {
               fullWidth
               className="text-xl py-5"
             >
-              💎 Buy Mrs Crypto Token for $0.10
+              💎 Buy Mrs Crypto Token{displayUsdPrice ? ` for ${displayUsdPrice}` : ''}
             </Button>
           ) : (
             <Button
@@ -364,7 +407,7 @@ export default function BuyToken() {
                 </div>
                 
                 <p className="text-gray-600 mb-6">
-                  You are about to purchase Mrs Crypto token for <strong>$0.10</strong>. 
+                  You are about to purchase Mrs Crypto token for <strong>{purchasePriceLabel}</strong>.
                   Clicking "Confirm Purchase" will redirect you to your Farcaster wallet to complete the transaction.
                 </p>
                 
