@@ -46,16 +46,16 @@ const BUY_CONTRACT_ABI = [
   'event TokensPurchased(address indexed buyer, uint256 amount, uint256 price)',
 ];
 
-// Получить провайдер
-export function getProvider(): ethers.BrowserProvider | null {
-  if (typeof window !== 'undefined' && (window as any).ethereum) {
-    return new ethers.BrowserProvider((window as any).ethereum);
-  }
-  return null;
-}
+let cachedFarcasterProvider: ethers.BrowserProvider | null = null;
 
 async function ensureMiniAppProvider(): Promise<ethers.BrowserProvider | null> {
-  if (typeof window === 'undefined') return null;
+  if (cachedFarcasterProvider) {
+    return cachedFarcasterProvider;
+  }
+
+  if (typeof window === 'undefined') {
+    return null;
+  }
 
   try {
     const { getEthereumProvider } = await import('@farcaster/miniapp-sdk/dist/ethereumProvider');
@@ -65,13 +65,18 @@ async function ensureMiniAppProvider(): Promise<ethers.BrowserProvider | null> {
       return null;
     }
 
-    // Сохраняем провайдер, чтобы ethers мог его использовать
+    cachedFarcasterProvider = new ethers.BrowserProvider(miniProvider as any);
     (window as any).ethereum = miniProvider;
-    return new ethers.BrowserProvider(miniProvider as any);
+    return cachedFarcasterProvider;
   } catch (error) {
     console.warn('⚠️ Farcaster mini app provider not available:', (error as Error)?.message || error);
     return null;
   }
+}
+
+// Получить провайдер Farcaster Wallet
+export async function getProvider(): Promise<ethers.BrowserProvider | null> {
+  return await ensureMiniAppProvider();
 }
 
 // Получить провайдер для Base (с RPC fallback)
@@ -82,6 +87,8 @@ export function getBaseProvider(): ethers.JsonRpcProvider {
 // Переключить сеть на Base
 export async function switchToBaseNetwork(): Promise<boolean> {
   try {
+    await ensureMiniAppProvider();
+
     if (typeof window === 'undefined' || !(window as any).ethereum) {
       throw new Error('MetaMask не установлен');
     }
@@ -120,7 +127,7 @@ export async function switchToBaseNetwork(): Promise<boolean> {
 // Проверить, подключена ли сеть Base
 export async function isBaseNetwork(): Promise<boolean> {
   try {
-    const provider = getProvider();
+    const provider = await getProvider();
     if (!provider) return false;
 
     const network = await provider.getNetwork();
@@ -138,54 +145,32 @@ export async function connectWallet(): Promise<string | null> {
       throw new Error('Window is not available');
     }
 
-    // Проверяем наличие Ethereum провайдера
-    const ethereum = (window as any).ethereum;
-    
-    if (!ethereum) {
-      const miniAppProvider = await ensureMiniAppProvider();
+    const provider = await ensureMiniAppProvider();
 
-      if (!miniAppProvider) {
-        if ((window as any).web3) {
-          throw new Error('Обнаружен старый Web3 провайдер. Пожалуйста, установите MetaMask или используйте Farcaster Wallet.');
-        }
-        throw new Error('Farcaster Wallet недоступен. Откройте приложение через Farcaster Mini App или установите Web3 кошелек.');
-      }
-
-      const accounts = await miniAppProvider.send('eth_requestAccounts', []);
-      if (!accounts || accounts.length === 0) {
-        throw new Error('Пользователь отменил подключение кошелька');
-      }
-      console.log('✅ Wallet connected via Farcaster provider:', accounts[0]);
-      return accounts[0];
-    }
-
-    // Проверяем, что провайдер доступен
-    if (!ethereum.isMetaMask && !ethereum.isConnected) {
-      console.warn('⚠️ Ethereum provider found but may not be ready');
-    }
-
-    const provider = getProvider();
     if (!provider) {
-      throw new Error('Не удалось получить провайдер кошелька');
+      if ((window as any).web3) {
+        throw new Error('Обнаружен старый Web3 провайдер. Пожалуйста, используйте Farcaster Wallet.');
+      }
+
+      throw new Error('Farcaster Wallet недоступен. Откройте приложение через Farcaster Mini App.');
     }
 
-    console.log('🔄 Requesting wallet connection...');
-    
+    console.log('🔄 Requesting Farcaster wallet connection...');
+
     try {
       const accounts = await provider.send('eth_requestAccounts', []);
-      
+
       if (!accounts || accounts.length === 0) {
         throw new Error('Пользователь отменил подключение кошелька');
       }
 
-      console.log('✅ Wallet connected:', accounts[0]);
+      console.log('✅ Wallet connected via Farcaster provider:', accounts[0]);
       return accounts[0];
     } catch (requestError: any) {
-      // Обрабатываем специфичные ошибки MetaMask
       if (requestError.code === 4001) {
         throw new Error('Пользователь отменил подключение кошелька');
       } else if (requestError.code === -32002) {
-        throw new Error('Запрос на подключение уже обрабатывается. Проверьте MetaMask.');
+        throw new Error('Запрос на подключение уже обрабатывается. Проверьте Farcaster Wallet.');
       } else {
         throw new Error(requestError.message || 'Ошибка при запросе подключения кошелька');
       }
@@ -199,7 +184,7 @@ export async function connectWallet(): Promise<string | null> {
 // Получить баланс кошелька
 export async function getBalance(address: string): Promise<string> {
   try {
-    const provider = getProvider();
+    const provider = await getProvider();
     if (!provider) return '0';
 
     const balance = await provider.getBalance(address);
@@ -245,9 +230,9 @@ export async function buyToken(): Promise<{
   error?: string;
 }> {
   try {
-    const provider = getProvider();
+    const provider = await getProvider();
     if (!provider) {
-      throw new Error('Провайдер Web3 не найден. Установите MetaMask или другой Web3 кошелек.');
+      throw new Error('Farcaster Wallet не найден. Откройте приложение в Farcaster Mini App.');
     }
 
     // Проверить и переключить на Base сеть
@@ -346,7 +331,10 @@ export async function buyToken(): Promise<{
 export async function checkTokenBalance(address: string): Promise<string> {
   try {
     // Используем Base RPC для проверки баланса, если основной провайдер не доступен
-    let provider: ethers.Provider = getProvider() || getBaseProvider();
+    let provider: ethers.Provider | null = await getProvider();
+    if (!provider) {
+      provider = getBaseProvider();
+    }
     
     const contract = new ethers.Contract(TOKEN_CONTRACT_ADDRESS, ERC20_ABI, provider);
     const balance = await contract.balanceOf(address);
@@ -368,7 +356,8 @@ export async function getTokenInfo(): Promise<{
 }> {
   try {
     // Используем Base RPC для получения информации о токене
-    const provider: ethers.Provider = getProvider() || getBaseProvider();
+    const farcasterProvider = await getProvider();
+    const provider: ethers.Provider = farcasterProvider || getBaseProvider();
 
     const contract = new ethers.Contract(TOKEN_CONTRACT_ADDRESS, ERC20_ABI, provider);
     
@@ -398,7 +387,7 @@ export async function getTokenInfo(): Promise<{
 // Проверить транзакцию
 export async function verifyTransaction(txHash: string): Promise<boolean> {
   try {
-    const provider = getProvider();
+    const provider = await getProvider();
     if (!provider) return false;
 
     const receipt = await provider.getTransactionReceipt(txHash);
@@ -412,12 +401,7 @@ export async function verifyTransaction(txHash: string): Promise<boolean> {
 // Получить адрес кошелька
 export async function getWalletAddress(): Promise<string | null> {
   try {
-    let provider = getProvider();
-
-    if (!provider) {
-      provider = await ensureMiniAppProvider();
-    }
-
+    const provider = await getProvider();
     if (!provider) {
       return null;
     }
