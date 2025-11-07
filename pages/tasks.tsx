@@ -90,6 +90,32 @@ export default function Tasks() {
     }
   };
 
+  const handleToggleTask = async (linkId: string, nextState: boolean) => {
+    setTasks(prevTasks => {
+      const updatedTasks = prevTasks.map(task =>
+        task.link_id === linkId
+          ? {
+              ...task,
+              completed: nextState,
+              verified: nextState,
+            }
+          : task
+      );
+
+      const updatedCount = updatedTasks.filter(task => task.completed).length;
+      setCompletedCount(updatedCount);
+      return updatedTasks;
+    });
+
+    if (nextState && user) {
+      try {
+        await markLinkCompleted(user.fid, linkId);
+      } catch (error) {
+        console.error('Error marking link as completed:', error);
+      }
+    }
+  };
+
   // Проверить выполнение всех заданий
   const handleVerifyAll = async () => {
     if (!user || !activity) return;
@@ -308,6 +334,7 @@ export default function Tasks() {
                 task={task}
                 index={index}
                 onOpen={() => handleOpenLink(task.cast_url)}
+                onToggleComplete={(nextState) => handleToggleTask(task.link_id, nextState)}
               />
             ))}
           </div>

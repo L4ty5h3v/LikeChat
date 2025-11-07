@@ -6,9 +6,10 @@ interface TaskCardProps {
   task: TaskProgress;
   index: number;
   onOpen: () => void;
+  onToggleComplete?: (nextState: boolean) => void;
 }
 
-const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
+const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen, onToggleComplete }) => {
   return (
     <div
       className={`
@@ -54,21 +55,35 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
           <p className="text-sm text-gray-600 truncate">{task.cast_url}</p>
         </div>
 
-        {/* Кнопка открытия */}
-        <button
-          onClick={onOpen}
-          disabled={task.completed && task.verified}
-          className={`
-            px-4 py-1.5 rounded-lg font-medium text-sm transition-all duration-300
-            ${
-              task.completed && task.verified
-                ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                : 'bg-primary text-white hover:bg-opacity-90 hover:shadow-lg'
-            }
-          `}
-        >
-          {task.completed && task.verified ? 'Completed' : 'Open'}
-        </button>
+        {/* Кнопки действий */}
+        <div className="flex flex-col items-end gap-2">
+          <button
+            onClick={onOpen}
+            disabled={task.completed && task.verified}
+            className={`
+              px-4 py-1.5 rounded-lg font-medium text-sm transition-all duration-300
+              ${
+                task.completed && task.verified
+                  ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                  : 'bg-primary text-white hover:bg-opacity-90 hover:shadow-lg'
+              }
+            `}
+          >
+            {task.completed && task.verified ? 'Completed' : 'Open'}
+          </button>
+
+          {onToggleComplete && (
+            <label className="flex items-center gap-2 text-xs text-gray-500 select-none">
+              <input
+                type="checkbox"
+                className="w-4 h-4 accent-primary"
+                checked={task.completed}
+                onChange={(event) => onToggleComplete(event.target.checked)}
+              />
+              <span>{task.completed ? 'Marked done' : 'Mark done'}</span>
+            </label>
+          )}
+        </div>
       </div>
 
       {/* Статус */}
