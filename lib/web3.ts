@@ -1,7 +1,7 @@
 // Web3 функции для покупки токена Миссис Крипто через Base
 import { ethers } from 'ethers';
 
-const TOKEN_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_TOKEN_CONTRACT_ADDRESS;
+const TOKEN_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_TOKEN_CONTRACT_ADDRESS || '0x454b4180bc715ba6a8568a16f1f9a4b114a329a6';
 const TOKEN_PRICE_USD = parseFloat(process.env.NEXT_PUBLIC_TOKEN_PRICE_USD || '0.1');
 const BASE_CHAIN_ID = 8453; // Base mainnet
 const BASE_CHAIN_ID_HEX = '0x2105'; // Base mainnet hex
