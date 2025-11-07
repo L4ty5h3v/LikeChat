@@ -54,6 +54,26 @@ export function getProvider(): ethers.BrowserProvider | null {
   return null;
 }
 
+async function ensureMiniAppProvider(): Promise<ethers.BrowserProvider | null> {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const { getEthereumProvider } = await import('@farcaster/miniapp-sdk/dist/ethereumProvider');
+    const miniProvider = await getEthereumProvider();
+
+    if (!miniProvider) {
+      return null;
+    }
+
+    // Сохраняем провайдер, чтобы ethers мог его использовать
+    (window as any).ethereum = miniProvider;
+    return new ethers.BrowserProvider(miniProvider as any);
+  } catch (error) {
+    console.warn('⚠️ Farcaster mini app provider not available:', (error as Error)?.message || error);
+    return null;
+  }
+}
+
 // Получить провайдер для Base (с RPC fallback)
 export function getBaseProvider(): ethers.JsonRpcProvider {
   return new ethers.JsonRpcProvider(BASE_RPC_URL);
@@ -122,11 +142,21 @@ export async function connectWallet(): Promise<string | null> {
     const ethereum = (window as any).ethereum;
     
     if (!ethereum) {
-      // Проверяем разные варианты провайдеров
-      if ((window as any).web3) {
-        throw new Error('Обнаружен старый Web3 провайдер. Пожалуйста, установите MetaMask или другой современный кошелек.');
+      const miniAppProvider = await ensureMiniAppProvider();
+
+      if (!miniAppProvider) {
+        if ((window as any).web3) {
+          throw new Error('Обнаружен старый Web3 провайдер. Пожалуйста, установите MetaMask или используйте Farcaster Wallet.');
+        }
+        throw new Error('Farcaster Wallet недоступен. Откройте приложение через Farcaster Mini App или установите Web3 кошелек.');
       }
-      throw new Error('MetaMask не установлен. Пожалуйста, установите MetaMask или другой Ethereum кошелек.');
+
+      const accounts = await miniAppProvider.send('eth_requestAccounts', []);
+      if (!accounts || accounts.length === 0) {
+        throw new Error('Пользователь отменил подключение кошелька');
+      }
+      console.log('✅ Wallet connected via Farcaster provider:', accounts[0]);
+      return accounts[0];
     }
 
     // Проверяем, что провайдер доступен
@@ -382,8 +412,15 @@ export async function verifyTransaction(txHash: string): Promise<boolean> {
 // Получить адрес кошелька
 export async function getWalletAddress(): Promise<string | null> {
   try {
-    const provider = getProvider();
-    if (!provider) return null;
+    let provider = getProvider();
+
+    if (!provider) {
+      provider = await ensureMiniAppProvider();
+    }
+
+    if (!provider) {
+      return null;
+    }
 
     const signer = await provider.getSigner();
     return await signer.getAddress();
