@@ -343,7 +343,7 @@ export default function Tasks() {
           <div className="sticky bottom-8 bg-white bg-opacity-95 backdrop-blur-sm rounded-3xl shadow-2xl p-8 border border-white border-opacity-20">
             <button
               onClick={handleVerifyAll}
-              disabled={completedCount === tasks.length || verifying}
+              disabled={verifying}
               className={`
                 relative group w-full px-12 py-8 rounded-2xl text-white font-black text-2xl md:text-3xl
                 transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100
@@ -359,14 +359,8 @@ export default function Tasks() {
                   </>
                 ) : (
                   <>
-                    <span>
-                      {completedCount === tasks.length
-                        ? '✓ ALL TASKS COMPLETED'
-                        : 'VERIFY COMPLETION'}
-                    </span>
-                    <span className="text-4xl md:text-5xl">
-                      {completedCount === tasks.length ? '🎉' : '🔍'}
-                    </span>
+                    <span>VERIFY COMPLETION</span>
+                    <span className="text-4xl md:text-5xl">🔍</span>
                   </>
                 )}
               </div>
