@@ -34,11 +34,11 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ completed, total }) => {
       </div>
 
       {/* Hearts for visualization */}
-      <div className="flex gap-1 mt-3 justify-center">
+      <div className="flex flex-wrap justify-center gap-1.5 mt-3">
         {Array.from({ length: total }).map((_, index) => (
           <span
             key={index}
-            className={`text-2xl transition-all duration-300 ${
+            className={`text-lg transition-all duration-300 ${
               index < completed
                 ? 'text-primary scale-110'
                 : 'text-gray-300'
