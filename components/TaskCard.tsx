@@ -48,6 +48,11 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen, onToggleComple
                 src={task.pfp_url}
                 alt={task.username}
                 className="w-6 h-6 rounded-full"
+                onError={(e) => {
+                  // Fallback на дефолтный аватар при ошибке загрузки
+                  const target = e.target as HTMLImageElement;
+                  target.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${task.username}`;
+                }}
               />
             )}
             <span className="font-semibold text-gray-900">@{task.username}</span>

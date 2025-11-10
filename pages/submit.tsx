@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import Button from '@/components/Button';
 import { submitLink, getUserProgress, getTotalLinksCount } from '@/lib/db-config';
+import { publishCastToFarcaster } from '@/lib/farcaster-publish';
 import type { FarcasterUser, ActivityType } from '@/types';
 
 export default function Submit() {
@@ -91,6 +92,18 @@ export default function Submit() {
     setLoading(true);
 
     try {
+      // Сначала публикуем каст в Farcaster через SDK
+      console.log('🔄 Publishing cast to Farcaster...');
+      const castResult = await publishCastToFarcaster(castUrl, activity);
+      
+      if (!castResult.success) {
+        console.warn('⚠️ Failed to publish cast to Farcaster, but continuing with link submission:', castResult.error);
+        // Продолжаем даже если публикация каста не удалась
+      } else {
+        console.log('✅ Cast published to Farcaster:', castResult.castHash);
+      }
+
+      // Сохраняем ссылку в базе данных
       const result = await submitLink(
         user.fid,
         user.username,
@@ -101,6 +114,7 @@ export default function Submit() {
 
       if (result) {
         // Успешная публикация
+        console.log('✅ Link saved to database:', result.id);
         router.push('/chat');
       } else {
         setError('Error publishing link');

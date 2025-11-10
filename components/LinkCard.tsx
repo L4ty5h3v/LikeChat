@@ -38,6 +38,11 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
             src={link.pfp_url}
             alt={link.username}
             className="w-10 h-10 rounded-full border-2 border-primary"
+            onError={(e) => {
+              // Fallback на дефолтный аватар при ошибке загрузки
+              const target = e.target as HTMLImageElement;
+              target.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${link.username}`;
+            }}
           />
         )}
         <div className="flex-1">

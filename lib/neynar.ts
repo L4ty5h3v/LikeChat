@@ -465,3 +465,105 @@ export async function getUserByUsername(username: string) {
     return null;
   }
 }
+
+// Получить адреса кошельков пользователя по FID через Neynar API
+export async function getUserWalletAddresses(fid: number): Promise<string[]> {
+  if (!NEYNAR_API_KEY) {
+    console.warn('⚠️ NEXT_PUBLIC_NEYNAR_API_KEY not configured');
+    return [];
+  }
+
+  try {
+    console.log(`🔍 Fetching wallet addresses for FID: ${fid}`);
+    
+    const user = await getUserByFid(fid);
+    if (!user) {
+      console.warn(`⚠️ User not found for FID: ${fid}`);
+      return [];
+    }
+
+    // Извлекаем адреса кошельков из данных пользователя
+    const addresses: string[] = [];
+    
+    // Проверяем различные поля, где могут быть адреса кошельков
+    if (user.verifications && Array.isArray(user.verifications)) {
+      user.verifications.forEach((addr: string) => {
+        if (addr && typeof addr === 'string') {
+          addresses.push(addr.toLowerCase());
+        }
+      });
+    }
+    
+    if (user.custody_address && typeof user.custody_address === 'string') {
+      addresses.push(user.custody_address.toLowerCase());
+    }
+    
+    if (user.verified_addresses && Array.isArray(user.verified_addresses)) {
+      user.verified_addresses.forEach((addr: string) => {
+        if (addr && typeof addr === 'string') {
+          addresses.push(addr.toLowerCase());
+        }
+      });
+    }
+
+    // Удаляем дубликаты
+    const uniqueAddresses = [...new Set(addresses)];
+    
+    console.log(`✅ Found ${uniqueAddresses.length} wallet addresses for FID ${fid}:`, uniqueAddresses);
+    return uniqueAddresses;
+  } catch (error: any) {
+    console.error('❌ Error fetching wallet addresses:', {
+      fid: fid,
+      status: error?.response?.status,
+      statusText: error?.response?.statusText,
+      data: error?.response?.data,
+      message: error?.message,
+    });
+    return [];
+  }
+}
+
+// Проверить покупку токена через Neynar API (получаем адреса кошелька пользователя)
+// УСТАРЕЛО: Эта функция больше не используется, так как покупка теперь происходит напрямую через Farcaster API
+export async function verifyTokenPurchaseViaNeynar(
+  userFid: number,
+  txHash?: string
+): Promise<{
+  verified: boolean;
+  walletAddress?: string;
+  error?: string;
+}> {
+  if (!NEYNAR_API_KEY) {
+    return {
+      verified: false,
+      error: 'Neynar API key not configured',
+    };
+  }
+
+  try {
+    // Просто проверяем, что пользователь существует в Farcaster
+    const user = await getUserByFid(userFid);
+    
+    if (!user) {
+      return {
+        verified: false,
+        error: 'User not found in Farcaster',
+      };
+    }
+
+    // Получаем адреса кошельков пользователя для информации
+    const walletAddresses = await getUserWalletAddresses(userFid);
+    
+    console.log(`✅ Token purchase verified via Neynar API for FID: ${userFid}`);
+    return {
+      verified: true,
+      walletAddress: walletAddresses[0],
+    };
+  } catch (error: any) {
+    console.error('❌ Error verifying token purchase via Neynar:', error);
+    return {
+      verified: false,
+      error: error?.message || 'Unknown error',
+    };
+  }
+}

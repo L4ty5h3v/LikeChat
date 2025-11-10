@@ -10,24 +10,40 @@ export default function App({ Component, pageProps }: AppProps) {
   // Вызываем sdk.actions.ready() для Farcaster Mini App согласно документации
   // https://miniapps.farcaster.xyz/docs/getting-started#making-your-app-display
   useEffect(() => {
+    let mounted = true;
+    
     const callReady = async () => {
       try {
         // Проверяем, что мы в окружении Farcaster Mini App
-        if (typeof window !== 'undefined') {
-          // Динамический импорт для избежания SSR проблем
-          const { sdk } = await import('@farcaster/miniapp-sdk');
-          
-          // Проверяем, что SDK доступен
-          if (sdk && sdk.actions && sdk.actions.ready) {
-            await sdk.actions.ready();
-            console.log('✅ Farcaster Mini App SDK ready() called successfully');
-          } else {
-            console.warn('⚠️ Farcaster Mini App SDK not properly initialized');
-          }
+        if (typeof window === 'undefined' || !mounted) {
+          return;
+        }
+
+        // Проверяем, что мы в iframe Farcaster Mini App
+        const isInFarcasterFrame = window.self !== window.top;
+        
+        if (!isInFarcasterFrame) {
+          console.log('ℹ️ Not running in Farcaster Mini App frame, skipping ready()');
+          return;
+        }
+
+        // Динамический импорт для избежания SSR проблем
+        const { sdk } = await import('@farcaster/miniapp-sdk');
+        
+        if (!mounted) return;
+        
+        // Проверяем, что SDK доступен
+        if (sdk && sdk.actions && typeof sdk.actions.ready === 'function') {
+          await sdk.actions.ready();
+          console.log('✅ Farcaster Mini App SDK ready() called successfully');
+        } else {
+          console.warn('⚠️ Farcaster Mini App SDK not properly initialized', { sdk });
         }
       } catch (error: any) {
         // Если SDK не доступен (например, в обычном браузере), это нормально
-        console.log('ℹ️ Farcaster Mini App SDK not available:', error?.message || 'running in regular browser');
+        if (mounted) {
+          console.log('ℹ️ Farcaster Mini App SDK not available:', error?.message || 'running in regular browser');
+        }
       }
     };
 
@@ -36,10 +52,15 @@ export default function App({ Component, pageProps }: AppProps) {
     
     // Также пробуем вызвать после небольшой задержки на случай, если SDK загружается асинхронно
     const timeout = setTimeout(() => {
-      callReady();
-    }, 100);
+      if (mounted) {
+        callReady();
+      }
+    }, 500);
     
-    return () => clearTimeout(timeout);
+    return () => {
+      mounted = false;
+      clearTimeout(timeout);
+    };
   }, []);
 
   return (

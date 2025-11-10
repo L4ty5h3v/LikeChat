@@ -5,7 +5,8 @@ import Layout from '@/components/Layout';
 import LinkCard from '@/components/LinkCard';
 import Button from '@/components/Button';
 import { getAllLinks, subscribeToLinks, getUserProgress, submitLink } from '@/lib/db-config';
-import type { LinkSubmission, FarcasterUser } from '@/types';
+import { publishCastToFarcaster } from '@/lib/farcaster-publish';
+import type { LinkSubmission, FarcasterUser, ActivityType } from '@/types';
 
 export default function Chat() {
   const router = useRouter();
@@ -89,6 +90,18 @@ export default function Chat() {
     setSubmitError('');
     setSubmitLoading(true);
     try {
+      // Сначала публикуем каст в Farcaster через SDK
+      console.log('🔄 Publishing cast to Farcaster...');
+      const castResult = await publishCastToFarcaster(castUrl, savedActivity as ActivityType);
+      
+      if (!castResult.success) {
+        console.warn('⚠️ Failed to publish cast to Farcaster, but continuing with link submission:', castResult.error);
+        // Продолжаем даже если публикация каста не удалась
+      } else {
+        console.log('✅ Cast published to Farcaster:', castResult.castHash);
+      }
+
+      // Сохраняем ссылку в базе данных
       const res = await submitLink(
         user.fid,
         user.username,

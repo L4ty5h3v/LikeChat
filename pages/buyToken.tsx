@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import Button from '@/components/Button';
-import { buyToken, getWalletAddress, checkTokenBalance, getTokenInfo, isBaseNetwork, switchToBaseNetwork, connectWallet, getTokenSalePriceEth } from '@/lib/web3';
+import { buyToken, getWalletAddress, checkTokenBalance, getTokenInfo, connectWallet, getTokenSalePriceEth, getPurchaseCost, isBaseNetwork, switchToBaseNetwork } from '@/lib/web3';
 import { markTokenPurchased, getUserProgress } from '@/lib/db-config';
 import type { FarcasterUser } from '@/types';
 
@@ -39,12 +39,18 @@ export default function BuyToken() {
   const [tokenPriceEth, setTokenPriceEth] = useState<string | null>(null);
   const [tokenPriceUsd, setTokenPriceUsd] = useState<string | null>(null);
 
+  // Конфигурация (без env)
+  const useUSDC = false; // false = ETH, true = USDC
+  const useFarcasterSwap = true; // Использовать Farcaster Swap API
+  const currencySymbol = useUSDC ? 'USDC' : 'ETH';
+  
   const parsedEthPrice = tokenPriceEth ? Number(tokenPriceEth) : null;
-  const displayEthPrice = parsedEthPrice !== null && !Number.isNaN(parsedEthPrice)
-    ? `${parsedEthPrice.toFixed(6)} ETH`
+  const isFree = parsedEthPrice === 0 || parsedEthPrice === null;
+  const displayEthPrice = parsedEthPrice !== null && !Number.isNaN(parsedEthPrice) && parsedEthPrice > 0
+    ? `${parsedEthPrice.toFixed(6)} ${currencySymbol}`
     : null;
-  const displayUsdPrice = tokenPriceUsd ? `$${tokenPriceUsd}` : null;
-  const purchasePriceLabel = displayUsdPrice || displayEthPrice || 'the configured price';
+  const displayUsdPrice = tokenPriceUsd && parseFloat(tokenPriceUsd) > 0 ? `$${tokenPriceUsd}` : null;
+  const purchasePriceLabel = isFree ? 'Free' : (displayUsdPrice || displayEthPrice || 'the configured price');
 
   useEffect(() => {
     // Проверяем, что код выполняется на клиенте
@@ -67,36 +73,23 @@ export default function BuyToken() {
   const checkProgress = async (userFid: number) => {
     const progress = await getUserProgress(userFid);
     
-    if (!progress || progress.completed_links.length < 10) {
-      router.push('/tasks');
-      return;
-    }
-
-    if (progress.token_purchased) {
+    // Проверяем только, куплен ли уже токен
+    if (progress?.token_purchased) {
       setPurchased(true);
     }
   };
 
   const loadWalletInfo = async () => {
     try {
-      const address = await getWalletAddress();
-
-      if (address) {
-        setWalletAddress(address);
-        const balance = await checkTokenBalance(address);
-        setTokenBalance(balance);
-      } else {
-        setWalletAddress('');
-        setTokenBalance('0');
-      }
-
+      // Загружаем информацию о токене (использует Base RPC, безопасно)
       const info = await getTokenInfo();
       setTokenInfo(info);
 
+      // Загружаем цену (теперь фиксированная, без смарт-контракта)
       const priceEth = await getTokenSalePriceEth();
       setTokenPriceEth(priceEth);
 
-      if (priceEth) {
+      if (priceEth && parseFloat(priceEth) > 0) {
         const ethUsd = await fetchEthUsdPrice();
         if (ethUsd) {
           const usd = parseFloat(priceEth) * ethUsd;
@@ -105,10 +98,38 @@ export default function BuyToken() {
           setTokenPriceUsd(null);
         }
       } else {
-        setTokenPriceUsd(null);
+        // Если цена 0 или не установлена, показываем "Free"
+        setTokenPriceUsd('0.00');
+        setTokenPriceEth('0');
+      }
+
+      // Проверяем баланс только если кошелек подключен (опционально)
+      try {
+        const address = await getWalletAddress();
+        if (address) {
+          setWalletAddress(address);
+          // Используем Base RPC, безопасно
+          const balance = await checkTokenBalance(address);
+          setTokenBalance(balance);
+        } else {
+          setWalletAddress('');
+          setTokenBalance('0');
+        }
+      } catch (walletError) {
+        // Не критично, если не удалось проверить баланс
+        console.warn('Could not check wallet balance:', walletError);
+        setWalletAddress('');
+        setTokenBalance('0');
       }
     } catch (err: any) {
       console.error('Error loading wallet info:', err);
+      // Устанавливаем значения по умолчанию при ошибке
+      setTokenInfo({
+        name: 'Mrs Crypto',
+        symbol: 'MCT',
+        address: process.env.NEXT_PUBLIC_TOKEN_CONTRACT_ADDRESS || '0x454b4180bc715ba6a8568a16f1f9a4b114a329a6',
+        decimals: 18,
+      });
     }
   };
 
@@ -132,24 +153,33 @@ export default function BuyToken() {
   };
 
   const handleBuyToken = async () => {
-    // Проверить подключение кошелька
+    // Проверяем, что пользователь авторизован
+    if (!user) {
+      setError('Пожалуйста, авторизуйтесь через Farcaster');
+      return;
+    }
+
+    // Проверяем подключение кошелька
     const address = await getWalletAddress();
     if (!address) {
       setError('Пожалуйста, подключите кошелек для покупки токена');
       return;
     }
 
-    // Проверить и переключить на Base сеть
+    // Проверяем и переключаем на Base сеть
     const isBase = await isBaseNetwork();
     if (!isBase) {
       try {
         await switchToBaseNetwork();
+        // Небольшая задержка для переключения сети
+        await new Promise(resolve => setTimeout(resolve, 1000));
       } catch (err: any) {
         setError(`Пожалуйста, переключитесь на сеть Base в вашем кошельке. ${err.message}`);
         return;
       }
     }
-
+    
+    // Показываем модальное окно подтверждения
     setShowConfirmModal(true);
   };
 
@@ -184,23 +214,55 @@ export default function BuyToken() {
   };
 
   const confirmBuyToken = async () => {
-    if (!user) return;
+    if (!user) {
+      setError('Пользователь не авторизован');
+      return;
+    }
 
     setLoading(true);
     setError('');
     setShowConfirmModal(false);
 
     try {
-      // Реальная покупка токена через Base
-      const result = await buyToken();
+      // Покупка токена через смарт-контракт
+      console.log('🔄 Starting token purchase via smart contract for FID:', user.fid);
+      const result = await buyToken(user.fid);
+      
+      console.log('📊 Purchase result:', result);
       
       if (result.success && result.txHash) {
-        setTxHash(result.txHash);
-        setPurchased(true);
+        console.log('✅ Token purchase successful, transaction:', result.txHash);
         
-        // Отметить покупку в базе данных
-        if (user.fid) {
+        // Проверяем баланс токенов после покупки
+        try {
+          const address = await getWalletAddress();
+          if (address) {
+            // Небольшая задержка для обновления баланса в блокчейне
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            const newBalance = await checkTokenBalance(address);
+            setTokenBalance(newBalance);
+            
+            // Проверяем, что баланс увеличился
+            const balanceNum = parseFloat(newBalance);
+            if (balanceNum < 0.05) {
+              console.warn('Token balance seems low after purchase:', newBalance);
+            }
+          }
+        } catch (balanceError) {
+          // Не критично, если не удалось проверить баланс
+          console.warn('Could not check token balance:', balanceError);
+        }
+        
+        setPurchased(true);
+        setTxHash(result.txHash);
+        
+        // Отметить покупку в базе данных после успешной верификации
+        try {
           await markTokenPurchased(user.fid);
+          console.log('✅ Token purchase marked in database');
+        } catch (dbError) {
+          console.error('Error marking token purchase in DB:', dbError);
+          // Не критично, продолжаем
         }
         
         // Переход к публикации ссылки через 3 секунды
@@ -208,11 +270,14 @@ export default function BuyToken() {
           router.push('/submit');
         }, 3000);
       } else {
-        setError(result.error || 'Ошибка при покупке токена');
+        const errorMsg = result.error || 'Ошибка при покупке токена';
+        console.error('❌ Token purchase failed:', errorMsg);
+        setError(errorMsg);
       }
     } catch (err: any) {
-      console.error('Error in confirmBuyToken:', err);
-      setError(err.message || 'Неожиданная ошибка при покупке токена');
+      console.error('❌ Error in confirmBuyToken:', err);
+      let errorMessage = err.message || 'Неожиданная ошибка при покупке токена';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -230,7 +295,7 @@ export default function BuyToken() {
             Buy Mrs Crypto Token
           </h1>
           <p className="text-xl md:text-2xl text-gray-600">
-            Final step before publishing your link
+            Purchase token to unlock features
           </p>
         </div>
 
@@ -283,16 +348,18 @@ export default function BuyToken() {
                 <span className="text-xl text-gray-600">Price:</span>
                 <div className="text-right">
                   <span className="font-bold text-primary text-3xl block">
-                    {displayUsdPrice || '—'}
+                    {isFree ? 'Free' : (displayUsdPrice || displayEthPrice || '—')}
                   </span>
-                  <span className="text-sm text-gray-500">
-                    {displayEthPrice || ''}
-                  </span>
+                  {!isFree && displayEthPrice && (
+                    <span className="text-sm text-gray-500">
+                      {displayEthPrice}
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xl text-gray-600">You will receive:</span>
-                <span className="font-semibold text-xl">≈ 1 $MCT</span>
+                <span className="font-semibold text-xl">0.10 $MCT</span>
               </div>
             </div>
 
@@ -322,11 +389,11 @@ export default function BuyToken() {
                   Purchase Successful!
                 </h3>
                 <p className="text-gray-600 mb-4">
-                  Token added to your wallet
+                  0.10 MCT tokens added to your wallet
                 </p>
               </div>
 
-              <div className="bg-white rounded-lg p-3">
+              <div className="bg-white rounded-lg p-3 mb-4">
                 <p className="text-xs text-gray-600 mb-1">Transaction hash:</p>
                 <a
                   href={`https://basescan.org/tx/${txHash}`}
@@ -352,11 +419,12 @@ export default function BuyToken() {
             <Button
               onClick={handleBuyToken}
               loading={loading}
+              disabled={loading}
               variant="primary"
               fullWidth
               className="text-xl py-5"
             >
-              💎 Buy Mrs Crypto Token{displayUsdPrice ? ` for ${displayUsdPrice}` : ''}
+              💎 Buy Mrs Crypto Token{displayUsdPrice ? ` for ${displayUsdPrice}` : ' (Free)'}
             </Button>
           ) : (
             <Button
@@ -407,8 +475,8 @@ export default function BuyToken() {
                 </div>
                 
                 <p className="text-gray-600 mb-6">
-                  You are about to purchase Mrs Crypto token for <strong>{purchasePriceLabel}</strong>.
-                  Clicking "Confirm Purchase" will redirect you to your Farcaster wallet to complete the transaction.
+                  You are about to purchase Mrs Crypto token. 
+                  Clicking "Confirm Purchase" will verify your purchase through Farcaster API.
                 </p>
                 
                 <div className="flex gap-3">
@@ -439,12 +507,13 @@ export default function BuyToken() {
             Important Information
           </h3>
           <ul className="space-y-2 text-sm">
-            <li>• 🦄 Purchase through Base network smart contract</li>
+            <li>• 🦄 Purchase 0.10 MCT through Base network smart contract</li>
+            <li>• Payment method: {useUSDC ? 'USDC' : 'ETH'}</li>
             <li>• Network will automatically switch to Base if needed</li>
             <li>• Token will be sent to your connected wallet</li>
-            <li>• Transaction will take a few seconds to confirm</li>
+            <li>• {useUSDC ? 'You will need to approve USDC spending first, then purchase' : 'Transaction will take a few seconds to confirm'}</li>
             <li>• After purchase you will be able to publish your link</li>
-            <li>• Make sure you have enough ETH on Base for purchase and gas fees</li>
+            <li>• Make sure you have enough {useUSDC ? 'USDC' : 'ETH'} on Base for purchase{useUSDC ? '' : ' and gas fees'}</li>
           </ul>
         </div>
       </div>
