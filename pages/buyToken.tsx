@@ -224,51 +224,83 @@ export default function BuyToken() {
     setShowConfirmModal(false);
 
     try {
-      // Покупка токена через смарт-контракт
+      // Покупка токена через смарт-контракт или swap
       console.log('🔄 Starting token purchase via smart contract for FID:', user.fid);
       const result = await buyToken(user.fid);
       
       console.log('📊 Purchase result:', result);
       
-      if (result.success && result.txHash) {
-        console.log('✅ Token purchase successful, transaction:', result.txHash);
+      // Для swap через openUrl: success=true, но нет txHash (транзакция выполняется в кошельке)
+      // Для прямого swap: success=true, есть txHash
+      if (result.success) {
+        if (result.txHash) {
+          console.log('✅ Token purchase successful, transaction:', result.txHash);
+          setTxHash(result.txHash);
+        } else {
+          console.log('✅ Swap interface opened, waiting for user to complete swap in wallet...');
+          // Для swap через openUrl - показываем сообщение и ждем завершения
+          setError(''); // Очищаем ошибки
+          // Не устанавливаем purchased=true сразу, так как swap еще не завершен
+        }
         
-        // Проверяем баланс токенов после покупки
+        // Проверяем баланс токенов после покупки (с задержкой для swap)
+        let purchaseConfirmed = false;
         try {
           const address = await getWalletAddress();
           if (address) {
-            // Небольшая задержка для обновления баланса в блокчейне
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            // Для swap через openUrl нужна большая задержка, так как пользователь еще выполняет транзакцию
+            const delay = result.txHash ? 2000 : 10000; // 10 секунд для swap через openUrl
+            await new Promise(resolve => setTimeout(resolve, delay));
+            
             const newBalance = await checkTokenBalance(address);
             setTokenBalance(newBalance);
             
             // Проверяем, что баланс увеличился
             const balanceNum = parseFloat(newBalance);
-            if (balanceNum < 0.05) {
+            if (balanceNum >= 0.05) {
+              // Баланс увеличился - покупка успешна
+              setPurchased(true);
+              purchaseConfirmed = true;
+              
+              // Отметить покупку в базе данных
+              try {
+                await markTokenPurchased(user.fid);
+                console.log('✅ Token purchase marked in database');
+              } catch (dbError) {
+                console.error('Error marking token purchase in DB:', dbError);
+              }
+              
+              // Переход к публикации ссылки через 3 секунды
+              setTimeout(() => {
+                router.push('/submit');
+              }, 3000);
+            } else {
               console.warn('Token balance seems low after purchase:', newBalance);
+              // Для swap через openUrl - это нормально, пользователь еще может выполнять транзакцию
+              if (!result.txHash) {
+                // Показываем сообщение, что нужно завершить swap
+                setError('Пожалуйста, завершите swap в кошельке. После завершения обновите страницу или нажмите кнопку еще раз.');
+              } else {
+                // Для прямого swap с txHash - ошибка
+                setError('Баланс токенов не увеличился. Проверьте транзакцию в блокчейне.');
+              }
             }
           }
         } catch (balanceError) {
           // Не критично, если не удалось проверить баланс
           console.warn('Could not check token balance:', balanceError);
+          // Для swap через openUrl - это нормально
+          if (!result.txHash) {
+            setError('Пожалуйста, завершите swap в кошельке. После завершения обновите страницу или нажмите кнопку еще раз.');
+          }
         }
         
-        setPurchased(true);
-        setTxHash(result.txHash);
-        
-        // Отметить покупку в базе данных после успешной верификации
-        try {
-          await markTokenPurchased(user.fid);
-          console.log('✅ Token purchase marked in database');
-        } catch (dbError) {
-          console.error('Error marking token purchase in DB:', dbError);
-          // Не критично, продолжаем
+        // Если есть txHash и покупка не подтверждена через баланс, все равно переходим
+        if (result.txHash && !purchaseConfirmed) {
+          setTimeout(() => {
+            router.push('/submit');
+          }, 3000);
         }
-        
-        // Переход к публикации ссылки через 3 секунды
-        setTimeout(() => {
-          router.push('/submit');
-        }, 3000);
       } else {
         const errorMsg = result.error || 'Ошибка при покупке токена';
         console.error('❌ Token purchase failed:', errorMsg);
