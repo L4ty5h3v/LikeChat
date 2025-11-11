@@ -17,6 +17,7 @@ const UNISWAP_V3_ROUTER = '0x2626664c2603336E57B271c5C0b26F421741e481';
 // ABI для Uniswap V3 Router
 const UNISWAP_ROUTER_ABI = [
   'function exactInputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96)) external payable returns (uint256 amountOut)',
+  'function exactInput((bytes path, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMinimum)) external payable returns (uint256 amountOut)',
   'function multicall(uint256 deadline, bytes[] calldata data) external payable returns (bytes[] memory results)',
   'function unwrapWETH9(uint256 amountMinimum, address recipient) external payable',
 ];
@@ -115,9 +116,66 @@ export async function buyTokenViaDirectSwap(
     const feeTiers = [500, 3000, 10000];
     let lastError: any = null;
     
-    // Уменьшаем slippage до 10% для большей вероятности успеха
-    const amountOutMinimum = tokenAmountOut * BigInt(90) / BigInt(100); // 10% slippage
+    // Увеличиваем slippage до 20% для большей вероятности успеха
+    const amountOutMinimum = tokenAmountOut * BigInt(80) / BigInt(100); // 20% slippage
 
+    // Для ETH: пробуем multi-hop swap через USDC (WETH -> USDC -> MCT)
+    // так как прямого пула WETH/MCT может не быть
+    if (paymentToken === 'ETH') {
+      try {
+        console.log(`🔄 Trying multi-hop swap: WETH -> USDC -> MCT...`);
+        
+        // Создаем path для multi-hop swap
+        // Формат: tokenIn (20 bytes) + fee (3 bytes) + tokenOut (20 bytes)
+        const fee1 = 500; // 0.05% для WETH/USDC
+        const fee2 = 3000; // 0.3% для USDC/MCT
+        
+        // Кодируем path: WETH -> USDC -> MCT
+        const path = ethers.solidityPacked(
+          ['address', 'uint24', 'address', 'uint24', 'address'],
+          [WRAPPED_ETH_ADDRESS, fee1, USDC_ADDRESS, fee2, tokenOutAddress]
+        );
+
+        const tx = await router.exactInput(
+          {
+            path: path,
+            recipient: userAddress,
+            deadline: deadline,
+            amountIn: amountIn,
+            amountOutMinimum: amountOutMinimum,
+          },
+          {
+            value: amountIn, // Отправляем ETH, роутер сам обернет в WETH
+            gasLimit: 700000,
+          }
+        );
+
+        console.log('✅ Multi-hop swap transaction sent:', tx.hash);
+        const receipt = await tx.wait();
+
+        if (receipt.status === 1) {
+          console.log('✅ Multi-hop swap confirmed');
+          
+          const tokenOutContract = new ethers.Contract(tokenOutAddress, ERC20_ABI, provider);
+          const balance = await tokenOutContract.balanceOf(userAddress);
+          const decimals = await tokenOutContract.decimals().catch(() => DEFAULT_TOKEN_DECIMALS);
+          const balanceFormatted = ethers.formatUnits(balance, decimals);
+          
+          console.log(`📊 New token balance: ${balanceFormatted} MCT`);
+
+          return {
+            success: true,
+            txHash: tx.hash,
+            verified: true,
+          };
+        }
+      } catch (multiHopError: any) {
+        console.warn(`⚠️ Multi-hop swap failed, trying direct swap:`, multiHopError.message);
+        lastError = multiHopError;
+      }
+    }
+
+    // Для USDC или если ETH swap не сработал, пробуем все fee tiers
     for (const fee of feeTiers) {
       try {
         const swapParams = {
