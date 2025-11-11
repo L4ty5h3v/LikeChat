@@ -29,6 +29,12 @@ const ERC20_ABI = [
   'function allowance(address owner, address spender) view returns (uint256)',
 ];
 
+// Uniswap V3 Factory для проверки существования пула
+const UNISWAP_V3_FACTORY = '0x33128a8fC17869897dcE68Ed026d694621f6FDfD'; // Uniswap V3 Factory на Base
+const UNISWAP_FACTORY_ABI = [
+  'function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address pool)',
+];
+
 // Прямой swap ETH/USDC → MCT через Farcaster провайдер
 export async function buyTokenViaDirectSwap(
   userFid: number,
@@ -116,89 +122,50 @@ export async function buyTokenViaDirectSwap(
     const feeTiers = [500, 3000, 10000];
     let lastError: any = null;
     
-    // Увеличиваем slippage до 20% для большей вероятности успеха
-    const amountOutMinimum = tokenAmountOut * BigInt(80) / BigInt(100); // 20% slippage
+    // Увеличиваем slippage до 30% для большей вероятности успеха
+    const amountOutMinimum = tokenAmountOut * BigInt(70) / BigInt(100); // 30% slippage
 
-    // Для ETH: используем 1inch Aggregator API для получения оптимального пути
-    // Это более надежно, чем ручной подбор fee tiers
+    // Проверяем существование пулов перед swap
+    const factory = new ethers.Contract(UNISWAP_V3_FACTORY, UNISWAP_FACTORY_ABI, provider);
+    
+    // Для ETH: пробуем multi-hop swap через USDC (WETH -> USDC -> MCT)
+    // Сначала проверяем существование пулов
     if (paymentToken === 'ETH') {
-      try {
-        console.log(`🔄 Getting swap quote from 1inch Aggregator...`);
-        
-        // Получаем quote от 1inch для Base network
-        const oneInchApiUrl = `https://api.1inch.dev/swap/v6.0/8453/quote?` +
-          `src=${WRAPPED_ETH_ADDRESS}&` +
-          `dst=${tokenOutAddress}&` +
-          `amount=${amountIn.toString()}`;
-
-        const quoteResponse = await fetch(oneInchApiUrl, {
-          headers: {
-            'Authorization': 'Bearer YOUR_API_KEY', // Можно использовать без ключа для базовых запросов
-          },
-        });
-
-        if (quoteResponse.ok) {
-          const quote = await quoteResponse.json();
-          console.log('✅ Got quote from 1inch:', quote);
-          
-          // Используем данные от 1inch для выполнения swap
-          // Но для простоты используем multi-hop через USDC
-          const fee1 = 500; // 0.05% для WETH/USDC
-          const fee2 = 3000; // 0.3% для USDC/MCT
-          
-          const path = ethers.solidityPacked(
-            ['address', 'uint24', 'address', 'uint24', 'address'],
-            [WRAPPED_ETH_ADDRESS, fee1, USDC_ADDRESS, fee2, tokenOutAddress]
-          );
-
-          const tx = await router.exactInput(
-            {
-              path: path,
-              recipient: userAddress,
-              deadline: deadline,
-              amountIn: amountIn,
-              amountOutMinimum: amountOutMinimum,
-            },
-            {
-              value: amountIn,
-              gasLimit: 700000,
-            }
-          );
-
-          console.log('✅ Swap transaction sent:', tx.hash);
-          const receipt = await tx.wait();
-
-          if (receipt.status === 1) {
-            console.log('✅ Swap confirmed');
-            
-            const tokenOutContract = new ethers.Contract(tokenOutAddress, ERC20_ABI, provider);
-            const balance = await tokenOutContract.balanceOf(userAddress);
-            const decimals = await tokenOutContract.decimals().catch(() => DEFAULT_TOKEN_DECIMALS);
-            const balanceFormatted = ethers.formatUnits(balance, decimals);
-            
-            console.log(`📊 New token balance: ${balanceFormatted} MCT`);
-
-            return {
-              success: true,
-              txHash: tx.hash,
-              verified: true,
-            };
-          }
-        } else {
-          console.warn('⚠️ 1inch API not available, using direct multi-hop...');
-        }
-      } catch (oneInchError: any) {
-        console.warn('⚠️ 1inch API error, using direct multi-hop:', oneInchError.message);
-      }
+      console.log('🔍 Checking pool existence...');
       
-      // Fallback: пробуем multi-hop с разными комбинациями
-      const feeCombinations = [
-        [500, 500],   // 0.05% -> 0.05%
-        [500, 3000],  // 0.05% -> 0.3%
-        [3000, 500],  // 0.3% -> 0.05%
-        [3000, 3000], // 0.3% -> 0.3%
-        [10000, 3000], // 1% -> 0.3%
-      ];
+      // Проверяем пул WETH/USDC
+      const wethUsdcPool500 = await factory.getPool(WRAPPED_ETH_ADDRESS, USDC_ADDRESS, 500).catch(() => null);
+      const wethUsdcPool3000 = await factory.getPool(WRAPPED_ETH_ADDRESS, USDC_ADDRESS, 3000).catch(() => null);
+      
+      // Проверяем пул USDC/MCT
+      const usdcMctPool500 = await factory.getPool(USDC_ADDRESS, tokenOutAddress, 500).catch(() => null);
+      const usdcMctPool3000 = await factory.getPool(USDC_ADDRESS, tokenOutAddress, 3000).catch(() => null);
+      
+      console.log('📊 Pool check results:');
+      console.log(`   WETH/USDC (0.05%): ${wethUsdcPool500 ? 'exists' : 'not found'}`);
+      console.log(`   WETH/USDC (0.3%): ${wethUsdcPool3000 ? 'exists' : 'not found'}`);
+      console.log(`   USDC/MCT (0.05%): ${usdcMctPool500 ? 'exists' : 'not found'}`);
+      console.log(`   USDC/MCT (0.3%): ${usdcMctPool3000 ? 'exists' : 'not found'}`);
+      
+      // Формируем список валидных комбинаций на основе существующих пулов
+      const feeCombinations: number[][] = [];
+      
+      if (wethUsdcPool500 && usdcMctPool500) feeCombinations.push([500, 500]);
+      if (wethUsdcPool500 && usdcMctPool3000) feeCombinations.push([500, 3000]);
+      if (wethUsdcPool3000 && usdcMctPool500) feeCombinations.push([3000, 500]);
+      if (wethUsdcPool3000 && usdcMctPool3000) feeCombinations.push([3000, 3000]);
+      
+      // Если нет валидных комбинаций, пробуем все
+      if (feeCombinations.length === 0) {
+        console.warn('⚠️ No pools found, trying all combinations...');
+        feeCombinations.push(
+          [500, 500],
+          [500, 3000],
+          [3000, 500],
+          [3000, 3000],
+          [10000, 3000]
+        );
+      }
 
       for (const [fee1, fee2] of feeCombinations) {
         try {
