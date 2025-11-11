@@ -575,9 +575,22 @@ export async function getTokenInfo(): Promise<{
 
 // Получить цену токена (через swap или смарт-контракт)
 export async function getTokenSalePriceEth(): Promise<string | null> {
-  // Если используется Farcaster Swap, возвращаем примерную цену
+  // Если используется Farcaster Swap, проверяем, используется ли прямой контракт продажи
   if (USE_FARCASTER_SWAP) {
-    // Примерная цена через swap (рыночная)
+    // Проверяем, используется ли прямой контракт продажи (рекомендуемый способ)
+    try {
+      const { getPriceFromSaleContract } = await import('@/lib/farcaster-direct-purchase');
+      const paymentToken = USE_USDC_FOR_PURCHASE ? 'USDC' : 'ETH';
+      const price = await getPriceFromSaleContract(paymentToken);
+      if (price) {
+        console.log(`💰 Price from sale contract: ${price} ${paymentToken}`);
+        return price;
+      }
+    } catch (error) {
+      console.warn('Could not get price from sale contract, using fallback:', error);
+    }
+    
+    // Fallback: примерная цена (если контракт не развернут)
     if (USE_USDC_FOR_PURCHASE) {
       return '0.25'; // 0.25 USDC за 0.10 MCT
     } else {

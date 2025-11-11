@@ -6,30 +6,17 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "test:upstash": "node scripts/test-upstash.js",
-    "check:config": "node scripts/check-config.js",
-    "test:token-purchase": "node scripts/test-token-purchase.js",
-    "test:all": "npm run check:config && npm run test:token-purchase && npm run build",
-    "compile": "hardhat --config hardhat.config.cjs compile",
-    "deploy:eth": "hardhat --config hardhat.config.cjs run scripts/deploy-token-sale.js --network base",
-    "deploy:eth:sepolia": "hardhat --config hardhat.config.cjs run scripts/deploy-token-sale.js --network baseSepolia",
-    "deploy:usdc": "hardhat --config hardhat.config.cjs run scripts/deploy-token-sale-usdc.js --network base",
-    "deploy:usdc:sepolia": "hardhat --config hardhat.config.cjs run scripts/deploy-token-sale-usdc.js --network baseSepolia"
+    "lint": "next lint"
   },
   "dependencies": {
     "@farcaster/miniapp-sdk": "^0.2.1",
-    "@rainbow-me/rainbowkit": "^2.0.0",
-    "@supabase/supabase-js": "^2.39.0",
     "@tanstack/react-query": "^5.28.0",
     "@upstash/redis": "^1.35.5",
     "axios": "^1.6.7",
     "ethers": "^6.11.0",
     "next": "^14.2.0",
     "react": "^18.3.0",
-    "react-dom": "^18.3.0",
-    "viem": "^2.7.0",
-    "wagmi": "^2.5.0"
+    "react-dom": "^18.3.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
@@ -41,11 +28,5 @@
     "postcss": "^8.4.33",
     "tailwindcss": "^3.4.1",
     "typescript": "^5.3.3"
-  },
-  "optionalDependencies": {
-    "@nomicfoundation/hardhat-toolbox": "^6.1.0",
-    "@openzeppelin/contracts": "^5.4.0",
-    "dotenv": "^17.2.3",
-    "hardhat": "^3.0.12"
   }
 }
