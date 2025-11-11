@@ -29,11 +29,6 @@ const ERC20_ABI = [
   'function allowance(address owner, address spender) view returns (uint256)',
 ];
 
-// Uniswap V3 Factory для проверки существования пула
-const UNISWAP_V3_FACTORY = '0x33128a8fC17869897dcE68Ed026d694621f6FDfD'; // Uniswap V3 Factory на Base
-const UNISWAP_FACTORY_ABI = [
-  'function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address pool)',
-];
 
 // Прямой swap ETH/USDC → MCT через Farcaster провайдер
 export async function buyTokenViaDirectSwap(
@@ -126,17 +121,17 @@ export async function buyTokenViaDirectSwap(
     const amountOutMinimum = tokenAmountOut * BigInt(50) / BigInt(100); // 50% slippage
 
     // Для ETH: пробуем multi-hop swap через USDC (WETH -> USDC -> MCT)
-    // Farcaster Wallet не поддерживает eth_call, поэтому пробуем все комбинации напрямую
+    // Пробуем все комбинации fee tiers напрямую (без проверки пулов, так как eth_call не поддерживается)
     if (paymentToken === 'ETH') {
       // Пробуем все возможные комбинации fee tiers
       const feeCombinations = [
-        [500, 500],   // 0.05% -> 0.05%
+        [3000, 3000], // 0.3% -> 0.3% (наиболее вероятная)
         [500, 3000],  // 0.05% -> 0.3%
         [3000, 500],  // 0.3% -> 0.05%
-        [3000, 3000], // 0.3% -> 0.3%
+        [500, 500],   // 0.05% -> 0.05%
         [10000, 3000], // 1% -> 0.3%
-        [500, 10000], // 0.05% -> 1%
         [3000, 10000], // 0.3% -> 1%
+        [500, 10000], // 0.05% -> 1%
       ];
 
       for (const [fee1, fee2] of feeCombinations) {
