@@ -1,4 +1,4 @@
-// Покупка токена через прямой swap через Farcaster провайдер (как в rips)
+// Покупка токена через встроенный swap интерфейс Farcaster (как в rips)
 import { ethers } from 'ethers';
 
 const USE_USDC_FOR_PAYMENT = false; // false = ETH, true = USDC
@@ -6,7 +6,8 @@ const TOKEN_CONTRACT_ADDRESS = '0x04d388da70c32fc5876981097c536c51c8d3d236'; // 
 const DEFAULT_TOKEN_DECIMALS = 18;
 const BASE_CHAIN_ID = 8453;
 
-// Покупка токена через Farcaster Swap (прямой swap через провайдер)
+// Покупка токена через Farcaster Swap (используем openUrl для встроенного интерфейса)
+// Это единственный надежный способ, так как Farcaster Wallet не поддерживает eth_call
 export async function buyTokenViaFarcasterSwap(
   userFid: number,
   paymentToken?: 'ETH' | 'USDC'
@@ -18,10 +19,76 @@ export async function buyTokenViaFarcasterSwap(
 }> {
   const selectedPaymentToken = paymentToken || (USE_USDC_FOR_PAYMENT ? 'USDC' : 'ETH');
   
-  // Используем прямой swap через провайдер (как в rips)
-  // Это более надежно, чем openUrl, так как транзакция выполняется напрямую
-  const { buyTokenViaDirectSwap } = await import('@/lib/farcaster-direct-swap');
-  return await buyTokenViaDirectSwap(userFid, selectedPaymentToken);
+  try {
+    if (typeof window === 'undefined') {
+      return {
+        success: false,
+        error: 'Swap доступен только на клиенте',
+      };
+    }
+
+    // Импортируем SDK
+    const { sdk } = await import('@farcaster/miniapp-sdk');
+
+    if (!sdk || !sdk.actions) {
+      return {
+        success: false,
+        error: 'Farcaster SDK не доступен',
+      };
+    }
+
+    // Адреса токенов
+    const tokenInAddress = selectedPaymentToken === 'ETH' 
+      ? 'ETH' // Используем 'ETH' для нативного токена
+      : '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // USDC на Base
+    
+    const tokenOutAddress = TOKEN_CONTRACT_ADDRESS; // MCT Token
+
+    // Рассчитываем сумму для покупки
+    const amountIn = selectedPaymentToken === 'ETH'
+      ? '0.0001' // 0.0001 ETH
+      : '0.25'; // 0.25 USDC
+
+    console.log(`🔄 Opening Farcaster swap interface:`);
+    console.log(`   Token In: ${selectedPaymentToken}`);
+    console.log(`   Token Out: MCT (${tokenOutAddress})`);
+    console.log(`   Amount In: ${amountIn} ${selectedPaymentToken}`);
+
+    // Используем встроенный swap интерфейс Farcaster через Uniswap URL
+    // Farcaster кошелек автоматически найдет лучший путь для swap
+    const swapUrl = `https://app.uniswap.org/#/swap?` +
+      `chain=base&` +
+      `inputCurrency=${tokenInAddress}&` +
+      `outputCurrency=${tokenOutAddress}&` +
+      `exactAmount=${amountIn}&` +
+      `exactField=input`;
+
+    console.log('🔄 Opening swap interface:', swapUrl);
+
+    // Открываем swap интерфейс через Farcaster SDK
+    // Это использует встроенный swap интерфейс кошелька, который сам найдет лучший путь
+    if (sdk.actions.openUrl) {
+      await sdk.actions.openUrl({ url: swapUrl });
+      
+      // Возвращаем успех, так как swap будет выполняться в кошельке
+      return {
+        success: true,
+        verified: false, // Верификация произойдет после завершения swap
+      };
+    }
+
+    return {
+      success: false,
+      error: 'Не удалось открыть swap интерфейс',
+    };
+  } catch (error: any) {
+    console.error('❌ Error initiating swap via Farcaster:', error);
+    return {
+      success: false,
+      error: error?.message || 'Ошибка при инициации swap',
+      verified: false,
+    };
+  }
 }
 
 // Проверить баланс токена после swap

@@ -122,50 +122,22 @@ export async function buyTokenViaDirectSwap(
     const feeTiers = [500, 3000, 10000];
     let lastError: any = null;
     
-    // Увеличиваем slippage до 30% для большей вероятности успеха
-    const amountOutMinimum = tokenAmountOut * BigInt(70) / BigInt(100); // 30% slippage
+    // Увеличиваем slippage до 50% для максимальной вероятности успеха
+    const amountOutMinimum = tokenAmountOut * BigInt(50) / BigInt(100); // 50% slippage
 
-    // Проверяем существование пулов перед swap
-    const factory = new ethers.Contract(UNISWAP_V3_FACTORY, UNISWAP_FACTORY_ABI, provider);
-    
     // Для ETH: пробуем multi-hop swap через USDC (WETH -> USDC -> MCT)
-    // Сначала проверяем существование пулов
+    // Farcaster Wallet не поддерживает eth_call, поэтому пробуем все комбинации напрямую
     if (paymentToken === 'ETH') {
-      console.log('🔍 Checking pool existence...');
-      
-      // Проверяем пул WETH/USDC
-      const wethUsdcPool500 = await factory.getPool(WRAPPED_ETH_ADDRESS, USDC_ADDRESS, 500).catch(() => null);
-      const wethUsdcPool3000 = await factory.getPool(WRAPPED_ETH_ADDRESS, USDC_ADDRESS, 3000).catch(() => null);
-      
-      // Проверяем пул USDC/MCT
-      const usdcMctPool500 = await factory.getPool(USDC_ADDRESS, tokenOutAddress, 500).catch(() => null);
-      const usdcMctPool3000 = await factory.getPool(USDC_ADDRESS, tokenOutAddress, 3000).catch(() => null);
-      
-      console.log('📊 Pool check results:');
-      console.log(`   WETH/USDC (0.05%): ${wethUsdcPool500 ? 'exists' : 'not found'}`);
-      console.log(`   WETH/USDC (0.3%): ${wethUsdcPool3000 ? 'exists' : 'not found'}`);
-      console.log(`   USDC/MCT (0.05%): ${usdcMctPool500 ? 'exists' : 'not found'}`);
-      console.log(`   USDC/MCT (0.3%): ${usdcMctPool3000 ? 'exists' : 'not found'}`);
-      
-      // Формируем список валидных комбинаций на основе существующих пулов
-      const feeCombinations: number[][] = [];
-      
-      if (wethUsdcPool500 && usdcMctPool500) feeCombinations.push([500, 500]);
-      if (wethUsdcPool500 && usdcMctPool3000) feeCombinations.push([500, 3000]);
-      if (wethUsdcPool3000 && usdcMctPool500) feeCombinations.push([3000, 500]);
-      if (wethUsdcPool3000 && usdcMctPool3000) feeCombinations.push([3000, 3000]);
-      
-      // Если нет валидных комбинаций, пробуем все
-      if (feeCombinations.length === 0) {
-        console.warn('⚠️ No pools found, trying all combinations...');
-        feeCombinations.push(
-          [500, 500],
-          [500, 3000],
-          [3000, 500],
-          [3000, 3000],
-          [10000, 3000]
-        );
-      }
+      // Пробуем все возможные комбинации fee tiers
+      const feeCombinations = [
+        [500, 500],   // 0.05% -> 0.05%
+        [500, 3000],  // 0.05% -> 0.3%
+        [3000, 500],  // 0.3% -> 0.05%
+        [3000, 3000], // 0.3% -> 0.3%
+        [10000, 3000], // 1% -> 0.3%
+        [500, 10000], // 0.05% -> 1%
+        [3000, 10000], // 0.3% -> 1%
+      ];
 
       for (const [fee1, fee2] of feeCombinations) {
         try {
