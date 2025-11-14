@@ -624,6 +624,8 @@ async function getMCTPricePerTokenInUSDC(): Promise<number | null> {
     
     console.log(`🔍 Fetching MCT price from Uniswap pair MCT/ETH...`);
     console.log(`📊 Requesting quote: 1 MCT → ETH`);
+    console.log(`📍 MCT Address: ${MCT_ADDRESS}`);
+    console.log(`📍 WETH Address: ${WETH_ADDRESS}`);
     
     for (const fee of feeTiers) {
       try {
@@ -637,29 +639,41 @@ async function getMCTPricePerTokenInUSDC(): Promise<number | null> {
           0
         );
         
+        if (!ethAmount || ethAmount === 0n) {
+          console.warn(`⚠️ Quote returned zero for fee ${fee}`);
+          continue;
+        }
+        
         const ethPricePerToken = parseFloat(ethers.formatEther(ethAmount));
         console.log(`✅ MCT price from Uniswap: ${ethPricePerToken} ETH per 1 MCT (fee: ${fee/10000}%)`);
         
         // Конвертируем цену в USDC через курс ETH/USD
         const ethUsdPrice = await fetchEthUsdPrice();
-        if (ethUsdPrice) {
+        if (ethUsdPrice && ethUsdPrice > 0) {
           const usdcPricePerToken = ethPricePerToken * ethUsdPrice;
           console.log(`✅ MCT price in USDC: ${usdcPricePerToken.toFixed(6)} USDC per 1 MCT`);
           return usdcPricePerToken;
         } else {
-          console.warn('⚠️ Could not fetch ETH/USD price');
+          console.warn('⚠️ Could not fetch ETH/USD price or price is invalid');
+          // Возвращаем цену в ETH, если не можем конвертировать в USDC
           return null;
         }
       } catch (error: any) {
-        console.warn(`⚠️ Quote failed for fee ${fee}, trying next...`, error?.message);
-        continue;
+        const errorMsg = error?.message || error?.reason || 'Unknown error';
+        console.warn(`⚠️ Quote failed for fee ${fee}:`, errorMsg);
+        
+        // Если это не ошибка отсутствия пула, пробуем следующий fee tier
+        if (errorMsg.includes('STF') || errorMsg.includes('revert') || errorMsg.includes('missing revert data')) {
+          continue;
+        }
       }
     }
     
-    console.error('❌ Failed to get quote from Uniswap for all fee tiers');
+    console.error('❌ Failed to get quote from Uniswap for all fee tiers - pair may not exist');
+    console.warn('💡 Using fallback: price from smart contract or fixed price');
     return null;
   } catch (error: any) {
-    console.error('❌ Error getting MCT price from Uniswap:', error);
+    console.error('❌ Error getting MCT price from Uniswap:', error?.message || error);
     return null;
   }
 }
@@ -671,14 +685,25 @@ export async function getMCTAmountForPurchase(): Promise<bigint | null> {
     const pricePerTokenUSDC = await getMCTPricePerTokenInUSDC();
     
     if (!pricePerTokenUSDC || pricePerTokenUSDC <= 0) {
-      console.error('❌ Failed to get MCT price from Uniswap');
-      return null;
+      console.warn('⚠️ Failed to get MCT price from Uniswap, using fallback: 0.10 USDC = 1 MCT');
+      // Fallback: если Uniswap не работает, используем фиксированное соотношение
+      // 0.10 USDC = 1 MCT (можно изменить позже)
+      const fallbackAmount = 1.0; // 1 MCT за 0.10 USDC
+      const mctAmountBigInt = ethers.parseUnits(fallbackAmount.toFixed(DEFAULT_TOKEN_DECIMALS), DEFAULT_TOKEN_DECIMALS);
+      console.log(`✅ Using fallback calculation: ${PURCHASE_AMOUNT_USDC} USDC → ${fallbackAmount} MCT`);
+      return mctAmountBigInt;
     }
     
     console.log(`✅ MCT price: ${pricePerTokenUSDC.toFixed(6)} USDC per 1 MCT`);
     
     // Рассчитываем количество MCT за 0.10 USDC
     const mctAmount = PURCHASE_AMOUNT_USDC / pricePerTokenUSDC;
+    
+    if (mctAmount <= 0 || !isFinite(mctAmount)) {
+      console.error('❌ Calculated MCT amount is invalid:', mctAmount);
+      return null;
+    }
+    
     const mctAmountBigInt = ethers.parseUnits(mctAmount.toFixed(DEFAULT_TOKEN_DECIMALS), DEFAULT_TOKEN_DECIMALS);
     
     const mctAmountFormatted = ethers.formatUnits(mctAmountBigInt, DEFAULT_TOKEN_DECIMALS);
@@ -687,7 +712,10 @@ export async function getMCTAmountForPurchase(): Promise<bigint | null> {
     return mctAmountBigInt;
   } catch (error: any) {
     console.error('❌ Error calculating MCT amount for purchase:', error);
-    return null;
+    // Fallback на фиксированное количество
+    console.warn('⚠️ Using fallback: 1 MCT for 0.10 USDC');
+    const fallbackAmount = 1.0;
+    return ethers.parseUnits(fallbackAmount.toFixed(DEFAULT_TOKEN_DECIMALS), DEFAULT_TOKEN_DECIMALS);
   }
 }
 
