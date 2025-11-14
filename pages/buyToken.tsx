@@ -3,7 +3,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import Button from '@/components/Button';
-import { useAccount, useBalance } from 'wagmi';
+import { useAccount, useBalance, useConnect } from 'wagmi';
+import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector';
 import { useSwapToken, useComposeCast } from '@coinbase/onchainkit/minikit';
 import { getTokenInfo, getTokenSalePriceEth, getMCTAmountForPurchase } from '@/lib/web3';
 import { markTokenPurchased, getUserProgress } from '@/lib/db-config';
@@ -19,6 +20,7 @@ const MCT_CONTRACT_ADDRESS = '0x04d388da70c32fc5876981097c536c51c8d3d236'; // MC
 export default function BuyToken() {
   const router = useRouter();
   const { address: walletAddress, isConnected } = useAccount();
+  const { connect, isPending: isConnecting } = useConnect();
   const { data: mctBalance } = useBalance({
     address: walletAddress,
     token: MCT_CONTRACT_ADDRESS as `0x${string}`,
@@ -297,11 +299,20 @@ export default function BuyToken() {
           {!walletAddress && (
             <div className="mb-6">
               <div className="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-6 text-center">
-                <p className="text-yellow-800 text-lg font-semibold">
-                  🔗 Please connect your wallet through Farcaster Mini App
+                <p className="text-yellow-800 text-lg font-semibold mb-4">
+                  🔗 Connect your Farcaster wallet
                 </p>
-                <p className="text-yellow-700 text-sm mt-2">
-                  Your wallet should connect automatically when using the app in Farcaster
+                <Button
+                  onClick={() => connect({ connector: farcasterMiniApp() })}
+                  loading={isConnecting}
+                  variant="primary"
+                  fullWidth
+                  className="text-lg py-4"
+                >
+                  {isConnecting ? 'Connecting...' : 'Connect Wallet'}
+                </Button>
+                <p className="text-yellow-700 text-sm mt-3">
+                  Your wallet will connect through Farcaster Mini App
                 </p>
               </div>
             </div>
