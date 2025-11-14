@@ -485,15 +485,20 @@ async function buyTokenWithUSDC(
     throw new Error('Цена покупки возвращает ноль. Проверьте контракт продажи.');
   }
 
-  // Проверяем баланс USDC
+  // Для чтения данных используем Base RPC (Farcaster Wallet не поддерживает eth_call)
+  // Для записи (approve, transfer) используем signer с Farcaster Wallet
+  const usdcContractRead = new ethers.Contract(USDC_CONTRACT_ADDRESS, ERC20_ABI, baseProvider);
   const usdcContract = new ethers.Contract(USDC_CONTRACT_ADDRESS, ERC20_ABI, signer);
-  const usdcBalance = await usdcContract.balanceOf(buyerAddress);
+  
+  // Проверяем баланс USDC используя Base RPC
+  const usdcBalance = await usdcContractRead.balanceOf(buyerAddress);
   if (usdcBalance < costUSDC) {
     throw new Error(`Недостаточно USDC. Требуется: ${costUSDCFormatted} USDC`);
   }
+  console.log(`✅ USDC balance check: ${ethers.formatUnits(usdcBalance, 6)} USDC available`);
 
-  // Проверяем allowance (одобрение)
-  const currentAllowance = await usdcContract.allowance(buyerAddress, cleanContractAddress);
+  // Проверяем allowance (одобрение) используя Base RPC
+  const currentAllowance = await usdcContractRead.allowance(buyerAddress, cleanContractAddress);
   
   if (currentAllowance < costUSDC) {
     console.log(`🔄 Approving USDC spending: ${costUSDCFormatted} USDC`);
@@ -732,27 +737,19 @@ async function fetchEthUsdPrice(): Promise<number | null> {
   }
 }
 
-// Получить цену покупки (сколько MCT получится за 0.10 USDC)
+// Получить цену покупки (цена за 1 MCT в USDC)
 export async function getTokenSalePriceEth(): Promise<string | null> {
-  // Используем Uniswap для расчета количества MCT за 0.10 USDC
-  const mctAmount = await getMCTAmountForPurchase();
-  if (mctAmount) {
-    const mctAmountFormatted = ethers.formatUnits(mctAmount, DEFAULT_TOKEN_DECIMALS);
-    console.log(`✅ Purchase: ${PURCHASE_AMOUNT_USDC} USDC = ${mctAmountFormatted} MCT`);
-    
-    // Возвращаем цену за 1 MCT в USDC (для отображения)
-    const pricePerToken = await getMCTPricePerTokenInUSDC();
-    if (pricePerToken) {
-      return pricePerToken.toFixed(6);
-    }
-    
-    // Если не удалось получить цену за токен, используем количество за покупку
-    return mctAmountFormatted;
+  // Пытаемся получить цену 1 MCT в USDC через Uniswap
+  const pricePerToken = await getMCTPricePerTokenInUSDC();
+  if (pricePerToken && pricePerToken > 0) {
+    console.log(`✅ Price from Uniswap: ${pricePerToken.toFixed(6)} USDC per 1 MCT`);
+    return pricePerToken.toFixed(6);
   }
   
   // Fallback: если Uniswap не работает, используем фиксированную цену
-  console.warn('⚠️ Failed to get quote from Uniswap, using fallback');
-  return PURCHASE_AMOUNT_USDC.toString(); // 0.10 USDC (fallback)
+  // 0.10 USDC = 1 MCT, значит 1 MCT = 0.10 USDC
+  console.warn('⚠️ Failed to get price from Uniswap, using fallback: 0.10 USDC per 1 MCT');
+  return PURCHASE_AMOUNT_USDC.toString(); // 0.10 USDC per 1 MCT (fallback)
 }
 
 // Получить стоимость покупки 0.10 MCT
