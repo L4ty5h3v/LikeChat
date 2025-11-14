@@ -606,169 +606,124 @@ export async function getTokenInfo(): Promise<{
   }
 }
 
-// Получить цену 1 MCT в USDC через Uniswap пары MCT/WETH и WETH/USDC (полностью onchain)
-// End-to-end quote: два вызова quoter.quoteExactInputSingle в одном провайдере с одинаковым fee tier
+// Получить цену 1 MCT в USDC через Uniswap пары MCT/WETH и WETH/USDC (полностью onchain через API)
+// Использует backend API для избежания eth_call в Farcaster Wallet
 async function getMCTPricePerTokenInUSDC(): Promise<number | null> {
   try {
-    const provider = getBaseProvider();
-    const MCT_ADDRESS = TOKEN_CONTRACT_ADDRESS;
-    const WETH_ADDRESS = '0x4200000000000000000000000000000000000006'; // WETH на Base
-    const USDC_ADDRESS_ON_BASE = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'; // USDC на Base (6 decimals) - правильный адрес
-    const UNISWAP_V3_QUOTER = '0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a'; // Uniswap V3 Quoter на Base
+    console.log(`🔍 Fetching MCT price: MCT → WETH → USDC (via API backend)...`);
     
-    // ABI для Uniswap V3 Quoter
-    const QUOTER_ABI = [
-      'function quoteExactInputSingle(address tokenIn, address tokenOut, uint24 fee, uint256 amountIn, uint160 sqrtPriceLimitX96) external returns (uint256 amountOut)',
-    ];
+    const response = await fetch('/api/quote', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        type: 'price',
+      }),
+    });
     
-    const quoter = new ethers.Contract(UNISWAP_V3_QUOTER, QUOTER_ABI, provider);
-    
-    // Получаем цену 1 MCT (используем 1 токен для расчета цены за единицу)
-    const oneToken = ethers.parseUnits('1', DEFAULT_TOKEN_DECIMALS);
-    
-    // Fee tiers для пулов (пробуем разные комиссии: 1% = 10000, 0.3% = 3000, 0.05% = 500)
-    const feeTiers = [10000, 3000, 500];
-    
-    // Slippage tolerance: 0.001% для MCT/WETH (слабый пул), 0.5-1% для WETH/USDC (ликвидная пара)
-    const MCT_WETH_TOLERANCE = 0.001; // 0.001% для MCT/WETH
-    const WETH_USDC_TOLERANCE = 0.5; // 0.5% для WETH/USDC (можно увеличить до 1% для волатильности)
-    
-    // Threshold для фильтрации слабых пулов: минимум 0.01 ETH эквивалент
-    const MIN_ETH_THRESHOLD = ethers.parseEther('0.01'); // 0.01 ETH
-    
-    console.log(`🔍 Fetching MCT price: MCT → WETH → USDC (fully onchain, end-to-end quote)...`);
-    console.log(`📊 Using same fee tier for both conversions`);
-    
-    // End-to-end quote: два вызова в одном провайдере с одинаковым fee tier
-    for (const fee of feeTiers) {
-      try {
-        console.log(`📊 Step 1: 1 MCT → WETH (fee: ${fee/10000}%)`);
-        
-        // Шаг 1: Получаем количество WETH за 1 MCT
-        const ethAmount: bigint = await quoter.quoteExactInputSingle.staticCall(
-          MCT_ADDRESS,
-          WETH_ADDRESS,
-          fee,
-          oneToken,
-          0 // sqrtPriceLimitX96 = 0 для quote
-        );
-        
-        if (!ethAmount || ethAmount === 0n) {
-          console.warn(`⚠️ Quote returned zero for MCT/WETH fee ${fee}`);
-          continue;
-        }
-        
-        // Фильтрация слабых пулов: если amountOut < 0.01 ETH, пропускаем
-        if (ethAmount < MIN_ETH_THRESHOLD) {
-          console.warn(`⚠️ MCT/WETH quote too low (${ethers.formatEther(ethAmount)} ETH < 0.01 ETH threshold) for fee ${fee}`);
-          continue;
-        }
-        
-        // Slippage protection для MCT/WETH: проверка минимального amountOut (0.001% tolerance)
-        const minMCTWETHOut = oneToken * BigInt(1) / BigInt(100000); // 0.001% минимальный выход
-        if (ethAmount < minMCTWETHOut) {
-          console.warn(`⚠️ MCT/WETH quote below tolerance (${MCT_WETH_TOLERANCE}%) for fee ${fee}`);
-          continue;
-        }
-        
-        const ethPricePerToken = parseFloat(ethers.formatEther(ethAmount));
-        console.log(`✅ MCT → WETH: ${ethPricePerToken.toFixed(8)} WETH per 1 MCT (fee: ${fee/10000}%)`);
-        
-        // Шаг 2: Используем тот же fee tier для WETH→USDC конверсии (end-to-end в одном провайдере)
-        console.log(`📊 Step 2: ${ethers.formatEther(ethAmount)} WETH → USDC (fee: ${fee/10000}%)`);
-        
-        const usdcAmount: bigint = await quoter.quoteExactInputSingle.staticCall(
-          WETH_ADDRESS,
-          USDC_ADDRESS_ON_BASE,
-          fee, // ✅ Используем тот же fee tier
-          ethAmount,
-          0 // sqrtPriceLimitX96 = 0 для quote
-        );
-        
-        if (!usdcAmount || usdcAmount === 0n) {
-          console.warn(`⚠️ Quote returned zero for WETH/USDC fee ${fee}`);
-          continue;
-        }
-        
-        // Slippage protection для WETH/USDC: проверка с tolerance 0.5-1%
-        // Рассчитываем expected amountOut с учетом tolerance
-        // Для WETH/USDC: ожидаем примерно ethAmount * ETH_PRICE_IN_USDC
-        // Но так как мы не знаем точную цену, проверяем разумность результата
-        // Минимум (1 - tolerance) от ожидаемого
-        const usdcPricePerToken = parseFloat(ethers.formatUnits(usdcAmount, 6)); // USDC имеет 6 decimals
-        
-        // Проверка: если результат слишком мал (меньше 0.01 USDC), это плохой пул
-        const minUSDCThreshold = ethers.parseUnits('0.01', 6); // 0.01 USDC
-        if (usdcAmount < minUSDCThreshold) {
-          console.warn(`⚠️ WETH/USDC quote too low (${usdcPricePerToken.toFixed(6)} USDC < 0.01 USDC threshold) for fee ${fee}`);
-          continue;
-        }
-        
-        // Проверка tolerance для WETH/USDC: если цена неразумная (слишком низкая), пропускаем
-        // Ожидаем, что 1 WETH ≈ $3000-4000, поэтому 0.01 WETH ≈ $30-40 USDC
-        // Если получили меньше $1 USDC за 0.01 WETH, это плохой quote
-        const expectedMinUSDC = parseFloat(ethers.formatEther(ethAmount)) * 100; // Минимум $100 за 0.01 ETH
-        if (usdcPricePerToken < expectedMinUSDC * (1 - WETH_USDC_TOLERANCE / 100)) {
-          console.warn(`⚠️ WETH/USDC quote below tolerance (${WETH_USDC_TOLERANCE}%) for fee ${fee}`);
-          continue;
-        }
-        
-        console.log(`✅ WETH → USDC: ${usdcPricePerToken.toFixed(6)} USDC for ${ethPricePerToken.toFixed(8)} WETH (fee: ${fee/10000}%)`);
-        console.log(`✅ Final MCT price: ${usdcPricePerToken.toFixed(6)} USDC per 1 MCT (fully onchain, end-to-end, fee: ${fee/10000}%)`);
-        
-        return usdcPricePerToken; // ✅ Возвращаем цену 1 MCT в USDC (полностью onchain)
-      } catch (error: any) {
-        const errorMsg = error?.message || error?.reason || 'Unknown error';
-        console.warn(`⚠️ Quote failed for fee ${fee}:`, errorMsg);
-        
-        // Если это ошибка отсутствия пула (STF, revert), пробуем следующий fee tier
-        if (errorMsg.includes('STF') || errorMsg.includes('revert') || errorMsg.includes('missing revert data')) {
-          continue;
-        }
-      }
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('❌ API quote error:', errorData.error || response.statusText);
+      return null;
     }
     
-    console.error('❌ Failed to get quote from Uniswap for all fee tiers - pairs may not exist or be illiquid');
-    console.warn('💡 Using fallback: price from smart contract or fixed price');
-    return null;
+    const data = await response.json();
+    
+    if (!data.success || !data.pricePerTokenUSDC) {
+      console.error('❌ API quote failed:', data.error || 'Unknown error');
+      return null;
+    }
+    
+    console.log(`✅ Final MCT price: ${data.pricePerTokenUSDC.toFixed(6)} USDC per 1 MCT (via API)`);
+    return data.pricePerTokenUSDC;
   } catch (error: any) {
-    console.error('❌ Error getting MCT price from Uniswap (onchain):', error?.message || error);
+    console.error('❌ Error getting MCT price from API:', error?.message || error);
     return null;
   }
 }
 
-// Получить количество MCT, которое можно купить за 0.10 USDC через Uniswap
+// Получить количество MCT, которое можно купить за 0.10 USDC через Uniswap (через API)
 export async function getMCTAmountForPurchase(): Promise<bigint | null> {
   try {
-    // Получаем цену 1 MCT в USDC через Uniswap пару MCT/ETH
-    const pricePerTokenUSDC = await getMCTPricePerTokenInUSDC();
+    console.log(`🔍 Fetching MCT amount for ${PURCHASE_AMOUNT_USDC} USDC: USDC → WETH → MCT (via API)...`);
     
-    if (!pricePerTokenUSDC || pricePerTokenUSDC <= 0) {
-      console.warn('⚠️ Failed to get MCT price from Uniswap, using fallback: 0.10 USDC = 1 MCT');
-      // Fallback: если Uniswap не работает, используем фиксированное соотношение
-      // 0.10 USDC = 1 MCT (можно изменить позже)
-      const fallbackAmount = 1.0; // 1 MCT за 0.10 USDC
-      const mctAmountBigInt = ethers.parseUnits(fallbackAmount.toFixed(DEFAULT_TOKEN_DECIMALS), DEFAULT_TOKEN_DECIMALS);
-      console.log(`✅ Using fallback calculation: ${PURCHASE_AMOUNT_USDC} USDC → ${fallbackAmount} MCT`);
+    // Используем API для прямого quote: USDC → WETH → MCT
+    const response = await fetch('/api/quote', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        type: 'amount',
+        usdcAmount: PURCHASE_AMOUNT_USDC,
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.warn('⚠️ Failed to get MCT amount from API, using price calculation fallback:', errorData.error || response.statusText);
+      
+      // Fallback: используем цену для расчета количества
+      const pricePerTokenUSDC = await getMCTPricePerTokenInUSDC();
+      
+      if (!pricePerTokenUSDC || pricePerTokenUSDC <= 0) {
+        console.warn('⚠️ Failed to get MCT price from API, using fixed fallback: 0.10 USDC = 1 MCT');
+        const fallbackAmount = 1.0; // 1 MCT за 0.10 USDC
+        const mctAmountBigInt = ethers.parseUnits(fallbackAmount.toFixed(DEFAULT_TOKEN_DECIMALS), DEFAULT_TOKEN_DECIMALS);
+        console.log(`✅ Using fallback calculation: ${PURCHASE_AMOUNT_USDC} USDC → ${fallbackAmount} MCT`);
+        return mctAmountBigInt;
+      }
+      
+      const mctAmount = PURCHASE_AMOUNT_USDC / pricePerTokenUSDC;
+      
+      if (mctAmount <= 0 || !isFinite(mctAmount)) {
+        console.error('❌ Calculated MCT amount is invalid:', mctAmount);
+        // Используем fallback
+        const fallbackAmount = 1.0;
+        return ethers.parseUnits(fallbackAmount.toFixed(DEFAULT_TOKEN_DECIMALS), DEFAULT_TOKEN_DECIMALS);
+      }
+      
+      const mctAmountBigInt = ethers.parseUnits(mctAmount.toFixed(DEFAULT_TOKEN_DECIMALS), DEFAULT_TOKEN_DECIMALS);
+      
+      const mctAmountFormatted = ethers.formatUnits(mctAmountBigInt, DEFAULT_TOKEN_DECIMALS);
+      console.log(`✅ Calculated: ${PURCHASE_AMOUNT_USDC} USDC → ${mctAmountFormatted} MCT (fallback via price)`);
+      
       return mctAmountBigInt;
     }
     
-    console.log(`✅ MCT price: ${pricePerTokenUSDC.toFixed(6)} USDC per 1 MCT`);
+    // Успешный ответ от API
+    const data = await response.json();
     
-    // Рассчитываем количество MCT за 0.10 USDC
-    const mctAmount = PURCHASE_AMOUNT_USDC / pricePerTokenUSDC;
-    
-    if (mctAmount <= 0 || !isFinite(mctAmount)) {
-      console.error('❌ Calculated MCT amount is invalid:', mctAmount);
-      // Используем fallback
-      const fallbackAmount = 1.0;
-      return ethers.parseUnits(fallbackAmount.toFixed(DEFAULT_TOKEN_DECIMALS), DEFAULT_TOKEN_DECIMALS);
+    if (!data.success || !data.mctAmount) {
+      console.warn('⚠️ API returned unsuccessful response, using price calculation fallback:', data.error || 'Unknown error');
+      
+      // Fallback: используем цену для расчета количества
+      const pricePerTokenUSDC = await getMCTPricePerTokenInUSDC();
+      
+      if (!pricePerTokenUSDC || pricePerTokenUSDC <= 0) {
+        console.warn('⚠️ Failed to get MCT price from API, using fixed fallback: 0.10 USDC = 1 MCT');
+        const fallbackAmount = 1.0;
+        const mctAmountBigInt = ethers.parseUnits(fallbackAmount.toFixed(DEFAULT_TOKEN_DECIMALS), DEFAULT_TOKEN_DECIMALS);
+        console.log(`✅ Using fallback calculation: ${PURCHASE_AMOUNT_USDC} USDC → ${fallbackAmount} MCT`);
+        return mctAmountBigInt;
+      }
+      
+      const mctAmount = PURCHASE_AMOUNT_USDC / pricePerTokenUSDC;
+      
+      if (mctAmount <= 0 || !isFinite(mctAmount)) {
+        const fallbackAmount = 1.0;
+        return ethers.parseUnits(fallbackAmount.toFixed(DEFAULT_TOKEN_DECIMALS), DEFAULT_TOKEN_DECIMALS);
+      }
+      
+      const mctAmountBigInt = ethers.parseUnits(mctAmount.toFixed(DEFAULT_TOKEN_DECIMALS), DEFAULT_TOKEN_DECIMALS);
+      return mctAmountBigInt;
     }
     
-    const mctAmountBigInt = ethers.parseUnits(mctAmount.toFixed(DEFAULT_TOKEN_DECIMALS), DEFAULT_TOKEN_DECIMALS);
-    
+    // Используем количество из API
+    const mctAmountBigInt = BigInt(data.mctAmount);
     const mctAmountFormatted = ethers.formatUnits(mctAmountBigInt, DEFAULT_TOKEN_DECIMALS);
-    console.log(`✅ Calculated: ${PURCHASE_AMOUNT_USDC} USDC → ${mctAmountFormatted} MCT`);
+    console.log(`✅ API quote: ${PURCHASE_AMOUNT_USDC} USDC → ${mctAmountFormatted} MCT`);
     
     return mctAmountBigInt;
   } catch (error: any) {

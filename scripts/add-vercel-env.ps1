@@ -27,3 +27,4 @@ foreach ($env in $environments) {
 Write-Host "🎉 Done! Check Vercel dashboard to verify." -ForegroundColor Green
 
 
+
