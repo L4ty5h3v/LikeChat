@@ -667,90 +667,24 @@ async function getMCTPricePerTokenInUSDC(): Promise<number | null> {
 // Получить количество MCT, которое можно купить за 0.10 USDC через Uniswap
 export async function getMCTAmountForPurchase(): Promise<bigint | null> {
   try {
-    const provider = getBaseProvider();
-    const MCT_ADDRESS = TOKEN_CONTRACT_ADDRESS;
-    const WETH_ADDRESS = '0x4200000000000000000000000000000000000006'; // WETH на Base
-    const USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // USDC на Base
-    const UNISWAP_V3_QUOTER = '0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a'; // Uniswap V3 Quoter на Base
+    // Получаем цену 1 MCT в USDC через Uniswap пару MCT/ETH
+    const pricePerTokenUSDC = await getMCTPricePerTokenInUSDC();
     
-    // ABI для Uniswap V3 Quoter
-    const QUOTER_ABI = [
-      'function quoteExactInputSingle(address tokenIn, address tokenOut, uint24 fee, uint256 amountIn, uint160 sqrtPriceLimitX96) external returns (uint256 amountOut)',
-    ];
-    
-    const quoter = new ethers.Contract(UNISWAP_V3_QUOTER, QUOTER_ABI, provider);
-    
-    // Сумма покупки: 0.10 USDC (6 decimals для USDC)
-    const usdcAmount = ethers.parseUnits(PURCHASE_AMOUNT_USDC.toString(), 6);
-    
-    // Fee tiers для пулов
-    const feeTiers = [10000, 3000, 500];
-    
-    console.log(`🔍 Calculating MCT amount for ${PURCHASE_AMOUNT_USDC} USDC via Uniswap...`);
-    
-    // Пробуем прямой путь USDC -> MCT (если есть пара)
-    for (const fee of feeTiers) {
-      try {
-        const mctAmount: bigint = await quoter.quoteExactInputSingle.staticCall(
-          USDC_ADDRESS,
-          MCT_ADDRESS,
-          fee,
-          usdcAmount,
-          0
-        );
-        
-        const mctAmountFormatted = ethers.formatUnits(mctAmount, DEFAULT_TOKEN_DECIMALS);
-        console.log(`✅ Direct quote: ${PURCHASE_AMOUNT_USDC} USDC → ${mctAmountFormatted} MCT (fee: ${fee/10000}%)`);
-        return mctAmount;
-      } catch (error) {
-        continue;
-      }
+    if (!pricePerTokenUSDC || pricePerTokenUSDC <= 0) {
+      console.error('❌ Failed to get MCT price from Uniswap');
+      return null;
     }
     
-    // Если прямой путь не работает, используем USDC -> WETH -> MCT
-    // Сначала конвертируем USDC в WETH
-    let wethAmount: bigint = BigInt(0);
-    for (const fee of feeTiers) {
-      try {
-        wethAmount = await quoter.quoteExactInputSingle.staticCall(
-          USDC_ADDRESS,
-          WETH_ADDRESS,
-          fee,
-          usdcAmount,
-          0
-        );
-        console.log(`✅ USDC → WETH: ${PURCHASE_AMOUNT_USDC} USDC → ${ethers.formatEther(wethAmount)} WETH`);
-        break;
-      } catch (error) {
-        continue;
-      }
-    }
+    console.log(`✅ MCT price: ${pricePerTokenUSDC.toFixed(6)} USDC per 1 MCT`);
     
-    if (wethAmount === BigInt(0)) {
-      throw new Error('Failed to get quote USDC → WETH');
-    }
+    // Рассчитываем количество MCT за 0.10 USDC
+    const mctAmount = PURCHASE_AMOUNT_USDC / pricePerTokenUSDC;
+    const mctAmountBigInt = ethers.parseUnits(mctAmount.toFixed(DEFAULT_TOKEN_DECIMALS), DEFAULT_TOKEN_DECIMALS);
     
-    // Теперь конвертируем WETH в MCT
-    for (const fee of feeTiers) {
-      try {
-        const mctAmount: bigint = await quoter.quoteExactInputSingle.staticCall(
-          WETH_ADDRESS,
-          MCT_ADDRESS,
-          fee,
-          wethAmount,
-          0
-        );
-        
-        const mctAmountFormatted = ethers.formatUnits(mctAmount, DEFAULT_TOKEN_DECIMALS);
-        console.log(`✅ WETH → MCT: ${ethers.formatEther(wethAmount)} WETH → ${mctAmountFormatted} MCT (fee: ${fee/10000}%)`);
-        console.log(`✅ Total: ${PURCHASE_AMOUNT_USDC} USDC → ${mctAmountFormatted} MCT`);
-        return mctAmount;
-      } catch (error) {
-        continue;
-      }
-    }
+    const mctAmountFormatted = ethers.formatUnits(mctAmountBigInt, DEFAULT_TOKEN_DECIMALS);
+    console.log(`✅ Calculated: ${PURCHASE_AMOUNT_USDC} USDC → ${mctAmountFormatted} MCT`);
     
-    throw new Error('Failed to get quote WETH → MCT');
+    return mctAmountBigInt;
   } catch (error: any) {
     console.error('❌ Error calculating MCT amount for purchase:', error);
     return null;
