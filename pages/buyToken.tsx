@@ -14,17 +14,7 @@ const PURCHASE_AMOUNT_USDC = 0.10; // Покупаем MCT на 0.10 USDC
 const USDC_CONTRACT_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // USDC на Base
 const MCT_CONTRACT_ADDRESS = '0x04d388da70c32fc5876981097c536c51c8d3d236'; // MCT Token
 
-async function fetchEthUsdPrice(): Promise<number | null> {
-  try {
-    const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd');
-    const data = await response.json();
-    const price = data?.ethereum?.usd;
-    return typeof price === 'number' ? price : null;
-  } catch (error) {
-    console.error('Error fetching ETH price in USD:', error);
-    return null;
-  }
-}
+// Removed: fetchEthUsdPrice() - теперь используем полностью onchain quotes через Uniswap WETH/USDC
 
 export default function BuyToken() {
   const router = useRouter();
@@ -119,14 +109,9 @@ export default function BuyToken() {
           // Цена уже в USDC, напрямую используем как USD
           setTokenPriceUsd(parseFloat(priceEth).toFixed(2));
         } else {
-          // Для ETH конвертируем через курс
-          const ethUsd = await fetchEthUsdPrice();
-          if (ethUsd) {
-            const usd = parseFloat(priceEth) * ethUsd;
-            setTokenPriceUsd(usd.toFixed(2));
-          } else {
-            setTokenPriceUsd(null);
-          }
+          // Для ETH: цена уже должна быть в USDC (onchain quote через Uniswap)
+          // Если цена не в USDC, используем как есть или null
+          setTokenPriceUsd(null);
         }
       } else {
         // Если цена 0 или не установлена, показываем "Free"

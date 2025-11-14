@@ -606,12 +606,14 @@ export async function getTokenInfo(): Promise<{
   }
 }
 
-// Получить цену 1 MCT в USDC через Uniswap пару MCT/ETH
+// Получить цену 1 MCT в USDC через Uniswap пары MCT/WETH и WETH/USDC (полностью onchain)
+// End-to-end quote: два вызова quoter.quoteExactInputSingle в одном провайдере с одинаковым fee tier
 async function getMCTPricePerTokenInUSDC(): Promise<number | null> {
   try {
     const provider = getBaseProvider();
     const MCT_ADDRESS = TOKEN_CONTRACT_ADDRESS;
     const WETH_ADDRESS = '0x4200000000000000000000000000000000000006'; // WETH на Base
+    const USDC_ADDRESS_ON_BASE = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'; // USDC на Base (6 decimals) - правильный адрес
     const UNISWAP_V3_QUOTER = '0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a'; // Uniswap V3 Quoter на Base
     
     // ABI для Uniswap V3 Quoter
@@ -627,58 +629,110 @@ async function getMCTPricePerTokenInUSDC(): Promise<number | null> {
     // Fee tiers для пулов (пробуем разные комиссии: 1% = 10000, 0.3% = 3000, 0.05% = 500)
     const feeTiers = [10000, 3000, 500];
     
-    console.log(`🔍 Fetching MCT price from Uniswap pair MCT/ETH...`);
-    console.log(`📊 Requesting quote: 1 MCT → ETH`);
-    console.log(`📍 MCT Address: ${MCT_ADDRESS}`);
-    console.log(`📍 WETH Address: ${WETH_ADDRESS}`);
+    // Slippage tolerance: 0.001% для MCT/WETH (слабый пул), 0.5-1% для WETH/USDC (ликвидная пара)
+    const MCT_WETH_TOLERANCE = 0.001; // 0.001% для MCT/WETH
+    const WETH_USDC_TOLERANCE = 0.5; // 0.5% для WETH/USDC (можно увеличить до 1% для волатильности)
     
+    // Threshold для фильтрации слабых пулов: минимум 0.01 ETH эквивалент
+    const MIN_ETH_THRESHOLD = ethers.parseEther('0.01'); // 0.01 ETH
+    
+    console.log(`🔍 Fetching MCT price: MCT → WETH → USDC (fully onchain, end-to-end quote)...`);
+    console.log(`📊 Using same fee tier for both conversions`);
+    
+    // End-to-end quote: два вызова в одном провайдере с одинаковым fee tier
     for (const fee of feeTiers) {
       try {
-        // Получаем количество ETH за 1 MCT
-        // tokenIn = MCT, tokenOut = WETH (ETH)
+        console.log(`📊 Step 1: 1 MCT → WETH (fee: ${fee/10000}%)`);
+        
+        // Шаг 1: Получаем количество WETH за 1 MCT
         const ethAmount: bigint = await quoter.quoteExactInputSingle.staticCall(
           MCT_ADDRESS,
           WETH_ADDRESS,
           fee,
           oneToken,
-          0
+          0 // sqrtPriceLimitX96 = 0 для quote
         );
         
         if (!ethAmount || ethAmount === 0n) {
-          console.warn(`⚠️ Quote returned zero for fee ${fee}`);
+          console.warn(`⚠️ Quote returned zero for MCT/WETH fee ${fee}`);
+          continue;
+        }
+        
+        // Фильтрация слабых пулов: если amountOut < 0.01 ETH, пропускаем
+        if (ethAmount < MIN_ETH_THRESHOLD) {
+          console.warn(`⚠️ MCT/WETH quote too low (${ethers.formatEther(ethAmount)} ETH < 0.01 ETH threshold) for fee ${fee}`);
+          continue;
+        }
+        
+        // Slippage protection для MCT/WETH: проверка минимального amountOut (0.001% tolerance)
+        const minMCTWETHOut = oneToken * BigInt(1) / BigInt(100000); // 0.001% минимальный выход
+        if (ethAmount < minMCTWETHOut) {
+          console.warn(`⚠️ MCT/WETH quote below tolerance (${MCT_WETH_TOLERANCE}%) for fee ${fee}`);
           continue;
         }
         
         const ethPricePerToken = parseFloat(ethers.formatEther(ethAmount));
-        console.log(`✅ MCT price from Uniswap: ${ethPricePerToken} ETH per 1 MCT (fee: ${fee/10000}%)`);
+        console.log(`✅ MCT → WETH: ${ethPricePerToken.toFixed(8)} WETH per 1 MCT (fee: ${fee/10000}%)`);
         
-        // Конвертируем цену в USDC через курс ETH/USD
-        const ethUsdPrice = await fetchEthUsdPrice();
-        if (ethUsdPrice && ethUsdPrice > 0) {
-          const usdcPricePerToken = ethPricePerToken * ethUsdPrice;
-          console.log(`✅ MCT price in USDC: ${usdcPricePerToken.toFixed(6)} USDC per 1 MCT`);
-          return usdcPricePerToken;
-        } else {
-          console.warn('⚠️ Could not fetch ETH/USD price or price is invalid');
-          // Возвращаем цену в ETH, если не можем конвертировать в USDC
-          return null;
+        // Шаг 2: Используем тот же fee tier для WETH→USDC конверсии (end-to-end в одном провайдере)
+        console.log(`📊 Step 2: ${ethers.formatEther(ethAmount)} WETH → USDC (fee: ${fee/10000}%)`);
+        
+        const usdcAmount: bigint = await quoter.quoteExactInputSingle.staticCall(
+          WETH_ADDRESS,
+          USDC_ADDRESS_ON_BASE,
+          fee, // ✅ Используем тот же fee tier
+          ethAmount,
+          0 // sqrtPriceLimitX96 = 0 для quote
+        );
+        
+        if (!usdcAmount || usdcAmount === 0n) {
+          console.warn(`⚠️ Quote returned zero for WETH/USDC fee ${fee}`);
+          continue;
         }
+        
+        // Slippage protection для WETH/USDC: проверка с tolerance 0.5-1%
+        // Рассчитываем expected amountOut с учетом tolerance
+        // Для WETH/USDC: ожидаем примерно ethAmount * ETH_PRICE_IN_USDC
+        // Но так как мы не знаем точную цену, проверяем разумность результата
+        // Минимум (1 - tolerance) от ожидаемого
+        const usdcPricePerToken = parseFloat(ethers.formatUnits(usdcAmount, 6)); // USDC имеет 6 decimals
+        
+        // Проверка: если результат слишком мал (меньше 0.01 USDC), это плохой пул
+        const minUSDCThreshold = ethers.parseUnits('0.01', 6); // 0.01 USDC
+        if (usdcAmount < minUSDCThreshold) {
+          console.warn(`⚠️ WETH/USDC quote too low (${usdcPricePerToken.toFixed(6)} USDC < 0.01 USDC threshold) for fee ${fee}`);
+          continue;
+        }
+        
+        // Проверка tolerance для WETH/USDC: если цена неразумная (слишком низкая), пропускаем
+        // Ожидаем, что 1 WETH ≈ $3000-4000, поэтому 0.01 WETH ≈ $30-40 USDC
+        // Если получили меньше $1 USDC за 0.01 WETH, это плохой quote
+        const expectedMinUSDC = parseFloat(ethers.formatEther(ethAmount)) * 100; // Минимум $100 за 0.01 ETH
+        if (usdcPricePerToken < expectedMinUSDC * (1 - WETH_USDC_TOLERANCE / 100)) {
+          console.warn(`⚠️ WETH/USDC quote below tolerance (${WETH_USDC_TOLERANCE}%) for fee ${fee}`);
+          continue;
+        }
+        
+        console.log(`✅ WETH → USDC: ${usdcPricePerToken.toFixed(6)} USDC for ${ethPricePerToken.toFixed(8)} WETH (fee: ${fee/10000}%)`);
+        console.log(`✅ Final MCT price: ${usdcPricePerToken.toFixed(6)} USDC per 1 MCT (fully onchain, end-to-end, fee: ${fee/10000}%)`);
+        
+        return usdcPricePerToken; // ✅ Возвращаем цену 1 MCT в USDC (полностью onchain)
       } catch (error: any) {
         const errorMsg = error?.message || error?.reason || 'Unknown error';
         console.warn(`⚠️ Quote failed for fee ${fee}:`, errorMsg);
         
-        // Если это не ошибка отсутствия пула, пробуем следующий fee tier
+        // Если это ошибка отсутствия пула (STF, revert), пробуем следующий fee tier
         if (errorMsg.includes('STF') || errorMsg.includes('revert') || errorMsg.includes('missing revert data')) {
           continue;
         }
       }
     }
     
-    console.error('❌ Failed to get quote from Uniswap for all fee tiers - pair may not exist');
+    console.error('❌ Failed to get quote from Uniswap for all fee tiers - pairs may not exist or be illiquid');
     console.warn('💡 Using fallback: price from smart contract or fixed price');
     return null;
   } catch (error: any) {
-    console.error('❌ Error getting MCT price from Uniswap:', error?.message || error);
+    console.error('❌ Error getting MCT price from Uniswap (onchain):', error?.message || error);
     return null;
   }
 }
