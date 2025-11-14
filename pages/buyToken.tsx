@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import Button from '@/components/Button';
-import { useAccount, useBalance, useConnect } from 'wagmi';
+import { useAccount, useBalance, useConnect, useBlockNumber } from 'wagmi';
 import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector';
 import { useSwapToken, useComposeCast } from '@coinbase/onchainkit/minikit';
 import { getTokenInfo, getTokenSalePriceEth, getMCTAmountForPurchase } from '@/lib/web3';
@@ -21,11 +21,32 @@ export default function BuyToken() {
   const router = useRouter();
   const { address: walletAddress, isConnected } = useAccount();
   const { connect, isPending: isConnecting } = useConnect();
-  const { data: mctBalance } = useBalance({
+  const [isSwapping, setIsSwapping] = useState(false);
+  const [swapInitiatedAt, setSwapInitiatedAt] = useState<number | null>(null);
+  const [oldBalanceBeforeSwap, setOldBalanceBeforeSwap] = useState<number | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const [lastError, setLastError] = useState<string | null>(null);
+  const [swapTimeoutId, setSwapTimeoutId] = useState<NodeJS.Timeout | null>(null);
+  const [lastCheckedBlock, setLastCheckedBlock] = useState<bigint | null>(null);
+  const [blocksSinceSwap, setBlocksSinceSwap] = useState(0);
+  const MAX_RETRIES = 3;
+  const BLOCKS_TO_CHECK = 4; // Проверяем каждые 4 блока (~12 секунд на Base)
+  
+  // Real-time block listener для проверки баланса
+  const { data: blockNumber } = useBlockNumber({
+    watch: isSwapping, // Включаем только при swap
+    query: {
+      enabled: isSwapping && !!walletAddress,
+    },
+  });
+  
+  const { data: mctBalance, refetch: refetchMCTBalance } = useBalance({
     address: walletAddress,
     token: MCT_CONTRACT_ADDRESS as `0x${string}`,
     query: {
       enabled: !!walletAddress,
+      // Базовое обновление каждые 30 секунд, но реальное обновление через блоки
+      refetchInterval: false, // Отключаем интервальное обновление, используем блоки
     },
   });
   const { data: usdcBalance } = useBalance({
@@ -43,7 +64,6 @@ export default function BuyToken() {
   const [txHash, setTxHash] = useState<string>('');
   const [purchased, setPurchased] = useState(false);
   const [error, setError] = useState<string>('');
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [tokenInfo, setTokenInfo] = useState<{
     name: string;
     symbol: string;
@@ -71,18 +91,18 @@ export default function BuyToken() {
   useEffect(() => {
     // Проверяем, что код выполняется на клиенте
     if (typeof window !== 'undefined') {
-      const savedUser = localStorage.getItem('farcaster_user');
+    const savedUser = localStorage.getItem('farcaster_user');
 
-      if (!savedUser) {
-        router.push('/');
-        return;
-      }
+    if (!savedUser) {
+      router.push('/');
+      return;
+    }
 
-      const userData = JSON.parse(savedUser);
-      setUser(userData);
-      
-      checkProgress(userData.fid);
-      loadWalletInfo();
+    const userData = JSON.parse(savedUser);
+    setUser(userData);
+    
+    checkProgress(userData.fid);
+    loadWalletInfo();
     }
   }, [router]);
 
@@ -162,103 +182,295 @@ export default function BuyToken() {
       }
     }
     
-    // Показываем модальное окно подтверждения
-    setShowConfirmModal(true);
+    // One-tap: сразу запускаем swap без модального окна
+    await confirmBuyToken();
   };
 
-  const confirmBuyToken = async () => {
+  // Обработка ошибок swap с retry логикой и конкретными подсказками
+  const handleSwapError = (err: any, isTimeout: boolean = false) => {
+    console.error('❌ Error in confirmBuyToken:', err);
+    
+    // Очищаем таймаут если есть
+    if (swapTimeoutId) {
+      clearTimeout(swapTimeoutId);
+      setSwapTimeoutId(null);
+    }
+    
+    let errorMessage = err?.message || err?.reason || 'Неожиданная ошибка при покупке токена';
+    let errorType: 'user_rejection' | 'network' | 'insufficient_balance' | 'insufficient_funds' | 'slippage' | 'timeout' | 'unknown' | 'retryable' = 'unknown';
+    let helpfulMessage = '';
+    
+    // Определяем тип ошибки с конкретными подсказками
+    const errorLower = errorMessage.toLowerCase();
+    
+    if (errorLower.includes('user rejected') || 
+        errorLower.includes('cancel') ||
+        errorLower.includes('denied') ||
+        errorLower.includes('rejected')) {
+      errorType = 'user_rejection';
+      errorMessage = 'Транзакция отменена пользователем';
+      helpfulMessage = '';
+    } else if (errorLower.includes('insufficient funds') || 
+               errorLower.includes('insufficient balance') ||
+               (errorLower.includes('insufficient') && errorLower.includes('usdc'))) {
+      errorType = 'insufficient_funds';
+      errorMessage = `Недостаточно USDC для покупки`;
+      helpfulMessage = `💡 Добавьте больше USDC в кошелек. Требуется минимум ${PURCHASE_AMOUNT_USDC} USDC + ETH для gas`;
+    } else if (errorLower.includes('insufficient') || 
+               errorLower.includes('balance') ||
+               (errorLower.includes('amount') && !errorLower.includes('slippage'))) {
+      errorType = 'insufficient_balance';
+      errorMessage = 'Недостаточно средств для выполнения swap';
+      helpfulMessage = `💡 Проверьте баланс USDC в кошельке. Доступно: ${usdcBalance ? formatUnits(usdcBalance.value, usdcBalance.decimals) : '0'} USDC`;
+    } else if (errorLower.includes('slippage') || 
+               errorLower.includes('price impact') ||
+               errorLower.includes('execution reverted: dsr') ||
+               errorLower.includes('execution reverted: spc')) {
+      errorType = 'slippage';
+      errorMessage = 'Slippage tolerance превышен';
+      helpfulMessage = '💡 Увеличьте slippage tolerance в настройках swap или попробуйте позже, когда ликвидность улучшится';
+    } else if (errorLower.includes('timeout') || 
+               errorLower.includes('network') || 
+               errorLower.includes('connection') ||
+               errorLower.includes('fetch') ||
+               isTimeout) {
+      errorType = 'timeout';
+      errorMessage = isTimeout 
+        ? 'Timeout: swap не завершился за 30 секунд' 
+        : 'Ошибка сети';
+      helpfulMessage = '💡 Проверьте подключение к интернету и попробуйте снова';
+    } else if (errorLower.includes('gas') || 
+               errorLower.includes('fee') ||
+               (errorLower.includes('execution') && !errorLower.includes('slippage')) ||
+               (errorLower.includes('revert') && !errorLower.includes('slippage'))) {
+      errorType = 'retryable';
+      if (retryCount < MAX_RETRIES) {
+        errorMessage = `Ошибка выполнения: ${errorMessage}`;
+        helpfulMessage = '💡 Попробуйте еще раз - это может быть временная проблема с сетью';
+      } else {
+        errorMessage = `Ошибка выполнения после ${MAX_RETRIES} попыток: ${errorMessage}`;
+        helpfulMessage = '💡 Обновите страницу и попробуйте снова';
+      }
+    }
+    
+    setLastError(errorMessage);
+    setLoading(false);
+    setIsSwapping(false);
+    setSwapInitiatedAt(null);
+    setOldBalanceBeforeSwap(null);
+    setLastCheckedBlock(null);
+    setBlocksSinceSwap(0);
+    
+    // Показываем ошибку пользователю с подсказками
+    const finalMessage = helpfulMessage 
+      ? `${errorMessage}\n\n${helpfulMessage}` 
+      : errorMessage;
+    
+    if (errorType === 'user_rejection') {
+      setError(finalMessage);
+      setRetryCount(0);
+    } else if (errorType === 'timeout' || errorType === 'retryable') {
+      if (retryCount < MAX_RETRIES) {
+        setError(`${finalMessage}\n\n(Попытка ${retryCount + 1}/${MAX_RETRIES})`);
+      } else {
+        setError(finalMessage);
+      }
+    } else {
+      setError(finalMessage);
+      setRetryCount(0);
+    }
+  };
+
+  // Функция для retry с exponential backoff
+  const handleRetry = () => {
+    if (retryCount >= MAX_RETRIES) {
+      setError('Превышено максимальное количество попыток. Пожалуйста, обновите страницу и попробуйте снова.');
+      setRetryCount(0);
+      return;
+    }
+    
+    // Exponential backoff: 1-я сразу (0с), 2-я через 2с, 3-я через 5с
+    const backoffDelays = [0, 2000, 5000];
+    const delay = backoffDelays[retryCount] || 5000;
+    
+    setRetryCount(prev => prev + 1);
+    console.log(`🔄 Retry attempt ${retryCount + 1}/${MAX_RETRIES} after ${delay}ms delay`);
+    
+    if (delay === 0) {
+      // Первая попытка сразу
+      confirmBuyToken(true);
+    } else {
+      // Последующие попытки с задержкой
+      setTimeout(() => {
+        confirmBuyToken(true);
+      }, delay);
+    }
+  };
+
+  // Real-time баланс через блоки: проверяем каждые 3-5 блоков
+  useEffect(() => {
+    if (!isSwapping || !blockNumber || !mctBalance || oldBalanceBeforeSwap === null) return;
+
+    // Инициализируем последний проверенный блок
+    if (lastCheckedBlock === null) {
+      setLastCheckedBlock(blockNumber);
+      setBlocksSinceSwap(0);
+      return;
+    }
+
+    // Подсчитываем блоки с момента swap
+    const blocksPassed = Number(blockNumber - lastCheckedBlock);
+    setBlocksSinceSwap(prev => prev + blocksPassed);
+    setLastCheckedBlock(blockNumber);
+
+    // Проверяем баланс каждые BLOCKS_TO_CHECK блоков
+    if (blocksSinceSwap >= BLOCKS_TO_CHECK) {
+      console.log(`🔍 Checking balance after ${blocksSinceSwap} blocks (block ${blockNumber})...`);
+      refetchMCTBalance();
+      setBlocksSinceSwap(0); // Сбрасываем счетчик после проверки
+    }
+  }, [blockNumber, isSwapping, mctBalance, oldBalanceBeforeSwap, lastCheckedBlock, blocksSinceSwap, refetchMCTBalance]);
+
+  // Отслеживаем изменения баланса после проверки
+  useEffect(() => {
+    if (!isSwapping || !mctBalance || oldBalanceBeforeSwap === null) return;
+
+    const newBalance = parseFloat(formatUnits(mctBalance.value, mctBalance.decimals));
+    
+    // Если баланс увеличился, swap завершен успешно
+    if (newBalance > oldBalanceBeforeSwap) {
+      console.log('✅ Balance increased! Swap completed successfully');
+      console.log(`📊 Balance: ${oldBalanceBeforeSwap} → ${newBalance} MCT`);
+      setIsSwapping(false);
+      setSwapInitiatedAt(null);
+      setOldBalanceBeforeSwap(null);
+      setLastCheckedBlock(null);
+      setBlocksSinceSwap(0);
+      setPurchased(true);
+      
+      // Отметить покупку в базе данных
+      if (user) {
+        markTokenPurchased(user.fid).then(() => {
+          console.log('✅ Token purchase marked in database');
+        }).catch((dbError) => {
+          console.error('Error marking token purchase in DB:', dbError);
+        });
+        
+        // Публикуем cast о покупке (опционально)
+        composeCastAsync({
+          text: `🎉 Just swapped ${PURCHASE_AMOUNT_USDC} USDC for $MCT on Base!\n\n#MultiLike #Base`,
+        }).catch((castError) => {
+          console.warn('Could not publish cast:', castError);
+        });
+      }
+      
+      // Переход к публикации ссылки через 3 секунды
+      setTimeout(() => {
+        router.push('/submit');
+      }, 3000);
+    }
+  }, [mctBalance, isSwapping, oldBalanceBeforeSwap, user, router, composeCastAsync]);
+
+  const confirmBuyToken = async (isRetry: boolean = false) => {
     if (!user) {
       setError('Пользователь не авторизован');
+      setLastError('Пользователь не авторизован');
       return;
     }
 
     if (!walletAddress) {
       setError('Кошелек не подключен');
+      setLastError('Кошелек не подключен');
       return;
+    }
+
+    // Проверяем баланс USDC перед каждой попыткой
+    if (useUSDC && usdcBalance) {
+      const usdcAmount = parseUnits(PURCHASE_AMOUNT_USDC.toString(), 6);
+      if (usdcBalance.value < usdcAmount) {
+        const errorMsg = `Недостаточно USDC. Требуется: ${PURCHASE_AMOUNT_USDC} USDC, доступно: ${formatUnits(usdcBalance.value, usdcBalance.decimals)}`;
+        setError(errorMsg);
+        setLastError(errorMsg);
+        return;
+      }
     }
 
     setLoading(true);
     setError('');
-    setShowConfirmModal(false);
+    setLastError(null);
 
     try {
       // Вычисляем количество USDC для покупки (в wei, USDC имеет 6 decimals)
       const usdcAmountWei = parseUnits(PURCHASE_AMOUNT_USDC.toString(), 6);
       const usdcAmountStr = usdcAmountWei.toString();
 
-      // Используем useSwapToken для one-tap swap через Farcaster
-      console.log('🔄 Starting token swap via Farcaster SDK for FID:', user.fid);
-      console.log(`💱 Swapping ${PURCHASE_AMOUNT_USDC} USDC to MCT...`);
+      // Сохраняем текущий баланс для сравнения
+      const currentBalance = mctBalance ? parseFloat(formatUnits(mctBalance.value, mctBalance.decimals)) : 0;
+      setOldBalanceBeforeSwap(currentBalance);
 
-      const result = await swapTokenAsync({
-        sellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`, // USDC на Base
-        buyToken: `eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`, // MCT Token на Base
-        sellAmount: usdcAmountStr, // 0.10 USDC в wei (6 decimals)
-      });
+      // Используем useSwapToken для one-tap swap через Farcaster
+      const attemptInfo = isRetry ? ` (Retry ${retryCount}/${MAX_RETRIES})` : '';
+      console.log(`🔄 Starting token swap via Farcaster SDK for FID: ${user.fid}${attemptInfo}`);
+      console.log(`💱 Swapping ${PURCHASE_AMOUNT_USDC} USDC to MCT...`);
+      console.log(`📊 Current MCT balance: ${currentBalance}`);
+
+      // Запускаем swap и начинаем отслеживать баланс
+      setIsSwapping(true);
+      setSwapInitiatedAt(Date.now());
+
+      // Таймаут для swap - 30 секунд
+      const timeoutId = setTimeout(() => {
+        console.warn('⏱️ Swap timeout: 30 seconds elapsed without response');
+        handleSwapError(new Error('Timeout: swap не завершился за 30 секунд'), true);
+      }, 30000);
+      setSwapTimeoutId(timeoutId);
+
+      let result;
+      try {
+        result = await swapTokenAsync({
+          sellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`, // USDC на Base
+          buyToken: `eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`, // MCT Token на Base
+          sellAmount: usdcAmountStr, // 0.10 USDC в wei (6 decimals)
+        });
+        // Очищаем таймаут при успешном запуске
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          setSwapTimeoutId(null);
+        }
+      } catch (swapError) {
+        // Очищаем таймаут при ошибке
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          setSwapTimeoutId(null);
+        }
+        throw swapError;
+      }
 
       console.log('📊 Swap result:', result);
 
       // useSwapToken открывает swap форму в Farcaster кошельке
       // Пользователь завершает swap в кошельке
-      // После завершения баланс обновится автоматически через wagmi hooks
-
-      // Показываем сообщение о завершении swap
-      setError('');
+      // После завершения баланс обновится автоматически через wagmi hooks (refetchInterval)
+      
       setLoading(false);
-
-      // Сохраняем старый баланс для проверки
-      const oldBalance = parseFloat(tokenBalance);
-
-      // Ждем завершения swap (проверяем баланс через 10 секунд)
-      setTimeout(async () => {
-        try {
-          // Баланс должен обновиться автоматически через wagmi hooks
-          // Проверяем, увеличился ли баланс
-          if (mctBalance) {
-            const newBalance = parseFloat(formatUnits(mctBalance.value, mctBalance.decimals));
-            
-            if (newBalance > oldBalance) {
-              // Баланс увеличился - покупка успешна
-              setPurchased(true);
-              
-              // Отметить покупку в базе данных
-              try {
-                await markTokenPurchased(user.fid);
-                console.log('✅ Token purchase marked in database');
-              } catch (dbError) {
-                console.error('Error marking token purchase in DB:', dbError);
-              }
-              
-              // Публикуем cast о покупке (опционально)
-              try {
-                await composeCastAsync({
-                  text: `🎉 Just swapped ${PURCHASE_AMOUNT_USDC} USDC for $MCT on Base!\n\n#MultiLike #Base`,
-                });
-              } catch (castError) {
-                console.warn('Could not publish cast:', castError);
-              }
-              
-              // Переход к публикации ссылки через 3 секунды
-              setTimeout(() => {
-                router.push('/submit');
-              }, 3000);
-            } else {
-              setError('Пожалуйста, завершите swap в кошельке. После завершения обновите страницу.');
-            }
-          }
-        } catch (balanceError) {
-          console.warn('Could not check token balance:', balanceError);
-          setError('Пожалуйста, завершите swap в кошельке. После завершения обновите страницу.');
-        }
-      }, 10000); // 10 секунд на завершение swap
+      setRetryCount(0); // Сбрасываем счетчик при успешном запуске swap
+      
+      // Начинаем периодически обновлять баланс для проверки завершения swap
+      refetchMCTBalance();
 
     } catch (err: any) {
-      console.error('❌ Error in confirmBuyToken:', err);
-      let errorMessage = err.message || 'Неожиданная ошибка при покупке токена';
-      setError(errorMessage);
-      setLoading(false);
+      handleSwapError(err, false);
     }
   };
+
+  // Очистка таймаутов при размонтировании
+  useEffect(() => {
+    return () => {
+      if (swapTimeoutId) {
+        clearTimeout(swapTimeoutId);
+      }
+    };
+  }, [swapTimeoutId]);
 
   return (
     <Layout title="Multi Like - Buy Token">
@@ -366,13 +578,58 @@ export default function BuyToken() {
             </div>
           </div>
 
-          {/* Ошибка */}
+          {/* Ошибка с retry */}
           {error && (
             <div className="bg-red-50 border-2 border-red-300 rounded-xl p-6 mb-6">
-              <p className="text-red-800 text-xl font-semibold flex items-center gap-2">
+              <div className="flex items-start gap-3">
                 <span className="text-2xl">❌</span>
+                <div className="flex-1">
+                  <p className="text-red-800 text-xl font-semibold mb-2 whitespace-pre-line">
                 {error}
               </p>
+                  {/* Показываем retry только для определенных типов ошибок и если не превышен лимит */}
+                  {lastError && 
+                   !lastError.includes('отменена пользователем') && 
+                   !lastError.includes('Недостаточно USDC') &&
+                   !lastError.includes('Slippage') &&
+                   retryCount < MAX_RETRIES && (
+                    <div className="mt-4">
+                      <Button
+                        onClick={handleRetry}
+                        variant="secondary"
+                        disabled={loading || isSwapping}
+                        className="mr-3"
+                      >
+                        🔄 Попробовать снова ({retryCount + 1}/{MAX_RETRIES})
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setError('');
+                          setLastError(null);
+                          setRetryCount(0);
+                        }}
+                        variant="secondary"
+                        className="bg-gray-200"
+                      >
+                        ✖️ Закрыть
+                      </Button>
+                    </div>
+                  )}
+                  {retryCount >= MAX_RETRIES && (
+                    <div className="mt-4">
+                      <p className="text-red-600 text-sm mb-2">
+                        Превышено максимальное количество попыток. Обновите страницу и попробуйте снова.
+                      </p>
+                      <Button
+                        onClick={() => window.location.reload()}
+                        variant="secondary"
+                      >
+                        🔄 Обновить страницу
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
@@ -414,13 +671,17 @@ export default function BuyToken() {
           {!purchased ? (
             <Button
               onClick={handleBuyToken}
-              loading={loading}
-              disabled={loading}
+              loading={loading || isSwapping}
+              disabled={loading || isSwapping || !walletAddress}
               variant="primary"
               fullWidth
               className="text-xl py-5"
             >
-              💎 Buy Mrs Crypto Token{displayUsdPrice ? ` for ${displayUsdPrice}` : ' (Free)'}
+              {isSwapping 
+                ? '⏳ Waiting for swap to complete...' 
+                : loading 
+                  ? '🔄 Processing...' 
+                  : `💎 Buy Mrs Crypto Token${displayUsdPrice ? ` for ${displayUsdPrice}` : ' (Free)'}`}
             </Button>
           ) : (
             <Button
@@ -432,69 +693,24 @@ export default function BuyToken() {
               Publish Link →
             </Button>
           )}
+          
+          {/* Индикатор ожидания завершения swap */}
+          {isSwapping && (
+            <div className="bg-blue-50 border-2 border-blue-300 rounded-xl p-6 mt-4 text-center">
+              <div className="flex items-center justify-center gap-3 mb-2">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                <p className="text-blue-800 text-lg font-semibold">
+                  Waiting for swap to complete...
+                </p>
+              </div>
+              <p className="text-blue-600 text-sm">
+                Please confirm the transaction in your Farcaster wallet. The balance will update automatically.
+              </p>
+            </div>
+          )}
         </div>
 
-        {/* Модальное окно подтверждения покупки */}
-        {showConfirmModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl">
-              <div className="text-center">
-                <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-3xl">⚠️</span>
-                </div>
-                
-                <h3 className="text-2xl font-bold text-gray-900 mb-4">
-                  Confirm Token Purchase
-                </h3>
-                
-                <div className="bg-gray-50 rounded-xl p-4 mb-6">
-                  <p className="text-gray-700 mb-2">
-                    <strong>Token Contract:</strong>
-                  </p>
-                  <p className="font-mono text-sm bg-white p-2 rounded border break-all">
-                    {tokenInfo?.address || '0x04D388DA70C32FC5876981097c536c51c8d3D236'}
-                  </p>
-                  
-                  {tokenInfo && (
-                    <div className="mt-3 flex justify-between text-sm">
-                      <span className="text-gray-600">Name:</span>
-                      <span className="font-semibold">{tokenInfo.name}</span>
-                    </div>
-                  )}
-                  
-                  {tokenInfo && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Symbol:</span>
-                      <span className="font-semibold">{tokenInfo.symbol}</span>
-                    </div>
-                  )}
-                </div>
-                
-                <p className="text-gray-600 mb-6">
-                  You are about to purchase Mrs Crypto token. 
-                  Clicking "Confirm Purchase" will verify your purchase through Farcaster API.
-                </p>
-                
-                <div className="flex gap-3">
-                  <Button
-                    onClick={() => setShowConfirmModal(false)}
-                    variant="secondary"
-                    className="flex-1"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={confirmBuyToken}
-                    variant="primary"
-                    className="flex-1"
-                  >
-                    Confirm Purchase
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Модальное окно подтверждения покупки - убрано для one-tap UX */}
 
         {/* Информационный блок */}
         <div className="bg-gradient-to-r from-primary to-pink-500 text-white rounded-2xl p-6">
