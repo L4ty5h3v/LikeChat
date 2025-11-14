@@ -706,7 +706,9 @@ export async function getMCTAmountForPurchase(): Promise<bigint | null> {
     
     if (mctAmount <= 0 || !isFinite(mctAmount)) {
       console.error('❌ Calculated MCT amount is invalid:', mctAmount);
-      return null;
+      // Используем fallback
+      const fallbackAmount = 1.0;
+      return ethers.parseUnits(fallbackAmount.toFixed(DEFAULT_TOKEN_DECIMALS), DEFAULT_TOKEN_DECIMALS);
     }
     
     const mctAmountBigInt = ethers.parseUnits(mctAmount.toFixed(DEFAULT_TOKEN_DECIMALS), DEFAULT_TOKEN_DECIMALS);

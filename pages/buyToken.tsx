@@ -3,11 +3,16 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import Button from '@/components/Button';
-import { buyToken, getWalletAddress, checkTokenBalance, getTokenInfo, connectWallet, getTokenSalePriceEth, getPurchaseCost, isBaseNetwork, switchToBaseNetwork } from '@/lib/web3';
+import { useAccount, useBalance } from 'wagmi';
+import { useSwapToken, useComposeCast } from '@coinbase/onchainkit/minikit';
+import { getTokenInfo, getTokenSalePriceEth, getMCTAmountForPurchase } from '@/lib/web3';
 import { markTokenPurchased, getUserProgress } from '@/lib/db-config';
+import { formatUnits, parseUnits } from 'viem';
+import type { FarcasterUser } from '@/types';
 
 const PURCHASE_AMOUNT_USDC = 0.10; // Покупаем MCT на 0.10 USDC
-import type { FarcasterUser } from '@/types';
+const USDC_CONTRACT_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // USDC на Base
+const MCT_CONTRACT_ADDRESS = '0x04d388da70c32fc5876981097c536c51c8d3d236'; // MCT Token
 
 async function fetchEthUsdPrice(): Promise<number | null> {
   try {
@@ -23,15 +28,30 @@ async function fetchEthUsdPrice(): Promise<number | null> {
 
 export default function BuyToken() {
   const router = useRouter();
+  const { address: walletAddress, isConnected } = useAccount();
+  const { data: mctBalance } = useBalance({
+    address: walletAddress,
+    token: MCT_CONTRACT_ADDRESS as `0x${string}`,
+    query: {
+      enabled: !!walletAddress,
+    },
+  });
+  const { data: usdcBalance } = useBalance({
+    address: walletAddress,
+    token: USDC_CONTRACT_ADDRESS as `0x${string}`,
+    query: {
+      enabled: !!walletAddress,
+    },
+  });
+  const { swapTokenAsync } = useSwapToken();
+  const { composeCastAsync } = useComposeCast();
+
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<FarcasterUser | null>(null);
-  const [walletAddress, setWalletAddress] = useState<string>('');
-  const [tokenBalance, setTokenBalance] = useState<string>('0');
   const [txHash, setTxHash] = useState<string>('');
   const [purchased, setPurchased] = useState(false);
   const [error, setError] = useState<string>('');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [connecting, setConnecting] = useState(false);
   const [tokenInfo, setTokenInfo] = useState<{
     name: string;
     symbol: string;
@@ -40,11 +60,13 @@ export default function BuyToken() {
   } | null>(null);
   const [tokenPriceEth, setTokenPriceEth] = useState<string | null>(null);
   const [tokenPriceUsd, setTokenPriceUsd] = useState<string | null>(null);
+  const [mctAmountForPurchase, setMctAmountForPurchase] = useState<bigint | null>(null);
 
   // Конфигурация (используем USDC для покупки)
   const useUSDC = true; // false = ETH, true = USDC
-  const useFarcasterSwap = false; // Использовать смарт-контракт продажи
   const currencySymbol = useUSDC ? 'USDC' : 'ETH';
+  
+  const tokenBalance = mctBalance ? formatUnits(mctBalance.value, mctBalance.decimals) : '0';
   
   const parsedEthPrice = tokenPriceEth ? Number(tokenPriceEth) : null;
   const isFree = parsedEthPrice === 0 || parsedEthPrice === null;
@@ -112,23 +134,12 @@ export default function BuyToken() {
         setTokenPriceEth('0');
       }
 
-      // Проверяем баланс только если кошелек подключен (опционально)
+      // Рассчитываем количество MCT для покупки
       try {
-        const address = await getWalletAddress();
-        if (address) {
-          setWalletAddress(address);
-          // Используем Base RPC, безопасно
-          const balance = await checkTokenBalance(address);
-          setTokenBalance(balance);
-        } else {
-          setWalletAddress('');
-          setTokenBalance('0');
-        }
-      } catch (walletError) {
-        // Не критично, если не удалось проверить баланс
-        console.warn('Could not check wallet balance:', walletError);
-        setWalletAddress('');
-        setTokenBalance('0');
+        const amount = await getMCTAmountForPurchase();
+        setMctAmountForPurchase(amount);
+      } catch (err) {
+        console.warn('Could not calculate MCT amount for purchase:', err);
       }
     } catch (err: any) {
       console.error('Error loading wallet info:', err);
@@ -136,28 +147,9 @@ export default function BuyToken() {
       setTokenInfo({
         name: 'Mrs Crypto',
         symbol: 'MCT',
-        address: process.env.NEXT_PUBLIC_TOKEN_CONTRACT_ADDRESS || '0x454b4180bc715ba6a8568a16f1f9a4b114a329a6',
+        address: MCT_CONTRACT_ADDRESS,
         decimals: 18,
       });
-    }
-  };
-
-  const handleConnectWallet = async () => {
-    setError('');
-    setConnecting(true);
-
-    try {
-      const address = await connectWallet();
-
-      if (address) {
-        setWalletAddress(address);
-        const balance = await checkTokenBalance(address);
-        setTokenBalance(balance);
-      }
-    } catch (err: any) {
-      setError(err.message || 'Не удалось подключить кошелек');
-    } finally {
-      setConnecting(false);
     }
   };
 
@@ -169,21 +161,16 @@ export default function BuyToken() {
     }
 
     // Проверяем подключение кошелька
-    const address = await getWalletAddress();
-    if (!address) {
+    if (!walletAddress || !isConnected) {
       setError('Пожалуйста, подключите кошелек для покупки токена');
       return;
     }
 
-    // Проверяем и переключаем на Base сеть
-    const isBase = await isBaseNetwork();
-    if (!isBase) {
-      try {
-        await switchToBaseNetwork();
-        // Небольшая задержка для переключения сети
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      } catch (err: any) {
-        setError(`Пожалуйста, переключитесь на сеть Base в вашем кошельке. ${err.message}`);
+    // Проверяем баланс USDC
+    if (useUSDC && usdcBalance) {
+      const usdcAmount = parseUnits(PURCHASE_AMOUNT_USDC.toString(), 6); // USDC имеет 6 decimals
+      if (usdcBalance.value < usdcAmount) {
+        setError(`Недостаточно USDC. Требуется: ${PURCHASE_AMOUNT_USDC} USDC`);
         return;
       }
     }
@@ -192,39 +179,14 @@ export default function BuyToken() {
     setShowConfirmModal(true);
   };
 
-  const handleBuyInFarcasterWallet = () => {
-    // Адрес токена Mrs Crypto
-    const tokenAddress = '0x04D388DA70C32FC5876981097c536c51c8d3D236';
-    
-    // Определяем, мобильное ли устройство
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
-    if (isMobile) {
-      // На мобильных устройствах используем deep links
-      const warpcastDeepLink = `warpcast://wallet/send?token=${tokenAddress}&amount=1`;
-      const farcasterDeepLink = `farcaster://wallet/send?token=${tokenAddress}&amount=1`;
-      
-      // Пытаемся открыть Warpcast
-      window.location.href = warpcastDeepLink;
-      
-      // Если не работает, через 1 секунду пробуем Farcaster
-      setTimeout(() => {
-        window.location.href = farcasterDeepLink;
-      }, 1000);
-      
-      // Если и это не работает, через 2 секунды открываем веб-версию
-      setTimeout(() => {
-        window.open(`https://warpcast.com/`, '_blank');
-      }, 2000);
-    } else {
-      // На десктопе открываем веб-версию Warpcast
-      window.open('https://warpcast.com/', '_blank');
-    }
-  };
-
   const confirmBuyToken = async () => {
     if (!user) {
       setError('Пользователь не авторизован');
+      return;
+    }
+
+    if (!walletAddress) {
+      setError('Кошелек не подключен');
       return;
     }
 
@@ -233,43 +195,44 @@ export default function BuyToken() {
     setShowConfirmModal(false);
 
     try {
-      // Покупка токена через смарт-контракт или swap
-      console.log('🔄 Starting token purchase via smart contract for FID:', user.fid);
-      const result = await buyToken(user.fid);
-      
-      console.log('📊 Purchase result:', result);
-      
-      // Для swap через openUrl: success=true, но нет txHash (транзакция выполняется в кошельке)
-      // Для прямого swap: success=true, есть txHash
-      if (result.success) {
-        if (result.txHash) {
-          console.log('✅ Token purchase successful, transaction:', result.txHash);
-          setTxHash(result.txHash);
-        } else {
-          console.log('✅ Swap interface opened, waiting for user to complete swap in wallet...');
-          // Для swap через openUrl - показываем сообщение и ждем завершения
-          setError(''); // Очищаем ошибки
-          // Не устанавливаем purchased=true сразу, так как swap еще не завершен
-        }
-        
-        // Проверяем баланс токенов после покупки (с задержкой для swap)
-        let purchaseConfirmed = false;
+      // Вычисляем количество USDC для покупки (в wei, USDC имеет 6 decimals)
+      const usdcAmountWei = parseUnits(PURCHASE_AMOUNT_USDC.toString(), 6);
+      const usdcAmountStr = usdcAmountWei.toString();
+
+      // Используем useSwapToken для one-tap swap через Farcaster
+      console.log('🔄 Starting token swap via Farcaster SDK for FID:', user.fid);
+      console.log(`💱 Swapping ${PURCHASE_AMOUNT_USDC} USDC to MCT...`);
+
+      const result = await swapTokenAsync({
+        sellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`, // USDC на Base
+        buyToken: `eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`, // MCT Token на Base
+        sellAmount: usdcAmountStr, // 0.10 USDC в wei (6 decimals)
+      });
+
+      console.log('📊 Swap result:', result);
+
+      // useSwapToken открывает swap форму в Farcaster кошельке
+      // Пользователь завершает swap в кошельке
+      // После завершения баланс обновится автоматически через wagmi hooks
+
+      // Показываем сообщение о завершении swap
+      setError('');
+      setLoading(false);
+
+      // Сохраняем старый баланс для проверки
+      const oldBalance = parseFloat(tokenBalance);
+
+      // Ждем завершения swap (проверяем баланс через 10 секунд)
+      setTimeout(async () => {
         try {
-          const address = await getWalletAddress();
-          if (address) {
-            // Для swap через openUrl нужна большая задержка, так как пользователь еще выполняет транзакцию
-            const delay = result.txHash ? 2000 : 10000; // 10 секунд для swap через openUrl
-            await new Promise(resolve => setTimeout(resolve, delay));
+          // Баланс должен обновиться автоматически через wagmi hooks
+          // Проверяем, увеличился ли баланс
+          if (mctBalance) {
+            const newBalance = parseFloat(formatUnits(mctBalance.value, mctBalance.decimals));
             
-            const newBalance = await checkTokenBalance(address);
-            setTokenBalance(newBalance);
-            
-            // Проверяем, что баланс увеличился
-            const balanceNum = parseFloat(newBalance);
-            if (balanceNum >= 0.05) {
+            if (newBalance > oldBalance) {
               // Баланс увеличился - покупка успешна
               setPurchased(true);
-              purchaseConfirmed = true;
               
               // Отметить покупку в базе данных
               try {
@@ -279,47 +242,33 @@ export default function BuyToken() {
                 console.error('Error marking token purchase in DB:', dbError);
               }
               
+              // Публикуем cast о покупке (опционально)
+              try {
+                await composeCastAsync({
+                  text: `🎉 Just swapped ${PURCHASE_AMOUNT_USDC} USDC for $MCT on Base!\n\n#MultiLike #Base`,
+                });
+              } catch (castError) {
+                console.warn('Could not publish cast:', castError);
+              }
+              
               // Переход к публикации ссылки через 3 секунды
               setTimeout(() => {
                 router.push('/submit');
               }, 3000);
             } else {
-              console.warn('Token balance seems low after purchase:', newBalance);
-              // Для swap через openUrl - это нормально, пользователь еще может выполнять транзакцию
-              if (!result.txHash) {
-                // Показываем сообщение, что нужно завершить swap
-                setError('Пожалуйста, завершите swap в кошельке. После завершения обновите страницу или нажмите кнопку еще раз.');
-              } else {
-                // Для прямого swap с txHash - ошибка
-                setError('Баланс токенов не увеличился. Проверьте транзакцию в блокчейне.');
-              }
+              setError('Пожалуйста, завершите swap в кошельке. После завершения обновите страницу.');
             }
           }
         } catch (balanceError) {
-          // Не критично, если не удалось проверить баланс
           console.warn('Could not check token balance:', balanceError);
-          // Для swap через openUrl - это нормально
-          if (!result.txHash) {
-            setError('Пожалуйста, завершите swap в кошельке. После завершения обновите страницу или нажмите кнопку еще раз.');
-          }
+          setError('Пожалуйста, завершите swap в кошельке. После завершения обновите страницу.');
         }
-        
-        // Если есть txHash и покупка не подтверждена через баланс, все равно переходим
-        if (result.txHash && !purchaseConfirmed) {
-          setTimeout(() => {
-            router.push('/submit');
-          }, 3000);
-        }
-      } else {
-        const errorMsg = result.error || 'Ошибка при покупке токена';
-        console.error('❌ Token purchase failed:', errorMsg);
-        setError(errorMsg);
-      }
+      }, 10000); // 10 секунд на завершение swap
+
     } catch (err: any) {
       console.error('❌ Error in confirmBuyToken:', err);
       let errorMessage = err.message || 'Неожиданная ошибка при покупке токена';
       setError(errorMessage);
-    } finally {
       setLoading(false);
     }
   };
@@ -362,15 +311,14 @@ export default function BuyToken() {
 
           {!walletAddress && (
             <div className="mb-6">
-              <Button
-                onClick={handleConnectWallet}
-                loading={connecting}
-                variant="secondary"
-                fullWidth
-                className="text-lg py-4"
-              >
-                Connect Wallet
-              </Button>
+              <div className="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-6 text-center">
+                <p className="text-yellow-800 text-lg font-semibold">
+                  🔗 Please connect your wallet through Farcaster Mini App
+                </p>
+                <p className="text-yellow-700 text-sm mt-2">
+                  Your wallet should connect automatically when using the app in Farcaster
+                </p>
+              </div>
             </div>
           )}
 
@@ -406,9 +354,11 @@ export default function BuyToken() {
               <div className="flex justify-between items-center">
                 <span className="text-xl text-gray-600">You will receive:</span>
                 <span className="font-semibold text-xl">
-                  {tokenPriceEth && parseFloat(tokenPriceEth) > 0 
-                    ? `${(PURCHASE_AMOUNT_USDC / parseFloat(tokenPriceEth)).toFixed(6)} $MCT`
-                    : 'Calculating...'}
+                  {mctAmountForPurchase 
+                    ? `${formatUnits(mctAmountForPurchase, 18).slice(0, 10)} $MCT`
+                    : (tokenPriceEth && parseFloat(tokenPriceEth) > 0 
+                      ? `${(PURCHASE_AMOUNT_USDC / parseFloat(tokenPriceEth)).toFixed(6)} $MCT`
+                      : 'Calculating...')}
                 </span>
               </div>
             </div>
