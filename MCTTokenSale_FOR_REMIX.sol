@@ -22,8 +22,8 @@ contract MCTTokenSale {
     uint256 public constant PURCHASE_AMOUNT_USD = 10; // $0.10 в центах (10 центов)
     
     // Цена токена в USDC (6 decimals для USDC)
-    // Например: 0.25 USDC за 0.10 MCT = 250000 (0.25 * 10^6)
-    uint256 public pricePerTokenUSDC = 250000; // 0.25 USDC за 0.10 MCT
+    // 0.10 USDC за 0.10 MCT = 100000 (0.10 * 10^6)
+    uint256 public pricePerTokenUSDC = 100000; // 0.10 USDC за 0.10 MCT
     
     // Цена токена в ETH (18 decimals)
     // Например: 0.0001 ETH за 0.10 MCT = 100000000000000 (0.0001 * 10^18)

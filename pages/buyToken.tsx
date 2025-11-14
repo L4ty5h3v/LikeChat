@@ -5,6 +5,8 @@ import Layout from '@/components/Layout';
 import Button from '@/components/Button';
 import { buyToken, getWalletAddress, checkTokenBalance, getTokenInfo, connectWallet, getTokenSalePriceEth, getPurchaseCost, isBaseNetwork, switchToBaseNetwork } from '@/lib/web3';
 import { markTokenPurchased, getUserProgress } from '@/lib/db-config';
+
+const PURCHASE_AMOUNT_USDC = 0.10; // Покупаем MCT на 0.10 USDC
 import type { FarcasterUser } from '@/types';
 
 async function fetchEthUsdPrice(): Promise<number | null> {
@@ -39,9 +41,9 @@ export default function BuyToken() {
   const [tokenPriceEth, setTokenPriceEth] = useState<string | null>(null);
   const [tokenPriceUsd, setTokenPriceUsd] = useState<string | null>(null);
 
-  // Конфигурация (без env)
-  const useUSDC = false; // false = ETH, true = USDC
-  const useFarcasterSwap = true; // Использовать Farcaster Swap API
+  // Конфигурация (используем USDC для покупки)
+  const useUSDC = true; // false = ETH, true = USDC
+  const useFarcasterSwap = false; // Использовать смарт-контракт продажи
   const currencySymbol = useUSDC ? 'USDC' : 'ETH';
   
   const parsedEthPrice = tokenPriceEth ? Number(tokenPriceEth) : null;
@@ -85,17 +87,24 @@ export default function BuyToken() {
       const info = await getTokenInfo();
       setTokenInfo(info);
 
-      // Загружаем цену (теперь фиксированная, без смарт-контракта)
+      // Загружаем цену со смарт-контракта
       const priceEth = await getTokenSalePriceEth();
       setTokenPriceEth(priceEth);
 
       if (priceEth && parseFloat(priceEth) > 0) {
-        const ethUsd = await fetchEthUsdPrice();
-        if (ethUsd) {
-          const usd = parseFloat(priceEth) * ethUsd;
-          setTokenPriceUsd(usd.toFixed(2));
+        // Для USDC цена уже в USD (1 USDC = 1 USD), для ETH конвертируем
+        if (useUSDC) {
+          // Цена уже в USDC, напрямую используем как USD
+          setTokenPriceUsd(parseFloat(priceEth).toFixed(2));
         } else {
-          setTokenPriceUsd(null);
+          // Для ETH конвертируем через курс
+          const ethUsd = await fetchEthUsdPrice();
+          if (ethUsd) {
+            const usd = parseFloat(priceEth) * ethUsd;
+            setTokenPriceUsd(usd.toFixed(2));
+          } else {
+            setTokenPriceUsd(null);
+          }
         }
       } else {
         // Если цена 0 или не установлена, показываем "Free"
@@ -382,7 +391,12 @@ export default function BuyToken() {
                   <span className="font-bold text-primary text-3xl block">
                     {isFree ? 'Free' : (displayUsdPrice || displayEthPrice || '—')}
                   </span>
-                  {!isFree && displayEthPrice && (
+                  {!isFree && useUSDC && tokenPriceEth && (
+                    <span className="text-sm text-gray-500">
+                      {parseFloat(tokenPriceEth).toFixed(6)} USDC
+                    </span>
+                  )}
+                  {!isFree && !useUSDC && displayEthPrice && (
                     <span className="text-sm text-gray-500">
                       {displayEthPrice}
                     </span>
@@ -391,7 +405,11 @@ export default function BuyToken() {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xl text-gray-600">You will receive:</span>
-                <span className="font-semibold text-xl">0.10 $MCT</span>
+                <span className="font-semibold text-xl">
+                  {tokenPriceEth && parseFloat(tokenPriceEth) > 0 
+                    ? `${(PURCHASE_AMOUNT_USDC / parseFloat(tokenPriceEth)).toFixed(6)} $MCT`
+                    : 'Calculating...'}
+                </span>
               </div>
             </div>
 
@@ -540,12 +558,12 @@ export default function BuyToken() {
           </h3>
           <ul className="space-y-2 text-sm">
             <li>• 🦄 Purchase 0.10 MCT through Base network smart contract</li>
-            <li>• Payment method: {useUSDC ? 'USDC' : 'ETH'}</li>
+            <li>• Payment method: USDC (price pulled from smart contract)</li>
             <li>• Network will automatically switch to Base if needed</li>
             <li>• Token will be sent to your connected wallet</li>
-            <li>• {useUSDC ? 'You will need to approve USDC spending first, then purchase' : 'Transaction will take a few seconds to confirm'}</li>
+            <li>• You will need to approve USDC spending first, then purchase</li>
             <li>• After purchase you will be able to publish your link</li>
-            <li>• Make sure you have enough {useUSDC ? 'USDC' : 'ETH'} on Base for purchase{useUSDC ? '' : ' and gas fees'}</li>
+            <li>• Make sure you have enough USDC on Base for purchase and ETH for gas fees</li>
           </ul>
         </div>
       </div>

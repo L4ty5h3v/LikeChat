@@ -7,10 +7,10 @@ const TOKEN_CONTRACT_ADDRESS = '0x04d388da70c32fc5876981097c536c51c8d3d236'; // 
 const TOKEN_SALE_CONTRACT_ADDRESS: string = (process.env.NEXT_PUBLIC_TOKEN_SALE_CONTRACT_ADDRESS || '0x3FD7a1D5C9C3163E873Df212006cB81D7178f3b4').trim().replace(/[\r\n]/g, ''); // Адрес контракта продажи
 const TOKEN_SALE_USDC_CONTRACT_ADDRESS: string = (process.env.NEXT_PUBLIC_TOKEN_SALE_USDC_CONTRACT_ADDRESS || '').trim().replace(/[\r\n]/g, ''); // Адрес контракта продажи USDC (если используется)
 const USDC_CONTRACT_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // USDC на Base
-const USE_USDC_FOR_PURCHASE = false; // Использовать USDC вместо ETH
+const USE_USDC_FOR_PURCHASE = true; // Использовать USDC вместо ETH
 const USE_FARCASTER_SWAP = false; // Использовать смарт-контракт продажи вместо Uniswap swap
 const DEFAULT_TOKEN_DECIMALS = 18;
-const TOKEN_AMOUNT_TO_BUY = '0.10'; // Покупаем 0.10 MCT
+const PURCHASE_AMOUNT_USDC = 0.10; // Покупаем MCT на 0.10 USDC (количество рассчитывается через Uniswap)
 const BASE_CHAIN_ID = 8453; // Base mainnet
 const BASE_CHAIN_ID_HEX = '0x2105'; // Base mainnet hex
 
@@ -49,14 +49,12 @@ const TOKEN_SALE_ABI = [
   'event TokensPurchased(address indexed buyer, uint256 tokenAmount, uint256 paidAmount, bool isUSDC)',
 ];
 
-// ABI для контракта продажи Mrs Crypto (USDC)
+// ABI для контракта продажи MCTTokenSale (USDC) - используем тот же контракт
 const TOKEN_SALE_USDC_ABI = [
-  'function pricePerToken() view returns (uint256)',
-  'function buyTokens(uint256 tokenAmount)',
-  'function costFor(uint256 tokenAmount) view returns (uint256)',
-  'function availableTokens() view returns (uint256)',
-  'function paymentToken() view returns (address)',
-  'event TokensPurchased(address indexed buyer, uint256 tokenAmount, uint256 paidUSDC)',
+  'function buyTokensWithUSDC(uint256 tokenAmount)',
+  'function getCostUSDC(uint256 tokenAmount) view returns (uint256)',
+  'function pricePerTokenUSDC() view returns (uint256)',
+  'event TokensPurchased(address indexed buyer, uint256 tokenAmount, uint256 paidAmount, bool isUSDC)',
 ];
 
 let cachedFarcasterProvider: ethers.BrowserProvider | null = null;
@@ -317,8 +315,10 @@ export async function buyToken(userFid: number): Promise<{
     }
 
     // Определяем, какой контракт использовать
-    const useUSDC = USE_USDC_FOR_PURCHASE && TOKEN_SALE_USDC_CONTRACT_ADDRESS;
-    let saleContractAddress = useUSDC ? TOKEN_SALE_USDC_CONTRACT_ADDRESS : TOKEN_SALE_CONTRACT_ADDRESS;
+    // Для USDC используем тот же контракт, если не указан отдельный адрес
+    const useUSDC = USE_USDC_FOR_PURCHASE;
+    const useSeparateUSDCContract = USE_USDC_FOR_PURCHASE && TOKEN_SALE_USDC_CONTRACT_ADDRESS;
+    let saleContractAddress = useSeparateUSDCContract ? TOKEN_SALE_USDC_CONTRACT_ADDRESS : TOKEN_SALE_CONTRACT_ADDRESS;
     
     // Обрезаем адрес от пробелов и переносов строк
     if (saleContractAddress) {
@@ -339,10 +339,15 @@ export async function buyToken(userFid: number): Promise<{
     const signer = await provider.getSigner();
     const buyerAddress = await signer.getAddress();
 
-    // Получаем информацию о токене и контракте продажи
-    const tokenContract = new ethers.Contract(TOKEN_CONTRACT_ADDRESS, ERC20_ABI, signer);
-    const tokenDecimals: number = await tokenContract.decimals().catch(() => DEFAULT_TOKEN_DECIMALS);
-    const tokenAmount = ethers.parseUnits(TOKEN_AMOUNT_TO_BUY, tokenDecimals);
+    // Рассчитываем количество MCT, которое можно купить за 0.10 USDC через Uniswap
+    const tokenAmount = await getMCTAmountForPurchase();
+    if (!tokenAmount || tokenAmount === 0n) {
+      throw new Error('Не удалось рассчитать количество MCT для покупки через Uniswap');
+    }
+
+    const tokenDecimals = DEFAULT_TOKEN_DECIMALS;
+    const tokenAmountFormatted = ethers.formatUnits(tokenAmount, tokenDecimals);
+    console.log(`📊 Calculated token amount: ${tokenAmountFormatted} MCT for ${PURCHASE_AMOUNT_USDC} USDC`);
 
     if (useUSDC) {
       // Покупка через USDC
@@ -402,7 +407,8 @@ async function buyTokenWithETH(
   // Для записи (покупки) используем signer с Farcaster Wallet
   const saleContract = new ethers.Contract(cleanContractAddress, TOKEN_SALE_ABI, signer);
   
-  console.log(`💰 Purchase cost: ${costEth} ETH for ${TOKEN_AMOUNT_TO_BUY} MCT`);
+  const tokenAmountFormatted = ethers.formatUnits(tokenAmount, tokenDecimals);
+  console.log(`💰 Purchase cost: ${costEth} ETH for ${tokenAmountFormatted} MCT`);
 
   if (costWei <= 0n) {
     throw new Error('Цена покупки возвращает ноль. Проверьте контракт продажи.');
@@ -416,7 +422,7 @@ async function buyTokenWithETH(
   }
 
   // Покупаем токен через смарт-контракт используя buyTokensWithETH
-  console.log(`🔄 Purchasing ${TOKEN_AMOUNT_TO_BUY} MCT tokens with ETH...`);
+  console.log(`🔄 Purchasing ${tokenAmountFormatted} MCT tokens with ETH...`);
   
   const tx = await saleContract.buyTokensWithETH(tokenAmount, {
     value: costWei,
@@ -462,18 +468,18 @@ async function buyTokenWithUSDC(
   // Обрезаем адрес от пробелов и переносов строк
   const cleanContractAddress = saleContractAddress.trim().replace(/[\r\n]/g, '');
   
-  // Используем Base RPC для чтения данных (costFor), так как Farcaster Wallet не поддерживает eth_call
+  // Используем Base RPC для чтения данных (getCostUSDC), так как Farcaster Wallet не поддерживает eth_call
   const baseProvider = getBaseProvider();
   const readContract = new ethers.Contract(cleanContractAddress, TOKEN_SALE_USDC_ABI, baseProvider);
   
   // Получаем стоимость покупки в USDC используя Base RPC
-  const costUSDC: bigint = await readContract.costFor(tokenAmount);
+  const costUSDC: bigint = await readContract.getCostUSDC(tokenAmount);
   
   // Для записи (покупки) используем signer с Farcaster Wallet
   const saleContract = new ethers.Contract(cleanContractAddress, TOKEN_SALE_USDC_ABI, signer);
   const costUSDCFormatted = ethers.formatUnits(costUSDC, 6); // USDC имеет 6 decimals
-  
-  console.log(`💰 Purchase cost: ${costUSDCFormatted} USDC for ${TOKEN_AMOUNT_TO_BUY} MCT`);
+  const tokenAmountFormatted = ethers.formatUnits(tokenAmount, tokenDecimals);
+  console.log(`💰 Purchase cost: ${costUSDCFormatted} USDC for ${tokenAmountFormatted} MCT`);
 
   if (costUSDC <= 0n) {
     throw new Error('Цена покупки возвращает ноль. Проверьте контракт продажи.');
@@ -487,13 +493,14 @@ async function buyTokenWithUSDC(
   }
 
   // Проверяем allowance (одобрение)
-  const currentAllowance = await usdcContract.allowance(buyerAddress, saleContractAddress);
+  const currentAllowance = await usdcContract.allowance(buyerAddress, cleanContractAddress);
   
   if (currentAllowance < costUSDC) {
     console.log(`🔄 Approving USDC spending: ${costUSDCFormatted} USDC`);
     
-    // Одобряем трату USDC
-    const approveTx = await usdcContract.approve(saleContractAddress, costUSDC, {
+    // Одобряем трату USDC (одобряем немного больше для комиссий)
+    const approveAmount = costUSDC * 2n; // Одобряем в 2 раза больше для запаса
+    const approveTx = await usdcContract.approve(cleanContractAddress, approveAmount, {
       gasLimit: 100000,
     });
     
@@ -511,10 +518,10 @@ async function buyTokenWithUSDC(
     console.log('✅ USDC already approved');
   }
 
-  // Покупаем токен через смарт-контракт
-  console.log(`🔄 Purchasing ${TOKEN_AMOUNT_TO_BUY} MCT tokens with USDC...`);
+  // Покупаем токен через смарт-контракт используя buyTokensWithUSDC
+  console.log(`🔄 Purchasing ${tokenAmountFormatted} MCT tokens with USDC...`);
   
-  const tx = await saleContract.buyTokens(tokenAmount, {
+  const tx = await saleContract.buyTokensWithUSDC(tokenAmount, {
     gasLimit: 350000,
   });
 
@@ -594,49 +601,196 @@ export async function getTokenInfo(): Promise<{
   }
 }
 
-// Получить цену токена (через swap или смарт-контракт)
-export async function getTokenSalePriceEth(): Promise<string | null> {
-  // Если используется Farcaster Swap, используем фиксированную цену
-  if (USE_FARCASTER_SWAP) {
-    // Fallback: примерная цена (если контракт не развернут)
-    if (USE_USDC_FOR_PURCHASE) {
-      return '0.25'; // 0.25 USDC за 0.10 MCT
-    } else {
-      return '0.0001'; // 0.0001 ETH за 0.10 MCT
-    }
-  }
-
-  // Используем смарт-контракт для получения точной цены
-  const useUSDC = USE_USDC_FOR_PURCHASE && TOKEN_SALE_USDC_CONTRACT_ADDRESS;
-  const saleContractAddress = useUSDC ? TOKEN_SALE_USDC_CONTRACT_ADDRESS : TOKEN_SALE_CONTRACT_ADDRESS;
-
-  if (!saleContractAddress) {
-    return null;
-  }
-
+// Получить цену 1 MCT в USDC через Uniswap пару MCT/ETH
+async function getMCTPricePerTokenInUSDC(): Promise<number | null> {
   try {
     const provider = getBaseProvider();
+    const MCT_ADDRESS = TOKEN_CONTRACT_ADDRESS;
+    const WETH_ADDRESS = '0x4200000000000000000000000000000000000006'; // WETH на Base
+    const UNISWAP_V3_QUOTER = '0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a'; // Uniswap V3 Quoter на Base
     
-    // Обрезаем адрес от пробелов и переносов строк
-    const cleanContractAddress = saleContractAddress.trim().replace(/[\r\n]/g, '');
+    // ABI для Uniswap V3 Quoter
+    const QUOTER_ABI = [
+      'function quoteExactInputSingle(address tokenIn, address tokenOut, uint24 fee, uint256 amountIn, uint160 sqrtPriceLimitX96) external returns (uint256 amountOut)',
+    ];
     
-    if (useUSDC) {
-      const saleContract = new ethers.Contract(cleanContractAddress, TOKEN_SALE_USDC_ABI, provider);
-      const tokenDecimals = DEFAULT_TOKEN_DECIMALS;
-      const tokenAmount = ethers.parseUnits(TOKEN_AMOUNT_TO_BUY, tokenDecimals);
-      const costUSDC: bigint = await saleContract.costFor(tokenAmount);
-      return ethers.formatUnits(costUSDC, 6);
-    } else {
-      const saleContract = new ethers.Contract(cleanContractAddress, TOKEN_SALE_ABI, provider);
-      const tokenDecimals = DEFAULT_TOKEN_DECIMALS;
-      const tokenAmount = ethers.parseUnits(TOKEN_AMOUNT_TO_BUY, tokenDecimals);
-      const costWei: bigint = await saleContract.getCostETH(tokenAmount);
-      return ethers.formatEther(costWei);
+    const quoter = new ethers.Contract(UNISWAP_V3_QUOTER, QUOTER_ABI, provider);
+    
+    // Получаем цену 1 MCT (используем 1 токен для расчета цены за единицу)
+    const oneToken = ethers.parseUnits('1', DEFAULT_TOKEN_DECIMALS);
+    
+    // Fee tiers для пулов (пробуем разные комиссии: 1% = 10000, 0.3% = 3000, 0.05% = 500)
+    const feeTiers = [10000, 3000, 500];
+    
+    console.log(`🔍 Fetching MCT price from Uniswap pair MCT/ETH...`);
+    console.log(`📊 Requesting quote: 1 MCT → ETH`);
+    
+    for (const fee of feeTiers) {
+      try {
+        // Получаем количество ETH за 1 MCT
+        // tokenIn = MCT, tokenOut = WETH (ETH)
+        const ethAmount: bigint = await quoter.quoteExactInputSingle.staticCall(
+          MCT_ADDRESS,
+          WETH_ADDRESS,
+          fee,
+          oneToken,
+          0
+        );
+        
+        const ethPricePerToken = parseFloat(ethers.formatEther(ethAmount));
+        console.log(`✅ MCT price from Uniswap: ${ethPricePerToken} ETH per 1 MCT (fee: ${fee/10000}%)`);
+        
+        // Конвертируем цену в USDC через курс ETH/USD
+        const ethUsdPrice = await fetchEthUsdPrice();
+        if (ethUsdPrice) {
+          const usdcPricePerToken = ethPricePerToken * ethUsdPrice;
+          console.log(`✅ MCT price in USDC: ${usdcPricePerToken.toFixed(6)} USDC per 1 MCT`);
+          return usdcPricePerToken;
+        } else {
+          console.warn('⚠️ Could not fetch ETH/USD price');
+          return null;
+        }
+      } catch (error: any) {
+        console.warn(`⚠️ Quote failed for fee ${fee}, trying next...`, error?.message);
+        continue;
+      }
     }
-  } catch (error) {
-    console.error('Error getting token sale price:', error);
+    
+    console.error('❌ Failed to get quote from Uniswap for all fee tiers');
+    return null;
+  } catch (error: any) {
+    console.error('❌ Error getting MCT price from Uniswap:', error);
     return null;
   }
+}
+
+// Получить количество MCT, которое можно купить за 0.10 USDC через Uniswap
+export async function getMCTAmountForPurchase(): Promise<bigint | null> {
+  try {
+    const provider = getBaseProvider();
+    const MCT_ADDRESS = TOKEN_CONTRACT_ADDRESS;
+    const WETH_ADDRESS = '0x4200000000000000000000000000000000000006'; // WETH на Base
+    const USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // USDC на Base
+    const UNISWAP_V3_QUOTER = '0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a'; // Uniswap V3 Quoter на Base
+    
+    // ABI для Uniswap V3 Quoter
+    const QUOTER_ABI = [
+      'function quoteExactInputSingle(address tokenIn, address tokenOut, uint24 fee, uint256 amountIn, uint160 sqrtPriceLimitX96) external returns (uint256 amountOut)',
+    ];
+    
+    const quoter = new ethers.Contract(UNISWAP_V3_QUOTER, QUOTER_ABI, provider);
+    
+    // Сумма покупки: 0.10 USDC (6 decimals для USDC)
+    const usdcAmount = ethers.parseUnits(PURCHASE_AMOUNT_USDC.toString(), 6);
+    
+    // Fee tiers для пулов
+    const feeTiers = [10000, 3000, 500];
+    
+    console.log(`🔍 Calculating MCT amount for ${PURCHASE_AMOUNT_USDC} USDC via Uniswap...`);
+    
+    // Пробуем прямой путь USDC -> MCT (если есть пара)
+    for (const fee of feeTiers) {
+      try {
+        const mctAmount: bigint = await quoter.quoteExactInputSingle.staticCall(
+          USDC_ADDRESS,
+          MCT_ADDRESS,
+          fee,
+          usdcAmount,
+          0
+        );
+        
+        const mctAmountFormatted = ethers.formatUnits(mctAmount, DEFAULT_TOKEN_DECIMALS);
+        console.log(`✅ Direct quote: ${PURCHASE_AMOUNT_USDC} USDC → ${mctAmountFormatted} MCT (fee: ${fee/10000}%)`);
+        return mctAmount;
+      } catch (error) {
+        continue;
+      }
+    }
+    
+    // Если прямой путь не работает, используем USDC -> WETH -> MCT
+    // Сначала конвертируем USDC в WETH
+    let wethAmount: bigint = BigInt(0);
+    for (const fee of feeTiers) {
+      try {
+        wethAmount = await quoter.quoteExactInputSingle.staticCall(
+          USDC_ADDRESS,
+          WETH_ADDRESS,
+          fee,
+          usdcAmount,
+          0
+        );
+        console.log(`✅ USDC → WETH: ${PURCHASE_AMOUNT_USDC} USDC → ${ethers.formatEther(wethAmount)} WETH`);
+        break;
+      } catch (error) {
+        continue;
+      }
+    }
+    
+    if (wethAmount === BigInt(0)) {
+      throw new Error('Failed to get quote USDC → WETH');
+    }
+    
+    // Теперь конвертируем WETH в MCT
+    for (const fee of feeTiers) {
+      try {
+        const mctAmount: bigint = await quoter.quoteExactInputSingle.staticCall(
+          WETH_ADDRESS,
+          MCT_ADDRESS,
+          fee,
+          wethAmount,
+          0
+        );
+        
+        const mctAmountFormatted = ethers.formatUnits(mctAmount, DEFAULT_TOKEN_DECIMALS);
+        console.log(`✅ WETH → MCT: ${ethers.formatEther(wethAmount)} WETH → ${mctAmountFormatted} MCT (fee: ${fee/10000}%)`);
+        console.log(`✅ Total: ${PURCHASE_AMOUNT_USDC} USDC → ${mctAmountFormatted} MCT`);
+        return mctAmount;
+      } catch (error) {
+        continue;
+      }
+    }
+    
+    throw new Error('Failed to get quote WETH → MCT');
+  } catch (error: any) {
+    console.error('❌ Error calculating MCT amount for purchase:', error);
+    return null;
+  }
+}
+
+// Получить курс ETH в USD
+async function fetchEthUsdPrice(): Promise<number | null> {
+  try {
+    const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd');
+    const data = await response.json();
+    const price = data?.ethereum?.usd;
+    return typeof price === 'number' ? price : null;
+  } catch (error) {
+    console.error('Error fetching ETH price in USD:', error);
+    return null;
+  }
+}
+
+// Получить цену покупки (сколько MCT получится за 0.10 USDC)
+export async function getTokenSalePriceEth(): Promise<string | null> {
+  // Используем Uniswap для расчета количества MCT за 0.10 USDC
+  const mctAmount = await getMCTAmountForPurchase();
+  if (mctAmount) {
+    const mctAmountFormatted = ethers.formatUnits(mctAmount, DEFAULT_TOKEN_DECIMALS);
+    console.log(`✅ Purchase: ${PURCHASE_AMOUNT_USDC} USDC = ${mctAmountFormatted} MCT`);
+    
+    // Возвращаем цену за 1 MCT в USDC (для отображения)
+    const pricePerToken = await getMCTPricePerTokenInUSDC();
+    if (pricePerToken) {
+      return pricePerToken.toFixed(6);
+    }
+    
+    // Если не удалось получить цену за токен, используем количество за покупку
+    return mctAmountFormatted;
+  }
+  
+  // Fallback: если Uniswap не работает, используем фиксированную цену
+  console.warn('⚠️ Failed to get quote from Uniswap, using fallback');
+  return PURCHASE_AMOUNT_USDC.toString(); // 0.10 USDC (fallback)
 }
 
 // Получить стоимость покупки 0.10 MCT
@@ -655,18 +809,22 @@ export async function getPurchaseCost(): Promise<{
       const provider = getBaseProvider();
       const saleContract = new ethers.Contract(cleanContractAddress, TOKEN_SALE_ABI, provider);
     
-    const tokenDecimals = DEFAULT_TOKEN_DECIMALS;
-    const tokenAmount = ethers.parseUnits(TOKEN_AMOUNT_TO_BUY, tokenDecimals);
-    const costWei: bigint = await saleContract.getCostETH(tokenAmount);
-    const costEth = ethers.formatEther(costWei);
-    
-    return {
-      costEth,
-    };
-  } catch (error) {
-    console.error('Error getting purchase cost:', error);
-    return null;
-  }
+      // Получаем количество MCT для покупки через Uniswap
+      const tokenAmount = await getMCTAmountForPurchase();
+      if (!tokenAmount || tokenAmount === 0n) {
+        return null;
+      }
+      
+      const costWei: bigint = await saleContract.getCostETH(tokenAmount);
+      const costEth = ethers.formatEther(costWei);
+      
+      return {
+        costEth,
+      };
+    } catch (error) {
+      console.error('Error getting purchase cost:', error);
+      return null;
+    }
 }
 
 // Верифицировать покупку токена через контракт продажи (ETH)
@@ -677,7 +835,8 @@ export async function verifyTokenPurchase(txHash: string, buyerAddress: string):
       return true; // Swap верифицируется через баланс токенов
     }
 
-    let saleContractAddress: string = USE_USDC_FOR_PURCHASE && TOKEN_SALE_USDC_CONTRACT_ADDRESS 
+    const useSeparateUSDCContract = USE_USDC_FOR_PURCHASE && TOKEN_SALE_USDC_CONTRACT_ADDRESS;
+    let saleContractAddress: string = useSeparateUSDCContract 
       ? TOKEN_SALE_USDC_CONTRACT_ADDRESS 
       : TOKEN_SALE_CONTRACT_ADDRESS;
     
@@ -752,13 +911,17 @@ export async function verifyTokenPurchase(txHash: string, buyerAddress: string):
 // Верифицировать покупку токена через контракт продажи (USDC)
 async function verifyTokenPurchaseUSDC(txHash: string, buyerAddress: string): Promise<boolean> {
   try {
-    if (!TOKEN_SALE_USDC_CONTRACT_ADDRESS) {
+    // Используем тот же контракт, что и для ETH, если не указан отдельный адрес
+    const useSeparateUSDCContract = USE_USDC_FOR_PURCHASE && TOKEN_SALE_USDC_CONTRACT_ADDRESS;
+    const saleContractAddress = useSeparateUSDCContract ? TOKEN_SALE_USDC_CONTRACT_ADDRESS : TOKEN_SALE_CONTRACT_ADDRESS;
+    
+    if (!saleContractAddress) {
       console.error('Token sale USDC contract address not configured');
       return false;
     }
     
     // Обрезаем адрес от пробелов и переносов строк
-    const cleanContractAddress = TOKEN_SALE_USDC_CONTRACT_ADDRESS.trim().replace(/[\r\n]/g, '');
+    const cleanContractAddress = saleContractAddress.trim().replace(/[\r\n]/g, '');
 
     const provider = getBaseProvider();
     
