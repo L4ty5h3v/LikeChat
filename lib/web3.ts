@@ -1,13 +1,14 @@
 // Web3 функции для покупки токена Миссис Крипто через Farcaster API
 import { ethers } from 'ethers';
 
-// Константы конфигурации (без использования env)
+// Константы конфигурации
 const TOKEN_CONTRACT_ADDRESS = '0x04d388da70c32fc5876981097c536c51c8d3d236'; // MCT Token
-const TOKEN_SALE_CONTRACT_ADDRESS: string = ''; // Адрес контракта продажи (если используется)
-const TOKEN_SALE_USDC_CONTRACT_ADDRESS: string = ''; // Адрес контракта продажи USDC (если используется)
+// Обрезаем пробелы и переносы строк из адреса контракта
+const TOKEN_SALE_CONTRACT_ADDRESS: string = (process.env.NEXT_PUBLIC_TOKEN_SALE_CONTRACT_ADDRESS || '0x3FD7a1D5C9C3163E873Df212006cB81D7178f3b4').trim().replace(/[\r\n]/g, ''); // Адрес контракта продажи
+const TOKEN_SALE_USDC_CONTRACT_ADDRESS: string = (process.env.NEXT_PUBLIC_TOKEN_SALE_USDC_CONTRACT_ADDRESS || '').trim().replace(/[\r\n]/g, ''); // Адрес контракта продажи USDC (если используется)
 const USDC_CONTRACT_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // USDC на Base
 const USE_USDC_FOR_PURCHASE = false; // Использовать USDC вместо ETH
-const USE_FARCASTER_SWAP = true; // Использовать Farcaster Swap API вместо смарт-контракта
+const USE_FARCASTER_SWAP = false; // Использовать смарт-контракт продажи вместо Uniswap swap
 const DEFAULT_TOKEN_DECIMALS = 18;
 const TOKEN_AMOUNT_TO_BUY = '0.10'; // Покупаем 0.10 MCT
 const BASE_CHAIN_ID = 8453; // Base mainnet
@@ -40,13 +41,12 @@ const ERC20_ABI = [
   'function allowance(address owner, address spender) view returns (uint256)',
 ];
 
-// ABI для контракта продажи Mrs Crypto (ETH)
+// ABI для контракта продажи MCTTokenSale (ETH)
 const TOKEN_SALE_ABI = [
-  'function pricePerToken() view returns (uint256)',
-  'function buyTokens(uint256 tokenAmount) payable',
-  'function costFor(uint256 tokenAmount) view returns (uint256)',
-  'function availableTokens() view returns (uint256)',
-  'event TokensPurchased(address indexed buyer, uint256 tokenAmount, uint256 paidWei)',
+  'function buyTokensWithETH(uint256 tokenAmount) payable',
+  'function getCostETH(uint256 tokenAmount) view returns (uint256)',
+  'function pricePerTokenETH() view returns (uint256)',
+  'event TokensPurchased(address indexed buyer, uint256 tokenAmount, uint256 paidAmount, bool isUSDC)',
 ];
 
 // ABI для контракта продажи Mrs Crypto (USDC)
@@ -318,7 +318,12 @@ export async function buyToken(userFid: number): Promise<{
 
     // Определяем, какой контракт использовать
     const useUSDC = USE_USDC_FOR_PURCHASE && TOKEN_SALE_USDC_CONTRACT_ADDRESS;
-    const saleContractAddress = useUSDC ? TOKEN_SALE_USDC_CONTRACT_ADDRESS : TOKEN_SALE_CONTRACT_ADDRESS;
+    let saleContractAddress = useUSDC ? TOKEN_SALE_USDC_CONTRACT_ADDRESS : TOKEN_SALE_CONTRACT_ADDRESS;
+    
+    // Обрезаем адрес от пробелов и переносов строк
+    if (saleContractAddress) {
+      saleContractAddress = saleContractAddress.trim().replace(/[\r\n]/g, '');
+    }
 
     if (!saleContractAddress) {
       throw new Error('Адрес смарт-контракта продажи не настроен. Установите NEXT_PUBLIC_TOKEN_SALE_CONTRACT_ADDRESS или NEXT_PUBLIC_TOKEN_SALE_USDC_CONTRACT_ADDRESS.');
@@ -383,11 +388,19 @@ async function buyTokenWithETH(
   error?: string;
   verified?: boolean;
 }> {
-  const saleContract = new ethers.Contract(saleContractAddress, TOKEN_SALE_ABI, signer);
+  // Обрезаем адрес от пробелов и переносов строк
+  const cleanContractAddress = saleContractAddress.trim().replace(/[\r\n]/g, '');
   
-  // Получаем стоимость покупки
-  const costWei: bigint = await saleContract.costFor(tokenAmount);
+  // Используем Base RPC для чтения данных (getCostETH), так как Farcaster Wallet не поддерживает eth_call
+  const baseProvider = getBaseProvider();
+  const readContract = new ethers.Contract(cleanContractAddress, TOKEN_SALE_ABI, baseProvider);
+  
+  // Получаем стоимость покупки через getCostETH используя Base RPC
+  const costWei: bigint = await readContract.getCostETH(tokenAmount);
   const costEth = ethers.formatEther(costWei);
+  
+  // Для записи (покупки) используем signer с Farcaster Wallet
+  const saleContract = new ethers.Contract(cleanContractAddress, TOKEN_SALE_ABI, signer);
   
   console.log(`💰 Purchase cost: ${costEth} ETH for ${TOKEN_AMOUNT_TO_BUY} MCT`);
 
@@ -402,10 +415,10 @@ async function buyTokenWithETH(
     throw new Error(`Недостаточно ETH. Требуется: ${costEth} ETH`);
   }
 
-  // Покупаем токен через смарт-контракт
+  // Покупаем токен через смарт-контракт используя buyTokensWithETH
   console.log(`🔄 Purchasing ${TOKEN_AMOUNT_TO_BUY} MCT tokens with ETH...`);
   
-  const tx = await saleContract.buyTokens(tokenAmount, {
+  const tx = await saleContract.buyTokensWithETH(tokenAmount, {
     value: costWei,
     gasLimit: 350000,
   });
@@ -446,10 +459,18 @@ async function buyTokenWithUSDC(
   error?: string;
   verified?: boolean;
 }> {
-  const saleContract = new ethers.Contract(saleContractAddress, TOKEN_SALE_USDC_ABI, signer);
+  // Обрезаем адрес от пробелов и переносов строк
+  const cleanContractAddress = saleContractAddress.trim().replace(/[\r\n]/g, '');
   
-  // Получаем стоимость покупки в USDC
-  const costUSDC: bigint = await saleContract.costFor(tokenAmount);
+  // Используем Base RPC для чтения данных (costFor), так как Farcaster Wallet не поддерживает eth_call
+  const baseProvider = getBaseProvider();
+  const readContract = new ethers.Contract(cleanContractAddress, TOKEN_SALE_USDC_ABI, baseProvider);
+  
+  // Получаем стоимость покупки в USDC используя Base RPC
+  const costUSDC: bigint = await readContract.costFor(tokenAmount);
+  
+  // Для записи (покупки) используем signer с Farcaster Wallet
+  const saleContract = new ethers.Contract(cleanContractAddress, TOKEN_SALE_USDC_ABI, signer);
   const costUSDCFormatted = ethers.formatUnits(costUSDC, 6); // USDC имеет 6 decimals
   
   console.log(`💰 Purchase cost: ${costUSDCFormatted} USDC for ${TOKEN_AMOUNT_TO_BUY} MCT`);
@@ -575,21 +596,8 @@ export async function getTokenInfo(): Promise<{
 
 // Получить цену токена (через swap или смарт-контракт)
 export async function getTokenSalePriceEth(): Promise<string | null> {
-  // Если используется Farcaster Swap, проверяем, используется ли прямой контракт продажи
+  // Если используется Farcaster Swap, используем фиксированную цену
   if (USE_FARCASTER_SWAP) {
-    // Проверяем, используется ли прямой контракт продажи (рекомендуемый способ)
-    try {
-      const { getPriceFromSaleContract } = await import('@/lib/farcaster-direct-purchase');
-      const paymentToken = USE_USDC_FOR_PURCHASE ? 'USDC' : 'ETH';
-      const price = await getPriceFromSaleContract(paymentToken);
-      if (price) {
-        console.log(`💰 Price from sale contract: ${price} ${paymentToken}`);
-        return price;
-      }
-    } catch (error) {
-      console.warn('Could not get price from sale contract, using fallback:', error);
-    }
-    
     // Fallback: примерная цена (если контракт не развернут)
     if (USE_USDC_FOR_PURCHASE) {
       return '0.25'; // 0.25 USDC за 0.10 MCT
@@ -609,17 +617,20 @@ export async function getTokenSalePriceEth(): Promise<string | null> {
   try {
     const provider = getBaseProvider();
     
+    // Обрезаем адрес от пробелов и переносов строк
+    const cleanContractAddress = saleContractAddress.trim().replace(/[\r\n]/g, '');
+    
     if (useUSDC) {
-      const saleContract = new ethers.Contract(saleContractAddress, TOKEN_SALE_USDC_ABI, provider);
+      const saleContract = new ethers.Contract(cleanContractAddress, TOKEN_SALE_USDC_ABI, provider);
       const tokenDecimals = DEFAULT_TOKEN_DECIMALS;
       const tokenAmount = ethers.parseUnits(TOKEN_AMOUNT_TO_BUY, tokenDecimals);
       const costUSDC: bigint = await saleContract.costFor(tokenAmount);
       return ethers.formatUnits(costUSDC, 6);
     } else {
-      const saleContract = new ethers.Contract(saleContractAddress, TOKEN_SALE_ABI, provider);
+      const saleContract = new ethers.Contract(cleanContractAddress, TOKEN_SALE_ABI, provider);
       const tokenDecimals = DEFAULT_TOKEN_DECIMALS;
       const tokenAmount = ethers.parseUnits(TOKEN_AMOUNT_TO_BUY, tokenDecimals);
-      const costWei: bigint = await saleContract.costFor(tokenAmount);
+      const costWei: bigint = await saleContract.getCostETH(tokenAmount);
       return ethers.formatEther(costWei);
     }
   } catch (error) {
@@ -633,17 +644,20 @@ export async function getPurchaseCost(): Promise<{
   costEth: string;
   costUsd?: string;
 } | null> {
-  if (!TOKEN_SALE_CONTRACT_ADDRESS) {
-    return null;
-  }
+    // Обрезаем адрес от пробелов и переносов строк
+    const cleanContractAddress = (TOKEN_SALE_CONTRACT_ADDRESS || '').trim().replace(/[\r\n]/g, '');
+    
+    if (!cleanContractAddress) {
+      return null;
+    }
 
-  try {
-    const provider = getBaseProvider();
-    const saleContract = new ethers.Contract(TOKEN_SALE_CONTRACT_ADDRESS, TOKEN_SALE_ABI, provider);
+    try {
+      const provider = getBaseProvider();
+      const saleContract = new ethers.Contract(cleanContractAddress, TOKEN_SALE_ABI, provider);
     
     const tokenDecimals = DEFAULT_TOKEN_DECIMALS;
     const tokenAmount = ethers.parseUnits(TOKEN_AMOUNT_TO_BUY, tokenDecimals);
-    const costWei: bigint = await saleContract.costFor(tokenAmount);
+    const costWei: bigint = await saleContract.getCostETH(tokenAmount);
     const costEth = ethers.formatEther(costWei);
     
     return {
@@ -663,9 +677,12 @@ export async function verifyTokenPurchase(txHash: string, buyerAddress: string):
       return true; // Swap верифицируется через баланс токенов
     }
 
-    const saleContractAddress: string = USE_USDC_FOR_PURCHASE && TOKEN_SALE_USDC_CONTRACT_ADDRESS 
+    let saleContractAddress: string = USE_USDC_FOR_PURCHASE && TOKEN_SALE_USDC_CONTRACT_ADDRESS 
       ? TOKEN_SALE_USDC_CONTRACT_ADDRESS 
       : TOKEN_SALE_CONTRACT_ADDRESS;
+    
+    // Обрезаем адрес от пробелов и переносов строк
+    saleContractAddress = saleContractAddress.trim().replace(/[\r\n]/g, '');
 
     if (!saleContractAddress) {
       console.error('Token sale contract address not configured');
@@ -739,6 +756,9 @@ async function verifyTokenPurchaseUSDC(txHash: string, buyerAddress: string): Pr
       console.error('Token sale USDC contract address not configured');
       return false;
     }
+    
+    // Обрезаем адрес от пробелов и переносов строк
+    const cleanContractAddress = TOKEN_SALE_USDC_CONTRACT_ADDRESS.trim().replace(/[\r\n]/g, '');
 
     const provider = getBaseProvider();
     
@@ -752,14 +772,14 @@ async function verifyTokenPurchaseUSDC(txHash: string, buyerAddress: string): Pr
 
     // Проверяем, что транзакция была отправлена на контракт продажи
     const receiptTo = receipt.to?.toLowerCase() || '';
-    const contractAddressLower = TOKEN_SALE_USDC_CONTRACT_ADDRESS.toLowerCase();
+    const contractAddressLower = cleanContractAddress.toLowerCase();
     if (receiptTo !== contractAddressLower) {
       console.error('Transaction was not sent to token sale contract');
       return false;
     }
 
     // Создаем интерфейс контракта для парсинга событий
-    const saleContract = new ethers.Contract(TOKEN_SALE_USDC_CONTRACT_ADDRESS, TOKEN_SALE_USDC_ABI, provider);
+    const saleContract = new ethers.Contract(cleanContractAddress, TOKEN_SALE_USDC_ABI, provider);
     
     // Парсим событие TokensPurchased из логов транзакции
     const eventInterface = saleContract.interface;

@@ -1,4 +1,4 @@
-// Покупка токена через прямой контракт продажи (транзакция в Farcaster)
+// Покупка токена через swap на Uniswap (транзакция в Farcaster)
 import { ethers } from 'ethers';
 
 const USE_USDC_FOR_PAYMENT = false; // false = ETH, true = USDC
@@ -6,12 +6,7 @@ const TOKEN_CONTRACT_ADDRESS = '0x04d388da70c32fc5876981097c536c51c8d3d236'; // 
 const DEFAULT_TOKEN_DECIMALS = 18;
 const BASE_CHAIN_ID = 8453;
 
-// Использовать контракт продажи вместо swap
-// false = использовать swap через Uniswap (пул MCT/ETH существует!)
-// true = использовать контракт продажи (гарантированно работает)
-const USE_DIRECT_PURCHASE = false; // Теперь swap должен работать!
-
-// Покупка токена через Farcaster (прямой контракт продажи или swap)
+// Покупка токена через swap на Uniswap
 export async function buyTokenViaFarcasterSwap(
   userFid: number,
   paymentToken?: 'ETH' | 'USDC'
@@ -20,19 +15,13 @@ export async function buyTokenViaFarcasterSwap(
   txHash?: string;
   error?: string;
   verified?: boolean;
+  tokenAmount?: string;
 }> {
   const selectedPaymentToken = paymentToken || (USE_USDC_FOR_PAYMENT ? 'USDC' : 'ETH');
   
-  if (USE_DIRECT_PURCHASE) {
-    // Используем прямой контракт продажи (гарантированно работает)
-    // Транзакция будет видна в истории Farcaster кошелька
-    const { buyTokenViaDirectPurchase } = await import('@/lib/farcaster-direct-purchase');
-    return await buyTokenViaDirectPurchase(userFid, selectedPaymentToken);
-  } else {
-    // Используем прямой swap через провайдер (может не работать, если нет ликвидности)
-    const { buyTokenViaDirectSwap } = await import('@/lib/farcaster-direct-swap');
-    return await buyTokenViaDirectSwap(userFid, selectedPaymentToken);
-  }
+  // Используем прямой swap через Uniswap
+  const { buyTokenViaDirectSwap } = await import('@/lib/farcaster-direct-swap');
+  return await buyTokenViaDirectSwap(userFid, selectedPaymentToken);
 }
 
 // Проверить баланс токена после swap
