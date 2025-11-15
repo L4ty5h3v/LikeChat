@@ -16,10 +16,10 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen, onToggleComple
         p-4 rounded-xl border-2 transition-all duration-300 shadow-sm
         ${
           task.completed && task.verified
-            ? 'bg-emerald-50/80 border-emerald-400 shadow-emerald-200/50'
+            ? 'bg-green-50/80 border-green-600 shadow-green-200/50'
             : task.completed && !task.verified
             ? 'bg-gold-50/80 border-gold-400 shadow-gold-200/50'
-            : 'bg-white border-emerald-200 hover:border-emerald-400 hover:shadow-emerald-100/50'
+            : 'bg-white border-black hover:border-green-700 hover:shadow-green-100/50'
         }
       `}
     >
@@ -30,10 +30,10 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen, onToggleComple
             flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg shadow-md
             ${
               task.completed && task.verified
-                ? 'bg-gradient-to-br from-emerald-500 to-emerald-700 text-white shadow-emerald-500/50'
+                ? 'bg-gradient-to-br from-green-700 to-green-900 text-white shadow-green-600/50'
                 : task.completed && !task.verified
-                ? 'bg-gradient-to-br from-gold-500 to-gold-700 text-white shadow-gold-500/50'
-                : 'bg-gradient-to-br from-gold-100 to-gold-50 text-gold-900 border-2 border-gold-200'
+                ? 'bg-gold-texture text-black shadow-gold-500/50'
+                : 'bg-white text-black border-2 border-black'
             }
           `}
         >
@@ -70,7 +70,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen, onToggleComple
               ${
                 task.completed && task.verified
                   ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white hover:from-emerald-400 hover:to-emerald-500 hover:shadow-lg hover:shadow-emerald-500/50'
+                  : 'bg-gradient-to-r from-green-700 to-green-800 text-white hover:from-green-600 hover:to-green-700 hover:shadow-lg hover:shadow-green-600/50'
               }
             `}
           >

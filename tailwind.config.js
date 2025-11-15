@@ -8,14 +8,26 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary: '#10B981',           // Emerald green
-        'primary-dark': '#059669',    // Dark emerald
-        'primary-light': '#34D399',   // Light emerald
+        primary: '#2D5016',           // Dark olive green
+        'primary-dark': '#1F3A0F',    // Very dark green
+        'primary-light': '#3A6B1F',   // Medium dark green
         secondary: '#D4AF37',         // Classic gold
         accent: '#FFD700',            // Bright gold
         'gold': '#D4AF37',            // Classic gold
         'gold-light': '#FFD700',      // Bright gold
         'gold-dark': '#B8860B',       // Dark goldenrod
+        'green': {
+          50: '#F0F4ED',
+          100: '#E1E9DB',
+          200: '#C3D3B7',
+          300: '#A5BD93',
+          400: '#87A76F',
+          500: '#556B2F',      // Olive green
+          600: '#2D5016',      // Dark olive green
+          700: '#1F3A0F',      // Very dark green
+          800: '#152A0A',
+          900: '#0B1A05',
+        },
         'emerald': {
           50: '#ECFDF5',
           100: '#D1FAE5',
@@ -52,11 +64,13 @@ module.exports = {
           800: '#92400E',
           900: '#78350F',
         },
-        dark: '#1F2937',              // Dark gray
-        light: '#FEFCFB',             // Cream white
-        background: '#FAF9F6',        // Light beige
+        dark: '#000000',              // Pure black
+        light: '#FFFFFF',             // Pure white
+        background: '#FFFFFF',        // White background
         'surface': '#FFFFFF',         // White surface
-        success: '#10B981',           // Emerald green
+        black: '#000000',             // Pure black
+        white: '#FFFFFF',             // Pure white
+        success: '#2D5016',           // Dark olive green
         warning: '#D4AF37',           // Classic gold
       },
       fontFamily: {

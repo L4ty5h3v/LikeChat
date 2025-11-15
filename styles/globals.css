@@ -22,8 +22,89 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: linear-gradient(135deg, #FAF9F6 0%, #FEFCFB 100%);
-  color: #1F2937;
+  background: #FFFFFF;
+  color: #000000;
+}
+
+/* Золотая текстура (металлический эффект) */
+.bg-gold-texture {
+  background: linear-gradient(
+    135deg,
+    #D4AF37 0%,
+    #FFD700 25%,
+    #FFEC8C 50%,
+    #FFD700 75%,
+    #D4AF37 100%
+  );
+  background-size: 200% 200%;
+  position: relative;
+  overflow: hidden;
+}
+
+.bg-gold-texture::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 2px,
+      rgba(255, 255, 255, 0.1) 2px,
+      rgba(255, 255, 255, 0.1) 4px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 0, 0, 0.1) 2px,
+      rgba(0, 0, 0, 0.1) 4px
+    );
+  pointer-events: none;
+}
+
+.bg-gold-texture::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.3) 0%,
+    transparent 70%
+  );
+  animation: shimmer 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes shimmer {
+  0%, 100% {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  50% {
+    transform: translate(-50%, -50%) rotate(180deg);
+  }
+}
+
+.text-gold-texture {
+  background: linear-gradient(
+    135deg,
+    #D4AF37 0%,
+    #FFD700 25%,
+    #FFEC8C 50%,
+    #FFD700 75%,
+    #D4AF37 100%
+  );
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradient 8s ease infinite;
 }
 
 a {
@@ -52,15 +133,15 @@ a {
 }
 
 ::-webkit-scrollbar-track {
-  background: #FEFCFB;
+  background: #FFFFFF;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #10B981 0%, #F59E0B 100%);
+  background: linear-gradient(135deg, #2D5016 0%, #D4AF37 100%);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, #059669 0%, #D97706 100%);
+  background: linear-gradient(135deg, #1F3A0F 0%, #B8860B 100%);
 }
 

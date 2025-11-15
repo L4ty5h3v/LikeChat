@@ -25,8 +25,8 @@ const ActivityButton: React.FC<ActivityButtonProps> = ({
         transition-all duration-300 transform hover:scale-105 hover:shadow-xl
         ${
           selected
-            ? 'bg-gradient-to-br from-emerald-500 via-emerald-600 to-emerald-700 text-white shadow-xl shadow-emerald-500/50 ring-4 ring-emerald-500/30'
-            : 'bg-white text-gray-700 border-2 border-emerald-200 hover:border-emerald-400 hover:bg-emerald-50/50'
+            ? 'bg-gradient-to-br from-green-700 via-green-600 to-green-800 text-white shadow-xl shadow-green-600/50 ring-4 ring-green-500/30'
+            : 'bg-white text-black border-2 border-black hover:bg-green-50'
         }
       `}
     >
@@ -36,8 +36,8 @@ const ActivityButton: React.FC<ActivityButtonProps> = ({
       </div>
       
       {selected && (
-        <div className="absolute -top-2 -right-2 w-7 h-7 bg-gradient-to-br from-gold-400 to-gold-600 rounded-full flex items-center justify-center shadow-lg shadow-gold-500/50 ring-2 ring-white">
-          <span className="text-white text-sm font-bold">✓</span>
+        <div className="absolute -top-2 -right-2 w-7 h-7 bg-gold-texture rounded-full flex items-center justify-center shadow-lg ring-2 ring-black z-10">
+          <span className="text-black text-sm font-bold relative z-10">✓</span>
         </div>
       )}
     </button>

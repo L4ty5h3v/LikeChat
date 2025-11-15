@@ -25,10 +25,10 @@ const Button: React.FC<ButtonProps> = ({
   const baseStyles = 'px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 text-sm sm:text-base';
   
   const variantStyles = {
-    primary: 'bg-gradient-to-r from-emerald-500 via-emerald-600 to-emerald-700 text-white hover:shadow-xl hover:shadow-emerald-500/50 hover:from-emerald-400 hover:via-emerald-500 hover:to-emerald-600 transition-all duration-300 font-semibold',
-    success: 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white hover:shadow-xl hover:shadow-emerald-500/50 hover:from-emerald-400 hover:to-emerald-500',
-    warning: 'bg-gradient-to-r from-gold-500 via-gold-600 to-gold-700 text-white hover:shadow-xl hover:shadow-gold-500/50 hover:from-gold-400 hover:via-gold-500 hover:to-gold-600',
-    secondary: 'bg-gradient-to-r from-gold-100 to-gold-50 text-gold-900 border-2 border-gold-300 hover:border-gold-400 hover:from-gold-200 hover:to-gold-100',
+    primary: 'bg-gradient-to-r from-green-700 via-green-600 to-green-800 text-white hover:shadow-xl hover:shadow-green-600/50 hover:from-green-600 hover:via-green-700 hover:to-green-900 transition-all duration-300 font-semibold',
+    success: 'bg-gradient-to-r from-green-700 to-green-800 text-white hover:shadow-xl hover:shadow-green-600/50 hover:from-green-600 hover:to-green-700',
+    warning: 'bg-gold-texture text-black hover:shadow-xl hover:shadow-gold-500/50 relative z-10',
+    secondary: 'bg-white text-black border-2 border-black hover:bg-black hover:text-white transition-all',
   };
 
   const widthStyles = fullWidth ? 'w-full' : '';

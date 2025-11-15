@@ -22,7 +22,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ completed, total }) => {
       
       <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
         <div
-          className="h-full bg-gradient-to-r from-primary via-gold-600 to-accent transition-all duration-500 ease-out rounded-full flex items-center justify-end pr-2"
+          className="h-full bg-gradient-to-r from-green-700 via-green-800 to-black transition-all duration-500 ease-out rounded-full flex items-center justify-end pr-2"
           style={{ width: `${percentage}%` }}
         >
           {percentage > 10 && (
