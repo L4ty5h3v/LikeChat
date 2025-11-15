@@ -32,7 +32,8 @@ export default function Tasks() {
         return;
       }
 
-      setUser(JSON.parse(savedUser));
+      const userData = JSON.parse(savedUser);
+      setUser(userData);
       setActivity(savedActivity as ActivityType);
       
       // Проверяем, есть ли параметр published в URL (после публикации ссылки)
@@ -49,18 +50,17 @@ export default function Tasks() {
         }, 5000);
         
         // Принудительно обновляем список сразу и несколько раз подряд для быстрого появления ссылки
-        const userFid = JSON.parse(savedUser).fid;
-        loadTasks(userFid, true);
-        setTimeout(() => loadTasks(userFid, false), 1000);
-        setTimeout(() => loadTasks(userFid, false), 2000);
-        setTimeout(() => loadTasks(userFid, false), 3000);
+        loadTasks(userData.fid, true);
+        setTimeout(() => loadTasks(userData.fid, false), 1000);
+        setTimeout(() => loadTasks(userData.fid, false), 2000);
+        setTimeout(() => loadTasks(userData.fid, false), 3000);
       } else {
-        loadTasks(JSON.parse(savedUser).fid, true);
+        loadTasks(userData.fid, true);
       }
       
       // Обновляем список задач каждые 2 секунды (быстрее для более оперативного отображения новых ссылок)
       const interval = setInterval(() => {
-        loadTasks(JSON.parse(savedUser).fid, false);
+        loadTasks(userData.fid, false);
       }, 2000);
       
       return () => clearInterval(interval);
@@ -100,6 +100,38 @@ export default function Tasks() {
         cast_url: t.cast_url?.substring(0, 40) + '...',
         completed: t.completed,
       })));
+      
+      // Проверяем: если все задания завершены, проверяем прогресс и делаем автоматический редирект
+      if (completedLinks.length >= taskList.length && taskList.length > 0 && user) {
+        console.log(`🎯 All tasks completed! Checking user progress for auto-redirect...`);
+        
+        // Проверяем прогресс пользователя
+        getUserProgress(user.fid).then((progress) => {
+          if (progress) {
+            console.log(`📊 User progress:`, {
+              completed_links: progress.completed_links?.length || 0,
+              token_purchased: progress.token_purchased,
+            });
+            
+            // Если все задания завершены, но токен не куплен → редирект на /buyToken
+            if (!progress.token_purchased) {
+              console.log(`🚀 Redirecting to /buyToken (token not purchased)`);
+              setTimeout(() => {
+                router.push('/buyToken');
+              }, 2000);
+            }
+            // Если все задания завершены и токен куплен → редирект на /submit для публикации ссылки
+            else if (progress.token_purchased) {
+              console.log(`🚀 Redirecting to /submit (all tasks completed, token purchased)`);
+              setTimeout(() => {
+                router.push('/submit');
+              }, 2000);
+            }
+          }
+        }).catch((error) => {
+          console.error('Error checking user progress for auto-redirect:', error);
+        });
+      }
     } catch (error) {
       console.error('Error loading tasks:', error);
     } finally {
