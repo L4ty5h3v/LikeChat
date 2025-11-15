@@ -30,8 +30,9 @@ function generateTestData() {
 // Получить последние 10 ссылок
 export async function getLastTenLinks(): Promise<LinkSubmission[]> {
   generateTestData();
+  // Сортируем по дате создания (новые первыми) и берем первые 10
   return linkSubmissions
-    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, 10);
 }
 
@@ -150,7 +151,18 @@ export async function submitLink(
     created_at: new Date().toISOString()
   };
   
-  linkSubmissions.push(newLink);
+  // Добавляем ссылку в начало массива (новые первыми)
+  linkSubmissions.unshift(newLink);
+  
+  console.log(`✅ Link published successfully (memory-db):`, {
+    id: newLink.id,
+    username: newLink.username,
+    user_fid: newLink.user_fid,
+    cast_url: newLink.cast_url,
+    activity_type: newLink.activity_type,
+    created_at: newLink.created_at,
+    total_links: linkSubmissions.length,
+  });
   
   // Сохранить ID в прогресс пользователя
   await upsertUserProgress(userFid, {

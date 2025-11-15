@@ -49,10 +49,23 @@ export default function Tasks() {
       
       loadTasks(JSON.parse(savedUser).fid, true);
       
-      // Обновляем список задач каждые 5 секунд, чтобы видеть новые ссылки (без показа loading)
+      // Если только что опубликована ссылка, обновляем чаще в первые 30 секунд
+      const urlParams = new URLSearchParams(window.location.search);
+      const justPublished = urlParams.get('published') === 'true';
+      
+      let updateInterval = justPublished ? 2000 : 5000; // 2 секунды если только что опубликовано, иначе 5 секунд
+      let updateCount = 0;
+      const maxQuickUpdates = 15; // 15 обновлений по 2 секунды = 30 секунд
+      
       const interval = setInterval(() => {
         loadTasks(JSON.parse(savedUser).fid, false);
-      }, 5000);
+        updateCount++;
+        
+        // После 15 быстрых обновлений переключаемся на обычный интервал
+        if (justPublished && updateCount >= maxQuickUpdates) {
+          updateInterval = 5000;
+        }
+      }, updateInterval);
       
       return () => clearInterval(interval);
     }

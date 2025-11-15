@@ -30,6 +30,7 @@ export async function getLastTenLinks(): Promise<LinkSubmission[]> {
   if (!redis) return [];
   
   try {
+    // Получаем первые 10 ссылок (новые первыми, так как используем lpush)
     const links = await redis.lrange(KEYS.LINKS, 0, 9);
     const parsedLinks = links.map((linkStr: any) => {
       // Try to parse as JSON, or use as-is if already parsed
@@ -38,17 +39,20 @@ export async function getLastTenLinks(): Promise<LinkSubmission[]> {
         ...link,
         created_at: link.created_at || new Date().toISOString(),
       };
+    }).sort((a, b) => {
+      // Сортируем по дате создания (новые первыми)
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
     
     // Логируем данные для диагностики
-    console.log(`📖 Loaded ${parsedLinks.length} links from Redis:`, 
+    console.log(`📖 Loaded ${parsedLinks.length} links from Redis (newest first):`, 
       parsedLinks.map((link, index) => ({
         index: index + 1,
         id: link.id,
         username: link.username,
         user_fid: link.user_fid,
-        pfp_url: link.pfp_url,
-        has_real_pfp: !!link.pfp_url && !link.pfp_url.includes('dicebear'),
+        created_at: link.created_at,
+        cast_url: link.cast_url?.substring(0, 50) + '...',
       }))
     );
     
@@ -120,6 +124,15 @@ export async function submitLink(
     
     // Обновляем счетчик
     await redis.incr(KEYS.TOTAL_LINKS_COUNT);
+
+    console.log(`✅ Link published successfully:`, {
+      id: newLink.id,
+      username: newLink.username,
+      user_fid: newLink.user_fid,
+      cast_url: newLink.cast_url,
+      activity_type: newLink.activity_type,
+      created_at: newLink.created_at,
+    });
 
     return newLink;
   } catch (error) {
