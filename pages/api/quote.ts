@@ -1,16 +1,22 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { createPublicClient, http, encodeFunctionData, decodeFunctionResult } from 'viem';
+import { createPublicClient, http, encodeFunctionData } from 'viem';
 import { base } from 'viem/chains';
 
 // Константы
 const MCT_ADDRESS = '0x04d388da70c32fc5876981097c536c51c8d3d236'; // MCT Token
 const WETH_ADDRESS = '0x4200000000000000000000000000000000000006'; // WETH на Base
-const USDC_ADDRESS_ON_BASE = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'; // USDC на Base (6 decimals)
+const USDC_ADDRESS_ON_BASE = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'; // USDC на Base (6 decimals) - правильный адрес
 const UNISWAP_V3_QUOTER = '0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a'; // Uniswap V3 Quoter на Base
 const MCT_DECIMALS = 18;
 const USDC_DECIMALS = 6;
 
-// ABI для Uniswap V3 Quoter
+// Создаем public client для Base (используем RPC URL из env или дефолтный)
+const publicClient = createPublicClient({
+  chain: base,
+  transport: http(process.env.BASE_RPC_URL || 'https://mainnet.base.org'),
+});
+
+// ABI для Uniswap V3 Quoter (упрощенный формат)
 const quoterAbi = [
   {
     inputs: [
@@ -26,12 +32,6 @@ const quoterAbi = [
     type: 'function',
   },
 ] as const;
-
-// Создаем public client для Base
-const publicClient = createPublicClient({
-  chain: base,
-  transport: http(process.env.BASE_RPC_URL || 'https://mainnet.base.org'),
-});
 
 // Типы для запроса/ответа
 type QuoteRequest = {
@@ -90,16 +90,13 @@ export default async function handler(
             data: mctToWethData,
           });
 
-          if (!mctToWethResult.data) {
+          if (!mctToWethResult.data || mctToWethResult.data === '0x') {
             console.warn(`⚠️ [API] Quote returned no data for MCT/WETH fee ${fee}`);
             continue;
           }
 
-          const ethAmount = decodeFunctionResult({
-            abi: quoterAbi,
-            functionName: 'quoteExactInputSingle',
-            data: mctToWethResult.data,
-          }) as bigint;
+          // Декодируем результат напрямую из data (первые 32 байта = amountOut)
+          const ethAmount = BigInt(mctToWethResult.data);
 
           if (!ethAmount || ethAmount === 0n) {
             console.warn(`⚠️ [API] Quote returned zero for MCT/WETH fee ${fee}`);
@@ -131,16 +128,13 @@ export default async function handler(
             data: wethToUsdcData,
           });
 
-          if (!wethToUsdcResult.data) {
+          if (!wethToUsdcResult.data || wethToUsdcResult.data === '0x') {
             console.warn(`⚠️ [API] Quote returned no data for WETH/USDC fee ${fee}`);
             continue;
           }
 
-          const usdcAmount = decodeFunctionResult({
-            abi: quoterAbi,
-            functionName: 'quoteExactInputSingle',
-            data: wethToUsdcResult.data,
-          }) as bigint;
+          // Декодируем результат напрямую из data (первые 32 байта = amountOut)
+          const usdcAmount = BigInt(wethToUsdcResult.data);
 
           if (!usdcAmount || usdcAmount === 0n) {
             console.warn(`⚠️ [API] Quote returned zero for WETH/USDC fee ${fee}`);
@@ -202,15 +196,12 @@ export default async function handler(
             data: usdcToWethData,
           });
 
-          if (!usdcToWethResult.data) {
+          if (!usdcToWethResult.data || usdcToWethResult.data === '0x') {
             continue;
           }
 
-          const ethAmount = decodeFunctionResult({
-            abi: quoterAbi,
-            functionName: 'quoteExactInputSingle',
-            data: usdcToWethResult.data,
-          }) as bigint;
+          // Декодируем результат напрямую из data (первые 32 байта = amountOut)
+          const ethAmount = BigInt(usdcToWethResult.data);
 
           if (!ethAmount || ethAmount === 0n || ethAmount < MIN_ETH_THRESHOLD) {
             continue;
@@ -234,15 +225,12 @@ export default async function handler(
             data: wethToMctData,
           });
 
-          if (!wethToMctResult.data) {
+          if (!wethToMctResult.data || wethToMctResult.data === '0x') {
             continue;
           }
 
-          const mctAmount = decodeFunctionResult({
-            abi: quoterAbi,
-            functionName: 'quoteExactInputSingle',
-            data: wethToMctResult.data,
-          }) as bigint;
+          // Декодируем результат напрямую из data (первые 32 байта = amountOut)
+          const mctAmount = BigInt(wethToMctResult.data);
 
           if (!mctAmount || mctAmount === 0n) {
             continue;
