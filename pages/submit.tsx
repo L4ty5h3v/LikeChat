@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import Button from '@/components/Button';
-import { getUserProgress, getTotalLinksCount } from '@/lib/db-config';
+import { getUserProgress, getTotalLinksCount, getAllLinks } from '@/lib/db-config';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
 import type { ActivityType } from '@/types';
 
@@ -177,27 +177,64 @@ export default function Submit() {
         activity: savedActivity,
       });
       
-      checkProgress(user.fid);
+      // ⚠️ ВАЖНО: Проверяем, не опубликована ли уже ссылка перед проверкой прогресса
+      // Это предотвращает зацикливание редиректов
+      checkIfLinkAlreadyPublished(user.fid).then((linkPublished) => {
+        if (linkPublished) {
+          console.log('✅ [SUBMIT] User already published a link, redirecting to /tasks');
+          // Используем replace вместо push, чтобы нельзя было вернуться назад
+          router.replace('/tasks');
+          return;
+        }
+        // Только если ссылка еще не опубликована - проверяем прогресс
+        checkProgress(user.fid);
+      }).catch((error) => {
+        console.error('❌ [SUBMIT] Error checking published link:', error);
+        // В случае ошибки продолжаем с проверкой прогресса
+        checkProgress(user.fid);
+      });
     }
   }, [router, user, authLoading, isInitialized]);
+  
+  // Функция для проверки, опубликована ли уже ссылка пользователем
+  const checkIfLinkAlreadyPublished = async (userFid: number): Promise<boolean> => {
+    try {
+      const allLinks = await getAllLinks();
+      const userHasPublishedLink = allLinks.some((link) => link.user_fid === userFid);
+      console.log(`🔍 [SUBMIT] Check if link already published for user ${userFid}: ${userHasPublishedLink}`);
+      return userHasPublishedLink;
+    } catch (error) {
+      console.error('❌ [SUBMIT] Error checking if link published:', error);
+      return false;
+    }
+  };
 
   const checkProgress = async (userFid: number) => {
     const progress = await getUserProgress(userFid);
     
     if (!progress) {
-      router.push('/');
+      router.replace('/'); // Используем replace, чтобы нельзя было вернуться
       return;
     }
 
     // Проверка: все 10 ссылок пройдены
     if (progress.completed_links.length < 10) {
-      router.push('/tasks');
+      router.replace('/tasks'); // Используем replace
       return;
     }
 
     // Проверка: токен куплен
     if (!progress.token_purchased) {
-      router.push('/buyToken');
+      router.replace('/buyToken'); // Используем replace
+      return;
+    }
+
+    // ⚠️ ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: Если ссылка уже опубликована, редиректим на /tasks
+    // Это предотвращает зацикливание, если пользователь случайно попал на /submit после публикации
+    const linkAlreadyPublished = await checkIfLinkAlreadyPublished(userFid);
+    if (linkAlreadyPublished) {
+      console.log('✅ [SUBMIT] Link already published, redirecting to /tasks');
+      router.replace('/tasks');
       return;
     }
 
@@ -320,6 +357,11 @@ export default function Submit() {
         setPublishedLinkId(data.link.id);
         setShowSuccessModal(true);
         
+        // Сбрасываем флаг редиректа в sessionStorage, чтобы можно было снова публиковать, если нужно
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem('redirect_to_submit_done');
+        }
+        
         // Публикуем cast в Farcaster только для соответствующего типа активности
         // Это предотвращает спам и делает публикацию более targeted
         if (activity) {
@@ -337,8 +379,10 @@ export default function Submit() {
         }
         
         // Редирект на tasks через 3 секунды, чтобы пользователь увидел поздравление
+        // ⚠️ ВАЖНО: Используем replace вместо push, чтобы пользователь не мог вернуться назад к форме
+        // Это предотвращает зацикливание и принудительный возврат на страницу с поздравлениями
         setTimeout(() => {
-          router.push('/tasks?published=true');
+          router.replace('/tasks?published=true');
         }, 3000);
       } else {
         console.error('❌ [SUBMIT] Link object not returned from API:', data);

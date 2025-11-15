@@ -159,15 +159,23 @@ export default function Tasks() {
             if (!progress.token_purchased) {
               console.log(`🚀 Redirecting to /buyToken (token not purchased)`);
               setTimeout(() => {
-                router.push('/buyToken');
+                router.replace('/buyToken'); // Используем replace для предотвращения возврата назад
               }, 2000);
             }
             // Если все задания завершены и токен куплен, но ссылка еще не опубликована → редирект на /submit
+            // ⚠️ ВАЖНО: Делаем редирект только один раз, не при каждом вызове loadTasks
             else if (progress.token_purchased && !userHasPublishedLink) {
-              console.log(`🚀 Redirecting to /submit (all tasks completed, token purchased, link not published yet)`);
-              setTimeout(() => {
-                router.push('/submit');
-              }, 2000);
+              // Проверяем, не делали ли мы уже редирект (используем флаг в sessionStorage)
+              const redirectDone = sessionStorage.getItem('redirect_to_submit_done');
+              if (!redirectDone) {
+                console.log(`🚀 Redirecting to /submit (all tasks completed, token purchased, link not published yet)`);
+                sessionStorage.setItem('redirect_to_submit_done', 'true');
+                setTimeout(() => {
+                  router.replace('/submit'); // Используем replace для предотвращения возврата назад
+                }, 2000);
+              } else {
+                console.log(`ℹ️ [TASKS] Redirect to /submit already done in this session, skipping`);
+              }
             }
           }
         }).catch((error) => {
