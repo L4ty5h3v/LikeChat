@@ -8,25 +8,33 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary: '#2D5016',           // Dark olive green
-        'primary-dark': '#1F3A0F',    // Very dark green
-        'primary-light': '#3A6B1F',   // Medium dark green
-        secondary: '#D4AF37',         // Classic gold
-        accent: '#FFD700',            // Bright gold
-        'gold': '#D4AF37',            // Classic gold
-        'gold-light': '#FFD700',      // Bright gold
-        'gold-dark': '#B8860B',       // Dark goldenrod
+        // Новая палитра из TCX кодов
+        'coconut': '#F8F7F4',          // 11-0608 TCX - Кокосовое молоко (Coconut Milk)
+        'smoky-green': '#9CAF88',      // 15-6315 TCX - Дымный зеленый (Smoky Green)
+        'fog': '#D5D5D5',              // 13-0007 TCX - Туман (Fog)
+        'olive': '#6B7C3F',            // 17-0115 TCX - Оливковый зеленый (Olive Green)
+        'teak': '#9C8B7A',             // 17-1112 TCX - Обветренный тик (Weathered Teak)
+        'mountain': '#2D4A2F',         // 19-5918 TCX - Горный зеленый (Mountain Green)
+        
+        primary: '#6B7C3F',            // Оливковый зеленый (Olive Green)
+        'primary-dark': '#2D4A2F',     // Горный зеленый (Mountain Green)
+        'primary-light': '#9CAF88',    // Дымный зеленый (Smoky Green)
+        secondary: '#9C8B7A',          // Обветренный тик (Weathered Teak)
+        accent: '#9CAF88',             // Дымный зеленый (Smoky Green)
+        'gold': '#9C8B7A',             // Обветренный тик (Weathered Teak) - как акцент
+        'gold-light': '#D5D5D5',       // Туман (Fog) - светлый акцент
+        'gold-dark': '#6B7C3F',        // Оливковый зеленый (Olive Green)
         'green': {
-          50: '#F0F4ED',
-          100: '#E1E9DB',
-          200: '#C3D3B7',
-          300: '#A5BD93',
-          400: '#87A76F',
-          500: '#556B2F',      // Olive green
-          600: '#2D5016',      // Dark olive green
-          700: '#1F3A0F',      // Very dark green
-          800: '#152A0A',
-          900: '#0B1A05',
+          50: '#F8F7F4',      // Кокосовое молоко (Coconut Milk)
+          100: '#D5D5D5',     // Туман (Fog)
+          200: '#9CAF88',     // Дымный зеленый (Smoky Green)
+          300: '#9C8B7A',     // Обветренный тик (Weathered Teak)
+          400: '#6B7C3F',     // Оливковый зеленый (Olive Green)
+          500: '#6B7C3F',      // Оливковый зеленый (Olive Green)
+          600: '#4A5A2F',     // Средний темный зеленый
+          700: '#2D4A2F',     // Горный зеленый (Mountain Green)
+          800: '#1F3A1F',     // Очень темный зеленый
+          900: '#0F2A0F',     // Почти черный зеленый
         },
         'emerald': {
           50: '#ECFDF5',
@@ -64,14 +72,14 @@ module.exports = {
           800: '#92400E',
           900: '#78350F',
         },
-        dark: '#000000',              // Pure black
-        light: '#FFFFFF',             // Pure white
-        background: '#FFFFFF',        // White background
-        'surface': '#FFFFFF',         // White surface
-        black: '#000000',             // Pure black
-        white: '#FFFFFF',             // Pure white
-        success: '#2D5016',           // Dark olive green
-        warning: '#D4AF37',           // Classic gold
+        dark: '#2D4A2F',              // Горный зеленый (Mountain Green)
+        light: '#F8F7F4',             // Кокосовое молоко (Coconut Milk)
+        background: '#F8F7F4',        // Кокосовое молоко (Coconut Milk) - фон
+        'surface': '#FFFFFF',         // Белая поверхность
+        black: '#2D4A2F',             // Горный зеленый (Mountain Green) - как черный
+        white: '#F8F7F4',             // Кокосовое молоко (Coconut Milk) - как белый
+        success: '#6B7C3F',           // Оливковый зеленый (Olive Green)
+        warning: '#9C8B7A',           // Обветренный тик (Weathered Teak)
       },
       fontFamily: {
         'bold': ['Inter', 'system-ui', 'sans-serif'],

@@ -30,14 +30,14 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
   };
 
   return (
-    <div className="bg-white rounded-xl border-2 border-black p-5 hover:shadow-xl transition-all duration-300 hover:border-green-700">
+    <div className="bg-light rounded-xl border-2 border-green-400 p-5 hover:shadow-xl transition-all duration-300 hover:border-green-700">
       {/* Заголовок с пользователем */}
       <div className="flex items-center gap-3 mb-3">
         {link.pfp_url && (
           <img
             src={link.pfp_url}
             alt={link.username}
-            className="w-10 h-10 rounded-full border-2 border-black ring-2 ring-green-100"
+            className="w-10 h-10 rounded-full border-2 border-green-400 ring-2 ring-green-100"
             onError={(e) => {
               // Fallback на дефолтный аватар при ошибке загрузки
               const target = e.target as HTMLImageElement;
@@ -51,7 +51,7 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
         </div>
         
         {/* Иконка активности */}
-        <div className="flex items-center gap-2 px-3 py-1 bg-white border-2 border-black rounded-full shadow-sm">
+        <div className="flex items-center gap-2 px-3 py-1 bg-white border-2 border-green-400 rounded-full shadow-sm">
           <span className="text-xl">{activityIcons[link.activity_type]}</span>
           <span className="text-sm font-semibold text-green-700">
             {activityLabels[link.activity_type]}
@@ -60,7 +60,7 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
       </div>
 
       {/* Ссылка */}
-      <div className="bg-white border-2 border-black rounded-lg p-3 mb-3">
+      <div className="bg-white border-2 border-green-400 rounded-lg p-3 mb-3">
         <a
           href={link.cast_url}
           target="_blank"

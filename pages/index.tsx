@@ -523,11 +523,11 @@ export default function Home() {
 
   return (
     <Layout title="Multi Like - Authorization">
-      {/* Hero Section - минималистичный белый фон */}
-      <div className="relative min-h-screen overflow-hidden bg-white">
-        {/* Геометрические фигуры - золотые акценты */}
-        <div className="absolute top-20 right-20 w-32 h-32 bg-gold-texture rounded-full animate-float opacity-20"></div>
-        <div className="absolute bottom-32 left-20 w-24 h-24 bg-gold-texture rounded-full animate-float opacity-15" style={{animationDelay: '2s'}}></div>
+      {/* Hero Section - фон кокосовое молоко */}
+      <div className="relative min-h-screen overflow-hidden bg-light">
+        {/* Геометрические фигуры - зеленые акценты */}
+        <div className="absolute top-20 right-20 w-32 h-32 bg-green-200 rounded-full animate-float opacity-30"></div>
+        <div className="absolute bottom-32 left-20 w-24 h-24 bg-green-300 rounded-full animate-float opacity-20" style={{animationDelay: '2s'}}></div>
         
         
         <div className="relative z-10 max-w-7xl mx-auto px-6 py-8">
@@ -573,7 +573,7 @@ export default function Home() {
           </div>
 
           {/* Модная карточка авторизации */}
-          <div className="bg-white bg-opacity-95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 sm:p-12 mb-12 border border-white border-opacity-20 mt-6 sm:mt-12">
+          <div className="bg-light bg-opacity-95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 sm:p-12 mb-12 border border-white border-opacity-20 mt-6 sm:mt-12">
             {!user ? (
               <div className="text-center">
                 <div className="mb-6 sm:mb-8">
@@ -686,7 +686,7 @@ export default function Home() {
                     </div>
                     {selectedActivity === 'like' && (
                       <div className="absolute -top-2 -right-2 w-7 h-7 bg-gold-texture rounded-full flex items-center justify-center shadow-lg shadow-black/30 ring-2 ring-black">
-                        <span className="text-black text-sm font-bold relative z-10">✓</span>
+                        <span className="text-green-700 text-sm font-bold relative z-10">✓</span>
                       </div>
                     )}
                     <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-green-700/20 to-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
@@ -716,7 +716,7 @@ export default function Home() {
                     </div>
                     {selectedActivity === 'recast' && (
                       <div className="absolute -top-2 -right-2 w-7 h-7 bg-gold-texture rounded-full flex items-center justify-center shadow-lg shadow-black/30 ring-2 ring-black">
-                        <span className="text-black text-sm font-bold relative z-10">✓</span>
+                        <span className="text-green-700 text-sm font-bold relative z-10">✓</span>
                       </div>
                     )}
                     <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-green-700/20 to-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
@@ -746,7 +746,7 @@ export default function Home() {
                     </div>
                     {selectedActivity === 'comment' && (
                       <div className="absolute -top-2 -right-2 w-7 h-7 bg-gold-texture rounded-full flex items-center justify-center shadow-lg shadow-black/30 ring-2 ring-black">
-                        <span className="text-black text-sm font-bold relative z-10">✓</span>
+                        <span className="text-green-700 text-sm font-bold relative z-10">✓</span>
                       </div>
                     )}
                     <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-green-700/20 to-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
@@ -830,7 +830,7 @@ export default function Home() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 max-w-md w-full mx-4 border-2 border-black">
             <div className="flex items-start justify-between mb-4">
-              <h3 className="text-xl sm:text-2xl font-bold text-black">Ошибка</h3>
+              <h3 className="text-xl sm:text-2xl font-bold text-green-700">Ошибка</h3>
               <button
                 onClick={() => setErrorModal({ show: false, message: '' })}
                 className="text-gray-400 hover:text-gray-600 text-2xl font-bold"

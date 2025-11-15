@@ -26,7 +26,7 @@ const ActivityButton: React.FC<ActivityButtonProps> = ({
         ${
           selected
             ? 'bg-gradient-to-br from-green-700 via-green-600 to-green-800 text-white shadow-xl shadow-green-600/50 ring-4 ring-green-500/30'
-            : 'bg-white text-black border-2 border-black hover:bg-green-50'
+            : 'bg-light text-green-700 border-2 border-green-400 hover:bg-green-50'
         }
       `}
     >

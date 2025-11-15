@@ -19,7 +19,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen, onToggleComple
             ? 'bg-green-50/80 border-green-600 shadow-green-200/50'
             : task.completed && !task.verified
             ? 'bg-gold-50/80 border-gold-400 shadow-gold-200/50'
-            : 'bg-white border-black hover:border-green-700 hover:shadow-green-100/50'
+            : 'bg-light border-green-400 hover:border-green-600 hover:shadow-green-100/50'
         }
       `}
     >
@@ -33,7 +33,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen, onToggleComple
                 ? 'bg-gradient-to-br from-green-700 to-green-900 text-white shadow-green-600/50'
                 : task.completed && !task.verified
                 ? 'bg-gold-texture text-black shadow-gold-500/50'
-                : 'bg-white text-black border-2 border-black'
+                : 'bg-light text-green-700 border-2 border-green-400'
             }
           `}
         >
