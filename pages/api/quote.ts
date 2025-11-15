@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { createPublicClient, http, encodeFunctionData } from 'viem';
+import { createPublicClient, http, encodeFunctionData, decodeAbiParameters } from 'viem';
 import { base } from 'viem/chains';
 
 // Константы
@@ -95,8 +95,12 @@ export default async function handler(
             continue;
           }
 
-          // Декодируем результат напрямую из data (первые 32 байта = amountOut)
-          const ethAmount = BigInt(mctToWethResult.data);
+          // Декодируем результат: первый параметр - uint256 amountOut
+          const decoded = decodeAbiParameters(
+            [{ type: 'uint256', name: 'amountOut' }],
+            mctToWethResult.data
+          );
+          const ethAmount = decoded[0] as bigint;
 
           if (!ethAmount || ethAmount === 0n) {
             console.warn(`⚠️ [API] Quote returned zero for MCT/WETH fee ${fee}`);
@@ -133,8 +137,12 @@ export default async function handler(
             continue;
           }
 
-          // Декодируем результат напрямую из data (первые 32 байта = amountOut)
-          const usdcAmount = BigInt(wethToUsdcResult.data);
+          // Декодируем результат: первый параметр - uint256 amountOut
+          const decoded = decodeAbiParameters(
+            [{ type: 'uint256', name: 'amountOut' }],
+            wethToUsdcResult.data
+          );
+          const usdcAmount = decoded[0] as bigint;
 
           if (!usdcAmount || usdcAmount === 0n) {
             console.warn(`⚠️ [API] Quote returned zero for WETH/USDC fee ${fee}`);
@@ -200,8 +208,12 @@ export default async function handler(
             continue;
           }
 
-          // Декодируем результат напрямую из data (первые 32 байта = amountOut)
-          const ethAmount = BigInt(usdcToWethResult.data);
+          // Декодируем результат: первый параметр - uint256 amountOut
+          const decoded = decodeAbiParameters(
+            [{ type: 'uint256', name: 'amountOut' }],
+            usdcToWethResult.data
+          );
+          const ethAmount = decoded[0] as bigint;
 
           if (!ethAmount || ethAmount === 0n || ethAmount < MIN_ETH_THRESHOLD) {
             continue;
@@ -229,8 +241,12 @@ export default async function handler(
             continue;
           }
 
-          // Декодируем результат напрямую из data (первые 32 байта = amountOut)
-          const mctAmount = BigInt(wethToMctResult.data);
+          // Декодируем результат: первый параметр - uint256 amountOut
+          const decoded = decodeAbiParameters(
+            [{ type: 'uint256', name: 'amountOut' }],
+            wethToMctResult.data
+          );
+          const mctAmount = decoded[0] as bigint;
 
           if (!mctAmount || mctAmount === 0n) {
             continue;
