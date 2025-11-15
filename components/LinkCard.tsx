@@ -80,7 +80,7 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
         
         <button
           onClick={() => window.open(link.cast_url, '_blank')}
-          className="px-4 py-1 bg-primary text-white rounded-lg hover:bg-opacity-90 transition-all duration-300"
+          className="px-4 py-1 bg-gradient-to-r from-yellow-400 via-amber-600 to-amber-800 text-white rounded-lg hover:shadow-xl hover:shadow-amber-500/50 hover:from-yellow-500 hover:via-amber-700 hover:to-amber-900 transition-all duration-300"
         >
           Open
         </button>

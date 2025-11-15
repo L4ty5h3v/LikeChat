@@ -25,8 +25,8 @@ const ActivityButton: React.FC<ActivityButtonProps> = ({
         transition-all duration-300 transform hover:scale-105 hover:shadow-xl
         ${
           selected
-            ? 'bg-primary text-white shadow-lg ring-4 ring-primary ring-opacity-50'
-            : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-primary'
+            ? 'bg-gradient-to-r from-yellow-400 via-amber-600 to-amber-800 text-white shadow-xl shadow-amber-500/50 ring-4 ring-amber-500 ring-opacity-50'
+            : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-amber-500'
         }
       `}
     >

@@ -70,7 +70,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen, onToggleComple
               ${
                 task.completed && task.verified
                   ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                  : 'bg-primary text-white hover:bg-opacity-90 hover:shadow-lg'
+                  : 'bg-gradient-to-r from-yellow-400 via-amber-600 to-amber-800 text-white hover:shadow-xl hover:shadow-amber-500/50 hover:from-yellow-500 hover:via-amber-700 hover:to-amber-900 transition-all duration-300'
               }
             `}
           >

@@ -746,9 +746,9 @@ export default function Home() {
                   className={`
                     relative group w-full px-12 py-6 rounded-2xl text-white font-black text-xl
                     transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100
-                    backdrop-blur-sm border border-white border-opacity-20
+                    overflow-hidden
                     ${selectedActivity 
-                      ? 'shadow-2xl shadow-primary/50 bg-gradient-to-r from-primary/80 via-red-600/80 to-accent/80 hover:from-red-500/90 hover:via-purple-500/90 hover:to-accent/90' 
+                      ? 'shadow-2xl shadow-amber-500/50 bg-gradient-to-r from-yellow-400 via-amber-600 via-yellow-500 to-amber-800 hover:from-yellow-500 hover:via-amber-700 hover:via-yellow-600 hover:to-amber-900' 
                       : 'bg-gradient-to-r from-gray-500/50 to-gray-600/50'
                     }
                   `}
