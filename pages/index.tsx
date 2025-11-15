@@ -403,49 +403,44 @@ export default function Home() {
         return;
       }
       
-      console.log('✅ Setting Farcaster user:', farcasterUser);
-      console.log('✅ User data validation:', {
+      // Валидируем fid
+      if (typeof farcasterUser.fid !== 'number' || farcasterUser.fid <= 0) {
+        console.error('❌ [INDEX] Invalid FID:', farcasterUser.fid);
+        setErrorModal({
+          show: true,
+          message: `Невалидный FID пользователя: ${farcasterUser.fid}. Попробуйте перезагрузить страницу.`
+        });
+        setLoading(false);
+        return;
+      }
+      
+      console.log('✅ [INDEX] Setting Farcaster user via context:', {
         fid: farcasterUser.fid,
         username: farcasterUser.username,
-        pfp_url: farcasterUser.pfp_url,
-        display_name: farcasterUser.display_name,
+        hasPfp: !!farcasterUser.pfp_url,
       });
+      
+      // Сохраняем через контекст (автоматически сохранит в localStorage)
       setUser(farcasterUser);
       
+      console.log('✅ [INDEX] User saved via context (should be in localStorage now)');
+      
       if (typeof window !== 'undefined') {
-        const userJson = JSON.stringify(farcasterUser);
-        console.log('💾 Saving user to localStorage:', userJson);
-        localStorage.setItem('farcaster_user', userJson);
-        
-        // Проверяем, что данные действительно сохранились
-        const savedUserCheck = localStorage.getItem('farcaster_user');
-        console.log('✅ Saved user check:', savedUserCheck);
-        
-        if (!savedUserCheck) {
-          console.error('❌ Failed to save user to localStorage');
-          setErrorModal({
-            show: true,
-            message: 'Ошибка при сохранении данных пользователя. Попробуйте снова.'
-          });
-          setLoading(false);
-          return;
-        }
-        
         // Проверяем, есть ли уже выбранная активность
         const savedActivity = localStorage.getItem('selected_activity');
-        console.log('📋 Saved activity:', savedActivity);
+        console.log('📋 [INDEX] Saved activity:', savedActivity);
         
         if (savedActivity) {
           // Если активность уже выбрана, переходим на страницу задач
-          console.log('✅ Activity already selected, redirecting to /tasks');
+          console.log('✅ [INDEX] Activity already selected, redirecting to /tasks');
           setTimeout(() => {
-            console.log('🚀 Navigating to /tasks');
+            console.log('🚀 [INDEX] Navigating to /tasks');
             router.push('/tasks');
           }, 500); // Небольшая задержка для плавного перехода
         } else {
           // Если активности нет, остаемся на странице для выбора
-          console.log('✅ User authorized, waiting for activity selection');
-          console.log('👤 Current user state:', farcasterUser);
+          console.log('✅ [INDEX] User authorized, waiting for activity selection');
+          console.log('👤 [INDEX] Current user state:', farcasterUser);
         }
       }
       console.log('✅ Farcaster user authorized successfully:', farcasterUser);
