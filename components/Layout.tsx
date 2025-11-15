@@ -41,18 +41,18 @@ const Layout: React.FC<LayoutProps> = ({ children, title = 'Like Chat 💌' }) =
         <link rel="icon" href="/favicon.ico" />
       </Head>
       
-      <div className="min-h-screen bg-light">
-        <header className="bg-light border-b-2 border-green-400">
+      <div className="min-h-screen bg-background">
+        <header className="bg-white border-b border-gray-200 shadow-sm">
           <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4 lg:px-8">
             <div className="flex items-center justify-end">
               <div className="flex items-center gap-3 sm:gap-4">
-                <p className="text-xs sm:text-sm text-green-700 hidden sm:block font-medium">
+                <p className="text-xs sm:text-sm text-gray-600 hidden sm:block">
                   Mutual love from Mrs. Crypto
                 </p>
                 {mounted && (
                   <button
                     onClick={handleAvatarClick}
-                    className="relative w-8 h-8 sm:w-10 sm:h-10 rounded-full overflow-hidden border-2 border-green-400 hover:border-green-600 transition-all hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-2"
+                    className="relative w-8 h-8 sm:w-10 sm:h-10 rounded-full overflow-hidden border-2 border-primary hover:border-primary-dark transition-all hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
                     aria-label="Go to homepage"
                   >
                     <Image
@@ -74,10 +74,10 @@ const Layout: React.FC<LayoutProps> = ({ children, title = 'Like Chat 💌' }) =
           {children}
         </main>
 
-        <footer className="bg-light border-t-2 border-green-400 mt-8 sm:mt-12">
+        <footer className="bg-white border-t border-gray-200 mt-8 sm:mt-12">
           <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6 lg:px-8">
-            <p className="text-center text-green-700 text-xs sm:text-sm font-medium">
-              © 2025 Like Chat. Created with 💚 for Farcaster community
+            <p className="text-center text-gray-500 text-xs sm:text-sm">
+              © 2025 Like Chat. Created with ❤️ for Farcaster community
             </p>
           </div>
         </footer>

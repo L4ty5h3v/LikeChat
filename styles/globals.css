@@ -22,89 +22,6 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #F8F7F4; /* Кокосовое молоко (Coconut Milk) */
-  color: #2D4A2F; /* Горный зеленый (Mountain Green) */
-}
-
-/* Золотая текстура (металлический эффект) */
-.bg-gold-texture {
-  background: linear-gradient(
-    135deg,
-    #D4AF37 0%,
-    #FFD700 25%,
-    #FFEC8C 50%,
-    #FFD700 75%,
-    #D4AF37 100%
-  );
-  background-size: 200% 200%;
-  position: relative;
-  overflow: hidden;
-}
-
-.bg-gold-texture::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: 
-    repeating-linear-gradient(
-      45deg,
-      transparent,
-      transparent 2px,
-      rgba(255, 255, 255, 0.1) 2px,
-      rgba(255, 255, 255, 0.1) 4px
-    ),
-    repeating-linear-gradient(
-      -45deg,
-      transparent,
-      transparent 2px,
-      rgba(0, 0, 0, 0.1) 2px,
-      rgba(0, 0, 0, 0.1) 4px
-    );
-  pointer-events: none;
-}
-
-.bg-gold-texture::after {
-  content: '';
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: radial-gradient(
-    circle,
-    rgba(255, 255, 255, 0.3) 0%,
-    transparent 70%
-  );
-  animation: shimmer 3s ease-in-out infinite;
-  pointer-events: none;
-}
-
-@keyframes shimmer {
-  0%, 100% {
-    transform: translate(-50%, -50%) rotate(0deg);
-  }
-  50% {
-    transform: translate(-50%, -50%) rotate(180deg);
-  }
-}
-
-.text-gold-texture {
-  background: linear-gradient(
-    135deg,
-    #D4AF37 0%,
-    #FFD700 25%,
-    #FFEC8C 50%,
-    #FFD700 75%,
-    #D4AF37 100%
-  );
-  background-size: 200% 200%;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  animation: gradient 8s ease infinite;
 }
 
 a {
@@ -133,15 +50,15 @@ a {
 }
 
 ::-webkit-scrollbar-track {
-  background: #F8F7F4; /* Кокосовое молоко (Coconut Milk) */
+  background: #f1f1f1;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #6B7C3F 0%, #9C8B7A 100%); /* Оливковый зеленый → Обветренный тик */
+  background: #D61C4E;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, #2D4A2F 0%, #6B7C3F 100%); /* Горный зеленый → Оливковый зеленый */
+  background: #b01741;
 }
 

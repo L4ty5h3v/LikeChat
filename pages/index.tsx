@@ -164,20 +164,7 @@ export default function Home() {
             // Также пробуем получить информацию о пользователе из SDK context
             console.log('🔄 Attempting to get SDK context...');
             try {
-              // Проверяем, что SDK доступен
-              if (!sdk || !sdk.context) {
-                console.warn('⚠️ SDK or SDK.context is not available');
-                throw new Error('SDK context not available');
-              }
-              
               const context = await sdk.context;
-              
-              // Проверяем, что context определен
-              if (!context) {
-                console.warn('⚠️ SDK context is null or undefined');
-                throw new Error('SDK context is null');
-              }
-              
               console.log('📊 Farcaster SDK context received:', JSON.stringify(context, null, 2));
               console.log('📊 SDK context.user:', context?.user);
               console.log('📊 SDK context.user type:', typeof context?.user);
@@ -356,8 +343,6 @@ export default function Home() {
                 show: true,
                 message: `⚠️ Предупреждение: ${data.warning}\n\nПроверьте, что Neynar API ключ настроен в переменных окружения.`
               });
-              setLoading(false);
-              return; // Не продолжаем дальше, если есть предупреждение
             }
             
             // Если API вернул ошибку, выводим её
@@ -367,8 +352,6 @@ export default function Home() {
                 show: true,
                 message: `❌ Ошибка API: ${data.error}`
               });
-              setLoading(false);
-              return; // Не продолжаем дальше, если есть ошибка
             }
           }
         } catch (error: any) {
@@ -523,11 +506,14 @@ export default function Home() {
 
   return (
     <Layout title="Multi Like - Authorization">
-      {/* Hero Section - фон кокосовое молоко */}
-      <div className="relative min-h-screen overflow-hidden bg-light">
-        {/* Геометрические фигуры - зеленые акценты */}
-        <div className="absolute top-20 right-20 w-32 h-32 bg-green-200 rounded-full animate-float opacity-30"></div>
-        <div className="absolute bottom-32 left-20 w-24 h-24 bg-green-300 rounded-full animate-float opacity-20" style={{animationDelay: '2s'}}></div>
+      {/* Hero Section с градиентом */}
+      <div className="relative min-h-screen overflow-hidden">
+        {/* Анимированный градиент фон */}
+        <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient bg-300%"></div>
+        
+        {/* Геометрические фигуры */}
+        <div className="absolute top-20 right-20 w-32 h-32 bg-white bg-opacity-10 rounded-full animate-float"></div>
+        <div className="absolute bottom-32 left-20 w-24 h-24 bg-white bg-opacity-15 rounded-full animate-float" style={{animationDelay: '2s'}}></div>
         
         
         <div className="relative z-10 max-w-7xl mx-auto px-6 py-8">
@@ -573,7 +559,7 @@ export default function Home() {
           </div>
 
           {/* Модная карточка авторизации */}
-          <div className="bg-light bg-opacity-95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 sm:p-12 mb-12 border border-white border-opacity-20 mt-6 sm:mt-12">
+          <div className="bg-white bg-opacity-95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 sm:p-12 mb-12 border border-white border-opacity-20 mt-6 sm:mt-12">
             {!user ? (
               <div className="text-center">
                 <div className="mb-6 sm:mb-8">
@@ -605,8 +591,8 @@ export default function Home() {
                   className={`
                     text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold rounded-2xl shadow-2xl 
                     transform transition-all duration-300 relative z-10
-                    bg-gradient-to-r from-green-700 via-green-800 to-black text-white
-                    hover:from-green-600 hover:via-green-700 hover:to-black/90
+                    bg-gradient-to-r from-primary via-red-600 to-accent text-white
+                    hover:from-red-500 hover:via-purple-500 hover:to-accent
                     ${loading 
                       ? 'opacity-50 cursor-wait' 
                       : 'opacity-100 cursor-pointer hover:scale-105 active:scale-95'
@@ -673,8 +659,8 @@ export default function Home() {
                         ? 'shadow-2xl shadow-primary/50' 
                         : 'hover:shadow-xl hover:shadow-primary/30'
                       }
-                      bg-gradient-to-r from-green-700/90 via-green-800/90 to-black/90
-                      hover:from-green-600/95 hover:via-green-700/95 hover:to-black/95
+                      bg-gradient-to-r from-primary/80 via-red-600/80 to-accent/80
+                      hover:from-red-500/90 hover:via-purple-500/90 hover:to-accent/90
                     `}
                   >
                     <div className="flex items-center justify-between">
@@ -685,11 +671,11 @@ export default function Home() {
                       <div className="text-xl sm:text-2xl">💫</div>
                     </div>
                     {selectedActivity === 'like' && (
-                      <div className="absolute -top-2 -right-2 w-7 h-7 bg-gold-texture rounded-full flex items-center justify-center shadow-lg shadow-black/30 ring-2 ring-black">
-                        <span className="text-green-700 text-sm font-bold relative z-10">✓</span>
+                      <div className="absolute -top-2 -right-2 w-6 h-6 bg-white rounded-full flex items-center justify-center">
+                        <span className="text-green-500 text-sm">✓</span>
                       </div>
                     )}
-                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-green-700/20 to-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-primary/20 to-accent/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                   </button>
 
                   {/* Кнопка Рекаст */}
@@ -703,8 +689,8 @@ export default function Home() {
                         ? 'shadow-2xl shadow-secondary/50' 
                         : 'hover:shadow-xl hover:shadow-secondary/30'
                       }
-                      bg-gradient-to-r from-green-700/90 via-green-800/90 to-black/90
-                      hover:from-green-600/95 hover:via-green-700/95 hover:to-black/95
+                      bg-gradient-to-r from-primary/80 via-red-600/80 to-accent/80
+                      hover:from-red-500/90 hover:via-purple-500/90 hover:to-accent/90
                     `}
                   >
                     <div className="flex items-center justify-between">
@@ -715,11 +701,11 @@ export default function Home() {
                       <div className="text-xl sm:text-2xl">⚡</div>
                     </div>
                     {selectedActivity === 'recast' && (
-                      <div className="absolute -top-2 -right-2 w-7 h-7 bg-gold-texture rounded-full flex items-center justify-center shadow-lg shadow-black/30 ring-2 ring-black">
-                        <span className="text-green-700 text-sm font-bold relative z-10">✓</span>
+                      <div className="absolute -top-2 -right-2 w-6 h-6 bg-white rounded-full flex items-center justify-center">
+                        <span className="text-green-500 text-sm">✓</span>
                       </div>
                     )}
-                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-green-700/20 to-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-primary/20 to-accent/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                   </button>
 
                   {/* Кнопка Комментарий */}
@@ -733,8 +719,8 @@ export default function Home() {
                         ? 'shadow-2xl shadow-accent/50' 
                         : 'hover:shadow-xl hover:shadow-accent/30'
                       }
-                      bg-gradient-to-r from-green-700/90 via-green-800/90 to-black/90
-                      hover:from-green-600/95 hover:via-green-700/95 hover:to-black/95
+                      bg-gradient-to-r from-primary/80 via-red-600/80 to-accent/80
+                      hover:from-red-500/90 hover:via-purple-500/90 hover:to-accent/90
                     `}
                   >
                     <div className="flex items-center justify-between">
@@ -745,11 +731,11 @@ export default function Home() {
                       <div className="text-xl sm:text-2xl">✨</div>
                     </div>
                     {selectedActivity === 'comment' && (
-                      <div className="absolute -top-2 -right-2 w-7 h-7 bg-gold-texture rounded-full flex items-center justify-center shadow-lg shadow-black/30 ring-2 ring-black">
-                        <span className="text-green-700 text-sm font-bold relative z-10">✓</span>
+                      <div className="absolute -top-2 -right-2 w-6 h-6 bg-white rounded-full flex items-center justify-center">
+                        <span className="text-green-500 text-sm">✓</span>
                       </div>
                     )}
-                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-green-700/20 to-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-primary/20 to-accent/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                   </button>
                 </div>
 
@@ -762,7 +748,7 @@ export default function Home() {
                     transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100
                     backdrop-blur-sm border border-white border-opacity-20
                     ${selectedActivity 
-                      ? 'shadow-2xl shadow-green-700/50 bg-gradient-to-r from-green-700/90 via-green-800/90 to-black/90 hover:from-green-600/95 hover:via-green-700/95 hover:to-black/95' 
+                      ? 'shadow-2xl shadow-primary/50 bg-gradient-to-r from-primary/80 via-red-600/80 to-accent/80 hover:from-red-500/90 hover:via-purple-500/90 hover:to-accent/90' 
                       : 'bg-gradient-to-r from-gray-500/50 to-gray-600/50'
                     }
                   `}
@@ -781,7 +767,7 @@ export default function Home() {
                     )}
                   </div>
                   {selectedActivity && !loading && (
-                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-green-700/20 to-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-primary/20 to-accent/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                   )}
                 </button>
               </div>
@@ -790,7 +776,7 @@ export default function Home() {
         </div>
 
           {/* Модная инструкция */}
-          <div className="bg-gradient-to-r from-green-700 via-green-800 to-black text-white rounded-3xl p-8 shadow-2xl shadow-green-700/50 mt-32">
+          <div className="bg-gradient-to-r from-primary via-secondary to-accent text-white rounded-3xl p-8 shadow-2xl mt-32">
             <h3 className="text-3xl font-black mb-6 flex items-center gap-3 font-display">
               <span className="text-4xl">📋</span>
               HOW IT WORKS
@@ -828,9 +814,9 @@ export default function Home() {
       {/* Модальное окно для ошибок */}
       {errorModal.show && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 max-w-md w-full mx-4 border-2 border-black">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 max-w-md w-full mx-4 border-2 border-red-200">
             <div className="flex items-start justify-between mb-4">
-              <h3 className="text-xl sm:text-2xl font-bold text-green-700">Ошибка</h3>
+              <h3 className="text-xl sm:text-2xl font-bold text-red-600">Ошибка</h3>
               <button
                 onClick={() => setErrorModal({ show: false, message: '' })}
                 className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
@@ -846,7 +832,7 @@ export default function Home() {
             </div>
             <button
               onClick={() => setErrorModal({ show: false, message: '' })}
-              className="w-full px-6 py-3 bg-gradient-to-r from-green-700 to-black text-white font-bold rounded-xl hover:from-green-600 hover:to-black/90 hover:shadow-lg hover:shadow-green-700/50 transition-all"
+              className="w-full px-6 py-3 bg-gradient-to-r from-primary to-accent text-white font-bold rounded-xl hover:opacity-90 transition-opacity"
             >
               Понятно
             </button>

@@ -12,14 +12,14 @@ interface TaskCardProps {
 const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen, onToggleComplete }) => {
   return (
     <div
-        className={`
-        p-4 rounded-xl border-2 transition-all duration-300 shadow-sm
+      className={`
+        p-4 rounded-xl border-2 transition-all duration-300
         ${
           task.completed && task.verified
-            ? 'bg-green-50/80 border-green-600 shadow-green-200/50'
+            ? 'bg-green-50 border-success'
             : task.completed && !task.verified
-            ? 'bg-gold-50/80 border-gold-400 shadow-gold-200/50'
-            : 'bg-light border-green-400 hover:border-green-600 hover:shadow-green-100/50'
+            ? 'bg-yellow-50 border-warning'
+            : 'bg-white border-gray-300 hover:border-primary'
         }
       `}
     >
@@ -27,13 +27,13 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen, onToggleComple
         {/* Номер задания */}
         <div
           className={`
-            flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg shadow-md
+            flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg
             ${
               task.completed && task.verified
-                ? 'bg-gradient-to-br from-green-700 to-green-900 text-white shadow-green-600/50'
+                ? 'bg-success text-white'
                 : task.completed && !task.verified
-                ? 'bg-gold-texture text-black shadow-gold-500/50'
-                : 'bg-light text-green-700 border-2 border-green-400'
+                ? 'bg-warning text-white'
+                : 'bg-gray-200 text-gray-600'
             }
           `}
         >
@@ -70,7 +70,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen, onToggleComple
               ${
                 task.completed && task.verified
                   ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-green-700 to-green-800 text-white hover:from-green-600 hover:to-green-700 hover:shadow-lg hover:shadow-green-600/50'
+                  : 'bg-primary text-white hover:bg-opacity-90 hover:shadow-lg'
               }
             `}
           >
@@ -93,8 +93,8 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen, onToggleComple
 
       {/* Статус */}
       {task.completed && !task.verified && (
-        <div className="mt-3 p-2 bg-gradient-to-r from-gold-100 to-gold-50 border border-gold-300 rounded-lg">
-          <p className="text-sm text-gold-900 flex items-center gap-2 font-medium">
+        <div className="mt-3 p-2 bg-warning bg-opacity-20 rounded-lg">
+          <p className="text-sm text-yellow-800 flex items-center gap-2">
             <span>⚠️</span>
             <span>Ожидается подтверждение активности</span>
           </p>

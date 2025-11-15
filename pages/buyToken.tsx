@@ -574,11 +574,11 @@ export default function BuyToken() {
 
           {/* Ошибка с retry */}
           {error && (
-            <div className="bg-gold-50 border-2 border-gold-300 rounded-xl p-6 mb-6">
+            <div className="bg-red-50 border-2 border-red-300 rounded-xl p-6 mb-6">
               <div className="flex items-start gap-3">
                 <span className="text-2xl">❌</span>
                 <div className="flex-1">
-                  <p className="text-gold-800 text-xl font-semibold mb-2 whitespace-pre-line">
+                  <p className="text-red-800 text-xl font-semibold mb-2 whitespace-pre-line">
                 {error}
               </p>
                   {/* Показываем retry только для определенных типов ошибок и если не превышен лимит */}
@@ -611,7 +611,7 @@ export default function BuyToken() {
                   )}
                   {retryCount >= MAX_RETRIES && (
                     <div className="mt-4">
-                      <p className="text-gold-600 text-sm mb-2">
+                      <p className="text-red-600 text-sm mb-2">
                         Превышено максимальное количество попыток. Обновите страницу и попробуйте снова.
                       </p>
                       <Button
@@ -690,14 +690,14 @@ export default function BuyToken() {
           
           {/* Индикатор ожидания завершения swap */}
           {isSwapping && (
-            <div className="bg-white border-2 border-black rounded-xl p-6 mt-4 text-center">
+            <div className="bg-blue-50 border-2 border-blue-300 rounded-xl p-6 mt-4 text-center">
               <div className="flex items-center justify-center gap-3 mb-2">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-black"></div>
-                <p className="bg-gradient-to-r from-green-700 to-green-800 bg-clip-text text-transparent text-lg font-semibold">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                <p className="text-blue-800 text-lg font-semibold">
                   Waiting for swap to complete...
                 </p>
               </div>
-              <p className="text-green-700 text-sm font-medium">
+              <p className="text-blue-600 text-sm">
                 Please confirm the transaction in your Farcaster wallet. The balance will update automatically.
               </p>
             </div>
@@ -707,7 +707,7 @@ export default function BuyToken() {
         {/* Модальное окно подтверждения покупки - убрано для one-tap UX */}
 
         {/* Информационный блок */}
-        <div className="bg-gradient-to-r from-green-700 to-black text-white rounded-2xl p-6 shadow-xl shadow-green-700/30">
+        <div className="bg-gradient-to-r from-primary to-pink-500 text-white rounded-2xl p-6">
           <h3 className="text-xl font-bold mb-3 flex items-center gap-2">
             <span>ℹ️</span>
             Important Information

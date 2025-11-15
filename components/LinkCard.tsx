@@ -30,14 +30,14 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
   };
 
   return (
-    <div className="bg-light rounded-xl border-2 border-green-400 p-5 hover:shadow-xl transition-all duration-300 hover:border-green-700">
+    <div className="bg-white rounded-xl border-2 border-gray-200 p-5 hover:shadow-lg transition-all duration-300">
       {/* Заголовок с пользователем */}
       <div className="flex items-center gap-3 mb-3">
         {link.pfp_url && (
           <img
             src={link.pfp_url}
             alt={link.username}
-            className="w-10 h-10 rounded-full border-2 border-green-400 ring-2 ring-green-100"
+            className="w-10 h-10 rounded-full border-2 border-primary"
             onError={(e) => {
               // Fallback на дефолтный аватар при ошибке загрузки
               const target = e.target as HTMLImageElement;
@@ -51,21 +51,21 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
         </div>
         
         {/* Иконка активности */}
-        <div className="flex items-center gap-2 px-3 py-1 bg-white border-2 border-green-400 rounded-full shadow-sm">
+        <div className="flex items-center gap-2 px-3 py-1 bg-primary bg-opacity-10 rounded-full">
           <span className="text-xl">{activityIcons[link.activity_type]}</span>
-          <span className="text-sm font-semibold text-green-700">
+          <span className="text-sm font-medium text-primary">
             {activityLabels[link.activity_type]}
           </span>
         </div>
       </div>
 
       {/* Ссылка */}
-      <div className="bg-white border-2 border-green-400 rounded-lg p-3 mb-3">
+      <div className="bg-gray-50 rounded-lg p-3 mb-3">
         <a
           href={link.cast_url}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-green-700 hover:text-green-800 hover:underline break-all text-sm font-medium"
+          className="text-primary hover:underline break-all text-sm"
         >
           {link.cast_url}
         </a>
@@ -80,7 +80,7 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
         
         <button
           onClick={() => window.open(link.cast_url, '_blank')}
-          className="px-4 py-1.5 bg-gradient-to-r from-green-700 to-green-800 text-white rounded-lg hover:from-green-600 hover:to-green-700 hover:shadow-lg hover:shadow-green-600/50 transition-all duration-300 font-medium text-sm"
+          className="px-4 py-1 bg-primary text-white rounded-lg hover:bg-opacity-90 transition-all duration-300"
         >
           Open
         </button>
