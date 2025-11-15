@@ -37,7 +37,9 @@ export default function Tasks() {
       
       // Проверяем, есть ли параметр published в URL (после публикации ссылки)
       const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.get('published') === 'true') {
+      const justPublished = urlParams.get('published') === 'true';
+      
+      if (justPublished) {
         setShowPublishedSuccess(true);
         // Убираем параметр из URL
         window.history.replaceState({}, '', '/tasks');
@@ -45,27 +47,21 @@ export default function Tasks() {
         setTimeout(() => {
           setShowPublishedSuccess(false);
         }, 5000);
+        
+        // Принудительно обновляем список сразу и несколько раз подряд для быстрого появления ссылки
+        const userFid = JSON.parse(savedUser).fid;
+        loadTasks(userFid, true);
+        setTimeout(() => loadTasks(userFid, false), 1000);
+        setTimeout(() => loadTasks(userFid, false), 2000);
+        setTimeout(() => loadTasks(userFid, false), 3000);
+      } else {
+        loadTasks(JSON.parse(savedUser).fid, true);
       }
       
-      loadTasks(JSON.parse(savedUser).fid, true);
-      
-      // Если только что опубликована ссылка, обновляем чаще в первые 30 секунд
-      const urlParams = new URLSearchParams(window.location.search);
-      const justPublished = urlParams.get('published') === 'true';
-      
-      let updateInterval = justPublished ? 2000 : 5000; // 2 секунды если только что опубликовано, иначе 5 секунд
-      let updateCount = 0;
-      const maxQuickUpdates = 15; // 15 обновлений по 2 секунды = 30 секунд
-      
+      // Обновляем список задач каждые 2 секунды (быстрее для более оперативного отображения новых ссылок)
       const interval = setInterval(() => {
         loadTasks(JSON.parse(savedUser).fid, false);
-        updateCount++;
-        
-        // После 15 быстрых обновлений переключаемся на обычный интервал
-        if (justPublished && updateCount >= maxQuickUpdates) {
-          updateInterval = 5000;
-        }
-      }, updateInterval);
+      }, 2000);
       
       return () => clearInterval(interval);
     }
