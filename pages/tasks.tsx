@@ -6,7 +6,7 @@ import Layout from '@/components/Layout';
 import TaskCard from '@/components/TaskCard';
 import ProgressBar from '@/components/ProgressBar';
 import Button from '@/components/Button';
-import { getUserProgress, markLinkCompleted } from '@/lib/db-config';
+import { getUserProgress, markLinkCompleted, getAllLinks } from '@/lib/db-config';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
 import type { LinkSubmission, ActivityType, TaskProgress } from '@/types';
 
@@ -130,16 +130,30 @@ export default function Tasks() {
       })));
       
       // Проверяем: если все задания завершены, проверяем прогресс и делаем автоматический редирект
+      // ⚠️ ВАЖНО: Проверяем, не опубликована ли уже ссылка пользователем, чтобы избежать бесконечного редиректа
       if (completedLinks.length >= taskList.length && taskList.length > 0 && user) {
         console.log(`🎯 All tasks completed! Checking user progress for auto-redirect...`);
         
-        // Проверяем прогресс пользователя
-        getUserProgress(user.fid).then((progress) => {
+        // Проверяем прогресс пользователя и наличие опубликованной ссылки
+        Promise.all([
+          getUserProgress(user.fid),
+          getAllLinks(),
+        ]).then(([progress, allLinks]) => {
           if (progress) {
+            // Проверяем, есть ли уже опубликованная ссылка от этого пользователя
+            const userHasPublishedLink = allLinks.some((link: LinkSubmission) => link.user_fid === user.fid);
+            
             console.log(`📊 User progress:`, {
               completed_links: progress.completed_links?.length || 0,
               token_purchased: progress.token_purchased,
+              user_has_published_link: userHasPublishedLink,
             });
+            
+            // Если ссылка уже опубликована - не делаем редирект, пользователь может остаться на /tasks
+            if (userHasPublishedLink) {
+              console.log(`✅ User already published a link, staying on /tasks page`);
+              return; // Прекращаем выполнение, не делаем редирект
+            }
             
             // Если все задания завершены, но токен не куплен → редирект на /buyToken
             if (!progress.token_purchased) {
@@ -148,9 +162,9 @@ export default function Tasks() {
                 router.push('/buyToken');
               }, 2000);
             }
-            // Если все задания завершены и токен куплен → редирект на /submit для публикации ссылки
-            else if (progress.token_purchased) {
-              console.log(`🚀 Redirecting to /submit (all tasks completed, token purchased)`);
+            // Если все задания завершены и токен куплен, но ссылка еще не опубликована → редирект на /submit
+            else if (progress.token_purchased && !userHasPublishedLink) {
+              console.log(`🚀 Redirecting to /submit (all tasks completed, token purchased, link not published yet)`);
               setTimeout(() => {
                 router.push('/submit');
               }, 2000);
