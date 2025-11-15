@@ -13,7 +13,7 @@ import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
 export default function Home() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [user, setUser] = useState<FarcasterUser | null>(null);
+  const { user, setUser, isLoading: authLoading, isInitialized } = useFarcasterAuth();
   const [selectedActivity, setSelectedActivity] = useState<ActivityType | null>(null);
   const [mounted, setMounted] = useState(false);
   const [errorModal, setErrorModal] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
