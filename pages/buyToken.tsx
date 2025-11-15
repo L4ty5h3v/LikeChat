@@ -11,6 +11,7 @@ import { markTokenPurchased, getUserProgress } from '@/lib/db-config';
 import { formatUnits, parseUnits } from 'viem';
 import type { FarcasterUser } from '@/types';
 import { sendTokenPurchaseNotification } from '@/lib/farcaster-notifications';
+import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
 
 const PURCHASE_AMOUNT_USDC = 0.10; // Покупаем MCT на 0.10 USDC
 const USDC_CONTRACT_ADDRESS = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'; // USDC на Base (6 decimals) - правильный адрес
@@ -60,7 +61,7 @@ export default function BuyToken() {
   const { swapTokenAsync } = useSwapToken();
 
   const [loading, setLoading] = useState(false);
-  const [user, setUser] = useState<FarcasterUser | null>(null);
+  const { user, isLoading: authLoading, isInitialized } = useFarcasterAuth(); // Используем контекст вместо localStorage
   const [txHash, setTxHash] = useState<string>('');
   const [purchased, setPurchased] = useState(false);
   const [error, setError] = useState<string>('');
@@ -90,21 +91,29 @@ export default function BuyToken() {
 
   useEffect(() => {
     // Проверяем, что код выполняется на клиенте
-    if (typeof window !== 'undefined') {
-    const savedUser = localStorage.getItem('farcaster_user');
-
-    if (!savedUser) {
+    if (typeof window === 'undefined') return;
+    
+    // Ждём инициализации авторизации
+    if (!isInitialized) {
+      console.log('⏳ [BUY-TOKEN] Waiting for auth initialization...');
+      return;
+    }
+    
+    // Проверяем наличие user
+    if (!user || !user.fid) {
+      console.error('❌ [BUY-TOKEN] No user found, redirecting to home...');
       router.push('/');
       return;
     }
-
-    const userData = JSON.parse(savedUser);
-    setUser(userData);
     
-    checkProgress(userData.fid);
+    console.log('✅ [BUY-TOKEN] User loaded:', {
+      fid: user.fid,
+      username: user.username,
+    });
+    
+    checkProgress(user.fid);
     loadWalletInfo();
-    }
-  }, [router]);
+  }, [router, user, isInitialized]);
 
   const checkProgress = async (userFid: number) => {
     const progress = await getUserProgress(userFid);
