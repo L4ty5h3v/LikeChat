@@ -462,9 +462,17 @@ export default function Tasks() {
             </button>
 
             {tasks.length > 0 && completedCount === tasks.length && (
-              <p className="text-center text-black font-black mt-8 text-2xl md:text-3xl">
-                Excellent! Moving to token Mrs Crypto purchase... 🚀
-              </p>
+              <div className="text-center mt-8">
+                <p className="text-black font-black text-2xl md:text-3xl mb-4">
+                  Excellent! All tasks completed! 🎉
+                </p>
+                <p className="text-gray-700 text-lg font-semibold">
+                  Redirecting to next step...
+                </p>
+                <div className="flex justify-center mt-4">
+                  <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              </div>
             )}
           </div>
         </div>
