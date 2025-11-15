@@ -5,7 +5,7 @@ import Layout from '@/components/Layout';
 import Button from '@/components/Button';
 import { useAccount, useBalance, useConnect, useBlockNumber } from 'wagmi';
 import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector';
-import { useSwapToken, useComposeCast } from '@coinbase/onchainkit/minikit';
+import { useSwapToken } from '@coinbase/onchainkit/minikit';
 import { getTokenInfo, getTokenSalePriceEth, getMCTAmountForPurchase } from '@/lib/web3';
 import { markTokenPurchased, getUserProgress } from '@/lib/db-config';
 import { formatUnits, parseUnits } from 'viem';
@@ -57,7 +57,6 @@ export default function BuyToken() {
     },
   });
   const { swapTokenAsync } = useSwapToken();
-  const { composeCastAsync } = useComposeCast();
 
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<FarcasterUser | null>(null);
@@ -356,12 +355,7 @@ export default function BuyToken() {
           console.error('Error marking token purchase in DB:', dbError);
         });
         
-        // Публикуем cast о покупке (опционально)
-        composeCastAsync({
-          text: `🎉 Just swapped ${PURCHASE_AMOUNT_USDC} USDC for $MCT on Base!\n\n#MultiLike #Base`,
-        }).catch((castError) => {
-          console.warn('Could not publish cast:', castError);
-        });
+        // Публикация cast убрана - чтобы избежать баннера "Upgrade to Pro"
       }
       
       // Переход к публикации ссылки через 3 секунды
@@ -369,7 +363,7 @@ export default function BuyToken() {
         router.push('/submit');
       }, 3000);
     }
-  }, [mctBalance, isSwapping, oldBalanceBeforeSwap, user, router, composeCastAsync]);
+  }, [mctBalance, isSwapping, oldBalanceBeforeSwap, user, router]);
 
   const confirmBuyToken = async (isRetry: boolean = false) => {
     if (!user) {
