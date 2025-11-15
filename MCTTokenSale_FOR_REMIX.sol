@@ -16,7 +16,7 @@ interface IERC20 {
  */
 contract MCTTokenSale {
     IERC20 public immutable mctToken; // MCT Token: 0x04d388da70c32fc5876981097c536c51c8d3d236
-    IERC20 public immutable usdcToken; // USDC на Base: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
+    IERC20 public immutable usdcToken; // USDC на Base: 0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48 (6 decimals) - правильный адрес
     
     address public owner;
     uint256 public constant PURCHASE_AMOUNT_USD = 10; // $0.10 в центах (10 центов)

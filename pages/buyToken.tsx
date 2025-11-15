@@ -12,7 +12,7 @@ import { formatUnits, parseUnits } from 'viem';
 import type { FarcasterUser } from '@/types';
 
 const PURCHASE_AMOUNT_USDC = 0.10; // Покупаем MCT на 0.10 USDC
-const USDC_CONTRACT_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // USDC на Base
+const USDC_CONTRACT_ADDRESS = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'; // USDC на Base (6 decimals) - правильный адрес
 const MCT_CONTRACT_ADDRESS = '0x04d388da70c32fc5876981097c536c51c8d3d236'; // MCT Token
 
 // Removed: fetchEthUsdPrice() - теперь используем полностью onchain quotes через Uniswap WETH/USDC
