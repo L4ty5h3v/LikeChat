@@ -5,6 +5,7 @@ import type { FarcasterUser } from '@/types';
 interface FarcasterAuthContextType {
   user: FarcasterUser | null;
   setUser: (user: FarcasterUser | null) => void;
+  logout: () => void;
   isLoading: boolean;
   isInitialized: boolean;
 }
@@ -28,9 +29,9 @@ export const FarcasterAuthProvider: React.FC<FarcasterAuthProviderProps> = ({ ch
   const [isLoading, setIsLoading] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Инициализация: загружаем user из localStorage и пытаемся получить из SDK
+  // ⚠️ КРИТИЧНО: useEffect для загрузки user из localStorage при монтировании
   useEffect(() => {
-    const initializeAuth = async () => {
+    const loadUserFromStorage = () => {
       if (typeof window === 'undefined') {
         setIsLoading(false);
         setIsInitialized(true);
@@ -38,84 +39,97 @@ export const FarcasterAuthProvider: React.FC<FarcasterAuthProviderProps> = ({ ch
       }
 
       try {
-        console.log('🔍 [AUTH-CONTEXT] Initializing Farcaster auth...');
+        console.log('🔍 [AUTH-CONTEXT] Loading user from localStorage on mount...');
+        const savedUserStr = localStorage.getItem('farcaster_user');
         
-        // 1. Загружаем из localStorage
-        const savedUser = localStorage.getItem('farcaster_user');
-        if (savedUser) {
-          try {
-            const parsedUser = JSON.parse(savedUser);
-            console.log('✅ [AUTH-CONTEXT] Found user in localStorage:', {
-              fid: parsedUser.fid,
-              username: parsedUser.username,
-            });
-            
-            // Валидируем данные пользователя
-            if (parsedUser.fid && typeof parsedUser.fid === 'number') {
-              setUserState(parsedUser);
-              console.log('✅ [AUTH-CONTEXT] User loaded from localStorage:', parsedUser);
-            } else {
-              console.warn('⚠️ [AUTH-CONTEXT] Invalid user data in localStorage:', parsedUser);
-              localStorage.removeItem('farcaster_user');
-            }
-          } catch (parseError) {
-            console.error('❌ [AUTH-CONTEXT] Failed to parse user from localStorage:', parseError);
-            localStorage.removeItem('farcaster_user');
-          }
+        if (!savedUserStr) {
+          console.log('ℹ️ [AUTH-CONTEXT] No user found in localStorage');
+          setIsLoading(false);
+          setIsInitialized(true);
+          return;
         }
 
-        // 2. Пытаемся получить из SDK context (обновляем, если доступно)
         try {
-          const isInFarcasterFrame = window.self !== window.top;
-          if (isInFarcasterFrame) {
-            const { sdk } = await import('@farcaster/miniapp-sdk');
-            const context = await sdk.context;
-            
-            console.log('📊 [AUTH-CONTEXT] SDK context received:', {
-              hasContext: !!context,
-              hasUser: !!context?.user,
-              userFid: context?.user?.fid,
+          const savedUser: FarcasterUser = JSON.parse(savedUserStr);
+          
+          // Валидация: проверяем, что fid валидный
+          if (savedUser && savedUser.fid && typeof savedUser.fid === 'number' && savedUser.fid > 0) {
+            console.log('✅ [AUTH-CONTEXT] Valid user loaded from localStorage:', {
+              fid: savedUser.fid,
+              username: savedUser.username,
             });
-            
-            if (context?.user && context.user.fid) {
-              const sdkUser: FarcasterUser = {
-                fid: Number(context.user.fid),
-                username: context.user.username || `user_${context.user.fid}`,
-                pfp_url: (context.user as any).pfp?.url || (context.user as any).pfpUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${context.user.fid}`,
-                display_name: (context.user as any).displayName || context.user.username || `User ${context.user.fid}`,
-              };
-              
-              console.log('✅ [AUTH-CONTEXT] User from SDK context:', {
-                fid: sdkUser.fid,
-                username: sdkUser.username,
-              });
-              
-              // Обновляем user, если SDK предоставил данные
-              setUserState(sdkUser);
-              
-              // Сохраняем в localStorage
-              localStorage.setItem('farcaster_user', JSON.stringify(sdkUser));
-              console.log('✅ [AUTH-CONTEXT] User saved to localStorage from SDK');
-            }
+            setUserState(savedUser);
+          } else {
+            console.warn('⚠️ [AUTH-CONTEXT] Invalid user data in localStorage (invalid fid):', savedUser);
+            localStorage.removeItem('farcaster_user');
           }
-        } catch (sdkError: any) {
-          console.log('ℹ️ [AUTH-CONTEXT] SDK not available:', sdkError.message);
-          // Не критично, продолжаем с данными из localStorage
+        } catch (parseError) {
+          console.error('❌ [AUTH-CONTEXT] Failed to parse user from localStorage:', parseError);
+          localStorage.removeItem('farcaster_user');
         }
       } catch (error: any) {
-        console.error('❌ [AUTH-CONTEXT] Error initializing auth:', error);
+        console.error('❌ [AUTH-CONTEXT] Error loading user from localStorage:', error);
       } finally {
         setIsLoading(false);
         setIsInitialized(true);
-        console.log('✅ [AUTH-CONTEXT] Auth initialization complete:', {
-          hasUser: !!user,
-          userFid: user?.fid,
-        });
       }
     };
 
-    initializeAuth();
+    loadUserFromStorage();
   }, []); // Только при монтировании
+
+  // Обновляем user из SDK context после монтирования (если доступно)
+  useEffect(() => {
+    const syncWithSDK = async () => {
+      if (typeof window === 'undefined' || !isInitialized) {
+        return;
+      }
+
+      try {
+        const isInFarcasterFrame = window.self !== window.top;
+        if (!isInFarcasterFrame) {
+          console.log('ℹ️ [AUTH-CONTEXT] Not in Farcaster frame, skipping SDK sync');
+          return;
+        }
+
+        const { sdk } = await import('@farcaster/miniapp-sdk');
+        const context = await sdk.context;
+        
+        console.log('📊 [AUTH-CONTEXT] SDK context sync:', {
+          hasContext: !!context,
+          hasUser: !!context?.user,
+          userFid: context?.user?.fid,
+        });
+        
+        if (context?.user && context.user.fid) {
+          const sdkUser: FarcasterUser = {
+            fid: Number(context.user.fid),
+            username: context.user.username || `user_${context.user.fid}`,
+            pfp_url: (context.user as any).pfp?.url || (context.user as any).pfpUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${context.user.fid}`,
+            display_name: (context.user as any).displayName || context.user.username || `User ${context.user.fid}`,
+          };
+          
+          console.log('✅ [AUTH-CONTEXT] User from SDK context:', {
+            fid: sdkUser.fid,
+            username: sdkUser.username,
+          });
+          
+          // Обновляем user, если SDK предоставил данные
+          setUserState(sdkUser);
+          
+          // Сохраняем в localStorage
+          localStorage.setItem('farcaster_user', JSON.stringify(sdkUser));
+          console.log('✅ [AUTH-CONTEXT] User saved to localStorage from SDK');
+        }
+      } catch (sdkError: any) {
+        console.log('ℹ️ [AUTH-CONTEXT] SDK sync not available:', sdkError.message);
+      }
+    };
+
+    if (isInitialized) {
+      syncWithSDK();
+    }
+  }, [isInitialized]);
 
   // Функция для установки user с автоматическим сохранением в localStorage
   const setUser = (newUser: FarcasterUser | null) => {
@@ -125,13 +139,20 @@ export const FarcasterAuthProvider: React.FC<FarcasterAuthProviderProps> = ({ ch
       username: newUser?.username,
     });
     
+    // Валидируем перед установкой
+    if (newUser && (!newUser.fid || typeof newUser.fid !== 'number' || newUser.fid <= 0)) {
+      console.error('❌ [AUTH-CONTEXT] Invalid user data, not setting:', newUser);
+      return;
+    }
+    
     setUserState(newUser);
     
     if (typeof window !== 'undefined') {
       if (newUser) {
         // Валидируем данные перед сохранением
-        if (newUser.fid && typeof newUser.fid === 'number') {
-          localStorage.setItem('farcaster_user', JSON.stringify(newUser));
+        if (newUser.fid && typeof newUser.fid === 'number' && newUser.fid > 0) {
+          const userJson = JSON.stringify(newUser);
+          localStorage.setItem('farcaster_user', userJson);
           console.log('✅ [AUTH-CONTEXT] User saved to localStorage:', {
             fid: newUser.fid,
             username: newUser.username,
@@ -140,9 +161,21 @@ export const FarcasterAuthProvider: React.FC<FarcasterAuthProviderProps> = ({ ch
           console.error('❌ [AUTH-CONTEXT] Invalid user data, not saving:', newUser);
         }
       } else {
-        localStorage.removeItem('farcaster_user');
-        console.log('🗑️ [AUTH-CONTEXT] User removed from localStorage');
+        // Если newUser null, очищаем localStorage
+        logout();
       }
+    }
+  };
+
+  // Функция для logout/disconnect - очищает все данные
+  const logout = () => {
+    console.log('🚪 [AUTH-CONTEXT] Logout called - clearing user data...');
+    setUserState(null);
+    
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('farcaster_user');
+      localStorage.removeItem('selected_activity');
+      console.log('✅ [AUTH-CONTEXT] All user data cleared from localStorage');
     }
   };
 
@@ -151,6 +184,7 @@ export const FarcasterAuthProvider: React.FC<FarcasterAuthProviderProps> = ({ ch
       value={{
         user,
         setUser,
+        logout,
         isLoading,
         isInitialized,
       }}

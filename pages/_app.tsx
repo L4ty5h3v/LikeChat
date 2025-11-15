@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import { base } from 'wagmi/chains';
 import { OnchainKitProvider } from '@coinbase/onchainkit';
 import { FarcasterAuthProvider } from '@/contexts/FarcasterAuthContext';
+import { AuthSync } from '@/components/AuthSync';
 
 export default function App({ Component, pageProps }: AppProps) {
   // Вызываем sdk.actions.ready() для Farcaster Mini App
@@ -71,6 +72,8 @@ export default function App({ Component, pageProps }: AppProps) {
         }}
       >
         <FarcasterAuthProvider>
+          {/* Компонент для синхронизации user из SDK после connect */}
+          <AuthSync />
           <Component {...pageProps} />
         </FarcasterAuthProvider>
       </OnchainKitProvider>
