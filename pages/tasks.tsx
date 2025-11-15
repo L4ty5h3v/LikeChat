@@ -192,7 +192,53 @@ export default function Tasks() {
 
   // Проверить выполнение всех заданий
   const handleVerifyAll = async () => {
-    if (!user || !activity) return;
+    console.log('🔍 [VERIFY] Starting verification process...');
+    console.log('🔍 [VERIFY] Current state:', {
+      hasUser: !!user,
+      userFid: user?.fid,
+      username: user?.username,
+      hasActivity: !!activity,
+      activity,
+      tasksCount: tasks.length,
+      completedCount,
+    });
+    
+    // ⚠️ ПРОВЕРКА: Проверяем наличие user и activity
+    if (!user) {
+      console.error('❌ [VERIFY] User is null! Checking localStorage...');
+      const savedUser = localStorage.getItem('farcaster_user');
+      if (savedUser) {
+        try {
+          const parsedUser = JSON.parse(savedUser);
+          console.log('✅ [VERIFY] Found user in localStorage:', parsedUser);
+          setUser(parsedUser);
+          // Продолжаем с обновленным user
+        } catch (parseError) {
+          console.error('❌ [VERIFY] Failed to parse user from localStorage:', parseError);
+          alert('Ошибка: данные пользователя не найдены. Пожалуйста, авторизуйтесь заново.');
+          return;
+        }
+      } else {
+        console.error('❌ [VERIFY] No user in localStorage either!');
+        alert('Ошибка: данные пользователя не найдены. Пожалуйста, авторизуйтесь заново.');
+        return;
+      }
+    }
+    
+    if (!user || !activity) {
+      console.error('❌ [VERIFY] Missing required data:', {
+        hasUser: !!user,
+        hasActivity: !!activity,
+      });
+      return;
+    }
+    
+    // ⚠️ ПРОВЕРКА FID: Убеждаемся, что fid существует и валиден
+    if (!user.fid || typeof user.fid !== 'number') {
+      console.error('❌ [VERIFY] Invalid or missing user.fid:', user.fid);
+      alert('Ошибка: не найден FID пользователя. Попробуйте перезагрузить страницу.');
+      return;
+    }
 
     setVerifying(true);
     const incomplete: string[] = [];
@@ -201,28 +247,36 @@ export default function Tasks() {
     let updatedTasks = [...tasks]; // Создаем копию массива для обновления
 
     try {
+      console.log(`🔍 [VERIFY] Processing ${updatedTasks.length} tasks...`);
+      
       for (let i = 0; i < updatedTasks.length; i++) {
         const task = updatedTasks[i];
         if (!task.completed) {
-          console.log(`🔍 Verifying task: ${task.cast_url} for user ${user.fid}`);
+          console.log(`🔍 [VERIFY] [${i+1}/${updatedTasks.length}] Verifying task: ${task.cast_url} for user ${user.fid}`);
           
           try {
             // Используем серверный API endpoint для проверки
+            const verifyRequest = {
+              castUrl: task.cast_url,
+              userFid: user.fid,
+              activityType: activity,
+            };
+            
+            console.log(`📡 [VERIFY] [${i+1}/${updatedTasks.length}] Sending verify request:`, verifyRequest);
+            
             const response = await fetch('/api/verify-activity', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
               },
-              body: JSON.stringify({
-                castUrl: task.cast_url,
-                userFid: user.fid,
-                activityType: activity,
-              }),
+              body: JSON.stringify(verifyRequest),
             });
 
+            console.log(`📡 [VERIFY] [${i+1}/${updatedTasks.length}] Response status:`, response.status);
+            
             const data = await response.json();
             
-            console.log(`✅ Verification result for ${task.cast_url}:`, data);
+            console.log(`✅ [VERIFY] [${i+1}/${updatedTasks.length}] Verification result:`, data);
 
             if (data.warning) {
               warnings.push(data.warning);

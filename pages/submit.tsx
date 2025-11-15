@@ -81,7 +81,61 @@ export default function Submit() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!user || !activity || !castUrl) return;
+    // ⚠️ ДЕТАЛЬНАЯ ПРОВЕРКА: Проверяем наличие всех необходимых данных
+    console.log('🔍 [SUBMIT] Starting submission process...');
+    console.log('🔍 [SUBMIT] User data:', {
+      user: user ? {
+        fid: user.fid,
+        username: user.username,
+        hasPfp: !!user.pfp_url,
+      } : 'NULL',
+      activity,
+      castUrl: castUrl ? castUrl.substring(0, 50) + '...' : 'EMPTY',
+    });
+    
+    if (!user) {
+      console.error('❌ [SUBMIT] User is null! Checking localStorage...');
+      const savedUser = localStorage.getItem('farcaster_user');
+      if (savedUser) {
+        console.log('⚠️ [SUBMIT] Found user in localStorage, parsing...');
+        try {
+          const parsedUser = JSON.parse(savedUser);
+          console.log('✅ [SUBMIT] Parsed user from localStorage:', parsedUser);
+          setUser(parsedUser);
+          // Продолжаем с обновленным user
+        } catch (parseError) {
+          console.error('❌ [SUBMIT] Failed to parse user from localStorage:', parseError);
+          setError('Ошибка: данные пользователя не найдены. Пожалуйста, авторизуйтесь заново.');
+          return;
+        }
+      } else {
+        console.error('❌ [SUBMIT] No user in localStorage either!');
+        setError('Ошибка: данные пользователя не найдены. Пожалуйста, авторизуйтесь заново.');
+        return;
+      }
+    }
+    
+    if (!user || !activity || !castUrl) {
+      console.error('❌ [SUBMIT] Missing required data:', {
+        hasUser: !!user,
+        hasActivity: !!activity,
+        hasCastUrl: !!castUrl,
+      });
+      setError('Заполните все обязательные поля');
+      return;
+    }
+    
+    // ⚠️ ПРОВЕРКА FID: Убеждаемся, что fid существует и валиден
+    if (!user.fid || typeof user.fid !== 'number') {
+      console.error('❌ [SUBMIT] Invalid or missing user.fid:', user.fid);
+      setError('Ошибка: не найден FID пользователя. Попробуйте перезагрузить страницу.');
+      return;
+    }
+    
+    if (!user.username) {
+      console.warn('⚠️ [SUBMIT] Missing username, using fallback');
+      user.username = `user_${user.fid}`;
+    }
 
     setError('');
 
@@ -96,11 +150,17 @@ export default function Submit() {
     try {
       // Публикация cast убрана - чтобы избежать баннера "Upgrade to Pro"
       // Сохраняем ссылку в базе данных через API endpoint
-      console.log('📝 Submitting link via API...', {
+      const submissionData = {
         userFid: user.fid,
         username: user.username,
+        pfpUrl: user.pfp_url || '',
+        castUrl: castUrl,
+        activityType: activity,
+      };
+      
+      console.log('📝 [SUBMIT] Submitting link via API...', {
+        ...submissionData,
         castUrl: castUrl.substring(0, 50) + '...',
-        activity,
       });
 
       const response = await fetch('/api/submit-link', {
@@ -108,25 +168,27 @@ export default function Submit() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          userFid: user.fid,
-          username: user.username,
-          pfpUrl: user.pfp_url || '',
-          castUrl: castUrl,
-          activityType: activity,
-        }),
+        body: JSON.stringify(submissionData),
       });
 
+      console.log('📡 [SUBMIT] API response status:', response.status);
+      console.log('📡 [SUBMIT] API response ok:', response.ok);
+
       const data = await response.json();
+      console.log('📊 [SUBMIT] API response data:', data);
 
       if (!response.ok || !data.success) {
-        console.error('❌ API submit-link error:', data.error || data);
+        console.error('❌ [SUBMIT] API submit-link error:', {
+          status: response.status,
+          ok: response.ok,
+          data: data.error || data,
+        });
         throw new Error(data.error || 'Failed to submit link');
       }
 
       if (data.link) {
         // Успешная публикация
-        console.log('✅ Link saved to database via API:', data.link.id);
+        console.log('✅ [SUBMIT] Link saved to database via API:', data.link.id);
         setPublishedLinkId(data.link.id);
         setShowSuccessModal(true);
         // Редирект на tasks через 3 секунды, чтобы пользователь увидел поздравление
@@ -134,10 +196,16 @@ export default function Submit() {
           router.push('/tasks?published=true');
         }, 3000);
       } else {
+        console.error('❌ [SUBMIT] Link object not returned from API:', data);
         throw new Error('Link object not returned from API');
       }
     } catch (err: any) {
-      console.error('Error submitting link:', err);
+      console.error('❌ [SUBMIT] Error submitting link:', {
+        message: err.message,
+        stack: err.stack,
+        name: err.name,
+        cause: err.cause,
+      });
       setError(err.message || 'An error occurred');
     } finally {
       setLoading(false);
