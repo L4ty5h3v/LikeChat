@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import Button from '@/components/Button';
-import { submitLink, getUserProgress, getTotalLinksCount } from '@/lib/db-config';
+import { getUserProgress, getTotalLinksCount } from '@/lib/db-config';
 // import { publishCastToFarcaster } from '@/lib/farcaster-publish'; // Убрано - не нужно открывать Compose
 import type { FarcasterUser, ActivityType } from '@/types';
 
@@ -95,26 +95,46 @@ export default function Submit() {
 
     try {
       // Публикация cast убрана - чтобы избежать баннера "Upgrade to Pro"
-      // Сохраняем ссылку в базе данных
-      const result = await submitLink(
-        user.fid,
-        user.username,
-        user.pfp_url,
-        castUrl,
-        activity
-      );
+      // Сохраняем ссылку в базе данных через API endpoint
+      console.log('📝 Submitting link via API...', {
+        userFid: user.fid,
+        username: user.username,
+        castUrl: castUrl.substring(0, 50) + '...',
+        activity,
+      });
 
-      if (result) {
+      const response = await fetch('/api/submit-link', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userFid: user.fid,
+          username: user.username,
+          pfpUrl: user.pfp_url || '',
+          castUrl: castUrl,
+          activityType: activity,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        console.error('❌ API submit-link error:', data.error || data);
+        throw new Error(data.error || 'Failed to submit link');
+      }
+
+      if (data.link) {
         // Успешная публикация
-        console.log('✅ Link saved to database:', result.id);
-        setPublishedLinkId(result.id);
+        console.log('✅ Link saved to database via API:', data.link.id);
+        setPublishedLinkId(data.link.id);
         setShowSuccessModal(true);
         // Редирект на tasks через 3 секунды, чтобы пользователь увидел поздравление
         setTimeout(() => {
           router.push('/tasks?published=true');
         }, 3000);
       } else {
-        setError('Error publishing link');
+        throw new Error('Link object not returned from API');
       }
     } catch (err: any) {
       console.error('Error submitting link:', err);

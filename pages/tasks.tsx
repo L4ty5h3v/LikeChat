@@ -93,6 +93,13 @@ export default function Tasks() {
       setCompletedCount(completedLinks.length);
       
       console.log(`✅ Loaded ${taskList.length} tasks, ${completedLinks.length} completed`);
+      console.log(`📋 Task links:`, taskList.map((t, i) => ({
+        index: i + 1,
+        link_id: t.link_id,
+        username: t.username,
+        cast_url: t.cast_url?.substring(0, 40) + '...',
+        completed: t.completed,
+      })));
     } catch (error) {
       console.error('Error loading tasks:', error);
     } finally {
