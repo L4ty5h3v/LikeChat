@@ -580,11 +580,11 @@ export default function BuyToken() {
 
           {/* Ошибка с retry */}
           {error && (
-            <div className="bg-red-50 border-2 border-red-300 rounded-xl p-6 mb-6">
+            <div className="bg-gold-50 border-2 border-gold-300 rounded-xl p-6 mb-6">
               <div className="flex items-start gap-3">
                 <span className="text-2xl">❌</span>
                 <div className="flex-1">
-                  <p className="text-red-800 text-xl font-semibold mb-2 whitespace-pre-line">
+                  <p className="text-gold-800 text-xl font-semibold mb-2 whitespace-pre-line">
                 {error}
               </p>
                   {/* Показываем retry только для определенных типов ошибок и если не превышен лимит */}
@@ -617,7 +617,7 @@ export default function BuyToken() {
                   )}
                   {retryCount >= MAX_RETRIES && (
                     <div className="mt-4">
-                      <p className="text-red-600 text-sm mb-2">
+                      <p className="text-gold-600 text-sm mb-2">
                         Превышено максимальное количество попыток. Обновите страницу и попробуйте снова.
                       </p>
                       <Button

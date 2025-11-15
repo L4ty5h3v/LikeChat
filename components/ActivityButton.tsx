@@ -36,7 +36,7 @@ const ActivityButton: React.FC<ActivityButtonProps> = ({
       </div>
       
       {selected && (
-        <div className="absolute -top-2 -right-2 w-7 h-7 bg-gradient-to-br from-amber-400 to-amber-600 rounded-full flex items-center justify-center shadow-lg shadow-amber-500/50 ring-2 ring-white">
+        <div className="absolute -top-2 -right-2 w-7 h-7 bg-gradient-to-br from-gold-400 to-gold-600 rounded-full flex items-center justify-center shadow-lg shadow-gold-500/50 ring-2 ring-white">
           <span className="text-white text-sm font-bold">✓</span>
         </div>
       )}

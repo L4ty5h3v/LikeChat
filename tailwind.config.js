@@ -11,11 +11,11 @@ module.exports = {
         primary: '#10B981',           // Emerald green
         'primary-dark': '#059669',    // Dark emerald
         'primary-light': '#34D399',   // Light emerald
-        secondary: '#D97706',         // Amber/Orange
-        accent: '#F59E0B',            // Amber gold
-        'gold': '#EAB308',            // Pure gold
-        'gold-light': '#FCD34D',      // Light gold
-        'gold-dark': '#D97706',       // Dark gold
+        secondary: '#D4AF37',         // Classic gold
+        accent: '#FFD700',            // Bright gold
+        'gold': '#D4AF37',            // Classic gold
+        'gold-light': '#FFD700',      // Bright gold
+        'gold-dark': '#B8860B',       // Dark goldenrod
         'emerald': {
           50: '#ECFDF5',
           100: '#D1FAE5',
@@ -27,6 +27,18 @@ module.exports = {
           700: '#047857',
           800: '#065F46',
           900: '#064E3B',
+        },
+        'gold': {
+          50: '#FFFBEB',
+          100: '#FFF8E1',
+          200: '#FFECB3',
+          300: '#FFE082',
+          400: '#FFD54F',
+          500: '#FFD700',      // Bright gold
+          600: '#D4AF37',      // Classic gold
+          700: '#B8860B',      // Dark goldenrod
+          800: '#9A7208',
+          900: '#7A5A06',
         },
         'amber': {
           50: '#FFFBEB',
@@ -45,7 +57,7 @@ module.exports = {
         background: '#FAF9F6',        // Light beige
         'surface': '#FFFFFF',         // White surface
         success: '#10B981',           // Emerald green
-        warning: '#F59E0B',           // Amber gold
+        warning: '#D4AF37',           // Classic gold
       },
       fontFamily: {
         'bold': ['Inter', 'system-ui', 'sans-serif'],

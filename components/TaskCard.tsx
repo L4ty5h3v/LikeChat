@@ -18,7 +18,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen, onToggleComple
           task.completed && task.verified
             ? 'bg-emerald-50/80 border-emerald-400 shadow-emerald-200/50'
             : task.completed && !task.verified
-            ? 'bg-amber-50/80 border-amber-400 shadow-amber-200/50'
+            ? 'bg-gold-50/80 border-gold-400 shadow-gold-200/50'
             : 'bg-white border-emerald-200 hover:border-emerald-400 hover:shadow-emerald-100/50'
         }
       `}
@@ -32,8 +32,8 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen, onToggleComple
               task.completed && task.verified
                 ? 'bg-gradient-to-br from-emerald-500 to-emerald-700 text-white shadow-emerald-500/50'
                 : task.completed && !task.verified
-                ? 'bg-gradient-to-br from-amber-500 to-amber-700 text-white shadow-amber-500/50'
-                : 'bg-gradient-to-br from-amber-100 to-amber-50 text-amber-900 border-2 border-amber-200'
+                ? 'bg-gradient-to-br from-gold-500 to-gold-700 text-white shadow-gold-500/50'
+                : 'bg-gradient-to-br from-gold-100 to-gold-50 text-gold-900 border-2 border-gold-200'
             }
           `}
         >
@@ -93,8 +93,8 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen, onToggleComple
 
       {/* Статус */}
       {task.completed && !task.verified && (
-        <div className="mt-3 p-2 bg-gradient-to-r from-amber-100 to-amber-50 border border-amber-300 rounded-lg">
-          <p className="text-sm text-amber-900 flex items-center gap-2 font-medium">
+        <div className="mt-3 p-2 bg-gradient-to-r from-gold-100 to-gold-50 border border-gold-300 rounded-lg">
+          <p className="text-sm text-gold-900 flex items-center gap-2 font-medium">
             <span>⚠️</span>
             <span>Ожидается подтверждение активности</span>
           </p>

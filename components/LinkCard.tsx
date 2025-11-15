@@ -51,7 +51,7 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
         </div>
         
         {/* Иконка активности */}
-        <div className="flex items-center gap-2 px-3 py-1 bg-gradient-to-r from-emerald-100 to-amber-100 border border-emerald-300 rounded-full shadow-sm">
+        <div className="flex items-center gap-2 px-3 py-1 bg-gradient-to-r from-emerald-100 to-gold-100 border border-emerald-300 rounded-full shadow-sm">
           <span className="text-xl">{activityIcons[link.activity_type]}</span>
           <span className="text-sm font-semibold bg-gradient-to-r from-emerald-600 to-emerald-700 bg-clip-text text-transparent">
             {activityLabels[link.activity_type]}
@@ -60,7 +60,7 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
       </div>
 
       {/* Ссылка */}
-      <div className="bg-gradient-to-r from-emerald-50/50 to-amber-50/30 border border-emerald-200 rounded-lg p-3 mb-3">
+      <div className="bg-gradient-to-r from-emerald-50/50 to-gold-50/30 border border-emerald-200 rounded-lg p-3 mb-3">
         <a
           href={link.cast_url}
           target="_blank"

@@ -41,7 +41,7 @@ const Layout: React.FC<LayoutProps> = ({ children, title = 'Like Chat 💌' }) =
         <link rel="icon" href="/favicon.ico" />
       </Head>
       
-      <div className="min-h-screen bg-gradient-to-br from-amber-50/30 via-background to-emerald-50/20">
+      <div className="min-h-screen bg-gradient-to-br from-gold-50/30 via-background to-emerald-50/20">
         <header className="bg-white/80 backdrop-blur-sm border-b border-emerald-200/50 shadow-sm">
           <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4 lg:px-8">
             <div className="flex items-center justify-end">
@@ -52,7 +52,7 @@ const Layout: React.FC<LayoutProps> = ({ children, title = 'Like Chat 💌' }) =
                 {mounted && (
                   <button
                     onClick={handleAvatarClick}
-                    className="relative w-8 h-8 sm:w-10 sm:h-10 rounded-full overflow-hidden border-2 border-emerald-400 hover:border-amber-500 transition-all hover:scale-105 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 shadow-md hover:shadow-lg"
+                    className="relative w-8 h-8 sm:w-10 sm:h-10 rounded-full overflow-hidden border-2 border-emerald-400 hover:border-gold-500 transition-all hover:scale-105 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 shadow-md hover:shadow-lg"
                     aria-label="Go to homepage"
                   >
                     <Image
@@ -76,7 +76,7 @@ const Layout: React.FC<LayoutProps> = ({ children, title = 'Like Chat 💌' }) =
 
         <footer className="bg-white/60 backdrop-blur-sm border-t border-emerald-200/50 mt-8 sm:mt-12">
           <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6 lg:px-8">
-            <p className="text-center bg-gradient-to-r from-emerald-700 via-emerald-600 to-amber-700 bg-clip-text text-transparent text-xs sm:text-sm font-medium">
+            <p className="text-center bg-gradient-to-r from-emerald-700 via-emerald-600 to-gold-700 bg-clip-text text-transparent text-xs sm:text-sm font-medium">
               © 2025 Like Chat. Created with 💚 for Farcaster community
             </p>
           </div>

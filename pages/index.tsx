@@ -526,7 +526,7 @@ export default function Home() {
       {/* Hero Section с градиентом */}
       <div className="relative min-h-screen overflow-hidden">
         {/* Анимированный градиент фон */}
-        <div className="absolute inset-0 bg-gradient-to-br from-emerald-500 via-emerald-600 to-amber-500 animate-gradient bg-300%"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-emerald-500 via-emerald-600 to-gold-500 animate-gradient bg-300%"></div>
         
         {/* Геометрические фигуры */}
         <div className="absolute top-20 right-20 w-32 h-32 bg-white bg-opacity-10 rounded-full animate-float"></div>
@@ -608,8 +608,8 @@ export default function Home() {
                   className={`
                     text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold rounded-2xl shadow-2xl 
                     transform transition-all duration-300 relative z-10
-                    bg-gradient-to-r from-emerald-500 via-emerald-600 to-amber-500 text-white
-                    hover:from-emerald-400 hover:via-emerald-500 hover:to-amber-400
+                    bg-gradient-to-r from-emerald-500 via-emerald-600 to-gold-500 text-white
+                    hover:from-emerald-400 hover:via-emerald-500 hover:to-gold-400
                     ${loading 
                       ? 'opacity-50 cursor-wait' 
                       : 'opacity-100 cursor-pointer hover:scale-105 active:scale-95'
@@ -676,8 +676,8 @@ export default function Home() {
                         ? 'shadow-2xl shadow-primary/50' 
                         : 'hover:shadow-xl hover:shadow-primary/30'
                       }
-                      bg-gradient-to-r from-emerald-500/90 via-emerald-600/90 to-amber-500/90
-                      hover:from-emerald-400/95 hover:via-emerald-500/95 hover:to-amber-400/95
+                      bg-gradient-to-r from-emerald-500/90 via-emerald-600/90 to-gold-500/90
+                      hover:from-emerald-400/95 hover:via-emerald-500/95 hover:to-gold-400/95
                     `}
                   >
                     <div className="flex items-center justify-between">
@@ -688,11 +688,11 @@ export default function Home() {
                       <div className="text-xl sm:text-2xl">💫</div>
                     </div>
                     {selectedActivity === 'like' && (
-                      <div className="absolute -top-2 -right-2 w-7 h-7 bg-gradient-to-br from-amber-400 to-amber-600 rounded-full flex items-center justify-center shadow-lg shadow-amber-500/50 ring-2 ring-white">
+                      <div className="absolute -top-2 -right-2 w-7 h-7 bg-gradient-to-br from-gold-400 to-gold-600 rounded-full flex items-center justify-center shadow-lg shadow-gold-500/50 ring-2 ring-white">
                         <span className="text-white text-sm font-bold">✓</span>
                       </div>
                     )}
-                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-emerald-500/20 to-amber-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-emerald-500/20 to-gold-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                   </button>
 
                   {/* Кнопка Рекаст */}
@@ -706,8 +706,8 @@ export default function Home() {
                         ? 'shadow-2xl shadow-secondary/50' 
                         : 'hover:shadow-xl hover:shadow-secondary/30'
                       }
-                      bg-gradient-to-r from-emerald-500/90 via-emerald-600/90 to-amber-500/90
-                      hover:from-emerald-400/95 hover:via-emerald-500/95 hover:to-amber-400/95
+                      bg-gradient-to-r from-emerald-500/90 via-emerald-600/90 to-gold-500/90
+                      hover:from-emerald-400/95 hover:via-emerald-500/95 hover:to-gold-400/95
                     `}
                   >
                     <div className="flex items-center justify-between">
@@ -718,11 +718,11 @@ export default function Home() {
                       <div className="text-xl sm:text-2xl">⚡</div>
                     </div>
                     {selectedActivity === 'recast' && (
-                      <div className="absolute -top-2 -right-2 w-7 h-7 bg-gradient-to-br from-amber-400 to-amber-600 rounded-full flex items-center justify-center shadow-lg shadow-amber-500/50 ring-2 ring-white">
+                      <div className="absolute -top-2 -right-2 w-7 h-7 bg-gradient-to-br from-gold-400 to-gold-600 rounded-full flex items-center justify-center shadow-lg shadow-gold-500/50 ring-2 ring-white">
                         <span className="text-white text-sm font-bold">✓</span>
                       </div>
                     )}
-                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-emerald-500/20 to-amber-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-emerald-500/20 to-gold-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                   </button>
 
                   {/* Кнопка Комментарий */}
@@ -736,8 +736,8 @@ export default function Home() {
                         ? 'shadow-2xl shadow-accent/50' 
                         : 'hover:shadow-xl hover:shadow-accent/30'
                       }
-                      bg-gradient-to-r from-emerald-500/90 via-emerald-600/90 to-amber-500/90
-                      hover:from-emerald-400/95 hover:via-emerald-500/95 hover:to-amber-400/95
+                      bg-gradient-to-r from-emerald-500/90 via-emerald-600/90 to-gold-500/90
+                      hover:from-emerald-400/95 hover:via-emerald-500/95 hover:to-gold-400/95
                     `}
                   >
                     <div className="flex items-center justify-between">
@@ -748,11 +748,11 @@ export default function Home() {
                       <div className="text-xl sm:text-2xl">✨</div>
                     </div>
                     {selectedActivity === 'comment' && (
-                      <div className="absolute -top-2 -right-2 w-7 h-7 bg-gradient-to-br from-amber-400 to-amber-600 rounded-full flex items-center justify-center shadow-lg shadow-amber-500/50 ring-2 ring-white">
+                      <div className="absolute -top-2 -right-2 w-7 h-7 bg-gradient-to-br from-gold-400 to-gold-600 rounded-full flex items-center justify-center shadow-lg shadow-gold-500/50 ring-2 ring-white">
                         <span className="text-white text-sm font-bold">✓</span>
                       </div>
                     )}
-                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-emerald-500/20 to-amber-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-emerald-500/20 to-gold-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                   </button>
                 </div>
 
@@ -765,7 +765,7 @@ export default function Home() {
                     transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100
                     backdrop-blur-sm border border-white border-opacity-20
                     ${selectedActivity 
-                      ? 'shadow-2xl shadow-emerald-500/50 bg-gradient-to-r from-emerald-500/90 via-emerald-600/90 to-amber-500/90 hover:from-emerald-400/95 hover:via-emerald-500/95 hover:to-amber-400/95' 
+                      ? 'shadow-2xl shadow-emerald-500/50 bg-gradient-to-r from-emerald-500/90 via-emerald-600/90 to-gold-500/90 hover:from-emerald-400/95 hover:via-emerald-500/95 hover:to-gold-400/95' 
                       : 'bg-gradient-to-r from-gray-500/50 to-gray-600/50'
                     }
                   `}
@@ -784,7 +784,7 @@ export default function Home() {
                     )}
                   </div>
                   {selectedActivity && !loading && (
-                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-emerald-500/20 to-amber-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-emerald-500/20 to-gold-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                   )}
                 </button>
               </div>
@@ -793,7 +793,7 @@ export default function Home() {
         </div>
 
           {/* Модная инструкция */}
-          <div className="bg-gradient-to-r from-emerald-600 via-emerald-700 to-amber-600 text-white rounded-3xl p-8 shadow-2xl shadow-emerald-500/50 mt-32">
+          <div className="bg-gradient-to-r from-emerald-600 via-emerald-700 to-gold-600 text-white rounded-3xl p-8 shadow-2xl shadow-emerald-500/50 mt-32">
             <h3 className="text-3xl font-black mb-6 flex items-center gap-3 font-display">
               <span className="text-4xl">📋</span>
               HOW IT WORKS
@@ -831,9 +831,9 @@ export default function Home() {
       {/* Модальное окно для ошибок */}
       {errorModal.show && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 max-w-md w-full mx-4 border-2 border-red-200">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 max-w-md w-full mx-4 border-2 border-gold-300">
             <div className="flex items-start justify-between mb-4">
-              <h3 className="text-xl sm:text-2xl font-bold text-red-600">Ошибка</h3>
+              <h3 className="text-xl sm:text-2xl font-bold text-gold-700">Ошибка</h3>
               <button
                 onClick={() => setErrorModal({ show: false, message: '' })}
                 className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
@@ -849,7 +849,7 @@ export default function Home() {
             </div>
             <button
               onClick={() => setErrorModal({ show: false, message: '' })}
-              className="w-full px-6 py-3 bg-gradient-to-r from-emerald-500 to-amber-500 text-white font-bold rounded-xl hover:from-emerald-400 hover:to-amber-400 hover:shadow-lg hover:shadow-emerald-500/50 transition-all"
+              className="w-full px-6 py-3 bg-gradient-to-r from-emerald-500 to-gold-500 text-white font-bold rounded-xl hover:from-emerald-400 hover:to-gold-400 hover:shadow-lg hover:shadow-emerald-500/50 transition-all"
             >
               Понятно
             </button>

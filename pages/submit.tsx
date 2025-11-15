@@ -274,8 +274,8 @@ export default function Submit() {
             </div>
 
             {error && (
-              <div className="bg-red-50 border-2 border-red-300 rounded-xl p-4 mb-6">
-                <p className="text-red-800 font-semibold flex items-center gap-2">
+              <div className="bg-gold-50 border-2 border-gold-300 rounded-xl p-4 mb-6">
+                <p className="text-gold-800 font-semibold flex items-center gap-2">
                   <span>❌</span>
                   {error}
                 </p>
