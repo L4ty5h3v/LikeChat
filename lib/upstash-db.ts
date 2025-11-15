@@ -26,13 +26,13 @@ const KEYS = {
 };
 
 // Функции для работы с ссылками
-export async function getLastTenLinks(): Promise<LinkSubmission[]> {
+export async function getLastTenLinks(activityType?: ActivityType): Promise<LinkSubmission[]> {
   if (!redis) return [];
   
   try {
-    // Получаем первые 10 ссылок (новые первыми, так как используем lpush)
-    const links = await redis.lrange(KEYS.LINKS, 0, 9);
-    const parsedLinks = links.map((linkStr: any) => {
+    // Получаем все ссылки (берем больше, чтобы после фильтрации осталось достаточно)
+    const allLinks = await redis.lrange(KEYS.LINKS, 0, -1);
+    const parsedLinks = allLinks.map((linkStr: any) => {
       // Try to parse as JSON, or use as-is if already parsed
       const link = typeof linkStr === 'string' ? JSON.parse(linkStr) : linkStr;
       return {
@@ -44,19 +44,31 @@ export async function getLastTenLinks(): Promise<LinkSubmission[]> {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
     
+    // Фильтруем по activityType, если указан
+    let filteredLinks = parsedLinks;
+    if (activityType) {
+      filteredLinks = parsedLinks.filter((link: LinkSubmission) => link.activity_type === activityType);
+      console.log(`🔍 Filtering links by activity type: ${activityType}`);
+      console.log(`📊 Total links: ${parsedLinks.length}, Filtered: ${filteredLinks.length}`);
+    }
+    
+    // Берем первые 10 ссылок после фильтрации
+    const result = filteredLinks.slice(0, 10);
+    
     // Логируем данные для диагностики
-    console.log(`📖 Loaded ${parsedLinks.length} links from Redis (newest first):`, 
-      parsedLinks.map((link, index) => ({
+    console.log(`📖 Loaded ${result.length} links from Redis${activityType ? ` (filtered by ${activityType})` : ' (all activities)'}:`, 
+      result.map((link, index) => ({
         index: index + 1,
         id: link.id,
         username: link.username,
         user_fid: link.user_fid,
+        activity_type: link.activity_type,
         created_at: link.created_at,
         cast_url: link.cast_url?.substring(0, 50) + '...',
       }))
     );
     
-    return parsedLinks;
+    return result;
   } catch (error) {
     console.error('Error getting links from Upstash:', error);
     return [];

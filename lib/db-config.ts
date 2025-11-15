@@ -12,7 +12,10 @@ const USE_UPSTASH = !!(
 const db = USE_UPSTASH ? upstashDb : memoryDb;
 
 // Экспортируем все функции
-export const getLastTenLinks = db.getLastTenLinks;
+// Обертка для getLastTenLinks с поддержкой фильтрации по activityType
+export const getLastTenLinks = async (activityType?: import('@/types').ActivityType) => {
+  return db.getLastTenLinks(activityType);
+};
 export const getUserProgress = db.getUserProgress;
 export const upsertUserProgress = db.upsertUserProgress;
 export const markLinkCompleted = db.markLinkCompleted;

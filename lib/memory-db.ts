@@ -28,10 +28,19 @@ function generateTestData() {
 }
 
 // Получить последние 10 ссылок
-export async function getLastTenLinks(): Promise<LinkSubmission[]> {
+export async function getLastTenLinks(activityType?: ActivityType): Promise<LinkSubmission[]> {
   generateTestData();
+  
+  // Фильтруем по activityType, если указан
+  let filteredLinks = linkSubmissions;
+  if (activityType) {
+    filteredLinks = linkSubmissions.filter(link => link.activity_type === activityType);
+    console.log(`🔍 [MEMORY-DB] Filtering links by activity type: ${activityType}`);
+    console.log(`📊 [MEMORY-DB] Total links: ${linkSubmissions.length}, Filtered: ${filteredLinks.length}`);
+  }
+  
   // Сортируем по дате создания (новые первыми) и берем первые 10
-  return linkSubmissions
+  return filteredLinks
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, 10);
 }

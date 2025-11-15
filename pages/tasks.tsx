@@ -96,8 +96,12 @@ export default function Tasks() {
       setLoading(true);
     }
     try {
-      // Fetch links from API endpoint (server-side) с cache-busting
-      const linksResponse = await fetch(`/api/tasks?t=${Date.now()}`);
+      // Получаем выбранную активность для фильтрации
+      const currentActivity = activity || (typeof window !== 'undefined' ? localStorage.getItem('selected_activity') : null);
+      
+      // Fetch links from API endpoint (server-side) с фильтрацией по activityType
+      const activityParam = currentActivity ? `&activityType=${currentActivity}` : '';
+      const linksResponse = await fetch(`/api/tasks?t=${Date.now()}${activityParam}`);
       const linksData = await linksResponse.json();
       const links = linksData.links || [];
       

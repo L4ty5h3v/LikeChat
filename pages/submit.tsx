@@ -5,8 +5,126 @@ import Layout from '@/components/Layout';
 import Button from '@/components/Button';
 import { getUserProgress, getTotalLinksCount } from '@/lib/db-config';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
-// import { publishCastToFarcaster } from '@/lib/farcaster-publish'; // Убрано - не нужно открывать Compose
 import type { ActivityType } from '@/types';
+
+/**
+ * Публикует cast в Farcaster через MiniKit SDK только для соответствующего типа активности
+ * Это предотвращает спам и делает публикацию более targeted
+ */
+async function publishCastByActivityType(
+  activityType: ActivityType,
+  castUrl: string
+): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  try {
+    // Проверяем, что мы в Farcaster Mini App
+    if (typeof window === 'undefined') {
+      return {
+        success: false,
+        error: 'SDK доступен только на клиенте',
+      };
+    }
+
+    const isInFarcasterFrame = window.self !== window.top;
+    if (!isInFarcasterFrame) {
+      console.log('ℹ️ [PUBLISH-CAST] Not in Farcaster frame, skipping cast publication');
+      return {
+        success: false,
+        error: 'Not in Farcaster Mini App',
+      };
+    }
+
+    // Импортируем SDK
+    const { sdk } = await import('@farcaster/miniapp-sdk');
+
+    if (!sdk || !sdk.actions) {
+      console.warn('⚠️ [PUBLISH-CAST] SDK or actions not available');
+      return {
+        success: false,
+        error: 'SDK actions not available',
+      };
+    }
+
+    // Проверяем тип активности и публикуем только для соответствующего типа
+    // Это предотвращает публикацию ссылок для всех типов активности
+    if (activityType === 'like') {
+      // Публикуем cast только для лайков
+      const castText = `❤️ Liked via mini-app: ${castUrl}`;
+      
+      // Используем composeCast если доступен, иначе fallback на openUrl
+      if (typeof (sdk.actions as any).composeCast === 'function') {
+        await (sdk.actions as any).composeCast({
+          text: castText,
+          embeds: [castUrl],
+        });
+        console.log('✅ [PUBLISH-CAST] Cast published via composeCast for like activity');
+        return { success: true };
+      } else if (sdk.actions.openUrl) {
+        // Fallback: открываем Compose с предзаполненным текстом
+        const warpcastUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(castText)}`;
+        await sdk.actions.openUrl({ url: warpcastUrl });
+        console.log('✅ [PUBLISH-CAST] Cast compose opened via openUrl for like activity');
+        return { success: true };
+      }
+    } else if (activityType === 'recast') {
+      // Публикуем cast только для рекастов
+      const castText = `🔄 Recasted via mini-app: ${castUrl}`;
+      
+      if (typeof (sdk.actions as any).composeCast === 'function') {
+        await (sdk.actions as any).composeCast({
+          text: castText,
+          embeds: [castUrl],
+        });
+        console.log('✅ [PUBLISH-CAST] Cast published via composeCast for recast activity');
+        return { success: true };
+      } else if (sdk.actions.openUrl) {
+        const warpcastUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(castText)}`;
+        await sdk.actions.openUrl({ url: warpcastUrl });
+        console.log('✅ [PUBLISH-CAST] Cast compose opened via openUrl for recast activity');
+        return { success: true };
+      }
+    } else if (activityType === 'comment') {
+      // Публикуем cast только для комментариев
+      const castText = `💬 Commented via mini-app: ${castUrl}`;
+      
+      if (typeof (sdk.actions as any).composeCast === 'function') {
+        await (sdk.actions as any).composeCast({
+          text: castText,
+          embeds: [castUrl],
+        });
+        console.log('✅ [PUBLISH-CAST] Cast published via composeCast for comment activity');
+        return { success: true };
+      } else if (sdk.actions.openUrl) {
+        const warpcastUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(castText)}`;
+        await sdk.actions.openUrl({ url: warpcastUrl });
+        console.log('✅ [PUBLISH-CAST] Cast compose opened via openUrl for comment activity');
+        return { success: true };
+      }
+    } else {
+      // Неизвестный тип активности - не публикуем
+      console.log(`ℹ️ [PUBLISH-CAST] Unknown activity type: ${activityType}, skipping cast publication`);
+      return {
+        success: false,
+        error: `Unknown activity type: ${activityType}`,
+      };
+    }
+
+    // Если ни один метод не доступен
+    console.warn('⚠️ [PUBLISH-CAST] No compose method available in SDK');
+    return {
+      success: false,
+      error: 'No compose method available',
+    };
+  } catch (error: any) {
+    console.error('❌ [PUBLISH-CAST] Error publishing cast:', error);
+    return {
+      success: false,
+      error: error?.message || 'Failed to publish cast',
+    };
+  }
+}
 
 export default function Submit() {
   const router = useRouter();
@@ -201,6 +319,23 @@ export default function Submit() {
         console.log('✅ [SUBMIT] Link saved to database via API:', data.link.id);
         setPublishedLinkId(data.link.id);
         setShowSuccessModal(true);
+        
+        // Публикуем cast в Farcaster только для соответствующего типа активности
+        // Это предотвращает спам и делает публикацию более targeted
+        if (activity) {
+          publishCastByActivityType(activity, castUrl).then((result) => {
+            if (result.success) {
+              console.log('✅ [SUBMIT] Cast published to Farcaster via MiniKit SDK');
+            } else {
+              console.warn('⚠️ [SUBMIT] Failed to publish cast to Farcaster:', result.error);
+              // Не блокируем flow, если публикация не удалась
+            }
+          }).catch((publishError) => {
+            console.error('❌ [SUBMIT] Error publishing cast to Farcaster:', publishError);
+            // Не блокируем flow, если публикация не удалась
+          });
+        }
+        
         // Редирект на tasks через 3 секунды, чтобы пользователь увидел поздравление
         setTimeout(() => {
           router.push('/tasks?published=true');

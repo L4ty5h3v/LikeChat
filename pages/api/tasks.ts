@@ -1,6 +1,7 @@
 // API endpoint для получения задач
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getLastTenLinks } from '@/lib/db-config';
+import type { ActivityType } from '@/types';
 
 export default async function handler(
   req: NextApiRequest,
@@ -16,8 +17,22 @@ export default async function handler(
   res.setHeader('Expires', '0');
 
   try {
-    const links = await getLastTenLinks();
-    console.log(`📋 API /tasks: returning ${links.length} links`);
+    // Получаем activityType из query параметров
+    const activityType = req.query.activityType as ActivityType | undefined;
+    
+    // Валидация activityType
+    const validActivityTypes: ActivityType[] = ['like', 'recast', 'comment'];
+    if (activityType && !validActivityTypes.includes(activityType)) {
+      return res.status(400).json({
+        error: 'Invalid activity type',
+        message: `activityType must be one of: ${validActivityTypes.join(', ')}`,
+      });
+    }
+
+    const links = await getLastTenLinks(activityType);
+    
+    console.log(`📋 API /tasks: returning ${links.length} links${activityType ? ` (filtered by activity: ${activityType})` : ' (all activities)'}`);
+    
     return res.status(200).json({ success: true, links });
   } catch (error: any) {
     console.error('Error in tasks API:', error);
