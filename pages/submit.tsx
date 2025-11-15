@@ -4,13 +4,14 @@ import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import Button from '@/components/Button';
 import { getUserProgress, getTotalLinksCount } from '@/lib/db-config';
+import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
 // import { publishCastToFarcaster } from '@/lib/farcaster-publish'; // Убрано - не нужно открывать Compose
-import type { FarcasterUser, ActivityType } from '@/types';
+import type { ActivityType } from '@/types';
 
 export default function Submit() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [user, setUser] = useState<FarcasterUser | null>(null);
+  const { user, isLoading: authLoading, isInitialized } = useFarcasterAuth();
   const [activity, setActivity] = useState<ActivityType | null>(null);
   const [castUrl, setCastUrl] = useState('');
   const [error, setError] = useState('');
@@ -21,23 +22,46 @@ export default function Submit() {
   const [publishedLinkId, setPublishedLinkId] = useState<string | null>(null);
 
   useEffect(() => {
+    console.log('🔍 [SUBMIT] Component mounted, checking auth...', {
+      hasUser: !!user,
+      userFid: user?.fid,
+      authLoading,
+      isInitialized,
+    });
+    
     // Проверяем, что код выполняется на клиенте
     if (typeof window !== 'undefined') {
-      const savedUser = localStorage.getItem('farcaster_user');
+      // Ждём инициализации авторизации
+      if (!isInitialized) {
+        console.log('⏳ [SUBMIT] Waiting for auth initialization...');
+        return;
+      }
+      
+      // Проверяем наличие user
+      if (!user || !user.fid) {
+        console.error('❌ [SUBMIT] No user found, redirecting to home...');
+        router.push('/');
+        return;
+      }
+      
       const savedActivity = localStorage.getItem('selected_activity');
-
-      if (!savedUser || !savedActivity) {
+      if (!savedActivity) {
+        console.error('❌ [SUBMIT] No activity selected, redirecting to home...');
         router.push('/');
         return;
       }
 
-      const userData = JSON.parse(savedUser);
-      setUser(userData);
       setActivity(savedActivity as ActivityType);
       
-      checkProgress(userData.fid);
+      console.log('✅ [SUBMIT] User and activity loaded:', {
+        fid: user.fid,
+        username: user.username,
+        activity: savedActivity,
+      });
+      
+      checkProgress(user.fid);
     }
-  }, [router]);
+  }, [router, user, authLoading, isInitialized]);
 
   const checkProgress = async (userFid: number) => {
     const progress = await getUserProgress(userFid);
@@ -93,29 +117,15 @@ export default function Submit() {
       castUrl: castUrl ? castUrl.substring(0, 50) + '...' : 'EMPTY',
     });
     
+    // Проверяем наличие user из контекста
     if (!user) {
-      console.error('❌ [SUBMIT] User is null! Checking localStorage...');
-      const savedUser = localStorage.getItem('farcaster_user');
-      if (savedUser) {
-        console.log('⚠️ [SUBMIT] Found user in localStorage, parsing...');
-        try {
-          const parsedUser = JSON.parse(savedUser);
-          console.log('✅ [SUBMIT] Parsed user from localStorage:', parsedUser);
-          setUser(parsedUser);
-          // Продолжаем с обновленным user
-        } catch (parseError) {
-          console.error('❌ [SUBMIT] Failed to parse user from localStorage:', parseError);
-          setError('Ошибка: данные пользователя не найдены. Пожалуйста, авторизуйтесь заново.');
-          return;
-        }
-      } else {
-        console.error('❌ [SUBMIT] No user in localStorage either!');
-        setError('Ошибка: данные пользователя не найдены. Пожалуйста, авторизуйтесь заново.');
-        return;
-      }
+      console.error('❌ [SUBMIT] User is null in context!');
+      setError('Ошибка: данные пользователя не найдены. Пожалуйста, авторизуйтесь заново.');
+      router.push('/');
+      return;
     }
     
-    if (!user || !activity || !castUrl) {
+    if (!activity || !castUrl) {
       console.error('❌ [SUBMIT] Missing required data:', {
         hasUser: !!user,
         hasActivity: !!activity,

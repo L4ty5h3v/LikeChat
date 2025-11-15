@@ -35,17 +35,19 @@ export default async function handler(
       });
     }
 
-    // ⚠️ ПРОВЕРКА: Убеждаемся, что userFid - это число
-    if (typeof userFid !== 'number' || !userFid || userFid <= 0) {
-      console.error('❌ [VERIFY-API] Invalid userFid:', {
+    // ⚠️ ГАРД: Проверяем наличие и валидность fid перед проверкой активности
+    if (!userFid || typeof userFid !== 'number' || userFid <= 0 || !Number.isInteger(userFid)) {
+      console.error('❌ [VERIFY-API] Invalid or missing userFid:', {
         userFid,
         type: typeof userFid,
         isNumber: typeof userFid === 'number',
         isPositive: userFid > 0,
+        isInteger: Number.isInteger(userFid),
       });
       return res.status(400).json({ 
-        error: 'Invalid userFid - must be a positive number',
-        completed: false 
+        error: 'FID отсутствует или невалиден. Проверьте авторизацию перед верификацией.',
+        completed: false,
+        authError: true,
       });
     }
 

@@ -7,13 +7,14 @@ import TaskCard from '@/components/TaskCard';
 import ProgressBar from '@/components/ProgressBar';
 import Button from '@/components/Button';
 import { getUserProgress, markLinkCompleted } from '@/lib/db-config';
-import type { LinkSubmission, FarcasterUser, ActivityType, TaskProgress } from '@/types';
+import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
+import type { LinkSubmission, ActivityType, TaskProgress } from '@/types';
 
 export default function Tasks() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [verifying, setVerifying] = useState(false);
-  const [user, setUser] = useState<FarcasterUser | null>(null);
+  const { user, isLoading: authLoading, isInitialized } = useFarcasterAuth();
   const [activity, setActivity] = useState<ActivityType | null>(null);
   const [tasks, setTasks] = useState<TaskProgress[]>([]);
   const [completedCount, setCompletedCount] = useState(0);
@@ -22,19 +23,42 @@ export default function Tasks() {
 
   // Загрузка данных
   useEffect(() => {
+    console.log('🔍 [TASKS] Component mounted, checking auth...', {
+      hasUser: !!user,
+      userFid: user?.fid,
+      authLoading,
+      isInitialized,
+    });
+    
     // Проверяем, что код выполняется на клиенте
     if (typeof window !== 'undefined') {
-      const savedUser = localStorage.getItem('farcaster_user');
+      // Ждём инициализации авторизации
+      if (!isInitialized) {
+        console.log('⏳ [TASKS] Waiting for auth initialization...');
+        return;
+      }
+      
+      // Проверяем наличие user
+      if (!user || !user.fid) {
+        console.error('❌ [TASKS] No user found, redirecting to home...');
+        router.push('/');
+        return;
+      }
+      
       const savedActivity = localStorage.getItem('selected_activity');
-
-      if (!savedUser || !savedActivity) {
+      if (!savedActivity) {
+        console.error('❌ [TASKS] No activity selected, redirecting to home...');
         router.push('/');
         return;
       }
 
-      const userData = JSON.parse(savedUser);
-      setUser(userData);
       setActivity(savedActivity as ActivityType);
+      
+      console.log('✅ [TASKS] User and activity loaded:', {
+        fid: user.fid,
+        username: user.username,
+        activity: savedActivity,
+      });
       
       // Проверяем, есть ли параметр published в URL (после публикации ссылки)
       const urlParams = new URLSearchParams(window.location.search);
@@ -50,22 +74,22 @@ export default function Tasks() {
         }, 5000);
         
         // Принудительно обновляем список сразу и несколько раз подряд для быстрого появления ссылки
-        loadTasks(userData.fid, true);
-        setTimeout(() => loadTasks(userData.fid, false), 1000);
-        setTimeout(() => loadTasks(userData.fid, false), 2000);
-        setTimeout(() => loadTasks(userData.fid, false), 3000);
+        loadTasks(user.fid, true);
+        setTimeout(() => loadTasks(user.fid, false), 1000);
+        setTimeout(() => loadTasks(user.fid, false), 2000);
+        setTimeout(() => loadTasks(user.fid, false), 3000);
       } else {
-        loadTasks(userData.fid, true);
+        loadTasks(user.fid, true);
       }
       
       // Обновляем список задач каждые 2 секунды (быстрее для более оперативного отображения новых ссылок)
       const interval = setInterval(() => {
-        loadTasks(userData.fid, false);
+        loadTasks(user.fid, false);
       }, 2000);
       
       return () => clearInterval(interval);
     }
-  }, [router]);
+  }, [router, user, authLoading, isInitialized]);
 
   const loadTasks = async (userFid: number, showLoading: boolean = true) => {
     if (showLoading) {
@@ -203,30 +227,16 @@ export default function Tasks() {
       completedCount,
     });
     
-    // ⚠️ ПРОВЕРКА: Проверяем наличие user и activity
+    // Проверяем наличие user из контекста
     if (!user) {
-      console.error('❌ [VERIFY] User is null! Checking localStorage...');
-      const savedUser = localStorage.getItem('farcaster_user');
-      if (savedUser) {
-        try {
-          const parsedUser = JSON.parse(savedUser);
-          console.log('✅ [VERIFY] Found user in localStorage:', parsedUser);
-          setUser(parsedUser);
-          // Продолжаем с обновленным user
-        } catch (parseError) {
-          console.error('❌ [VERIFY] Failed to parse user from localStorage:', parseError);
-          alert('Ошибка: данные пользователя не найдены. Пожалуйста, авторизуйтесь заново.');
-          return;
-        }
-      } else {
-        console.error('❌ [VERIFY] No user in localStorage either!');
-        alert('Ошибка: данные пользователя не найдены. Пожалуйста, авторизуйтесь заново.');
-        return;
-      }
+      console.error('❌ [VERIFY] User is null in context!');
+      alert('Ошибка: данные пользователя не найдены. Пожалуйста, авторизуйтесь заново.');
+      router.push('/');
+      return;
     }
     
-    if (!user || !activity) {
-      console.error('❌ [VERIFY] Missing required data:', {
+    if (!activity) {
+      console.error('❌ [VERIFY] Missing activity:', {
         hasUser: !!user,
         hasActivity: !!activity,
       });

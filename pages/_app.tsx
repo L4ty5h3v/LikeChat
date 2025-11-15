@@ -4,6 +4,7 @@ import Head from 'next/head';
 import { useEffect } from 'react';
 import { base } from 'wagmi/chains';
 import { OnchainKitProvider } from '@coinbase/onchainkit';
+import { FarcasterAuthProvider } from '@/contexts/FarcasterAuthContext';
 
 export default function App({ Component, pageProps }: AppProps) {
   // Вызываем sdk.actions.ready() для Farcaster Mini App
@@ -20,7 +21,7 @@ export default function App({ Component, pageProps }: AppProps) {
         const isInFarcasterFrame = window.self !== window.top;
         
         if (!isInFarcasterFrame) {
-          console.log('ℹ️ Not running in Farcaster Mini App frame, skipping ready()');
+          console.log('ℹ️ [_APP] Not running in Farcaster Mini App frame, skipping ready()');
           return;
         }
 
@@ -32,13 +33,13 @@ export default function App({ Component, pageProps }: AppProps) {
         // Проверяем, что SDK доступен
         if (sdk && sdk.actions && typeof sdk.actions.ready === 'function') {
           await sdk.actions.ready();
-          console.log('✅ Farcaster Mini App SDK ready() called successfully');
+          console.log('✅ [_APP] Farcaster Mini App SDK ready() called successfully');
         } else {
-          console.warn('⚠️ Farcaster Mini App SDK not properly initialized', { sdk });
+          console.warn('⚠️ [_APP] Farcaster Mini App SDK not properly initialized', { sdk });
         }
       } catch (error: any) {
         if (mounted) {
-          console.log('ℹ️ Farcaster Mini App SDK not available:', error?.message || 'running in regular browser');
+          console.log('ℹ️ [_APP] Farcaster Mini App SDK not available:', error?.message || 'running in regular browser');
         }
       }
     };
@@ -69,7 +70,9 @@ export default function App({ Component, pageProps }: AppProps) {
           enabled: true,
         }}
       >
-        <Component {...pageProps} />
+        <FarcasterAuthProvider>
+          <Component {...pageProps} />
+        </FarcasterAuthProvider>
       </OnchainKitProvider>
     </>
   );

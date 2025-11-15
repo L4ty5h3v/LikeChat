@@ -8,6 +8,7 @@ import Button from '@/components/Button';
 import { setUserActivity } from '@/lib/db-config';
 import { getUserByFid } from '@/lib/neynar';
 import type { ActivityType, FarcasterUser } from '@/types';
+import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
 
 export default function Home() {
   const router = useRouter();
