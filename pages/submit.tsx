@@ -115,7 +115,8 @@ export default function Submit() {
       if (result) {
         // Успешная публикация
         console.log('✅ Link saved to database:', result.id);
-        router.push('/chat');
+        // Редирект на tasks, чтобы пользователь увидел свою ссылку в списке
+        router.push('/tasks');
       } else {
         setError('Error publishing link');
       }

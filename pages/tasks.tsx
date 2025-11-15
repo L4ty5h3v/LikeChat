@@ -34,15 +34,24 @@ export default function Tasks() {
       setUser(JSON.parse(savedUser));
       setActivity(savedActivity as ActivityType);
       
-      loadTasks(JSON.parse(savedUser).fid);
+      loadTasks(JSON.parse(savedUser).fid, true);
+      
+      // Обновляем список задач каждые 5 секунд, чтобы видеть новые ссылки (без показа loading)
+      const interval = setInterval(() => {
+        loadTasks(JSON.parse(savedUser).fid, false);
+      }, 5000);
+      
+      return () => clearInterval(interval);
     }
   }, [router]);
 
-  const loadTasks = async (userFid: number) => {
-    setLoading(true);
+  const loadTasks = async (userFid: number, showLoading: boolean = true) => {
+    if (showLoading) {
+      setLoading(true);
+    }
     try {
-      // Fetch links from API endpoint (server-side)
-      const linksResponse = await fetch('/api/tasks');
+      // Fetch links from API endpoint (server-side) с cache-busting
+      const linksResponse = await fetch(`/api/tasks?t=${Date.now()}`);
       const linksData = await linksResponse.json();
       const links = linksData.links || [];
       
@@ -60,10 +69,14 @@ export default function Tasks() {
 
       setTasks(taskList);
       setCompletedCount(completedLinks.length);
+      
+      console.log(`✅ Loaded ${taskList.length} tasks, ${completedLinks.length} completed`);
     } catch (error) {
       console.error('Error loading tasks:', error);
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
   };
 
