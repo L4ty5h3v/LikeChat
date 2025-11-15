@@ -22,6 +22,8 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background: linear-gradient(135deg, #FAF9F6 0%, #FEFCFB 100%);
+  color: #1F2937;
 }
 
 a {
@@ -50,15 +52,15 @@ a {
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: #FEFCFB;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #D61C4E;
+  background: linear-gradient(135deg, #10B981 0%, #F59E0B 100%);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #b01741;
+  background: linear-gradient(135deg, #059669 0%, #D97706 100%);
 }
 

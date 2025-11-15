@@ -25,10 +25,10 @@ const Button: React.FC<ButtonProps> = ({
   const baseStyles = 'px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 text-sm sm:text-base';
   
   const variantStyles = {
-    primary: 'bg-gradient-to-r from-primary via-red-600 to-accent text-white hover:shadow-lg hover:from-red-500 hover:via-purple-500 hover:to-accent transition-all duration-300',
-    success: 'bg-success text-white hover:shadow-lg hover:bg-opacity-90',
-    warning: 'bg-warning text-white hover:shadow-lg hover:bg-opacity-90',
-    secondary: 'bg-gray-200 text-gray-800 hover:bg-gray-300',
+    primary: 'bg-gradient-to-r from-emerald-500 via-emerald-600 to-emerald-700 text-white hover:shadow-xl hover:shadow-emerald-500/50 hover:from-emerald-400 hover:via-emerald-500 hover:to-emerald-600 transition-all duration-300 font-semibold',
+    success: 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white hover:shadow-xl hover:shadow-emerald-500/50 hover:from-emerald-400 hover:to-emerald-500',
+    warning: 'bg-gradient-to-r from-amber-500 via-amber-600 to-gold-dark text-white hover:shadow-xl hover:shadow-amber-500/50 hover:from-amber-400 hover:via-amber-500 hover:to-amber-600',
+    secondary: 'bg-gradient-to-r from-amber-100 to-amber-50 text-amber-900 border-2 border-amber-300 hover:border-amber-400 hover:from-amber-200 hover:to-amber-100',
   };
 
   const widthStyles = fullWidth ? 'w-full' : '';

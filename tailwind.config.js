@@ -8,15 +8,44 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary: '#B71C1C',     // Гранатовый красный
-        'primary-dark': '#8B0000', // Темный гранатовый
-        'primary-light': '#D32F2F', // Светлый гранатовый
-        secondary: '#FF6B35',   // Оранжевый
-        accent: '#8B5CF6',      // Фиолетовый
-        dark: '#1A1A1A',        // Тёмный
-        light: '#F8F9FA',       // Светлый
-        success: '#00D084',     // Ярко-зелёный
-        warning: '#FFB800',     // Жёлтый
+        primary: '#10B981',           // Emerald green
+        'primary-dark': '#059669',    // Dark emerald
+        'primary-light': '#34D399',   // Light emerald
+        secondary: '#D97706',         // Amber/Orange
+        accent: '#F59E0B',            // Amber gold
+        'gold': '#EAB308',            // Pure gold
+        'gold-light': '#FCD34D',      // Light gold
+        'gold-dark': '#D97706',       // Dark gold
+        'emerald': {
+          50: '#ECFDF5',
+          100: '#D1FAE5',
+          200: '#A7F3D0',
+          300: '#6EE7B7',
+          400: '#34D399',
+          500: '#10B981',
+          600: '#059669',
+          700: '#047857',
+          800: '#065F46',
+          900: '#064E3B',
+        },
+        'amber': {
+          50: '#FFFBEB',
+          100: '#FEF3C7',
+          200: '#FDE68A',
+          300: '#FCD34D',
+          400: '#FBBF24',
+          500: '#F59E0B',
+          600: '#D97706',
+          700: '#B45309',
+          800: '#92400E',
+          900: '#78350F',
+        },
+        dark: '#1F2937',              // Dark gray
+        light: '#FEFCFB',             // Cream white
+        background: '#FAF9F6',        // Light beige
+        'surface': '#FFFFFF',         // White surface
+        success: '#10B981',           // Emerald green
+        warning: '#F59E0B',           // Amber gold
       },
       fontFamily: {
         'bold': ['Inter', 'system-ui', 'sans-serif'],

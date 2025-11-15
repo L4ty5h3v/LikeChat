@@ -696,14 +696,14 @@ export default function BuyToken() {
           
           {/* Индикатор ожидания завершения swap */}
           {isSwapping && (
-            <div className="bg-blue-50 border-2 border-blue-300 rounded-xl p-6 mt-4 text-center">
+            <div className="bg-gradient-to-r from-emerald-50 to-amber-50 border-2 border-emerald-300 rounded-xl p-6 mt-4 text-center">
               <div className="flex items-center justify-center gap-3 mb-2">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                <p className="text-blue-800 text-lg font-semibold">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-600"></div>
+                <p className="bg-gradient-to-r from-emerald-700 to-emerald-800 bg-clip-text text-transparent text-lg font-semibold">
                   Waiting for swap to complete...
                 </p>
               </div>
-              <p className="text-blue-600 text-sm">
+              <p className="text-emerald-700 text-sm font-medium">
                 Please confirm the transaction in your Farcaster wallet. The balance will update automatically.
               </p>
             </div>
@@ -713,7 +713,7 @@ export default function BuyToken() {
         {/* Модальное окно подтверждения покупки - убрано для one-tap UX */}
 
         {/* Информационный блок */}
-        <div className="bg-gradient-to-r from-primary to-pink-500 text-white rounded-2xl p-6">
+        <div className="bg-gradient-to-r from-emerald-600 to-amber-600 text-white rounded-2xl p-6 shadow-xl shadow-emerald-500/30">
           <h3 className="text-xl font-bold mb-3 flex items-center gap-2">
             <span>ℹ️</span>
             Important Information

@@ -30,14 +30,14 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
   };
 
   return (
-    <div className="bg-white rounded-xl border-2 border-gray-200 p-5 hover:shadow-lg transition-all duration-300">
+    <div className="bg-white rounded-xl border-2 border-emerald-200 p-5 hover:shadow-xl hover:shadow-emerald-100/50 transition-all duration-300 hover:border-emerald-300">
       {/* Заголовок с пользователем */}
       <div className="flex items-center gap-3 mb-3">
         {link.pfp_url && (
           <img
             src={link.pfp_url}
             alt={link.username}
-            className="w-10 h-10 rounded-full border-2 border-primary"
+            className="w-10 h-10 rounded-full border-2 border-emerald-500 ring-2 ring-emerald-100"
             onError={(e) => {
               // Fallback на дефолтный аватар при ошибке загрузки
               const target = e.target as HTMLImageElement;
@@ -51,21 +51,21 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
         </div>
         
         {/* Иконка активности */}
-        <div className="flex items-center gap-2 px-3 py-1 bg-primary bg-opacity-10 rounded-full">
+        <div className="flex items-center gap-2 px-3 py-1 bg-gradient-to-r from-emerald-100 to-amber-100 border border-emerald-300 rounded-full shadow-sm">
           <span className="text-xl">{activityIcons[link.activity_type]}</span>
-          <span className="text-sm font-medium text-primary">
+          <span className="text-sm font-semibold bg-gradient-to-r from-emerald-600 to-emerald-700 bg-clip-text text-transparent">
             {activityLabels[link.activity_type]}
           </span>
         </div>
       </div>
 
       {/* Ссылка */}
-      <div className="bg-gray-50 rounded-lg p-3 mb-3">
+      <div className="bg-gradient-to-r from-emerald-50/50 to-amber-50/30 border border-emerald-200 rounded-lg p-3 mb-3">
         <a
           href={link.cast_url}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-primary hover:underline break-all text-sm"
+          className="text-emerald-700 hover:text-emerald-800 hover:underline break-all text-sm font-medium"
         >
           {link.cast_url}
         </a>
@@ -80,7 +80,7 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
         
         <button
           onClick={() => window.open(link.cast_url, '_blank')}
-          className="px-4 py-1 bg-primary text-white rounded-lg hover:bg-opacity-90 transition-all duration-300"
+          className="px-4 py-1.5 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-lg hover:from-emerald-400 hover:to-emerald-500 hover:shadow-lg hover:shadow-emerald-500/50 transition-all duration-300 font-medium text-sm"
         >
           Open
         </button>
