@@ -10,6 +10,7 @@ import { getTokenInfo, getTokenSalePriceEth, getMCTAmountForPurchase } from '@/l
 import { markTokenPurchased, getUserProgress } from '@/lib/db-config';
 import { formatUnits, parseUnits } from 'viem';
 import type { FarcasterUser } from '@/types';
+import { sendTokenPurchaseNotification } from '@/lib/farcaster-notifications';
 
 const PURCHASE_AMOUNT_USDC = 0.10; // Покупаем MCT на 0.10 USDC
 const USDC_CONTRACT_ADDRESS = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'; // USDC на Base (6 decimals) - правильный адрес
@@ -336,33 +337,50 @@ export default function BuyToken() {
 
     const newBalance = parseFloat(formatUnits(mctBalance.value, mctBalance.decimals));
     
-    // Если баланс увеличился, swap завершен успешно
-    if (newBalance > oldBalanceBeforeSwap) {
-      console.log('✅ Balance increased! Swap completed successfully');
-      console.log(`📊 Balance: ${oldBalanceBeforeSwap} → ${newBalance} MCT`);
-      setIsSwapping(false);
-      setSwapInitiatedAt(null);
-      setOldBalanceBeforeSwap(null);
-      setLastCheckedBlock(null);
-      setBlocksSinceSwap(0);
-      setPurchased(true);
-      
-      // Отметить покупку в базе данных
-      if (user) {
-        markTokenPurchased(user.fid).then(() => {
-          console.log('✅ Token purchase marked in database');
-        }).catch((dbError) => {
-          console.error('Error marking token purchase in DB:', dbError);
-        });
+      // Если баланс увеличился, swap завершен успешно
+      if (newBalance > oldBalanceBeforeSwap) {
+        const mctReceived = newBalance - oldBalanceBeforeSwap;
+        console.log('✅ Balance increased! Swap completed successfully');
+        console.log(`📊 Balance: ${oldBalanceBeforeSwap} → ${newBalance} MCT (received: ${mctReceived.toFixed(4)} MCT)`);
+        setIsSwapping(false);
+        setSwapInitiatedAt(null);
+        setOldBalanceBeforeSwap(null);
+        setLastCheckedBlock(null);
+        setBlocksSinceSwap(0);
+        setPurchased(true);
         
-        // Публикация cast убрана - чтобы избежать баннера "Upgrade to Pro"
+        // Отметить покупку в базе данных и отправить уведомление
+        if (user) {
+          markTokenPurchased(user.fid).then(() => {
+            console.log('✅ Token purchase marked in database');
+            
+            // Отправляем уведомление через MiniKit SDK для вирусного распространения
+            sendTokenPurchaseNotification(
+              mctReceived, // Количество полученных MCT
+              PURCHASE_AMOUNT_USDC, // Потрачено USDC
+              undefined, // txHash недоступен из useSwapToken
+              user.username
+            ).then((result) => {
+              if (result.success) {
+                console.log('✅ [NOTIFICATION] Purchase notification sent successfully');
+              } else {
+                console.warn('⚠️ [NOTIFICATION] Failed to send purchase notification:', result.error);
+              }
+            }).catch((notifError) => {
+              console.error('❌ [NOTIFICATION] Error sending purchase notification:', notifError);
+            });
+          }).catch((dbError) => {
+            console.error('Error marking token purchase in DB:', dbError);
+          });
+          
+          // Публикация cast убрана - чтобы избежать баннера "Upgrade to Pro"
+        }
+        
+        // Переход к публикации ссылки через 3 секунды
+        setTimeout(() => {
+          router.push('/submit');
+        }, 3000);
       }
-      
-      // Переход к публикации ссылки через 3 секунды
-      setTimeout(() => {
-        router.push('/submit');
-      }, 3000);
-    }
   }, [mctBalance, isSwapping, oldBalanceBeforeSwap, user, router]);
 
   const confirmBuyToken = async (isRetry: boolean = false) => {
