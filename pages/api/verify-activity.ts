@@ -14,16 +14,44 @@ export default async function handler(
   try {
     const { castUrl, userFid, activityType } = req.body;
 
+    console.log('🔍 [VERIFY-API] Received verification request:', {
+      castUrl: castUrl ? castUrl.substring(0, 50) + '...' : 'MISSING',
+      userFid,
+      activityType,
+      hasCastUrl: !!castUrl,
+      hasUserFid: !!userFid,
+      hasActivityType: !!activityType,
+    });
+
     if (!castUrl || !userFid || !activityType) {
+      console.error('❌ [VERIFY-API] Missing required parameters:', {
+        hasCastUrl: !!castUrl,
+        hasUserFid: !!userFid,
+        hasActivityType: !!activityType,
+      });
       return res.status(400).json({ 
         error: 'Missing required parameters',
         completed: false 
       });
     }
 
+    // ⚠️ ПРОВЕРКА: Убеждаемся, что userFid - это число
+    if (typeof userFid !== 'number' || !userFid || userFid <= 0) {
+      console.error('❌ [VERIFY-API] Invalid userFid:', {
+        userFid,
+        type: typeof userFid,
+        isNumber: typeof userFid === 'number',
+        isPositive: userFid > 0,
+      });
+      return res.status(400).json({ 
+        error: 'Invalid userFid - must be a positive number',
+        completed: false 
+      });
+    }
+
     // Проверяем наличие API ключа Neynar
     if (!process.env.NEXT_PUBLIC_NEYNAR_API_KEY) {
-      console.warn('⚠️ NEXT_PUBLIC_NEYNAR_API_KEY not configured - cannot verify activity');
+      console.warn('⚠️ [VERIFY-API] NEXT_PUBLIC_NEYNAR_API_KEY not configured - cannot verify activity');
       // Временно разрешаем для тестирования, если API ключ не настроен
       // В продакшене нужно настроить API ключ для реальной проверки
       return res.status(200).json({ 
@@ -34,11 +62,24 @@ export default async function handler(
       });
     }
 
+    console.log('📡 [VERIFY-API] Calling checkUserActivity...', {
+      castUrl: castUrl.substring(0, 50) + '...',
+      userFid,
+      activityType,
+    });
+
     const isCompleted = await checkUserActivity(
       castUrl,
       userFid,
       activityType as ActivityType
     );
+
+    console.log('✅ [VERIFY-API] checkUserActivity result:', {
+      isCompleted,
+      castUrl: castUrl.substring(0, 50) + '...',
+      userFid,
+      activityType,
+    });
 
     return res.status(200).json({ 
       completed: isCompleted,
@@ -46,7 +87,13 @@ export default async function handler(
       activityType 
     });
   } catch (error: any) {
-    console.error('Error verifying activity:', error);
+    console.error('❌ [VERIFY-API] Error verifying activity:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      response: error?.response?.data,
+      status: error?.response?.status,
+    });
     // В случае ошибки API, разрешаем для продолжения тестирования
     // Это позволяет тестировать систему даже если API не работает
     return res.status(200).json({ 
