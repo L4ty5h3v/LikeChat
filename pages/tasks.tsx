@@ -18,6 +18,7 @@ export default function Tasks() {
   const [tasks, setTasks] = useState<TaskProgress[]>([]);
   const [completedCount, setCompletedCount] = useState(0);
   const [incompleteLinks, setIncompleteLinks] = useState<string[]>([]);
+  const [showPublishedSuccess, setShowPublishedSuccess] = useState(false);
 
   // Загрузка данных
   useEffect(() => {
@@ -33,6 +34,18 @@ export default function Tasks() {
 
       setUser(JSON.parse(savedUser));
       setActivity(savedActivity as ActivityType);
+      
+      // Проверяем, есть ли параметр published в URL (после публикации ссылки)
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('published') === 'true') {
+        setShowPublishedSuccess(true);
+        // Убираем параметр из URL
+        window.history.replaceState({}, '', '/tasks');
+        // Скрываем уведомление через 5 секунд
+        setTimeout(() => {
+          setShowPublishedSuccess(false);
+        }, 5000);
+      }
       
       loadTasks(JSON.parse(savedUser).fid, true);
       
@@ -268,6 +281,24 @@ export default function Tasks() {
 
   return (
     <Layout title="Multi Like - Tasks">
+      {/* Уведомление о публикации ссылки */}
+      {showPublishedSuccess && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-slide-down max-w-md w-full mx-4">
+          <div className="bg-gradient-to-r from-success to-green-500 text-white rounded-2xl shadow-2xl p-6 border-4 border-white">
+            <div className="flex items-center gap-4">
+              <div className="flex-shrink-0">
+                <div className="text-5xl animate-bounce">🎉</div>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-2xl font-black mb-1">Поздравляем!</h3>
+                <p className="text-lg font-bold">Ваша ссылка опубликована!</p>
+                <p className="text-sm text-green-100 mt-1">Она теперь доступна в списке заданий.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Hero Section с градиентом */}
       <div className="relative min-h-screen overflow-hidden">
         {/* Анимированный градиент фон */}

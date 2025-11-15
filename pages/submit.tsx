@@ -17,6 +17,8 @@ export default function Submit() {
   const [canSubmit, setCanSubmit] = useState(false);
   const [totalLinks, setTotalLinks] = useState(0);
   const [showWarning, setShowWarning] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [publishedLinkId, setPublishedLinkId] = useState<string | null>(null);
 
   useEffect(() => {
     // Проверяем, что код выполняется на клиенте
@@ -105,8 +107,12 @@ export default function Submit() {
       if (result) {
         // Успешная публикация
         console.log('✅ Link saved to database:', result.id);
-        // Редирект на tasks, чтобы пользователь увидел свою ссылку в списке
-        router.push('/tasks');
+        setPublishedLinkId(result.id);
+        setShowSuccessModal(true);
+        // Редирект на tasks через 3 секунды, чтобы пользователь увидел поздравление
+        setTimeout(() => {
+          router.push('/tasks?published=true');
+        }, 3000);
       } else {
         setError('Error publishing link');
       }
@@ -298,6 +304,41 @@ export default function Submit() {
           </ol>
         </div>
       </div>
+
+      {/* Модальное окно с поздравлением */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm">
+              <div className="bg-white rounded-3xl shadow-2xl p-8 sm:p-12 max-w-md w-full mx-4 border-4 border-success animate-pulse">
+            <div className="text-center">
+              <div className="flex justify-center gap-2 text-7xl mb-6 animate-bounce">
+                <span>🎉</span>
+                <span>✨</span>
+                <span>🎊</span>
+              </div>
+              <h2 className="text-3xl sm:text-4xl font-black text-success mb-4">
+                Поздравляем!
+              </h2>
+              <p className="text-xl sm:text-2xl text-gray-800 font-bold mb-6">
+                Ваша ссылка опубликована!
+              </p>
+              <p className="text-gray-600 mb-8">
+                Она теперь доступна в списке заданий для других пользователей.
+              </p>
+              <div className="bg-success bg-opacity-10 rounded-2xl p-4 mb-6">
+                <p className="text-sm text-gray-700 mb-2">
+                  <strong>Следующие 10 пользователей</strong> пройдут вашу ссылку и выполнят выбранную активность.
+                </p>
+              </div>
+              <div className="flex justify-center">
+                <div className="w-12 h-12 border-4 border-success border-t-transparent rounded-full animate-spin"></div>
+              </div>
+              <p className="text-sm text-gray-500 mt-4">
+                Перенаправление на страницу заданий...
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }
