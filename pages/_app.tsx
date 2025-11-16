@@ -40,6 +40,28 @@ export default function App({ Component, pageProps }: AppProps) {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
+    // ⚠️ АГРЕССИВНАЯ ОЧИСТКА: Удаляем ВСЕ возможные флаги system initialization из storage
+    const allSystemInitFlags = [
+      'systeminit', 'system_init', 'isInitializing', 'system_initialization',
+      'showSystemInit', 'showSystemInitModal', 'systemInitModal',
+      'showWarning', 'systemInit', 'earlyBird', 'early_bird'
+    ];
+    
+    allSystemInitFlags.forEach(flag => {
+      try {
+        if (sessionStorage.getItem(flag)) {
+          console.warn(`🧹 [_APP] Removing system init flag from sessionStorage: ${flag}`);
+          sessionStorage.removeItem(flag);
+        }
+        if (localStorage.getItem(flag)) {
+          console.warn(`🧹 [_APP] Removing system init flag from localStorage: ${flag}`);
+          localStorage.removeItem(flag);
+        }
+      } catch (e) {
+        // Игнорируем ошибки доступа к storage
+      }
+    });
+
     // Функция для удаления модального окна "SYSTEM INITIALIZATION" из DOM
     const removeSystemInitModal = () => {
       try {
@@ -53,20 +75,41 @@ export default function App({ Component, pageProps }: AppProps) {
               text.includes('Links in system') ||
               text.includes('Early Bird Bonus')) {
             // Ищем родительский элемент модального окна (backdrop или fixed)
-            let parent = el.closest('[class*="fixed"]');
-            if (!parent) {
-              parent = el.closest('[class*="backdrop"]');
-            }
-            if (!parent) {
-              parent = el.closest('[class*="modal"]');
-            }
-            if (!parent && (el.classList.contains('fixed') || el.classList.contains('backdrop'))) {
-              parent = el;
+            // Проверяем несколько уровней вверх
+            let current = el;
+            let parent = null;
+            
+            // Ищем родителя с fixed позиционированием или backdrop классом
+            for (let i = 0; i < 10; i++) {
+              if (!current || !current.parentElement) break;
+              current = current.parentElement;
+              
+              const classes = current.className || '';
+              const style = window.getComputedStyle(current);
+              
+              if (classes.includes('fixed') || 
+                  classes.includes('backdrop') || 
+                  classes.includes('modal') ||
+                  classes.includes('z-50') ||
+                  style.position === 'fixed') {
+                parent = current;
+                break;
+              }
             }
             
             if (parent) {
-              console.warn('🧹 [_APP] Found and removing SYSTEM INITIALIZATION modal from DOM:', parent);
+              console.warn('🧹 [_APP] Found and removing SYSTEM INITIALIZATION modal from DOM:', {
+                element: parent,
+                className: parent.className,
+                textContent: parent.textContent?.substring(0, 100)
+              });
               parent.remove();
+              return; // Прерываем, если удалили
+            } else if (el.classList.contains('fixed') || el.classList.contains('backdrop')) {
+              // Если сам элемент является модальным окном
+              console.warn('🧹 [_APP] Found and removing SYSTEM INITIALIZATION modal (direct element):', el);
+              el.remove();
+              return;
             }
           }
         });

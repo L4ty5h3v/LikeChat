@@ -190,15 +190,28 @@ export default function Submit() {
   // ⚠️ ОЧИСТКА: Удаляем все флаги, связанные с system initialization при монтировании
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      // Удаляем все возможные флаги, связанные с system initialization
-      sessionStorage.removeItem('systeminit');
-      sessionStorage.removeItem('system_init');
-      sessionStorage.removeItem('isInitializing');
-      sessionStorage.removeItem('system_initialization');
-      localStorage.removeItem('systeminit');
-      localStorage.removeItem('system_init');
-      localStorage.removeItem('isInitializing');
-      localStorage.removeItem('system_initialization');
+      // ⚠️ АГРЕССИВНАЯ ОЧИСТКА: Удаляем ВСЕ возможные флаги system initialization
+      const allSystemInitFlags = [
+        'systeminit', 'system_init', 'isInitializing', 'system_initialization',
+        'showSystemInit', 'showSystemInitModal', 'systemInitModal',
+        'showWarning', 'systemInit', 'earlyBird', 'early_bird',
+        'totalLinks', 'linksCount', 'total_links'
+      ];
+      
+      allSystemInitFlags.forEach(flag => {
+        try {
+          if (sessionStorage.getItem(flag)) {
+            console.warn(`🧹 [SUBMIT] Removing system init flag from sessionStorage: ${flag}`);
+            sessionStorage.removeItem(flag);
+          }
+          if (localStorage.getItem(flag)) {
+            console.warn(`🧹 [SUBMIT] Removing system init flag from localStorage: ${flag}`);
+            localStorage.removeItem(flag);
+          }
+        } catch (e) {
+          // Игнорируем ошибки доступа к storage
+        }
+      });
       
       console.log('🧹 [SUBMIT] Cleared all system initialization flags from storage');
     }
@@ -1068,7 +1081,7 @@ export default function Submit() {
       }, 10000);
     }
   }, []);
-  
+
   return (
     <Layout title="Multi Like - Publish Link">
       <div className="max-w-3xl mx-auto">
