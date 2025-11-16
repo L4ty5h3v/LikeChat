@@ -595,7 +595,7 @@ export default function Submit() {
       return;
     }
 
-    // ⚠️ ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: Если ссылка уже опубликована, редиректим на главную
+    // ⚠️ ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: Если ссылка уже опубликована, редиректим на /tasks
     // Это предотвращает зацикливание, если пользователь случайно попал на /submit после публикации
     const linkAlreadyPublished = await checkIfLinkAlreadyPublished(userFid);
     
@@ -604,7 +604,7 @@ export default function Submit() {
       const finalFlagCheckSession = sessionStorage.getItem('link_published');
       const finalFlagCheckLocal = localStorage.getItem('link_published');
       if (finalFlagCheckSession === 'true' || finalFlagCheckLocal === 'true' || linkAlreadyPublished) {
-        console.log('✅ [SUBMIT] Link already published (final check in checkProgress):', {
+        console.log('✅ [SUBMIT] Link already published (final check in checkProgress), redirecting to /tasks:', {
           finalFlagCheckSession,
           finalFlagCheckLocal,
           linkAlreadyPublished,
@@ -612,39 +612,41 @@ export default function Submit() {
         // Устанавливаем флаг в ОБА хранилища для надежности
         sessionStorage.setItem('link_published', 'true');
         localStorage.setItem('link_published', 'true');
+        // ⚠️ ВАЖНО: Редиректим на /tasks, а не на главную
         setTimeout(() => {
           const finalCheckSession = sessionStorage.getItem('link_published');
           const finalCheckLocal = localStorage.getItem('link_published');
-          console.log('🔍 [SUBMIT] RIGHT BEFORE redirect (checkProgress final check, 100ms delay):', {
+          console.log('🔍 [SUBMIT] RIGHT BEFORE redirect to /tasks (checkProgress final check, 100ms delay):', {
             finalCheckSession,
             finalCheckLocal,
             linkAlreadyPublished,
             timestamp: new Date().toISOString(),
             delay: '100ms',
           });
-          router.replace('/');
+          router.replace('/tasks');
         }, 100);
         return;
       }
     }
     
     if (linkAlreadyPublished) {
-      console.log('✅ [SUBMIT] Link already published, redirecting to home');
+      console.log('✅ [SUBMIT] Link already published (from DB), redirecting to /tasks');
       // Устанавливаем флаг в ОБА хранилища для надежности
       if (typeof window !== 'undefined') {
         sessionStorage.setItem('link_published', 'true');
         localStorage.setItem('link_published', 'true');
       }
+      // ⚠️ ВАЖНО: Редиректим на /tasks, а не на главную
       setTimeout(() => {
         const finalCheckSession = sessionStorage.getItem('link_published');
         const finalCheckLocal = localStorage.getItem('link_published');
-        console.log('🔍 [SUBMIT] RIGHT BEFORE redirect (linkAlreadyPublished, 100ms delay):', {
+        console.log('🔍 [SUBMIT] RIGHT BEFORE redirect to /tasks (linkAlreadyPublished, 100ms delay):', {
           finalCheckSession,
           finalCheckLocal,
           timestamp: new Date().toISOString(),
           delay: '100ms',
         });
-        router.replace('/');
+        router.replace('/tasks');
       }, 100);
       return;
     }
