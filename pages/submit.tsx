@@ -187,6 +187,23 @@ export default function Submit() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [publishedLinkId, setPublishedLinkId] = useState<string | null>(null);
 
+  // ⚠️ ОЧИСТКА: Удаляем все флаги, связанные с system initialization при монтировании
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // Удаляем все возможные флаги, связанные с system initialization
+      sessionStorage.removeItem('systeminit');
+      sessionStorage.removeItem('system_init');
+      sessionStorage.removeItem('isInitializing');
+      sessionStorage.removeItem('system_initialization');
+      localStorage.removeItem('systeminit');
+      localStorage.removeItem('system_init');
+      localStorage.removeItem('isInitializing');
+      localStorage.removeItem('system_initialization');
+      
+      console.log('🧹 [SUBMIT] Cleared all system initialization flags from storage');
+    }
+  }, []);
+
   // ⚠️ БЛОКИРОВКА НАВИГАЦИИ: Проверяем флаг при монтировании и блокируем навигацию назад
   useEffect(() => {
     // Проверяем флаг при монтировании компонента
@@ -994,6 +1011,28 @@ export default function Submit() {
 
   // ⚠️ ПРОВЕРКА: Убеждаемся, что модальное окно "SYSTEM INITIALIZATION" удалено
   // Если вы видите это модальное окно, очистите кеш браузера (Ctrl+Shift+R)
+  // Это модальное окно БОЛЬШЕ НЕ ДОЛЖНО рендериться - оно полностью удалено из кода
+  
+  // ⚠️ ЯВНАЯ ПРОВЕРКА: Если вдруг есть какие-то флаги, связанные с system initialization - удаляем их
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const systemInitFlags = [
+        'systeminit', 'system_init', 'isInitializing', 'system_initialization',
+        'showSystemInit', 'showSystemInitModal', 'systemInitModal'
+      ];
+      
+      systemInitFlags.forEach(flag => {
+        if (sessionStorage.getItem(flag)) {
+          console.warn(`⚠️ [SUBMIT] Found and removed system init flag from sessionStorage: ${flag}`);
+          sessionStorage.removeItem(flag);
+        }
+        if (localStorage.getItem(flag)) {
+          console.warn(`⚠️ [SUBMIT] Found and removed system init flag from localStorage: ${flag}`);
+          localStorage.removeItem(flag);
+        }
+      });
+    }
+  }, []);
 
   return (
     <Layout title="Multi Like - Publish Link">
