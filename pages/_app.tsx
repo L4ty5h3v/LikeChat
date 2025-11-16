@@ -37,8 +37,13 @@ export default function App({ Component, pageProps }: AppProps) {
   }, []);
 
   // ⚠️ ГЛОБАЛЬНОЕ УДАЛЕНИЕ: Удаляем модальное окно "SYSTEM INITIALIZATION" на всех страницах
+  // ⚠️ ВНИМАНИЕ: Inline скрипт в _document.tsx удаляет модальное окно ДО React hydration
+  // Этот useEffect - дополнительная проверка на случай если inline скрипт не сработал
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    
+    // Выполняем немедленно при монтировании (до того как React отрендерит компоненты)
+    const immediateRemove = () => {
 
     // ⚠️ АГРЕССИВНАЯ ОЧИСТКА: Удаляем ВСЕ возможные флаги system initialization из storage
     const allSystemInitFlags = [
@@ -179,21 +184,50 @@ export default function App({ Component, pageProps }: AppProps) {
       }
     };
 
+    // Выполняем немедленно несколько раз
+    immediateRemove();
+    setTimeout(immediateRemove, 0);
+    setTimeout(immediateRemove, 10);
+    setTimeout(immediateRemove, 50);
+    setTimeout(immediateRemove, 100);
+    setTimeout(immediateRemove, 200);
+    
     // Удаляем сразу при загрузке
     removeSystemInitModal();
     
     // Используем MutationObserver для отслеживания изменений DOM
     const observer = new MutationObserver(() => {
       removeSystemInitModal();
+      immediateRemove();
     });
 
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-    });
+    if (document.body) {
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+      });
+    } else {
+      // Если body еще не готов, ждем
+      const bodyObserver = new MutationObserver(() => {
+        if (document.body) {
+          observer.observe(document.body, {
+            childList: true,
+            subtree: true,
+          });
+          bodyObserver.disconnect();
+        }
+      });
+      bodyObserver.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+      });
+    }
 
     // Периодически проверяем (на случай если MutationObserver не сработал)
-    const interval = setInterval(removeSystemInitModal, 500);
+    const interval = setInterval(() => {
+      removeSystemInitModal();
+      immediateRemove();
+    }, 100); // Увеличена частота проверки до 100ms
 
     // Останавливаем через 30 секунд
     setTimeout(() => {

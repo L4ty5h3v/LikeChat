@@ -11,6 +11,173 @@ export default function Document() {
         <link rel="icon" href="/favicon.ico" />
       </Head>
       <body>
+        {/* ⚠️ КРИТИЧЕСКИ ВАЖНО: Inline скрипт, который выполняется ДО React hydration */}
+        {/* Этот скрипт удаляет модальное окно "SYSTEM INITIALIZATION" немедленно */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                'use strict';
+                
+                // ⚠️ ФУНКЦИЯ УДАЛЕНИЯ: Удаляет модальное окно "SYSTEM INITIALIZATION"
+                function removeSystemInitModal() {
+                  try {
+                    // Очищаем storage
+                    try {
+                      const flags = ['systeminit', 'system_init', 'isInitializing', 'system_initialization', 'showWarning', 'showSystemInit', 'totalLinks'];
+                      flags.forEach(flag => {
+                        sessionStorage.removeItem(flag);
+                        localStorage.removeItem(flag);
+                      });
+                    } catch(e) {}
+                    
+                    // Ищем по тексту
+                    const allElements = document.querySelectorAll('*');
+                    const found = [];
+                    
+                    allElements.forEach(function(el) {
+                      const text = el.textContent || '';
+                      if (text.includes('SYSTEM INITIALIZATION') || 
+                          text.includes('You are one of the first users') ||
+                          text.includes('collecting the first 10 links') ||
+                          text.includes('Links in system: 0/10') ||
+                          text.includes('Early Bird Bonus')) {
+                        found.push(el);
+                      }
+                    });
+                    
+                    // Ищем по стилю (purple gradient)
+                    const purpleModals = document.querySelectorAll('[class*="from-blue"], [class*="to-purple"], [class*="bg-gradient"]');
+                    purpleModals.forEach(function(modal) {
+                      const text = modal.textContent || '';
+                      if (text.includes('SYSTEM INITIALIZATION') || text.includes('0/10')) {
+                        found.push(modal);
+                      }
+                    });
+                    
+                    // Удаляем найденные элементы
+                    found.forEach(function(el) {
+                      // Ищем родителя с fixed позиционированием
+                      let parent = el;
+                      let foundParent = false;
+                      
+                      for (let i = 0; i < 15; i++) {
+                        if (!parent || !parent.parentElement) break;
+                        
+                        const classes = parent.className || '';
+                        const style = window.getComputedStyle ? window.getComputedStyle(parent) : {};
+                        
+                        if (classes.includes('fixed') || 
+                            classes.includes('backdrop') || 
+                            classes.includes('modal') ||
+                            classes.includes('z-50') ||
+                            style.position === 'fixed') {
+                          foundParent = true;
+                          break;
+                        }
+                        
+                        parent = parent.parentElement;
+                      }
+                      
+                      if (foundParent && parent) {
+                        // Принудительно скрываем
+                        parent.style.display = 'none';
+                        parent.style.visibility = 'hidden';
+                        parent.style.opacity = '0';
+                        parent.style.pointerEvents = 'none';
+                        parent.style.position = 'absolute';
+                        parent.style.left = '-9999px';
+                        parent.style.top = '-9999px';
+                        parent.style.width = '0';
+                        parent.style.height = '0';
+                        parent.style.overflow = 'hidden';
+                        
+                        // Удаляем
+                        try {
+                          parent.remove();
+                        } catch(e) {
+                          if (parent.parentNode) {
+                            parent.parentNode.removeChild(parent);
+                          }
+                        }
+                      } else if (el.classList && (el.classList.contains('fixed') || el.classList.contains('backdrop'))) {
+                        // Если сам элемент является модальным окном
+                        el.style.display = 'none';
+                        el.style.visibility = 'hidden';
+                        el.style.opacity = '0';
+                        try {
+                          el.remove();
+                        } catch(e) {
+                          if (el.parentNode) {
+                            el.parentNode.removeChild(el);
+                          }
+                        }
+                      }
+                    });
+                    
+                    if (found.length > 0) {
+                      console.warn('🧹 [_DOCUMENT] Removed ' + found.length + ' SYSTEM INITIALIZATION modal(s)');
+                    }
+                  } catch(error) {
+                    console.error('❌ [_DOCUMENT] Error removing modal:', error);
+                  }
+                }
+                
+                // Выполняем немедленно
+                if (document.readyState === 'loading') {
+                  document.addEventListener('DOMContentLoaded', removeSystemInitModal);
+                } else {
+                  removeSystemInitModal();
+                }
+                
+                // Повторяем через небольшие интервалы
+                setTimeout(removeSystemInitModal, 0);
+                setTimeout(removeSystemInitModal, 10);
+                setTimeout(removeSystemInitModal, 50);
+                setTimeout(removeSystemInitModal, 100);
+                setTimeout(removeSystemInitModal, 200);
+                setTimeout(removeSystemInitModal, 500);
+                
+                // Используем MutationObserver для отслеживания изменений
+                if (typeof MutationObserver !== 'undefined') {
+                  var observer = new MutationObserver(function(mutations) {
+                    removeSystemInitModal();
+                  });
+                  
+                  // Начинаем наблюдение сразу, как только DOM готов
+                  if (document.body) {
+                    observer.observe(document.body, {
+                      childList: true,
+                      subtree: true
+                    });
+                  } else {
+                    if (document.readyState === 'loading') {
+                      document.addEventListener('DOMContentLoaded', function() {
+                        if (document.body) {
+                          observer.observe(document.body, {
+                            childList: true,
+                            subtree: true
+                          });
+                        }
+                      });
+                    }
+                  }
+                  
+                  // Останавливаем через 10 секунд
+                  setTimeout(function() {
+                    observer.disconnect();
+                  }, 10000);
+                }
+                
+                // Периодическая проверка
+                var interval = setInterval(removeSystemInitModal, 100);
+                setTimeout(function() {
+                  clearInterval(interval);
+                }, 10000);
+              })();
+            `,
+          }}
+        />
         <Main />
         <NextScript />
       </body>
