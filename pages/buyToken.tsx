@@ -101,8 +101,10 @@ export default function BuyToken() {
   const [swapTimeoutId, setSwapTimeoutId] = useState<NodeJS.Timeout | null>(null);
   const [lastCheckedBlock, setLastCheckedBlock] = useState<bigint | null>(null);
   const [blocksSinceSwap, setBlocksSinceSwap] = useState(0);
+  const [swapWaitTime, setSwapWaitTime] = useState(0);
   const MAX_RETRIES = 3;
   const BLOCKS_TO_CHECK = 4; // Проверяем каждые 4 блока (~12 секунд на Base)
+  const SWAP_TIMEOUT_MS = 60000; // Увеличиваем таймаут до 60 секунд
   
   // Real-time block listener для проверки баланса
   const { data: blockNumber } = useBlockNumber({
@@ -523,12 +525,15 @@ export default function BuyToken() {
       setIsSwapping(true);
       setSwapInitiatedAt(Date.now());
 
-      // Таймаут для swap - 30 секунд
+      // Таймаут для swap - 60 секунд
       const timeoutId = setTimeout(() => {
-        console.warn('⏱️ Swap timeout: 30 seconds elapsed without response');
-        handleSwapError(new Error('Timeout: swap не завершился за 30 секунд'), true);
-      }, 30000);
+        console.warn(`⏱️ Swap timeout: ${SWAP_TIMEOUT_MS / 1000} seconds elapsed without response`);
+        handleSwapError(new Error(`Timeout: swap не завершился за ${SWAP_TIMEOUT_MS / 1000} секунд`), true);
+      }, SWAP_TIMEOUT_MS);
       setSwapTimeoutId(timeoutId);
+      
+      // Запускаем таймер ожидания для UI
+      setSwapWaitTime(0);
 
       let result;
       try {
@@ -619,6 +624,37 @@ export default function BuyToken() {
     } catch (err: any) {
       handleSwapError(err, false);
     }
+  };
+
+  // Таймер для отслеживания времени ожидания swap
+  useEffect(() => {
+    if (!isSwapping) {
+      setSwapWaitTime(0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setSwapWaitTime(prev => prev + 1);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isSwapping]);
+
+  // Функция для сброса состояния swap
+  const resetSwapState = () => {
+    console.log('🔄 [SWAP] Resetting swap state...');
+    if (swapTimeoutId) {
+      clearTimeout(swapTimeoutId);
+      setSwapTimeoutId(null);
+    }
+    setIsSwapping(false);
+    setSwapInitiatedAt(null);
+    setOldBalanceBeforeSwap(null);
+    setLastCheckedBlock(null);
+    setBlocksSinceSwap(0);
+    setSwapWaitTime(0);
+    setLoading(false);
+    setError('Состояние транзакции сброшено. Попробуйте снова.');
   };
 
   // Очистка таймаутов при размонтировании
@@ -854,16 +890,37 @@ export default function BuyToken() {
           
           {/* Индикатор ожидания завершения swap */}
           {isSwapping && (
-            <div className="bg-blue-50 border-2 border-blue-300 rounded-xl p-6 mt-4 text-center">
-              <div className="flex items-center justify-center gap-3 mb-2">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                <p className="text-blue-800 text-lg font-semibold">
-                  Waiting for swap to complete...
+            <div className="bg-blue-50 border-2 border-blue-300 rounded-xl p-6 mt-4">
+              <div className="text-center">
+                <div className="flex items-center justify-center gap-3 mb-3">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                  <p className="text-blue-800 text-lg font-semibold">
+                    Ожидание завершения транзакции...
+                  </p>
+                </div>
+                <p className="text-blue-600 text-sm mb-2">
+                  Подтвердите транзакцию в вашем Farcaster кошельке. Баланс обновится автоматически.
                 </p>
+                {swapWaitTime > 0 && (
+                  <p className="text-blue-500 text-xs mb-4">
+                    Ожидание: {swapWaitTime} сек. / 60 сек.
+                  </p>
+                )}
+                {swapWaitTime > 30 && (
+                  <div className="mt-4 pt-4 border-t border-blue-300">
+                    <p className="text-orange-600 text-sm mb-3">
+                      ⚠️ Транзакция занимает больше времени, чем обычно.
+                    </p>
+                    <Button
+                      onClick={resetSwapState}
+                      variant="secondary"
+                      className="text-sm"
+                    >
+                      Сбросить состояние и попробовать снова
+                    </Button>
+                  </div>
+                )}
               </div>
-              <p className="text-blue-600 text-sm">
-                Please confirm the transaction in your Farcaster wallet. The balance will update automatically.
-              </p>
             </div>
           )}
         </div>
