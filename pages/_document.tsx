@@ -313,6 +313,36 @@ export default function Document() {
                   clearInterval(interval);
                 }, 30000); // Останавливаем через 30 секунд (было 10)
                 
+                // ⚠️ ДОПОЛНИТЕЛЬНАЯ ДИАГНОСТИКА: Логируем все найденные элементы с текстом модального окна
+                var diagnosticMode = window.location.search.indexOf('diagnostic=modal') !== -1;
+                if (diagnosticMode) {
+                  console.warn('🔍 [DIAGNOSTIC] Starting modal diagnostic scan...');
+                  setTimeout(function() {
+                    var allElsForDiagnostic = document.querySelectorAll('*');
+                    var foundInDiagnostic = 0;
+                    for (var di = 0; di < allElsForDiagnostic.length; di++) {
+                      var diEl = allElsForDiagnostic[di];
+                      var diText = diEl.textContent || diEl.innerText || '';
+                      if (diText.indexOf('SYSTEM INITIALIZATION') !== -1) {
+                        foundInDiagnostic++;
+                        var diStyle = window.getComputedStyle ? window.getComputedStyle(diEl) : null;
+                        console.error('🔴 [DIAGNOSTIC] Found modal text in element:', {
+                          tagName: diEl.tagName,
+                          id: diEl.id || 'none',
+                          className: diEl.className || 'none',
+                          position: diStyle ? diStyle.position : 'unknown',
+                          display: diStyle ? diStyle.display : 'unknown',
+                          zIndex: diStyle ? diStyle.zIndex : 'unknown',
+                          textPreview: diText.substring(0, 100),
+                          element: diEl,
+                          outerHTML: diEl.outerHTML.substring(0, 500)
+                        });
+                      }
+                    }
+                    console.warn('🔍 [DIAGNOSTIC] Total elements with modal text found:', foundInDiagnostic);
+                  }, 2000); // Даем время на рендеринг
+                }
+                
                 // ⚠️ ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: Следим за созданием modal-root элемента
                 if (typeof MutationObserver !== 'undefined') {
                   var modalRootObserver = new MutationObserver(function(mutations) {
