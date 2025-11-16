@@ -44,6 +44,25 @@ export default function App({ Component, pageProps }: AppProps) {
     
     // Выполняем немедленно при монтировании (до того как React отрендерит компоненты)
     const immediateRemove = () => {
+      // Выполняем удаление немедленно
+      try {
+        const allElements = document.querySelectorAll('*');
+        allElements.forEach((el) => {
+          const text = el.textContent || '';
+          if (text.includes('SYSTEM INITIALIZATION') || text.includes('0/10')) {
+            let parent = el.closest('[class*="fixed"], [class*="backdrop"], [class*="modal"], [class*="z-50"]');
+            if (parent) {
+              parent.style.display = 'none';
+              parent.style.visibility = 'hidden';
+              parent.style.opacity = '0';
+              parent.remove();
+            }
+          }
+        });
+      } catch (e) {
+        // Игнорируем ошибки
+      }
+    };
 
     // ⚠️ АГРЕССИВНАЯ ОЧИСТКА: Удаляем ВСЕ возможные флаги system initialization из storage
     const allSystemInitFlags = [
@@ -307,7 +326,7 @@ export default function App({ Component, pageProps }: AppProps) {
         <FarcasterAuthProvider>
           {/* Компонент для синхронизации user из SDK после connect */}
           <AuthSync />
-          <Component {...pageProps} />
+      <Component {...pageProps} />
         </FarcasterAuthProvider>
       </OnchainKitProvider>
     </>
