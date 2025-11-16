@@ -453,7 +453,7 @@ export default function Submit() {
         const flagCheckSession = sessionStorage.getItem('link_published');
         const flagCheckLocal = localStorage.getItem('link_published');
         if (flagCheckSession === 'true' || flagCheckLocal === 'true' || linkPublished) {
-          console.log('✅ [SUBMIT] User already published a link, redirecting to home:', {
+          console.log('✅ [SUBMIT] User already published a link, redirecting to /tasks:', {
             flagCheckSession,
             flagCheckLocal,
             linkPublished,
@@ -463,18 +463,17 @@ export default function Submit() {
             sessionStorage.setItem('link_published', 'true');
             localStorage.setItem('link_published', 'true');
           }
-          // Используем setTimeout для гарантии обработки хранилища
-          // Увеличено до 100ms для проверки race condition
+          // ⚠️ ВАЖНО: Редиректим на /tasks, а не на главную, чтобы пользователь остался на странице задач
           setTimeout(() => {
             const finalCheckSession = sessionStorage.getItem('link_published');
             const finalCheckLocal = localStorage.getItem('link_published');
-            console.log('🔍 [SUBMIT] RIGHT BEFORE redirect (checkIfLinkAlreadyPublished, 100ms delay):', {
+            console.log('🔍 [SUBMIT] RIGHT BEFORE redirect to /tasks (checkIfLinkAlreadyPublished, 100ms delay):', {
               finalCheckSession,
               finalCheckLocal,
               timestamp: new Date().toISOString(),
               delay: '100ms',
             });
-            router.replace('/');
+            router.replace('/tasks');
           }, 100);
           return;
         }
@@ -486,20 +485,21 @@ export default function Submit() {
         const flagCheckSession = sessionStorage.getItem('link_published');
         const flagCheckLocal = localStorage.getItem('link_published');
         if (flagCheckSession === 'true' || flagCheckLocal === 'true') {
-          console.log('✅ [SUBMIT] Link published flag detected after error, redirecting to home:', {
+          console.log('✅ [SUBMIT] Link published flag detected after error, redirecting to /tasks:', {
             flagCheckSession,
             flagCheckLocal,
           });
+          // ⚠️ ВАЖНО: Редиректим на /tasks, а не на главную
           setTimeout(() => {
             const finalCheckSession = sessionStorage.getItem('link_published');
             const finalCheckLocal = localStorage.getItem('link_published');
-            console.log('🔍 [SUBMIT] RIGHT BEFORE redirect (error handler, 100ms delay):', {
+            console.log('🔍 [SUBMIT] RIGHT BEFORE redirect to /tasks (error handler, 100ms delay):', {
               finalCheckSession,
               finalCheckLocal,
               timestamp: new Date().toISOString(),
               delay: '100ms',
             });
-            router.replace('/');
+            router.replace('/tasks');
           }, 100);
           return;
         }
@@ -534,17 +534,18 @@ export default function Submit() {
         timestamp: new Date().toISOString(),
       });
       if (sessionFlag === 'true' || localFlag === 'true') {
-        console.log('✅ [SUBMIT] Link already published (from storage in checkProgress), redirecting to home');
+        console.log('✅ [SUBMIT] Link already published (from storage in checkProgress), redirecting to /tasks');
+        // ⚠️ ВАЖНО: Редиректим на /tasks, а не на главную
         setTimeout(() => {
           const finalCheckSession = sessionStorage.getItem('link_published');
           const finalCheckLocal = localStorage.getItem('link_published');
-          console.log('🔍 [SUBMIT] RIGHT BEFORE redirect (checkProgress start, 100ms delay):', {
+          console.log('🔍 [SUBMIT] RIGHT BEFORE redirect to /tasks (checkProgress start, 100ms delay):', {
             finalCheckSession,
             finalCheckLocal,
             timestamp: new Date().toISOString(),
             delay: '100ms',
           });
-          router.replace('/');
+          router.replace('/tasks');
         }, 100);
         return;
       }
@@ -557,20 +558,21 @@ export default function Submit() {
       const flagCheckSession = sessionStorage.getItem('link_published');
       const flagCheckLocal = localStorage.getItem('link_published');
       if (flagCheckSession === 'true' || flagCheckLocal === 'true') {
-        console.log('✅ [SUBMIT] Link published flag detected in checkProgress after getUserProgress:', {
+        console.log('✅ [SUBMIT] Link published flag detected in checkProgress after getUserProgress, redirecting to /tasks:', {
           flagCheckSession,
           flagCheckLocal,
         });
+        // ⚠️ ВАЖНО: Редиректим на /tasks, а не на главную
         setTimeout(() => {
           const finalCheckSession = sessionStorage.getItem('link_published');
           const finalCheckLocal = localStorage.getItem('link_published');
-          console.log('🔍 [SUBMIT] RIGHT BEFORE redirect (checkProgress after getUserProgress, 100ms delay):', {
+          console.log('🔍 [SUBMIT] RIGHT BEFORE redirect to /tasks (checkProgress after getUserProgress, 100ms delay):', {
             finalCheckSession,
             finalCheckLocal,
             timestamp: new Date().toISOString(),
             delay: '100ms',
           });
-          router.replace('/');
+          router.replace('/tasks');
         }, 100);
         return;
       }

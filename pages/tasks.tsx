@@ -66,6 +66,8 @@ export default function Tasks() {
       
       if (justPublished) {
         setShowPublishedSuccess(true);
+        // Устанавливаем флаг в sessionStorage, чтобы предотвратить повторные редиректы
+        sessionStorage.setItem('link_published', 'true');
         // Убираем параметр из URL
         window.history.replaceState({}, '', '/tasks');
         // Скрываем уведомление через 5 секунд
@@ -183,8 +185,9 @@ export default function Tasks() {
             else if (progress.token_purchased && !userHasPublishedLink) {
               // Проверяем флаг link_published - если ссылка уже опубликована, не редиректим
               const linkPublished = sessionStorage.getItem('link_published');
-              if (linkPublished === 'true') {
-                console.log(`ℹ️ [TASKS] Link already published (from sessionStorage), skipping redirect to /submit`);
+              const linkPublishedLocal = localStorage.getItem('link_published');
+              if (linkPublished === 'true' || linkPublishedLocal === 'true') {
+                console.log(`ℹ️ [TASKS] Link already published (from storage), skipping redirect to /submit`);
                 return;
               }
               
