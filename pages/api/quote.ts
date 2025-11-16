@@ -99,11 +99,11 @@ export default async function handler(
           }
 
           // Декодируем результат: первый параметр - uint256 amountOut
-          const decoded = decodeAbiParameters(
+          const mctToWethDecoded = decodeAbiParameters(
             [{ type: 'uint256', name: 'amountOut' }],
             mctToWethResult.data
           );
-          const ethAmount = decoded[0] as bigint;
+          const ethAmount = mctToWethDecoded[0] as bigint;
 
           if (!ethAmount || ethAmount === 0n) {
             console.warn(`⚠️ [API] Quote returned zero for MCT/WETH fee ${fee}`);
@@ -141,11 +141,11 @@ export default async function handler(
           }
 
           // Декодируем результат: первый параметр - uint256 amountOut
-          const decoded = decodeAbiParameters(
+          const wethToUsdcDecoded = decodeAbiParameters(
             [{ type: 'uint256', name: 'amountOut' }],
             wethToUsdcResult.data
           );
-          const usdcAmount = decoded[0] as bigint;
+          const usdcAmount = wethToUsdcDecoded[0] as bigint;
 
           if (!usdcAmount || usdcAmount === 0n) {
             console.warn(`⚠️ [API] Quote returned zero for WETH/USDC fee ${fee}`);
@@ -212,11 +212,11 @@ export default async function handler(
           }
 
           // Декодируем результат: первый параметр - uint256 amountOut
-          const decoded = decodeAbiParameters(
+          const usdcToWethDecoded = decodeAbiParameters(
             [{ type: 'uint256', name: 'amountOut' }],
             usdcToWethResult.data
           );
-          const ethAmount = decoded[0] as bigint;
+          const ethAmount = usdcToWethDecoded[0] as bigint;
 
           if (!ethAmount || ethAmount === 0n || ethAmount < MIN_ETH_THRESHOLD) {
             continue;
@@ -245,11 +245,11 @@ export default async function handler(
           }
 
           // Декодируем результат: первый параметр - uint256 amountOut
-          const decoded = decodeAbiParameters(
+          const wethToMctDecoded = decodeAbiParameters(
             [{ type: 'uint256', name: 'amountOut' }],
             wethToMctResult.data
           );
-          const mctAmount = decoded[0] as bigint;
+          const mctAmount = wethToMctDecoded[0] as bigint;
 
           if (!mctAmount || mctAmount === 0n) {
             continue;
