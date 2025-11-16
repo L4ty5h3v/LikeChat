@@ -1,6 +1,9 @@
 import { Html, Head, Main, NextScript } from 'next/document';
 
 export default function Document() {
+  // ⚠️ КРИТИЧЕСКИ ВАЖНО: Добавляем версию для предотвращения кеша браузера
+  const version = Date.now(); // Уникальная версия при каждой сборке
+
   return (
     <Html lang="ru">
       <Head>
@@ -8,7 +11,11 @@ export default function Document() {
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <link rel="icon" href="/favicon.ico" />
+        {/* ⚠️ ОТКЛЮЧАЕМ КЕШ: Добавляем meta теги для предотвращения кеширования */}
+        <meta httpEquiv="Cache-Control" content="no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0" />
+        <meta httpEquiv="Pragma" content="no-cache" />
+        <meta httpEquiv="Expires" content="0" />
+        <link rel="icon" href={`/favicon.ico?v=${version}`} />
       </Head>
       <body>
         {/* ⚠️ КРИТИЧЕСКИ ВАЖНО: Inline скрипт, который выполняется ДО React hydration */}

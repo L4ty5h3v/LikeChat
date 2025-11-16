@@ -254,11 +254,15 @@ export default function App({ Component, pageProps }: AppProps) {
     };
   }, []);
 
-  return (
-    <>
-      <Head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-      </Head>
+      return (
+        <>
+          <Head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+            {/* ⚠️ ОТКЛЮЧАЕМ КЕШ: Добавляем meta теги для предотвращения кеширования */}
+            <meta httpEquiv="Cache-Control" content="no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0" />
+            <meta httpEquiv="Pragma" content="no-cache" />
+            <meta httpEquiv="Expires" content="0" />
+          </Head>
       <OnchainKitProvider
         chain={base}
         config={{
