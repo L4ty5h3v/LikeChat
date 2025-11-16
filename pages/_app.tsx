@@ -36,6 +36,73 @@ export default function App({ Component, pageProps }: AppProps) {
     };
   }, []);
 
+  // ⚠️ ГЛОБАЛЬНОЕ УДАЛЕНИЕ: Удаляем модальное окно "SYSTEM INITIALIZATION" на всех страницах
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    // Функция для удаления модального окна "SYSTEM INITIALIZATION" из DOM
+    const removeSystemInitModal = () => {
+      try {
+        // Ищем любые элементы, содержащие текст модального окна
+        const allElements = document.querySelectorAll('*');
+        allElements.forEach((el) => {
+          const text = el.textContent || '';
+          if (text.includes('SYSTEM INITIALIZATION') || 
+              text.includes('You are one of the first users') ||
+              text.includes('collecting the first 10 links') ||
+              text.includes('Links in system') ||
+              text.includes('Early Bird Bonus')) {
+            // Ищем родительский элемент модального окна (backdrop или fixed)
+            let parent = el.closest('[class*="fixed"]');
+            if (!parent) {
+              parent = el.closest('[class*="backdrop"]');
+            }
+            if (!parent) {
+              parent = el.closest('[class*="modal"]');
+            }
+            if (!parent && (el.classList.contains('fixed') || el.classList.contains('backdrop'))) {
+              parent = el;
+            }
+            
+            if (parent) {
+              console.warn('🧹 [_APP] Found and removing SYSTEM INITIALIZATION modal from DOM:', parent);
+              parent.remove();
+            }
+          }
+        });
+      } catch (error) {
+        console.error('❌ [_APP] Error removing system init modal:', error);
+      }
+    };
+
+    // Удаляем сразу при загрузке
+    removeSystemInitModal();
+    
+    // Используем MutationObserver для отслеживания изменений DOM
+    const observer = new MutationObserver(() => {
+      removeSystemInitModal();
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
+
+    // Периодически проверяем (на случай если MutationObserver не сработал)
+    const interval = setInterval(removeSystemInitModal, 500);
+
+    // Останавливаем через 30 секунд
+    setTimeout(() => {
+      clearInterval(interval);
+      observer.disconnect();
+    }, 30000);
+
+    return () => {
+      clearInterval(interval);
+      observer.disconnect();
+    };
+  }, []);
+
   // Вызываем sdk.actions.ready() для Farcaster Mini App
   useEffect(() => {
     let mounted = true;

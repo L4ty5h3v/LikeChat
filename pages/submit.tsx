@@ -1031,9 +1031,44 @@ export default function Submit() {
           localStorage.removeItem(flag);
         }
       });
+      
+      // ⚠️ ПРИНУДИТЕЛЬНОЕ УДАЛЕНИЕ: Удаляем любые модальные окна "SYSTEM INITIALIZATION" из DOM
+      // Это предотвращает появление модального окна даже из кеша
+      const removeSystemInitModal = () => {
+        try {
+          // Ищем любые элементы, содержащие текст "SYSTEM INITIALIZATION"
+          const allElements = document.querySelectorAll('*');
+          allElements.forEach((el) => {
+            const text = el.textContent || '';
+            if (text.includes('SYSTEM INITIALIZATION') || 
+                text.includes('You are one of the first users') ||
+                text.includes('collecting the first 10 links') ||
+                text.includes('Links in system') ||
+                text.includes('Early Bird Bonus')) {
+              // Если это модальное окно (содержит backdrop или fixed позиционирование)
+              const parent = el.closest('[class*="fixed"], [class*="backdrop"], [class*="modal"], [class*="z-50"]');
+              if (parent) {
+                console.warn('🧹 [SUBMIT] Found and removing SYSTEM INITIALIZATION modal from DOM:', parent);
+                parent.remove();
+              }
+            }
+          });
+        } catch (error) {
+          console.error('❌ [SUBMIT] Error removing system init modal:', error);
+        }
+      };
+      
+      // Удаляем сразу и периодически проверяем
+      removeSystemInitModal();
+      const interval = setInterval(removeSystemInitModal, 1000);
+      
+      // Останавливаем проверку через 10 секунд
+      setTimeout(() => {
+        clearInterval(interval);
+      }, 10000);
     }
   }, []);
-
+  
   return (
     <Layout title="Multi Like - Publish Link">
       <div className="max-w-3xl mx-auto">
