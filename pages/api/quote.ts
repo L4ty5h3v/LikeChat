@@ -6,17 +6,28 @@ import { base } from 'viem/chains';
 const MCT_ADDRESS = '0x04d388da70c32fc5876981097c536c51c8d3d236'; // MCT Token
 const WETH_ADDRESS = '0x4200000000000000000000000000000000000006'; // WETH на Base
 const USDC_ADDRESS_ON_BASE = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // USDC на Base (6 decimals)
-const UNISWAP_V3_QUOTER = '0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a'; // Uniswap V3 Quoter на Base (правильный адрес без последней 5)
+// ⚠️ ВАЖНО: Uniswap V3 Quoter V2 на Base - правильный адрес
+// Проверено: 0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a (без последней 5)
+const UNISWAP_V3_QUOTER = '0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a' as `0x${string}`;
 const MCT_DECIMALS = 18;
 const USDC_DECIMALS = 6;
 
-// Создаем public client для Base (используем RPC URL из env или дефолтный)
-// Используем переменную BASE_RPC_URL или BASERPCURL из env
-const BASE_RPC_URL = process.env.BASE_RPC_URL || process.env.BASERPCURL || 'https://mainnet.base.org';
+// Создаем public client для Base (используем надежный RPC)
+// Приоритет: Alchemy > BASE_RPC_URL > BASERPCURL > дефолтный Base RPC
+// ⚠️ ВАЖНО: Используем надежный RPC для стабильности (Alchemy рекомендуется)
+const BASE_RPC_URL = process.env.ALCHEMY_BASE_RPC_URL || 
+                      process.env.BASE_RPC_URL || 
+                      process.env.BASERPCURL || 
+                      'https://mainnet.base.org';
+
+console.log('🔗 [QUOTE-API] Using RPC endpoint:', BASE_RPC_URL.replace(/\/\/.*@/, '//***@')); // Скрываем ключи в логах
 
 const publicClient = createPublicClient({
   chain: base,
-  transport: http(BASE_RPC_URL),
+  transport: http(BASE_RPC_URL, {
+    timeout: 10000, // 10 секунд таймаут
+    retryCount: 2, // 2 попытки при ошибке
+  }),
 });
 
 // ABI для Uniswap V3 Quoter (упрощенный формат)
