@@ -43,8 +43,8 @@ export default function App({ Component, pageProps }: AppProps) {
     if (typeof window === 'undefined') return;
     
     // Выполняем немедленно при монтировании (до того как React отрендерит компоненты)
+    // УПРОЩЕННЫЙ ПОДХОД - такой же как в _document.tsx
     const immediateRemove = () => {
-      // Выполняем удаление немедленно
       try {
         const allElements = document.querySelectorAll('*');
         allElements.forEach((el) => {
@@ -52,10 +52,17 @@ export default function App({ Component, pageProps }: AppProps) {
           if (text.includes('SYSTEM INITIALIZATION') || text.includes('0/10')) {
             let parent = el.closest('[class*="fixed"], [class*="backdrop"], [class*="modal"], [class*="z-50"]');
             if (parent) {
+              console.log('🧹 [_APP] Found modal (immediateRemove):', parent);
               parent.style.display = 'none';
               parent.style.visibility = 'hidden';
               parent.style.opacity = '0';
-              parent.remove();
+              try {
+                parent.remove();
+              } catch (e) {
+                if (parent.parentNode) {
+                  parent.parentNode.removeChild(parent);
+                }
+              }
             }
           }
         });
@@ -92,24 +99,53 @@ export default function App({ Component, pageProps }: AppProps) {
         // 🔍 ДИАГНОСТИКА: Ищем и логируем все элементы с текстом модального окна
         const debugMode = window.location.search.includes('debug=modal');
         
-        // Ищем по специфичным селекторам (purple gradient modal)
+        // УПРОЩЕННЫЙ ПОДХОД: Ищем по тексту и удаляем сразу
+        const allElements = document.querySelectorAll('*');
+        allElements.forEach((el) => {
+          const text = el.textContent || '';
+          if (text.includes('SYSTEM INITIALIZATION') || text.includes('0/10')) {
+            let parent = el.closest('[class*="fixed"], [class*="backdrop"], [class*="modal"], [class*="z-50"]');
+            if (parent) {
+              if (debugMode) {
+                console.error('🔴 [MODAL-DEBUG] Found modal:', {
+                  element: parent,
+                  className: parent.className,
+                  id: parent.id,
+                  textContent: text.substring(0, 200)
+                });
+              }
+              console.warn('🧹 [_APP] Found and removing SYSTEM INITIALIZATION modal:', parent);
+              parent.style.display = 'none';
+              parent.style.visibility = 'hidden';
+              parent.style.opacity = '0';
+              try {
+                parent.remove();
+              } catch (e) {
+                if (parent.parentNode) {
+                  parent.parentNode.removeChild(parent);
+                }
+              }
+              return; // Прерываем поиск после удаления
+            }
+          }
+        });
+        
+        // Дополнительно: Ищем по специфичным селекторам (purple gradient modal)
         const purpleModals = document.querySelectorAll('[class*="from-blue"], [class*="to-purple"], [class*="bg-gradient"]');
         purpleModals.forEach((modal) => {
           const text = modal.textContent || '';
           if (text.includes('SYSTEM INITIALIZATION') || text.includes('0/10')) {
-            if (debugMode) {
-              console.error('🔴 [MODAL-DEBUG] Found purple gradient modal:', {
-                element: modal,
-                className: modal.className,
-                id: modal.id,
-                parent: modal.parentElement,
-                computedStyle: window.getComputedStyle(modal),
-                textContent: text.substring(0, 200)
-              });
+            console.warn('🧹 [_APP] Found and removing purple gradient modal:', modal);
+            modal.style.display = 'none';
+            modal.style.visibility = 'hidden';
+            modal.style.opacity = '0';
+            try {
+              modal.remove();
+            } catch (e) {
+              if (modal.parentNode) {
+                modal.parentNode.removeChild(modal);
+              }
             }
-            console.warn('🧹 [_APP] Found and removing purple gradient SYSTEM INITIALIZATION modal:', modal);
-            modal.remove();
-            return;
           }
         });
 

@@ -31,18 +31,57 @@ export default function Document() {
                       });
                     } catch(e) {}
                     
-                    // Ищем по тексту
+                    // Ищем по тексту - УПРОЩЕННЫЙ ПОДХОД
                     const allElements = document.querySelectorAll('*');
                     const found = [];
                     
                     allElements.forEach(function(el) {
                       const text = el.textContent || '';
-                      if (text.includes('SYSTEM INITIALIZATION') || 
-                          text.includes('You are one of the first users') ||
-                          text.includes('collecting the first 10 links') ||
-                          text.includes('Links in system: 0/10') ||
-                          text.includes('Early Bird Bonus')) {
-                        found.push(el);
+                      if (text.includes('SYSTEM INITIALIZATION') || text.includes('0/10')) {
+                        // ПРОСТОЕ УДАЛЕНИЕ: Ищем родителя с fixed позиционированием и удаляем сразу
+                        let parent = el.closest('[class*="fixed"], [class*="backdrop"], [class*="modal"], [class*="z-50"]');
+                        if (parent) {
+                          console.log('🧹 [_DOCUMENT] Found modal:', parent);
+                          parent.style.display = 'none';
+                          parent.style.visibility = 'hidden';
+                          parent.style.opacity = '0';
+                          try {
+                            parent.remove();
+                            found.push(parent);
+                          } catch(e) {
+                            if (parent.parentNode) {
+                              parent.parentNode.removeChild(parent);
+                              found.push(parent);
+                            }
+                          }
+                        }
+                      }
+                    });
+                    
+                    // Дополнительная проверка для других текстов
+                    allElements.forEach(function(el) {
+                      const text = el.textContent || '';
+                      if (!text.includes('SYSTEM INITIALIZATION') && !text.includes('0/10')) {
+                        if (text.includes('You are one of the first users') ||
+                            text.includes('collecting the first 10 links') ||
+                            text.includes('Early Bird Bonus')) {
+                          let parent = el.closest('[class*="fixed"], [class*="backdrop"], [class*="modal"], [class*="z-50"]');
+                          if (parent) {
+                            console.log('🧹 [_DOCUMENT] Found modal by secondary text:', parent);
+                            parent.style.display = 'none';
+                            parent.style.visibility = 'hidden';
+                            parent.style.opacity = '0';
+                            try {
+                              parent.remove();
+                              found.push(parent);
+                            } catch(e) {
+                              if (parent.parentNode) {
+                                parent.parentNode.removeChild(parent);
+                                found.push(parent);
+                              }
+                            }
+                          }
+                        }
                       }
                     });
                     
@@ -55,65 +94,7 @@ export default function Document() {
                       }
                     });
                     
-                    // Удаляем найденные элементы
-                    found.forEach(function(el) {
-                      // Ищем родителя с fixed позиционированием
-                      let parent = el;
-                      let foundParent = false;
-                      
-                      for (let i = 0; i < 15; i++) {
-                        if (!parent || !parent.parentElement) break;
-                        
-                        const classes = parent.className || '';
-                        const style = window.getComputedStyle ? window.getComputedStyle(parent) : {};
-                        
-                        if (classes.includes('fixed') || 
-                            classes.includes('backdrop') || 
-                            classes.includes('modal') ||
-                            classes.includes('z-50') ||
-                            style.position === 'fixed') {
-                          foundParent = true;
-                          break;
-                        }
-                        
-                        parent = parent.parentElement;
-                      }
-                      
-                      if (foundParent && parent) {
-                        // Принудительно скрываем
-                        parent.style.display = 'none';
-                        parent.style.visibility = 'hidden';
-                        parent.style.opacity = '0';
-                        parent.style.pointerEvents = 'none';
-                        parent.style.position = 'absolute';
-                        parent.style.left = '-9999px';
-                        parent.style.top = '-9999px';
-                        parent.style.width = '0';
-                        parent.style.height = '0';
-                        parent.style.overflow = 'hidden';
-                        
-                        // Удаляем
-                        try {
-                          parent.remove();
-                        } catch(e) {
-                          if (parent.parentNode) {
-                            parent.parentNode.removeChild(parent);
-                          }
-                        }
-                      } else if (el.classList && (el.classList.contains('fixed') || el.classList.contains('backdrop'))) {
-                        // Если сам элемент является модальным окном
-                        el.style.display = 'none';
-                        el.style.visibility = 'hidden';
-                        el.style.opacity = '0';
-                        try {
-                          el.remove();
-                        } catch(e) {
-                          if (el.parentNode) {
-                            el.parentNode.removeChild(el);
-                          }
-                        }
-                      }
-                    });
+                    // Элементы уже удалены выше, этот блок больше не нужен
                     
                     if (found.length > 0) {
                       console.warn('🧹 [_DOCUMENT] Removed ' + found.length + ' SYSTEM INITIALIZATION modal(s)');
@@ -184,4 +165,5 @@ export default function Document() {
     </Html>
   );
 }
+
 
