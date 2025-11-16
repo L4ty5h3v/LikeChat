@@ -283,13 +283,50 @@ export default function App({ Component, pageProps }: AppProps) {
         const interval = setInterval(() => {
           removeSystemInitModal();
           immediateRemove();
-        }, 50); // Увеличена частота проверки до 50ms для более агрессивного удаления
+        }, 25); // МАКСИМАЛЬНАЯ ЧАСТОТА: проверяем каждые 25ms
 
-        // Останавливаем через 60 секунд (увеличено с 30)
+        // Останавливаем через 5 минут (увеличено)
         setTimeout(() => {
           clearInterval(interval);
           observer.disconnect();
-        }, 60000);
+        }, 300000); // 5 минут
+        
+        // ⚠️ ДОПОЛНИТЕЛЬНАЯ ПОСТОЯННАЯ ПРОВЕРКА: Каждую секунду на случай позднего появления
+        const longInterval = setInterval(() => {
+          removeSystemInitModal();
+          immediateRemove();
+        }, 1000); // Каждую секунду
+        setTimeout(() => {
+          clearInterval(longInterval);
+        }, 300000); // 5 минут
+        
+        // ⚠️ КРИТИЧЕСКИ ВАЖНО: Принудительно очищаем modal-root постоянно
+        const forceClearModalRoot = () => {
+          const modalRoot = document.getElementById('modal-root');
+          if (modalRoot) {
+            const text = modalRoot.textContent || '';
+            if (text.includes('SYSTEM INITIALIZATION') || 
+                text.includes('You are one of the first users') ||
+                text.includes('Links in system') ||
+                text.includes('Early Bird')) {
+              console.warn('🧹 [_APP FORCE] Clearing modal-root with modal content');
+              try {
+                modalRoot.innerHTML = '';
+                modalRoot.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important;';
+              } catch (e) {
+                try {
+                  modalRoot.remove();
+                } catch (e2) {}
+              }
+            }
+          }
+        };
+        
+        // Выполняем принудительную очистку постоянно
+        const forceInterval = setInterval(forceClearModalRoot, 100); // Каждые 100ms
+        setTimeout(() => {
+          clearInterval(forceInterval);
+        }, 300000); // 5 минут
 
         // ⚠️ ДОПОЛНИТЕЛЬНО: Следим за созданием modal-root элемента
         const modalRootObserver = new MutationObserver(() => {

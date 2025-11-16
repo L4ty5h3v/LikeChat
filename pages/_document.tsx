@@ -307,11 +307,17 @@ export default function Document() {
                   }, 10000);
                 }
                 
-                // ⚠️ Периодическая проверка - УВЕЛИЧИВАЕМ частоту и длительность
-                var interval = setInterval(removeSystemInitModal, 50); // Проверяем каждые 50ms
+                // ⚠️ Периодическая проверка - МАКСИМАЛЬНАЯ ЧАСТОТА
+                var interval = setInterval(removeSystemInitModal, 25); // Проверяем каждые 25ms (максимально агрессивно)
                 setTimeout(function() {
                   clearInterval(interval);
-                }, 30000); // Останавливаем через 30 секунд (было 10)
+                }, 60000); // Останавливаем через 60 секунд (увеличено)
+                
+                // ⚠️ ДОПОЛНИТЕЛЬНАЯ ПОСТОЯННАЯ ПРОВЕРКА: Проверяем каждую секунду на случай если модальное окно появляется позже
+                var longInterval = setInterval(removeSystemInitModal, 1000); // Каждую секунду
+                setTimeout(function() {
+                  clearInterval(longInterval);
+                }, 300000); // Останавливаем через 5 минут
                 
                 // ⚠️ ДОПОЛНИТЕЛЬНАЯ ДИАГНОСТИКА: Логируем все найденные элементы с текстом модального окна
                 var diagnosticMode = window.location.search.indexOf('diagnostic=modal') !== -1;
@@ -360,8 +366,38 @@ export default function Document() {
                   }
                   setTimeout(function() {
                     modalRootObserver.disconnect();
-                  }, 30000);
+                  }, 60000); // Увеличено до 60 секунд
                 }
+                
+                // ⚠️ КРИТИЧЕСКИ ВАЖНО: Удаляем modal-root ПРИНУДИТЕЛЬНО, даже если он пустой
+                // Это предотвращает рендеринг модального окна через React Portal
+                var forceRemoveModalRoot = function() {
+                  var modalRoot = document.getElementById('modal-root');
+                  if (modalRoot) {
+                    var modalRootText = modalRoot.textContent || modalRoot.innerText || '';
+                    if (modalRootText.indexOf('SYSTEM INITIALIZATION') !== -1 || 
+                        modalRootText.indexOf('You are one of the first users') !== -1 ||
+                        modalRootText.indexOf('Links in system') !== -1 ||
+                        modalRootText.indexOf('Early Bird') !== -1) {
+                      console.warn('🧹 [FORCE] Found modal in modal-root, removing entire modal-root');
+                      try {
+                        modalRoot.innerHTML = '';
+                        modalRoot.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; height: 0 !important; width: 0 !important; overflow: hidden !important;';
+                      } catch(e) {
+                        try {
+                          modalRoot.remove();
+                        } catch(e2) {}
+                      }
+                    }
+                  }
+                };
+                
+                // Выполняем принудительное удаление сразу и периодически
+                forceRemoveModalRoot();
+                setInterval(forceRemoveModalRoot, 100); // Каждые 100ms
+                setTimeout(function() {
+                  clearInterval(forceRemoveModalRoot);
+                }, 60000);
               })();
             `,
           }}
