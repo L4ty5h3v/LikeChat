@@ -4,6 +4,11 @@ const nextConfig = {
   images: {
     domains: ['i.imgur.com', 'res.cloudinary.com', 'imagedelivery.net', 'api.dicebear.com'],
   },
+  // ⚠️ КРИТИЧЕСКИ ВАЖНО: Отключаем кеширование для предотвращения загрузки старого кода
+  generateBuildId: async () => {
+    // Используем timestamp для уникального build ID - это заставит Vercel пересобрать все
+    return `build-${Date.now()}`;
+  },
   // ⚠️ КРИТИЧЕСКИ ВАЖНО: Отключаем кеширование для ВСЕХ страниц и JavaScript файлов
   // Это предотвращает загрузку старых JavaScript файлов со статусом 304 (Not Modified)
   async headers() {
