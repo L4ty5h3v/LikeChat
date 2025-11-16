@@ -446,6 +446,79 @@ export default function Tasks() {
     }
   };
 
+  // ⚠️ КРИТИЧЕСКИ ВАЖНО: Удаляем модальное окно "SYSTEM INITIALIZATION" при монтировании компонента
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const removeModal = () => {
+      try {
+        // Ищем все элементы с текстом модального окна
+        const allElements = document.querySelectorAll('*');
+        allElements.forEach((el) => {
+          const text = el.textContent || el.innerText || '';
+          if (text.includes('SYSTEM INITIALIZATION') || 
+              text.includes('You are one of the first users') ||
+              text.includes('Links in system: 0/10') ||
+              text.includes('collecting the first 10 links')) {
+            
+            // Ищем родителя с fixed позиционированием
+            let parent = el.closest('[class*="fixed"], [class*="backdrop"], [class*="modal"], [class*="z-50"]');
+            if (!parent) {
+              // Если не нашли по классам, ищем по стилям
+              let current = el.parentElement;
+              for (let i = 0; i < 20 && current; i++) {
+                const style = window.getComputedStyle(current);
+                if (style.position === 'fixed' && parseInt(style.zIndex) >= 40) {
+                  parent = current;
+                  break;
+                }
+                current = current.parentElement;
+              }
+            }
+            
+            if (parent) {
+              console.warn('🧹 [TASKS] Found and removing SYSTEM INITIALIZATION modal:', parent);
+              parent.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; position: absolute !important; left: -9999px !important; top: -9999px !important; width: 0 !important; height: 0 !important; overflow: hidden !important; z-index: -9999 !important;';
+              try {
+                parent.remove();
+              } catch (e) {
+                if (parent.parentNode) {
+                  parent.parentNode.removeChild(parent);
+                }
+              }
+            } else {
+              // Если не нашли родителя, скрываем сам элемент
+              el.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important;';
+            }
+          }
+        });
+        
+        // Удаляем modal-root если он существует
+        const modalRoot = document.getElementById('modal-root');
+        if (modalRoot) {
+          const modalText = modalRoot.textContent || '';
+          if (modalText.includes('SYSTEM INITIALIZATION')) {
+            console.warn('🧹 [TASKS] Removing modal-root with SYSTEM INITIALIZATION');
+            modalRoot.remove();
+          }
+        }
+      } catch (e) {
+        console.error('❌ [TASKS] Error removing modal:', e);
+      }
+    };
+    
+    // Выполняем немедленно и периодически
+    removeModal();
+    setTimeout(removeModal, 0);
+    setTimeout(removeModal, 100);
+    setTimeout(removeModal, 500);
+    
+    const interval = setInterval(removeModal, 100);
+    setTimeout(() => clearInterval(interval), 10000);
+    
+    return () => clearInterval(interval);
+  }, []);
+
   if (loading) {
     return (
       <Layout title="Loading Tasks...">
