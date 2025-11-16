@@ -969,6 +969,9 @@ export default function Submit() {
     );
   }
 
+  // ⚠️ ПРОВЕРКА: Убеждаемся, что модальное окно "SYSTEM INITIALIZATION" удалено
+  // Если вы видите это модальное окно, очистите кеш браузера (Ctrl+Shift+R)
+  
   return (
     <Layout title="Multi Like - Publish Link">
       <div className="max-w-3xl mx-auto">
