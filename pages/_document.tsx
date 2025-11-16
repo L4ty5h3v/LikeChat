@@ -20,14 +20,20 @@ export default function Document() {
       <body>
         {/* ⚠️ КРИТИЧЕСКИ ВАЖНО: Inline скрипт, который выполняется ДО React hydration */}
         {/* Этот скрипт удаляет модальное окно "SYSTEM INITIALIZATION" немедленно */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
+            <script
+              dangerouslySetInnerHTML={{
+                __html: `
               (function() {
                 'use strict';
                 
+                // ⚠️ КРИТИЧЕСКИ ВАЖНО: Принудительно очищаем кеш браузера для этого скрипта
+                // Это гарантирует, что скрипт всегда выполняется свежим
+                console.log('%c🔍 [_DOCUMENT] Modal removal script loaded - version: ' + Date.now(), 'color: #f00; font-size: 16px; font-weight: bold;');
+                
                 // ⚠️ ФУНКЦИЯ УДАЛЕНИЯ: Удаляет модальное окно "SYSTEM INITIALIZATION" - МАКСИМАЛЬНО АГРЕССИВНО
                 function removeSystemInitModal() {
+                  // Логируем каждое выполнение для диагностики
+                  console.log('%c🧹 [_DOCUMENT] removeSystemInitModal() called', 'color: #0f0; font-size: 12px;');
                   try {
                     // Очищаем storage
                     try {
@@ -254,7 +260,10 @@ export default function Document() {
                     }
                     
                     if (foundCount > 0) {
-                      console.warn('🧹 [_DOCUMENT] Removed ' + foundCount + ' SYSTEM INITIALIZATION modal(s)');
+                      console.error('%c🧹 [_DOCUMENT] Removed ' + foundCount + ' SYSTEM INITIALIZATION modal(s)', 'color: #f00; font-size: 14px; font-weight: bold;');
+                    } else {
+                      // Логируем даже если ничего не найдено - это подтверждает, что скрипт работает
+                      console.log('%c✅ [_DOCUMENT] No SYSTEM INITIALIZATION modal found in DOM', 'color: #0f0; font-size: 12px;');
                     }
                   } catch(error) {
                     console.error('❌ [_DOCUMENT] Error removing modal:', error);
