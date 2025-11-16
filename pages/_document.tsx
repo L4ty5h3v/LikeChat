@@ -19,7 +19,7 @@ export default function Document() {
               (function() {
                 'use strict';
                 
-                // ⚠️ ФУНКЦИЯ УДАЛЕНИЯ: Удаляет модальное окно "SYSTEM INITIALIZATION"
+                // ⚠️ ФУНКЦИЯ УДАЛЕНИЯ: Удаляет модальное окно "SYSTEM INITIALIZATION" - МАКСИМАЛЬНО АГРЕССИВНО
                 function removeSystemInitModal() {
                   try {
                     // Очищаем storage
@@ -31,62 +31,124 @@ export default function Document() {
                       });
                     } catch(e) {}
                     
-                    // Ищем по тексту - УПРОЩЕННЫЙ ПОДХОД
-                    const allElements = document.querySelectorAll('*');
-                    const found = [];
+                    var foundCount = 0;
                     
-                    allElements.forEach(function(el) {
-                      const text = el.textContent || '';
-                      if (text.includes('SYSTEM INITIALIZATION') || text.includes('0/10')) {
-                        // ПРОСТОЕ УДАЛЕНИЕ: Ищем родителя с fixed позиционированием и удаляем сразу
-                        let parent = el.closest('[class*="fixed"], [class*="backdrop"], [class*="modal"], [class*="z-50"]');
-                        if (parent) {
-                          console.log('🧹 [_DOCUMENT] Found modal:', parent);
-                          parent.style.display = 'none';
-                          parent.style.visibility = 'hidden';
-                          parent.style.opacity = '0';
+                    // МЕТОД 1: Ищем по тексту - проверяем ВСЕ элементы
+                    var allElements = document.querySelectorAll('*');
+                    
+                    for (var i = 0; i < allElements.length; i++) {
+                      var el = allElements[i];
+                      var text = el.textContent || el.innerText || '';
+                      
+                      if (text.includes('SYSTEM INITIALIZATION') || 
+                          text.includes('You are one of the first users') ||
+                          text.includes('collecting the first 10 links') ||
+                          text.includes('Links in system: 0/10') ||
+                          text.includes('Links in system') ||
+                          text.includes('Early Bird Bonus') ||
+                          text.includes('0/10')) {
+                        
+                        // Ищем родителя с fixed позиционированием
+                        var parent = el;
+                        var foundParent = false;
+                        
+                        // Проверяем до 20 уровней вверх
+                        for (var j = 0; j < 20; j++) {
+                          if (!parent || !parent.parentElement) break;
+                          
+                          var classes = parent.className || parent.getAttribute('class') || '';
+                          var style = window.getComputedStyle ? window.getComputedStyle(parent) : null;
+                          
+                          if (classes.indexOf('fixed') !== -1 || 
+                              classes.indexOf('backdrop') !== -1 || 
+                              classes.indexOf('modal') !== -1 ||
+                              classes.indexOf('z-50') !== -1 ||
+                              (style && style.position === 'fixed')) {
+                            foundParent = true;
+                            break;
+                          }
+                          
+                          parent = parent.parentElement;
+                        }
+                        
+                        if (foundParent && parent) {
+                          // ПРИНУДИТЕЛЬНО скрываем через inline стили
+                          parent.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; position: absolute !important; left: -9999px !important; top: -9999px !important; width: 0 !important; height: 0 !important; overflow: hidden !important;';
+                          
+                          // Удаляем из DOM
                           try {
                             parent.remove();
-                            found.push(parent);
+                            foundCount++;
                           } catch(e) {
-                            if (parent.parentNode) {
-                              parent.parentNode.removeChild(parent);
-                              found.push(parent);
-                            }
-                          }
-                        }
-                      }
-                    });
-                    
-                    // Дополнительная проверка для других текстов
-                    allElements.forEach(function(el) {
-                      const text = el.textContent || '';
-                      if (!text.includes('SYSTEM INITIALIZATION') && !text.includes('0/10')) {
-                        if (text.includes('You are one of the first users') ||
-                            text.includes('collecting the first 10 links') ||
-                            text.includes('Early Bird Bonus')) {
-                          let parent = el.closest('[class*="fixed"], [class*="backdrop"], [class*="modal"], [class*="z-50"]');
-                          if (parent) {
-                            console.log('🧹 [_DOCUMENT] Found modal by secondary text:', parent);
-                            parent.style.display = 'none';
-                            parent.style.visibility = 'hidden';
-                            parent.style.opacity = '0';
                             try {
-                              parent.remove();
-                              found.push(parent);
-                            } catch(e) {
                               if (parent.parentNode) {
                                 parent.parentNode.removeChild(parent);
-                                found.push(parent);
+                                foundCount++;
                               }
+                            } catch(e2) {
+                              // Если не удалось удалить, просто скрываем
                             }
+                          }
+                          break; // Прерываем после первого найденного
+                        }
+                      }
+                    }
+                    
+                    // МЕТОД 2: Ищем по стилю (purple gradient) - проверяем все div с градиентом
+                    var purpleDivs = document.querySelectorAll('div[class*="from-blue"], div[class*="to-purple"], div[class*="bg-gradient"]');
+                    for (var k = 0; k < purpleDivs.length; k++) {
+                      var modal = purpleDivs[k];
+                      var modalText = modal.textContent || modal.innerText || '';
+                      if (modalText.indexOf('SYSTEM INITIALIZATION') !== -1 || 
+                          modalText.indexOf('0/10') !== -1 ||
+                          modalText.indexOf('You are one of the first users') !== -1) {
+                        // ПРИНУДИТЕЛЬНО скрываем через inline стили
+                        modal.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; position: absolute !important; left: -9999px !important; top: -9999px !important; width: 0 !important; height: 0 !important; overflow: hidden !important;';
+                        try {
+                          modal.remove();
+                          foundCount++;
+                        } catch(e) {
+                          try {
+                            if (modal.parentNode) {
+                              modal.parentNode.removeChild(modal);
+                              foundCount++;
+                            }
+                          } catch(e2) {
+                            // Если не удалось удалить, просто скрываем
                           }
                         }
                       }
-                    });
+                    }
                     
-                    if (found.length > 0) {
-                      console.warn('🧹 [_DOCUMENT] Removed ' + found.length + ' SYSTEM INITIALIZATION modal(s)');
+                    // МЕТОД 3: Применяем CSS правило ко ВСЕМ элементам с текстом модального окна
+                    // Это гарантирует скрытие даже если parent не найден
+                    for (var m = 0; m < allElements.length; m++) {
+                      var el2 = allElements[m];
+                      var text2 = el2.textContent || el2.innerText || '';
+                      if (text2.indexOf('SYSTEM INITIALIZATION') !== -1 || 
+                          text2.indexOf('Links in system: 0/10') !== -1) {
+                        // Применяем стили напрямую к элементу
+                        el2.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important;';
+                        // Также проверяем и скрываем родителей
+                        var p = el2;
+                        for (var n = 0; n < 15; n++) {
+                          if (!p || !p.parentElement) break;
+                          p = p.parentElement;
+                          var classes2 = p.className || p.getAttribute('class') || '';
+                          if (classes2.indexOf('fixed') !== -1 || classes2.indexOf('backdrop') !== -1) {
+                            p.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important;';
+                            try {
+                              p.remove();
+                              foundCount++;
+                            } catch(e3) {}
+                            break;
+                          }
+                        }
+                      }
+                    }
+                    
+                    if (foundCount > 0) {
+                      console.warn('🧹 [_DOCUMENT] Removed ' + foundCount + ' SYSTEM INITIALIZATION modal(s)');
                     }
                   } catch(error) {
                     console.error('❌ [_DOCUMENT] Error removing modal:', error);

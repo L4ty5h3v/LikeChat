@@ -65,12 +65,11 @@ a {
 /* ⚠️ ПРИНУДИТЕЛЬНОЕ СКРЫТИЕ: Скрываем модальное окно "SYSTEM INITIALIZATION" - оно удалено из кода */
 /* JavaScript код в _app.tsx и submit.tsx будет искать и удалять это модальное окно из DOM */
 
-/* CSS принудительное скрытие модального окна по стилю (purple gradient) */
-/* JavaScript в _app.tsx будет искать по тексту и удалять из DOM */
-div[class*="from-blue"][class*="to-purple"],
-div[class*="bg-gradient"][class*="blue"][class*="purple"],
-div[class*="from-blue-500"][class*="to-purple-500"],
-div[class*="border-blue-400"] {
-  /* JavaScript будет искать эти элементы и проверять текст перед скрытием */
-}
+/* ⚠️ КРИТИЧЕСКИ ВАЖНО: CSS принудительное скрытие модального окна "SYSTEM INITIALIZATION" */
+/* Это скрывает модальное окно даже если JavaScript не сработал (кеш/SSR) */
+
+/* Скрываем ВСЕ элементы с текстом "SYSTEM INITIALIZATION" или "0/10" через JavaScript в _document.tsx */
+/* Здесь добавляем CSS fallback на случай если скрипт не выполнится */
+
+/* ⚠️ ПРИНУДИТЕЛЬНОЕ СКРЫТИЕ: Применяем через inline стили в _document.tsx скрипте */
 
