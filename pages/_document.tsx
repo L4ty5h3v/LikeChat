@@ -261,20 +261,28 @@ export default function Document() {
                   }
                 }
                 
-                // Выполняем немедленно
+                // ⚠️ КРИТИЧЕСКИ ВАЖНО: Выполняем НЕМЕДЛЕННО, ДО React hydration
+                // Это гарантирует удаление модального окна даже из старого билда
+                removeSystemInitModal();
+                
+                // Выполняем при разных состояниях загрузки
                 if (document.readyState === 'loading') {
                   document.addEventListener('DOMContentLoaded', removeSystemInitModal);
                 } else {
                   removeSystemInitModal();
                 }
                 
-                // Повторяем через небольшие интервалы
+                // Повторяем через небольшие интервалы - МАКСИМАЛЬНО АГРЕССИВНО
                 setTimeout(removeSystemInitModal, 0);
+                setTimeout(removeSystemInitModal, 1);
+                setTimeout(removeSystemInitModal, 5);
                 setTimeout(removeSystemInitModal, 10);
+                setTimeout(removeSystemInitModal, 20);
                 setTimeout(removeSystemInitModal, 50);
                 setTimeout(removeSystemInitModal, 100);
                 setTimeout(removeSystemInitModal, 200);
                 setTimeout(removeSystemInitModal, 500);
+                setTimeout(removeSystemInitModal, 1000);
                 
                 // Используем MutationObserver для отслеживания изменений
                 if (typeof MutationObserver !== 'undefined') {
@@ -319,35 +327,44 @@ export default function Document() {
                   clearInterval(longInterval);
                 }, 300000); // Останавливаем через 5 минут
                 
-                // ⚠️ ДОПОЛНИТЕЛЬНАЯ ДИАГНОСТИКА: Логируем все найденные элементы с текстом модального окна
-                var diagnosticMode = window.location.search.indexOf('diagnostic=modal') !== -1;
-                if (diagnosticMode) {
-                  console.warn('🔍 [DIAGNOSTIC] Starting modal diagnostic scan...');
-                  setTimeout(function() {
-                    var allElsForDiagnostic = document.querySelectorAll('*');
-                    var foundInDiagnostic = 0;
-                    for (var di = 0; di < allElsForDiagnostic.length; di++) {
-                      var diEl = allElsForDiagnostic[di];
-                      var diText = diEl.textContent || diEl.innerText || '';
-                      if (diText.indexOf('SYSTEM INITIALIZATION') !== -1) {
-                        foundInDiagnostic++;
-                        var diStyle = window.getComputedStyle ? window.getComputedStyle(diEl) : null;
-                        console.error('🔴 [DIAGNOSTIC] Found modal text in element:', {
-                          tagName: diEl.tagName,
-                          id: diEl.id || 'none',
-                          className: diEl.className || 'none',
-                          position: diStyle ? diStyle.position : 'unknown',
-                          display: diStyle ? diStyle.display : 'unknown',
-                          zIndex: diStyle ? diStyle.zIndex : 'unknown',
-                          textPreview: diText.substring(0, 100),
-                          element: diEl,
-                          outerHTML: diEl.outerHTML.substring(0, 500)
-                        });
-                      }
+                // ⚠️ ВСЕГДА ВКЛЮЧЕНА ДИАГНОСТИКА: Логируем все найденные элементы с текстом модального окна
+                // Это поможет понять, откуда рендерится модальное окно
+                setTimeout(function() {
+                  console.log('%c🔍 [_DOCUMENT] Starting modal diagnostic scan...', 'color: #f00; font-size: 14px; font-weight: bold;');
+                  var allElsForDiagnostic = document.querySelectorAll('*');
+                  var foundInDiagnostic = 0;
+                  for (var di = 0; di < allElsForDiagnostic.length; di++) {
+                    var diEl = allElsForDiagnostic[di];
+                    var diText = diEl.textContent || diEl.innerText || '';
+                    if (diText.indexOf('SYSTEM INITIALIZATION') !== -1 || 
+                        diText.indexOf('You are one of the first users') !== -1 ||
+                        diText.indexOf('Links in system: 0/10') !== -1) {
+                      foundInDiagnostic++;
+                      var diStyle = window.getComputedStyle ? window.getComputedStyle(diEl) : null;
+                      console.error('🔴 [_DOCUMENT-DIAGNOSTIC] Found modal text in element:', {
+                        tagName: diEl.tagName,
+                        id: diEl.id || 'none',
+                        className: diEl.className || 'none',
+                        position: diStyle ? diStyle.position : 'unknown',
+                        display: diStyle ? diStyle.display : 'unknown',
+                        zIndex: diStyle ? diStyle.zIndex : 'unknown',
+                        textPreview: diText.substring(0, 100),
+                        element: diEl,
+                        outerHTML: diEl.outerHTML.substring(0, 500),
+                        parentElement: diEl.parentElement ? {
+                          tagName: diEl.parentElement.tagName,
+                          id: diEl.parentElement.id || 'none',
+                          className: diEl.parentElement.className || 'none'
+                        } : 'none'
+                      });
                     }
-                    console.warn('🔍 [DIAGNOSTIC] Total elements with modal text found:', foundInDiagnostic);
-                  }, 2000); // Даем время на рендеринг
-                }
+                  }
+                  if (foundInDiagnostic > 0) {
+                    console.error('🔴 [_DOCUMENT-DIAGNOSTIC] Total elements with modal text found:', foundInDiagnostic);
+                  } else {
+                    console.log('✅ [_DOCUMENT-DIAGNOSTIC] No modal elements found in DOM');
+                  }
+                }, 2000); // Даем время на рендеринг
                 
                 // ⚠️ ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: Следим за созданием modal-root элемента
                 if (typeof MutationObserver !== 'undefined') {
