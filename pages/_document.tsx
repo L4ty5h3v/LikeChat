@@ -72,7 +72,25 @@ export default function Document() {
                 
                 // ⚠️ КРИТИЧЕСКИ ВАЖНО: Принудительно очищаем кеш браузера для этого скрипта
                 // Это гарантирует, что скрипт всегда выполняется свежим
-                console.log('%c🔍 [_DOCUMENT] Modal removal script loaded - version: ' + Date.now(), 'color: #f00; font-size: 16px; font-weight: bold;');
+                // ⚠️ УСИЛЕННЫЙ ЛОГ: Выводим ОЧЕНЬ ЗАМЕТНЫЙ лог, чтобы убедиться, что скрипт загружается
+                console.log('%c🔍🔍🔍 [_DOCUMENT] Modal removal script loaded - version: ' + Date.now() + ' - IF YOU SEE THIS, SCRIPT IS LOADING! 🔍🔍🔍', 'color: #f00; font-size: 20px; font-weight: bold; background: #ff0; padding: 10px; border: 5px solid #f00;');
+                console.error('%c⚠️⚠️⚠️ IF YOU DO NOT SEE THE LOG ABOVE, OLD CACHED JS IS LOADING! ⚠️⚠️⚠️', 'color: #fff; font-size: 18px; font-weight: bold; background: #f00; padding: 15px; border: 5px solid #000;');
+                
+                // ⚠️ НЕМЕДЛЕННАЯ ПРОВЕРКА: Проверяем и удаляем модальное окно СРАЗУ, даже до определения функций
+                try {
+                  var checkModalRoot = document.getElementById('modal-root');
+                  if (checkModalRoot) {
+                    var checkText = checkModalRoot.textContent || checkModalRoot.innerText || '';
+                    if (checkText.indexOf('SYSTEM INITIALIZATION') !== -1 || checkText.indexOf('0/10') !== -1) {
+                      console.error('%c🔴🔴🔴 FOUND MODAL IN modal-root BEFORE SCRIPT EXECUTION! REMOVING NOW! 🔴🔴🔴', 'color: #fff; font-size: 18px; font-weight: bold; background: #f00; padding: 15px;');
+                      checkModalRoot.innerHTML = '';
+                      checkModalRoot.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; position: absolute !important; left: -9999px !important; top: -9999px !important; width: 0 !important; height: 0 !important; overflow: hidden !important; z-index: -9999 !important;';
+                      try { checkModalRoot.remove(); } catch(e) {}
+                    }
+                  }
+                } catch(e) {
+                  console.error('❌ Error in immediate check:', e);
+                }
                 
                 // ⚠️ НЕМЕДЛЕННОЕ УДАЛЕНИЕ: Удаляем модальное окно СРАЗУ, ДО определения функции
                 // Это гарантирует, что модальное окно будет удалено даже если функция не выполнится
