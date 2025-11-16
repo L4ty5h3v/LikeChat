@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import Button from '@/components/Button';
-import { getUserProgress, getTotalLinksCount, getAllLinks } from '@/lib/db-config';
+import { getUserProgress, getAllLinks } from '@/lib/db-config';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
 import type { ActivityType } from '@/types';
 
@@ -184,8 +184,6 @@ export default function Submit() {
   const [castUrl, setCastUrl] = useState('');
   const [error, setError] = useState('');
   const [canSubmit, setCanSubmit] = useState(false);
-  const [totalLinks, setTotalLinks] = useState(0);
-  const [showWarning, setShowWarning] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [publishedLinkId, setPublishedLinkId] = useState<string | null>(null);
 
@@ -405,7 +403,7 @@ export default function Submit() {
         return;
       }
       
-      const savedActivity = localStorage.getItem('selected_activity');
+    const savedActivity = localStorage.getItem('selected_activity');
       if (!savedActivity) {
         console.error('❌ [SUBMIT] No activity selected, redirecting to home...');
         // Проверяем link_published еще раз перед редиректом
@@ -433,13 +431,13 @@ export default function Submit() {
             router.replace('/');
           }, 100);
         } else {
-          router.push('/');
+      router.push('/');
         }
-        return;
-      }
+      return;
+    }
 
-      setActivity(savedActivity as ActivityType);
-      
+    setActivity(savedActivity as ActivityType);
+    
       console.log('✅ [SUBMIT] User and activity loaded:', {
         fid: user.fid,
         username: user.username,
@@ -649,16 +647,6 @@ export default function Submit() {
         router.replace('/tasks');
       }, 100);
       return;
-    }
-
-    // Проверка: в системе должно быть минимум 10 ссылок
-    const count = await getTotalLinksCount();
-    setTotalLinks(count);
-    
-    // Показываем предупреждение только если меньше 10 ссылок
-    // Но разрешаем первым 10 пользователям добавлять
-    if (count < 10) {
-      setShowWarning(true);
     }
 
     setCanSubmit(true);
@@ -1130,7 +1118,7 @@ export default function Submit() {
               fullWidth
               className="text-xl py-5"
             >
-              {totalLinks < 10 ? '🚀 Publish Link (Early Bird)' : '🚀 Publish Link'}
+              🚀 Publish Link
             </Button>
           </form>
         </div>
