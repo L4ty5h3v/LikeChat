@@ -20,6 +20,31 @@ export default function Document() {
       <body>
         {/* ⚠️ КРИТИЧЕСКИ ВАЖНО: Inline скрипт, который выполняется ДО React hydration */}
         {/* Этот скрипт удаляет модальное окно "SYSTEM INITIALIZATION" немедленно */}
+        {/* ⚠️ ПРИНУДИТЕЛЬНОЕ CSS СКРЫТИЕ: Добавляем inline стили ДО всего остального */}
+        <style dangerouslySetInnerHTML={{
+          __html: `
+            /* ⚠️ КРИТИЧЕСКИ ВАЖНО: Принудительное скрытие модального окна через inline CSS */
+            /* Это выполняется ДО загрузки JavaScript и скрывает модальное окно НЕМЕДЛЕННО */
+            #modal-root,
+            #popover-root,
+            #hover-popover-root,
+            div[class*="from-blue"][class*="to-purple"],
+            div[class*="bg-gradient"][class*="from-blue"],
+            div[class*="bg-gradient"][class*="to-purple"] {
+              display: none !important;
+              visibility: hidden !important;
+              opacity: 0 !important;
+              pointer-events: none !important;
+              position: absolute !important;
+              left: -9999px !important;
+              top: -9999px !important;
+              width: 0 !important;
+              height: 0 !important;
+              overflow: hidden !important;
+              z-index: -9999 !important;
+            }
+          `
+        }} />
             <script
               dangerouslySetInnerHTML={{
                 __html: `
