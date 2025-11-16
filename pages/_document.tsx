@@ -156,42 +156,72 @@ export default function Document() {
                     
                     // ⚠️ МЕТОД 4: КРИТИЧЕСКИ ВАЖНО - Проверяем и удаляем из modal-root, popover-root
                     // Модальное окно может рендериться через React Portal в эти элементы
-                    var modalRoots = ['modal-root', 'popover-root', 'hover-popover-root', 'root'];
-                    for (var r = 0; r < modalRoots.length; r++) {
-                      var rootEl = document.getElementById(modalRoots[r]);
-                      if (rootEl) {
-                        var rootText = rootEl.textContent || rootEl.innerText || '';
-                        if (rootText.indexOf('SYSTEM INITIALIZATION') !== -1 || 
-                            rootText.indexOf('You are one of the first users') !== -1 ||
-                            rootText.indexOf('Links in system: 0/10') !== -1) {
-                          // Ищем все children в modal-root с текстом модального окна
-                          var rootChildren = rootEl.querySelectorAll('*');
-                          for (var rc = 0; rc < rootChildren.length; rc++) {
-                            var child = rootChildren[rc];
-                            var childText = child.textContent || child.innerText || '';
-                            if (childText.indexOf('SYSTEM INITIALIZATION') !== -1) {
-                              // ПРИНУДИТЕЛЬНО скрываем и удаляем
-                              child.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; position: absolute !important; left: -9999px !important; top: -9999px !important; width: 0 !important; height: 0 !important; overflow: hidden !important;';
-                              try {
-                                child.remove();
-                                foundCount++;
-                              } catch(e4) {
-                                try {
-                                  if (child.parentNode) {
-                                    child.parentNode.removeChild(child);
-                                    foundCount++;
-                                  }
-                                } catch(e5) {}
-                              }
-                            }
-                          }
-                          // Также проверяем сам modal-root - если он содержит только модальное окно, очищаем его
-                          if (rootText.indexOf('SYSTEM INITIALIZATION') !== -1 && rootEl.children.length > 0) {
+                    // ⚠️ НЕМЕДЛЕННО УДАЛЯЕМ modal-root если он существует
+                    var modalRoot = document.getElementById('modal-root');
+                    if (modalRoot) {
+                      var modalRootText = modalRoot.textContent || modalRoot.innerText || '';
+                      if (modalRootText.indexOf('SYSTEM INITIALIZATION') !== -1 || 
+                          modalRootText.indexOf('You are one of the first users') !== -1 ||
+                          modalRootText.indexOf('Links in system: 0/10') !== -1) {
+                        console.warn('🧹 [_DOCUMENT] Found SYSTEM INITIALIZATION in modal-root, removing entire modal-root');
+                        try {
+                          modalRoot.remove();
+                          foundCount++;
+                        } catch(e4) {
+                          try {
+                            modalRoot.innerHTML = '';
+                            modalRoot.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important;';
+                            foundCount++;
+                          } catch(e5) {}
+                        }
+                      } else {
+                        // Даже если нет текста, удаляем все children с purple gradient
+                        var modalRootChildren = modalRoot.querySelectorAll('[class*="from-blue"], [class*="to-purple"], [class*="bg-gradient"]');
+                        for (var mrc = 0; mrc < modalRootChildren.length; mrc++) {
+                          var modalChild = modalRootChildren[mrc];
+                          var modalChildText = modalChild.textContent || modalChild.innerText || '';
+                          if (modalChildText.indexOf('SYSTEM INITIALIZATION') !== -1) {
                             try {
-                              rootEl.innerHTML = '';
+                              modalChild.remove();
                               foundCount++;
                             } catch(e6) {}
                           }
+                        }
+                      }
+                    }
+                    
+                    // ⚠️ ДОПОЛНИТЕЛЬНО: Удаляем все элементы с purple gradient из ВСЕГО документа
+                    var purpleGradientElements = document.querySelectorAll('[class*="from-blue"]');
+                    for (var pge = 0; pge < purpleGradientElements.length; pge++) {
+                      var purpleEl = purpleGradientElements[pge];
+                      var purpleText = purpleEl.textContent || purpleEl.innerText || '';
+                      if (purpleText.indexOf('SYSTEM INITIALIZATION') !== -1) {
+                        console.warn('🧹 [_DOCUMENT] Found purple gradient element with SYSTEM INITIALIZATION, removing:', purpleEl);
+                        try {
+                          purpleEl.remove();
+                          foundCount++;
+                        } catch(e7) {
+                          try {
+                            if (purpleEl.parentNode) {
+                              purpleEl.parentNode.removeChild(purpleEl);
+                              foundCount++;
+                            }
+                          } catch(e8) {}
+                        }
+                      }
+                    }
+                    
+                    // Проверяем и другие root элементы
+                    var otherRoots = ['popover-root', 'hover-popover-root'];
+                    for (var or = 0; or < otherRoots.length; or++) {
+                      var otherRootEl = document.getElementById(otherRoots[or]);
+                      if (otherRootEl) {
+                        var otherRootText = otherRootEl.textContent || otherRootEl.innerText || '';
+                        if (otherRootText.indexOf('SYSTEM INITIALIZATION') !== -1) {
+                          try {
+                            otherRootEl.innerHTML = '';
+                            foundCount++;
+                          } catch(e9) {}
                         }
                       }
                     }

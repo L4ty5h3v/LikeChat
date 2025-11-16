@@ -150,39 +150,64 @@ export default function App({ Component, pageProps }: AppProps) {
         });
 
         // ⚠️ КРИТИЧЕСКИ ВАЖНО: Проверяем modal-root, popover-root - модальное окно может рендериться туда
-        const modalRoots = ['modal-root', 'popover-root', 'hover-popover-root'];
-        modalRoots.forEach((rootId) => {
+        // ⚠️ НЕМЕДЛЕННО УДАЛЯЕМ modal-root если он содержит модальное окно
+        const modalRoot = document.getElementById('modal-root');
+        if (modalRoot) {
+          const modalRootText = modalRoot.textContent || '';
+          if (modalRootText.includes('SYSTEM INITIALIZATION') || 
+              modalRootText.includes('You are one of the first users') ||
+              modalRootText.includes('Links in system: 0/10')) {
+            console.warn('🧹 [_APP] Found SYSTEM INITIALIZATION in modal-root, removing entire modal-root');
+            try {
+              modalRoot.remove();
+            } catch (e) {
+              try {
+                modalRoot.innerHTML = '';
+                modalRoot.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important;';
+              } catch (e2) {}
+            }
+          } else {
+            // Даже если нет текста, удаляем все children с purple gradient
+            const modalRootPurple = modalRoot.querySelectorAll('[class*="from-blue"], [class*="to-purple"]');
+            modalRootPurple.forEach((purpleEl) => {
+              const purpleText = purpleEl.textContent || '';
+              if (purpleText.includes('SYSTEM INITIALIZATION')) {
+                console.warn('🧹 [_APP] Found purple gradient in modal-root with SYSTEM INITIALIZATION, removing:', purpleEl);
+                try {
+                  purpleEl.remove();
+                } catch (e3) {}
+              }
+            });
+          }
+        }
+
+        // ⚠️ ДОПОЛНИТЕЛЬНО: Удаляем все элементы с purple gradient из ВСЕГО документа
+        const allPurpleGradient = document.querySelectorAll('[class*="from-blue"]');
+        allPurpleGradient.forEach((el) => {
+          if (el.textContent?.includes('SYSTEM INITIALIZATION')) {
+            console.warn('🧹 [_APP] Found purple gradient element with SYSTEM INITIALIZATION, removing:', el);
+            try {
+              el.remove();
+            } catch (e) {
+              try {
+                if (el.parentNode) {
+                  el.parentNode.removeChild(el);
+                }
+              } catch (e2) {}
+            }
+          }
+        });
+
+        // Проверяем другие root элементы
+        const otherRoots = ['popover-root', 'hover-popover-root'];
+        otherRoots.forEach((rootId) => {
           const rootEl = document.getElementById(rootId);
           if (rootEl) {
             const rootText = rootEl.textContent || '';
-            if (rootText.includes('SYSTEM INITIALIZATION') || 
-                rootText.includes('You are one of the first users') ||
-                rootText.includes('Links in system: 0/10')) {
-              // Ищем все children с текстом модального окна
-              const rootChildren = rootEl.querySelectorAll('*');
-              rootChildren.forEach((child) => {
-                const childText = child.textContent || '';
-                if (childText.includes('SYSTEM INITIALIZATION')) {
-                  console.warn('🧹 [_APP] Found modal in', rootId, 'removing:', child);
-                  child.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important;';
-                  try {
-                    child.remove();
-                  } catch (e) {
-                    try {
-                      if (child.parentNode) {
-                        child.parentNode.removeChild(child);
-                      }
-                    } catch (e2) {}
-                  }
-                }
-              });
-              // Если modal-root содержит только модальное окно, очищаем его
-              if (rootText.includes('SYSTEM INITIALIZATION') && rootEl.children.length > 0) {
-                console.warn('🧹 [_APP] Clearing', rootId, 'as it contains only modal');
-                try {
-                  rootEl.innerHTML = '';
-                } catch (e) {}
-              }
+            if (rootText.includes('SYSTEM INITIALIZATION')) {
+              try {
+                rootEl.innerHTML = '';
+              } catch (e) {}
             }
           }
         });
