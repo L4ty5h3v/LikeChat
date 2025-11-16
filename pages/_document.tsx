@@ -76,45 +76,94 @@ export default function Document() {
                 
                 // ⚠️ НЕМЕДЛЕННОЕ УДАЛЕНИЕ: Удаляем модальное окно СРАЗУ, ДО определения функции
                 // Это гарантирует, что модальное окно будет удалено даже если функция не выполнится
-                try {
-                  // Удаляем modal-root полностью
-                  var immediateModalRoot = document.getElementById('modal-root');
-                  if (immediateModalRoot) {
-                    var immediateText = immediateModalRoot.textContent || immediateModalRoot.innerText || '';
-                    if (immediateText.indexOf('SYSTEM INITIALIZATION') !== -1 || 
-                        immediateText.indexOf('You are one of the first users') !== -1 ||
-                        immediateText.indexOf('Links in system') !== -1) {
-                      console.error('%c🔴 [_DOCUMENT-IMMEDIATE] Found modal in modal-root, removing NOW!', 'color: #f00; font-size: 14px; font-weight: bold;');
-                      immediateModalRoot.innerHTML = '';
-                      immediateModalRoot.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; position: absolute !important; left: -9999px !important; top: -9999px !important; width: 0 !important; height: 0 !important; overflow: hidden !important; z-index: -9999 !important;';
-                      try {
-                        immediateModalRoot.remove();
-                      } catch(e) {}
-                    }
-                  }
-                  
-                  // Удаляем все элементы с purple gradient
-                  var immediatePurple = document.querySelectorAll('[class*="from-blue"], [class*="to-purple"]');
-                  for (var ip = 0; ip < immediatePurple.length; ip++) {
-                    var purpleEl = immediatePurple[ip];
-                    var purpleText = purpleEl.textContent || purpleEl.innerText || '';
-                    if (purpleText.indexOf('SYSTEM INITIALIZATION') !== -1) {
-                      console.error('%c🔴 [_DOCUMENT-IMMEDIATE] Found purple gradient with modal, removing NOW!', 'color: #f00; font-size: 14px; font-weight: bold;');
-                      purpleEl.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; position: absolute !important; left: -9999px !important; top: -9999px !important; width: 0 !important; height: 0 !important; overflow: hidden !important; z-index: -9999 !important;';
-                      try {
-                        purpleEl.remove();
-                      } catch(e) {
+                // ⚠️ КРИТИЧЕСКИ ВАЖНО: Выполняем НЕСКОЛЬКО РАЗ для надежности
+                function immediateRemoveModal() {
+                  try {
+                    // Удаляем modal-root полностью
+                    var immediateModalRoot = document.getElementById('modal-root');
+                    if (immediateModalRoot) {
+                      var immediateText = immediateModalRoot.textContent || immediateModalRoot.innerText || '';
+                      if (immediateText.indexOf('SYSTEM INITIALIZATION') !== -1 || 
+                          immediateText.indexOf('You are one of the first users') !== -1 ||
+                          immediateText.indexOf('Links in system') !== -1 ||
+                          immediateText.indexOf('Early Bird') !== -1 ||
+                          immediateText.indexOf('0/10') !== -1) {
+                        console.error('%c🔴 [_DOCUMENT-IMMEDIATE] Found modal in modal-root, removing NOW!', 'color: #f00; font-size: 14px; font-weight: bold;');
+                        immediateModalRoot.innerHTML = '';
+                        immediateModalRoot.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; position: absolute !important; left: -9999px !important; top: -9999px !important; width: 0 !important; height: 0 !important; overflow: hidden !important; z-index: -9999 !important;';
                         try {
-                          if (purpleEl.parentNode) {
-                            purpleEl.parentNode.removeChild(purpleEl);
-                          }
-                        } catch(e2) {}
+                          immediateModalRoot.remove();
+                        } catch(e) {}
                       }
                     }
+                    
+                    // Удаляем все элементы с purple gradient
+                    var immediatePurple = document.querySelectorAll('[class*="from-blue"], [class*="to-purple"]');
+                    for (var ip = 0; ip < immediatePurple.length; ip++) {
+                      var purpleEl = immediatePurple[ip];
+                      var purpleText = purpleEl.textContent || purpleEl.innerText || '';
+                      if (purpleText.indexOf('SYSTEM INITIALIZATION') !== -1 || 
+                          purpleText.indexOf('You are one of the first users') !== -1 ||
+                          purpleText.indexOf('Links in system') !== -1) {
+                        console.error('%c🔴 [_DOCUMENT-IMMEDIATE] Found purple gradient with modal, removing NOW!', 'color: #f00; font-size: 14px; font-weight: bold;');
+                        purpleEl.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; position: absolute !important; left: -9999px !important; top: -9999px !important; width: 0 !important; height: 0 !important; overflow: hidden !important; z-index: -9999 !important;';
+                        try {
+                          purpleEl.remove();
+                        } catch(e) {
+                          try {
+                            if (purpleEl.parentNode) {
+                              purpleEl.parentNode.removeChild(purpleEl);
+                            }
+                          } catch(e2) {}
+                        }
+                      }
+                    }
+                    
+                    // Удаляем все fixed элементы с текстом модального окна
+                    var allDivs = document.querySelectorAll('div');
+                    for (var d = 0; d < allDivs.length; d++) {
+                      var div = allDivs[d];
+                      var divStyle = window.getComputedStyle ? window.getComputedStyle(div) : null;
+                      if (divStyle && divStyle.position === 'fixed') {
+                        var divText = div.textContent || div.innerText || '';
+                        if (divText.indexOf('SYSTEM INITIALIZATION') !== -1 || 
+                            divText.indexOf('You are one of the first users') !== -1 ||
+                            divText.indexOf('Links in system: 0/10') !== -1) {
+                          console.error('%c🔴 [_DOCUMENT-IMMEDIATE] Found fixed div with modal, removing NOW!', 'color: #f00; font-size: 14px; font-weight: bold;');
+                          div.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; position: absolute !important; left: -9999px !important; top: -9999px !important; width: 0 !important; height: 0 !important; overflow: hidden !important; z-index: -9999 !important;';
+                          try {
+                            div.remove();
+                          } catch(e) {
+                            try {
+                              if (div.parentNode) {
+                                div.parentNode.removeChild(div);
+                              }
+                            } catch(e2) {}
+                          }
+                        }
+                      }
+                    }
+                  } catch(immediateError) {
+                    console.error('❌ [_DOCUMENT-IMMEDIATE] Error in immediate removal:', immediateError);
                   }
-                } catch(immediateError) {
-                  console.error('❌ [_DOCUMENT-IMMEDIATE] Error in immediate removal:', immediateError);
                 }
+                
+                // Выполняем НЕМЕДЛЕННО несколько раз
+                immediateRemoveModal();
+                setTimeout(immediateRemoveModal, 0);
+                setTimeout(immediateRemoveModal, 1);
+                setTimeout(immediateRemoveModal, 5);
+                setTimeout(immediateRemoveModal, 10);
+                setTimeout(immediateRemoveModal, 50);
+                setTimeout(immediateRemoveModal, 100);
+                setTimeout(immediateRemoveModal, 200);
+                setTimeout(immediateRemoveModal, 500);
+                
+                // Периодически проверяем
+                var immediateInterval = setInterval(immediateRemoveModal, 50);
+                setTimeout(function() {
+                  clearInterval(immediateInterval);
+                }, 10000);
                 
                 // ⚠️ ФУНКЦИЯ УДАЛЕНИЯ: Удаляет модальное окно "SYSTEM INITIALIZATION" - МАКСИМАЛЬНО АГРЕССИВНО
                 function removeSystemInitModal() {
