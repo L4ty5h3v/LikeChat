@@ -75,6 +75,15 @@ a {
   /* JavaScript в _document.tsx удалит элементы с текстом "SYSTEM INITIALIZATION" */
 }
 
+/* ⚠️ МЕТОД 1B: Принудительное скрытие modal-root если он содержит модальное окно */
+#modal-root:has(*:contains("SYSTEM INITIALIZATION")),
+#popover-root:has(*:contains("SYSTEM INITIALIZATION")),
+#hover-popover-root:has(*:contains("SYSTEM INITIALIZATION")) {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
+
 /* ⚠️ МЕТОД 2: Скрываем все div с fixed позиционированием, содержащие текст модального окна */
 div[style*="position: fixed"] {
   /* JavaScript в _document.tsx проверит содержимое и удалит модальное окно */
