@@ -45,10 +45,10 @@ export default function Home() {
         });
       }
       
-      const savedUser = localStorage.getItem('farcaster_user');
-      const savedActivity = localStorage.getItem('selected_activity');
-      
-      if (savedUser) {
+    const savedUser = localStorage.getItem('farcaster_user');
+    const savedActivity = localStorage.getItem('selected_activity');
+    
+    if (savedUser) {
         try {
           const parsedUser = JSON.parse(savedUser);
           console.log('🔍 Loading saved user from localStorage:', parsedUser);
@@ -78,10 +78,10 @@ export default function Home() {
           localStorage.removeItem('farcaster_user');
           setUser(null);
         }
-      }
-      
-      if (savedActivity) {
-        setSelectedActivity(savedActivity as ActivityType);
+    }
+    
+    if (savedActivity) {
+      setSelectedActivity(savedActivity as ActivityType);
       }
     }
   }, []);

@@ -149,6 +149,15 @@ export default function Tasks() {
       // Проверяем: если все задания завершены, проверяем прогресс и делаем автоматический редирект
       // ⚠️ ВАЖНО: Проверяем, не опубликована ли уже ссылка пользователем, чтобы избежать бесконечного редиректа
       if (completedLinks.length >= taskList.length && taskList.length > 0 && user) {
+        // ⚠️ КРИТИЧЕСКАЯ ПРОВЕРКА: Сначала проверяем флаг link_published из хранилища
+        // Это предотвращает редирект на /submit, если ссылка уже опубликована (даже если БД еще не обновилась)
+        const linkPublishedSession = sessionStorage.getItem('link_published');
+        const linkPublishedLocal = localStorage.getItem('link_published');
+        if (linkPublishedSession === 'true' || linkPublishedLocal === 'true') {
+          console.log(`✅ [TASKS] Link already published (from storage), skipping auto-redirect check completely`);
+          return; // Прекращаем выполнение, не делаем никаких проверок и редиректов
+        }
+        
         console.log(`🎯 All tasks completed! Checking user progress for auto-redirect...`);
         
         // Проверяем прогресс пользователя и наличие опубликованной ссылки
@@ -157,6 +166,14 @@ export default function Tasks() {
           getAllLinks(),
         ]).then(([progress, allLinks]) => {
           if (progress) {
+            // Еще раз проверяем флаг перед проверкой в БД (на случай если он установился пока выполнялся запрос)
+            const flagCheckSession = sessionStorage.getItem('link_published');
+            const flagCheckLocal = localStorage.getItem('link_published');
+            if (flagCheckSession === 'true' || flagCheckLocal === 'true') {
+              console.log(`✅ [TASKS] Link published flag detected during DB check, skipping redirect`);
+              return;
+            }
+            
             // Проверяем, есть ли уже опубликованная ссылка от этого пользователя
             const userHasPublishedLink = allLinks.some((link: LinkSubmission) => link.user_fid === user.fid);
             
@@ -168,7 +185,10 @@ export default function Tasks() {
             
             // Если ссылка уже опубликована - не делаем редирект, пользователь может остаться на /tasks
             if (userHasPublishedLink) {
-              console.log(`✅ User already published a link, staying on /tasks page`);
+              console.log(`✅ [TASKS] User already published a link (from DB), staying on /tasks page`);
+              // Устанавливаем флаг в хранилище для будущих проверок
+              sessionStorage.setItem('link_published', 'true');
+              localStorage.setItem('link_published', 'true');
               return; // Прекращаем выполнение, не делаем редирект
             }
             
@@ -181,13 +201,12 @@ export default function Tasks() {
             }
             // Если все задания завершены и токен куплен, но ссылка еще не опубликована → редирект на /submit
             // ⚠️ ВАЖНО: Делаем редирект только один раз, не при каждом вызове loadTasks
-            // ⚠️ ВАЖНО: НЕ редиректим, если уже есть флаг link_published (ссылка уже опубликована)
             else if (progress.token_purchased && !userHasPublishedLink) {
-              // Проверяем флаг link_published - если ссылка уже опубликована, не редиректим
-              const linkPublished = sessionStorage.getItem('link_published');
-              const linkPublishedLocal = localStorage.getItem('link_published');
-              if (linkPublished === 'true' || linkPublishedLocal === 'true') {
-                console.log(`ℹ️ [TASKS] Link already published (from storage), skipping redirect to /submit`);
+              // Финальная проверка флага перед редиректом
+              const finalFlagCheckSession = sessionStorage.getItem('link_published');
+              const finalFlagCheckLocal = localStorage.getItem('link_published');
+              if (finalFlagCheckSession === 'true' || finalFlagCheckLocal === 'true') {
+                console.log(`ℹ️ [TASKS] Link already published (final check), skipping redirect to /submit`);
                 return;
               }
               
@@ -205,7 +224,7 @@ export default function Tasks() {
             }
           }
         }).catch((error) => {
-          console.error('Error checking user progress for auto-redirect:', error);
+          console.error('❌ [TASKS] Error checking user progress for auto-redirect:', error);
         });
       }
     } catch (error) {

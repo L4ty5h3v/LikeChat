@@ -143,19 +143,6 @@ export async function submitLink(
   castUrl: string,
   activityType: ActivityType
 ): Promise<LinkSubmission | null> {
-  // Проверяем: если меньше 10 ссылок, разрешаем только первым 10 пользователям
-  const totalLinks = linkSubmissions.length;
-  
-  if (totalLinks < 10) {
-    // Получаем уникальных пользователей, которые уже добавили ссылки
-    const uniqueUsers = new Set(linkSubmissions.map(link => link.user_fid));
-    
-    // Если этот пользователь еще не добавлял ссылку И уже есть 10 разных пользователей
-    if (!uniqueUsers.has(userFid) && uniqueUsers.size >= 10) {
-      throw new Error(`System is initializing. Please wait for the first 10 users to add their links. Current: ${totalLinks}/10`);
-    }
-  }
-  
   const newLink: LinkSubmission = {
     id: `link-${Date.now()}-${Math.random().toString(16).substr(2, 8)}`,
     user_fid: userFid,

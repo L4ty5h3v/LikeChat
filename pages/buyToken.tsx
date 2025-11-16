@@ -175,7 +175,7 @@ export default function BuyToken() {
       router.push('/');
       return;
     }
-    
+
     console.log('✅ [BUY-TOKEN] User loaded:', {
       fid: user.fid,
       username: user.username,

@@ -104,22 +104,6 @@ export async function submitLink(
   if (!redis) return null;
   
   try {
-    const totalLinks = await getTotalLinksCount();
-    
-    // Логика для "early bird" пользователей
-    if (totalLinks < 10) {
-      const uniqueUsers = new Set();
-      const existingLinks = await getAllLinks();
-      
-      for (const link of existingLinks) {
-        uniqueUsers.add(link.user_fid);
-      }
-      
-      if (!uniqueUsers.has(userFid) && uniqueUsers.size >= 10) {
-        throw new Error(`System is initializing. Please wait for the first 10 users to add their links. Current: ${totalLinks}/10`);
-      }
-    }
-
     const newLink: LinkSubmission = {
       id: `link_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       user_fid: userFid,
