@@ -1022,65 +1022,8 @@ export default function Submit() {
     );
   }
 
-  // ⚠️ ПРОВЕРКА: Убеждаемся, что модальное окно "SYSTEM INITIALIZATION" удалено
-  // Если вы видите это модальное окно, очистите кеш браузера (Ctrl+Shift+R)
-  // Это модальное окно БОЛЬШЕ НЕ ДОЛЖНО рендериться - оно полностью удалено из кода
-  
-  // ⚠️ ЯВНАЯ ПРОВЕРКА: Если вдруг есть какие-то флаги, связанные с system initialization - удаляем их
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const systemInitFlags = [
-        'systeminit', 'system_init', 'isInitializing', 'system_initialization',
-        'showSystemInit', 'showSystemInitModal', 'systemInitModal'
-      ];
-      
-      systemInitFlags.forEach(flag => {
-        if (sessionStorage.getItem(flag)) {
-          console.warn(`⚠️ [SUBMIT] Found and removed system init flag from sessionStorage: ${flag}`);
-          sessionStorage.removeItem(flag);
-        }
-        if (localStorage.getItem(flag)) {
-          console.warn(`⚠️ [SUBMIT] Found and removed system init flag from localStorage: ${flag}`);
-          localStorage.removeItem(flag);
-        }
-      });
-      
-      // ⚠️ ПРИНУДИТЕЛЬНОЕ УДАЛЕНИЕ: Удаляем любые модальные окна "SYSTEM INITIALIZATION" из DOM
-      // Это предотвращает появление модального окна даже из кеша
-      const removeSystemInitModal = () => {
-        try {
-          // Ищем любые элементы, содержащие текст "SYSTEM INITIALIZATION"
-          const allElements = document.querySelectorAll('*');
-          allElements.forEach((el) => {
-            const text = el.textContent || '';
-            if (text.includes('SYSTEM INITIALIZATION') || 
-                text.includes('You are one of the first users') ||
-                text.includes('collecting the first 10 links') ||
-                text.includes('Links in system') ||
-                text.includes('Early Bird Bonus')) {
-              // Если это модальное окно (содержит backdrop или fixed позиционирование)
-              const parent = el.closest('[class*="fixed"], [class*="backdrop"], [class*="modal"], [class*="z-50"]');
-              if (parent) {
-                console.warn('🧹 [SUBMIT] Found and removing SYSTEM INITIALIZATION modal from DOM:', parent);
-                parent.remove();
-              }
-            }
-          });
-        } catch (error) {
-          console.error('❌ [SUBMIT] Error removing system init modal:', error);
-        }
-      };
-      
-      // Удаляем сразу и периодически проверяем
-      removeSystemInitModal();
-      const interval = setInterval(removeSystemInitModal, 1000);
-      
-      // Останавливаем проверку через 10 секунд
-      setTimeout(() => {
-        clearInterval(interval);
-      }, 10000);
-    }
-  }, []);
+  // ⚠️ ПРИМЕЧАНИЕ: Удаление модального окна "SYSTEM INITIALIZATION" обрабатывается в _document.tsx и _app.tsx
+  // Дополнительная очистка storage уже выполняется в первом useEffect выше
 
   return (
     <Layout title="Multi Like - Publish Link">

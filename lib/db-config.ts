@@ -23,8 +23,8 @@ export const markTokenPurchased = db.markTokenPurchased;
 export const setUserActivity = db.setUserActivity;
 export const submitLink = db.submitLink;
 export const getAllLinks = db.getAllLinks;
-export const getTotalLinksCount = db.getTotalLinksCount;
 export const subscribeToLinks = db.subscribeToLinks;
+// getTotalLinksCount - не используется, удалено для очистки кода
 
 // Экспортируем initializeLinks только из upstash-db (если доступна)
 export const initializeLinks = USE_UPSTASH ? (upstashDb as any).initializeLinks : undefined;

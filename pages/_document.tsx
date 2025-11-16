@@ -85,17 +85,6 @@ export default function Document() {
                       }
                     });
                     
-                    // Ищем по стилю (purple gradient)
-                    const purpleModals = document.querySelectorAll('[class*="from-blue"], [class*="to-purple"], [class*="bg-gradient"]');
-                    purpleModals.forEach(function(modal) {
-                      const text = modal.textContent || '';
-                      if (text.includes('SYSTEM INITIALIZATION') || text.includes('0/10')) {
-                        found.push(modal);
-                      }
-                    });
-                    
-                    // Элементы уже удалены выше, этот блок больше не нужен
-                    
                     if (found.length > 0) {
                       console.warn('🧹 [_DOCUMENT] Removed ' + found.length + ' SYSTEM INITIALIZATION modal(s)');
                     }

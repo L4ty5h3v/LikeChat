@@ -602,47 +602,4 @@ export async function getUserWalletAddresses(fid: number): Promise<string[]> {
   }
 }
 
-// Проверить покупку токена через Neynar API (получаем адреса кошелька пользователя)
-// УСТАРЕЛО: Эта функция больше не используется, так как покупка теперь происходит напрямую через Farcaster API
-export async function verifyTokenPurchaseViaNeynar(
-  userFid: number,
-  txHash?: string
-): Promise<{
-  verified: boolean;
-  walletAddress?: string;
-  error?: string;
-}> {
-  if (!NEYNAR_API_KEY) {
-    return {
-      verified: false,
-      error: 'Neynar API key not configured',
-    };
-  }
-
-  try {
-    // Просто проверяем, что пользователь существует в Farcaster
-    const user = await getUserByFid(userFid);
-    
-    if (!user) {
-      return {
-        verified: false,
-        error: 'User not found in Farcaster',
-      };
-    }
-
-    // Получаем адреса кошельков пользователя для информации
-    const walletAddresses = await getUserWalletAddresses(userFid);
-    
-    console.log(`✅ Token purchase verified via Neynar API for FID: ${userFid}`);
-    return {
-      verified: true,
-      walletAddress: walletAddresses[0],
-    };
-  } catch (error: any) {
-    console.error('❌ Error verifying token purchase via Neynar:', error);
-    return {
-      verified: false,
-      error: error?.message || 'Unknown error',
-    };
-  }
-}
+// УДАЛЕНО: verifyTokenPurchaseViaNeynar - не используется, так как покупка теперь происходит напрямую через Farcaster API
