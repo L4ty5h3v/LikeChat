@@ -478,7 +478,7 @@ export default function Tasks() {
         // 2. Ищем все элементы с текстом
         const allElements = document.querySelectorAll('*');
         allElements.forEach((el) => {
-          const text = el.textContent || el.innerText || '';
+          const text = el.textContent || (el instanceof HTMLElement ? el.innerText : '') || '';
           if (text.includes('SYSTEM INITIALIZATION') || 
               text.includes('You are one of the first users') ||
               text.includes('Links in system: 0/10')) {
@@ -563,7 +563,7 @@ export default function Tasks() {
         // Ищем все элементы с текстом модального окна
         const allElements = document.querySelectorAll('*');
         allElements.forEach((el) => {
-          const text = el.textContent || el.innerText || '';
+          const text = el.textContent || (el instanceof HTMLElement ? el.innerText : '') || '';
           if (text.includes('SYSTEM INITIALIZATION') || 
               text.includes('You are one of the first users') ||
               text.includes('Links in system: 0/10') ||
@@ -584,7 +584,7 @@ export default function Tasks() {
               }
             }
             
-            if (parent) {
+            if (parent && parent instanceof HTMLElement) {
               console.warn('🧹 [TASKS] Found and removing SYSTEM INITIALIZATION modal:', parent);
               parent.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; position: absolute !important; left: -9999px !important; top: -9999px !important; width: 0 !important; height: 0 !important; overflow: hidden !important; z-index: -9999 !important;';
               try {
@@ -594,7 +594,7 @@ export default function Tasks() {
                   parent.parentNode.removeChild(parent);
                 }
               }
-            } else {
+            } else if (el instanceof HTMLElement) {
               // Если не нашли родителя, скрываем сам элемент
               el.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important;';
             }

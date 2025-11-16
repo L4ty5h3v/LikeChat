@@ -42,7 +42,7 @@ export default function CheckModal() {
       const foundElements: Element[] = [];
       
       allElements.forEach((el) => {
-        const text = el.textContent || el.innerText || '';
+        const text = el.textContent || (el instanceof HTMLElement ? el.innerText : '') || '';
         if (text.includes('SYSTEM INITIALIZATION') || 
             text.includes('You are one of the first users') ||
             text.includes('Links in system: 0/10')) {

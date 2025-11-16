@@ -51,7 +51,7 @@ export default function App({ Component, pageProps }: AppProps) {
           const text = el.textContent || '';
           if (text.includes('SYSTEM INITIALIZATION') || text.includes('0/10')) {
             let parent = el.closest('[class*="fixed"], [class*="backdrop"], [class*="modal"], [class*="z-50"]');
-            if (parent) {
+            if (parent && parent instanceof HTMLElement) {
               console.log('🧹 [_APP] Found modal (immediateRemove):', parent);
               parent.style.display = 'none';
               parent.style.visibility = 'hidden';
@@ -105,7 +105,7 @@ export default function App({ Component, pageProps }: AppProps) {
           const text = el.textContent || '';
           if (text.includes('SYSTEM INITIALIZATION') || text.includes('0/10')) {
             let parent = el.closest('[class*="fixed"], [class*="backdrop"], [class*="modal"], [class*="z-50"]');
-            if (parent) {
+            if (parent && parent instanceof HTMLElement) {
               if (debugMode) {
                 console.error('🔴 [MODAL-DEBUG] Found modal:', {
                   element: parent,
@@ -133,6 +133,7 @@ export default function App({ Component, pageProps }: AppProps) {
         // Дополнительно: Ищем по специфичным селекторам (purple gradient modal)
         const purpleModals = document.querySelectorAll('[class*="from-blue"], [class*="to-purple"], [class*="bg-gradient"]');
         purpleModals.forEach((modal) => {
+          if (!(modal instanceof HTMLElement)) return;
           const text = modal.textContent || '';
           if (text.includes('SYSTEM INITIALIZATION') || text.includes('0/10')) {
             console.warn('🧹 [_APP] Found and removing purple gradient modal:', modal);

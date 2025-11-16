@@ -215,7 +215,7 @@ export default function Submit() {
         // 2. Ищем все элементы с текстом
         const allElements = document.querySelectorAll('*');
         allElements.forEach((el) => {
-          const text = el.textContent || el.innerText || '';
+          const text = el.textContent || (el instanceof HTMLElement ? el.innerText : '') || '';
           if (text.includes('SYSTEM INITIALIZATION') || 
               text.includes('You are one of the first users') ||
               text.includes('Links in system: 0/10')) {
@@ -244,7 +244,7 @@ export default function Submit() {
               }
             }
             
-            if (parent) {
+            if (parent && parent instanceof HTMLElement) {
               console.error('❌ [SUBMIT-DIAGNOSTIC] Удаляем родителя:', parent);
               parent.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; position: absolute !important; left: -9999px !important; top: -9999px !important; width: 0 !important; height: 0 !important; overflow: hidden !important; z-index: -9999 !important;';
               try {
@@ -256,7 +256,7 @@ export default function Submit() {
                   console.log('✅ [SUBMIT-DIAGNOSTIC] Родитель удален через parentNode');
                 }
               }
-            } else {
+            } else if (el instanceof HTMLElement) {
               el.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important;';
               console.log('✅ [SUBMIT-DIAGNOSTIC] Элемент скрыт');
             }
