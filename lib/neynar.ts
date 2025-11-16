@@ -545,8 +545,9 @@ export async function getUserByUsername(username: string) {
   }
 }
 
-// Получить адреса кошельков пользователя по FID через Neynar API
-export async function getUserWalletAddresses(fid: number): Promise<string[]> {
+// УДАЛЕНО: getUserWalletAddresses - не используется после удаления verifyTokenPurchaseViaNeynar
+// Получить адреса кошельков пользователя по FID через Neynar API (не используется)
+async function getUserWalletAddresses(fid: number): Promise<string[]> {
   if (!NEYNAR_API_KEY) {
     console.warn('⚠️ NEXT_PUBLIC_NEYNAR_API_KEY not configured');
     return [];
