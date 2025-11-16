@@ -950,7 +950,19 @@ export default function Submit() {
         name: err.name,
         cause: err.cause,
       });
-      setError(err.message || 'An error occurred');
+      
+      // ⚠️ ФИЛЬТР: Игнорируем старую ошибку "System is initializing" - она больше не должна появляться
+      const errorMessage = err.message || 'An error occurred';
+      if (errorMessage.includes('System is initializing') || 
+          errorMessage.includes('first 10 users') || 
+          errorMessage.includes('early bird') ||
+          errorMessage.includes('collecting the first 10')) {
+        console.warn('⚠️ [SUBMIT] Ignoring old "System is initializing" error - this should not appear anymore');
+        // Не показываем эту ошибку пользователю, просто логируем
+        setError('Ошибка при публикации ссылки. Пожалуйста, попробуйте снова.');
+      } else {
+        setError(errorMessage);
+      }
       setLoading(false); // Разблокируем форму только при ошибке
     }
     // finally блок убран - loading управляется вручную для предотвращения повторной отправки
