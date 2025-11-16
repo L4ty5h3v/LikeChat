@@ -65,15 +65,53 @@ export default function App({ Component, pageProps }: AppProps) {
     // Функция для удаления модального окна "SYSTEM INITIALIZATION" из DOM
     const removeSystemInitModal = () => {
       try {
+        // 🔍 ДИАГНОСТИКА: Ищем и логируем все элементы с текстом модального окна
+        const debugMode = window.location.search.includes('debug=modal');
+        
+        // Ищем по специфичным селекторам (purple gradient modal)
+        const purpleModals = document.querySelectorAll('[class*="from-blue"], [class*="to-purple"], [class*="bg-gradient"]');
+        purpleModals.forEach((modal) => {
+          const text = modal.textContent || '';
+          if (text.includes('SYSTEM INITIALIZATION') || text.includes('0/10')) {
+            if (debugMode) {
+              console.error('🔴 [MODAL-DEBUG] Found purple gradient modal:', {
+                element: modal,
+                className: modal.className,
+                id: modal.id,
+                parent: modal.parentElement,
+                computedStyle: window.getComputedStyle(modal),
+                textContent: text.substring(0, 200)
+              });
+            }
+            console.warn('🧹 [_APP] Found and removing purple gradient SYSTEM INITIALIZATION modal:', modal);
+            modal.remove();
+            return;
+          }
+        });
+
         // Ищем любые элементы, содержащие текст модального окна
         const allElements = document.querySelectorAll('*');
+        let foundCount = 0;
         allElements.forEach((el) => {
           const text = el.textContent || '';
           if (text.includes('SYSTEM INITIALIZATION') || 
               text.includes('You are one of the first users') ||
               text.includes('collecting the first 10 links') ||
+              text.includes('Links in system: 0/10') ||
               text.includes('Links in system') ||
               text.includes('Early Bird Bonus')) {
+            foundCount++;
+            
+            if (debugMode) {
+              console.warn('🔍 [MODAL-DEBUG] Found element with modal text:', {
+                element: el,
+                tagName: el.tagName,
+                className: el.className,
+                id: el.id,
+                parent: el.parentElement,
+                textContent: text.substring(0, 100)
+              });
+            }
             // Ищем родительский элемент модального окна (backdrop или fixed)
             // Проверяем несколько уровней вверх
             let current = el;
@@ -101,18 +139,41 @@ export default function App({ Component, pageProps }: AppProps) {
               console.warn('🧹 [_APP] Found and removing SYSTEM INITIALIZATION modal from DOM:', {
                 element: parent,
                 className: parent.className,
-                textContent: parent.textContent?.substring(0, 100)
+                id: parent.id,
+                textContent: parent.textContent?.substring(0, 100),
+                foundAt: new Date().toISOString()
               });
+              
+              // Принудительно скрываем перед удалением
+              (parent as HTMLElement).style.display = 'none';
+              (parent as HTMLElement).style.visibility = 'hidden';
+              (parent as HTMLElement).style.opacity = '0';
+              
               parent.remove();
               return; // Прерываем, если удалили
             } else if (el.classList.contains('fixed') || el.classList.contains('backdrop')) {
               // Если сам элемент является модальным окном
-              console.warn('🧹 [_APP] Found and removing SYSTEM INITIALIZATION modal (direct element):', el);
+              console.warn('🧹 [_APP] Found and removing SYSTEM INITIALIZATION modal (direct element):', {
+                element: el,
+                className: el.className,
+                id: el.id,
+                foundAt: new Date().toISOString()
+              });
+              
+              // Принудительно скрываем перед удалением
+              (el as HTMLElement).style.display = 'none';
+              (el as HTMLElement).style.visibility = 'hidden';
+              (el as HTMLElement).style.opacity = '0';
+              
               el.remove();
               return;
             }
           }
         });
+        
+        if (foundCount > 0 && debugMode) {
+          console.error(`🔴 [MODAL-DEBUG] Found ${foundCount} elements with modal text, but could not remove modal parent`);
+        }
       } catch (error) {
         console.error('❌ [_APP] Error removing system init modal:', error);
       }

@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug: Find SYSTEM INITIALIZATION Modal</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #0f0; }
+        .found { color: #ff0; background: #333; padding: 10px; margin: 10px 0; border-left: 3px solid #ff0; }
+        .removed { color: #0f0; }
+        .error { color: #f00; }
+        button { padding: 10px 20px; margin: 5px; background: #333; color: #0f0; border: 1px solid #0f0; cursor: pointer; }
+        button:hover { background: #0f0; color: #1a1a1a; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Debug: Find SYSTEM INITIALIZATION Modal</h1>
+    <button onclick="findModal()">Find Modal Now</button>
+    <button onclick="removeModal()">Remove Modal Now</button>
+    <button onclick="clearCache()">Clear All Cache</button>
+    <div id="results"></div>
+
+    <script>
+        function findModal() {
+            const results = document.getElementById('results');
+            results.innerHTML = '<h2>Searching for modal...</h2>';
+            
+            const found = [];
+            
+            // Ищем по тексту
+            const allElements = document.querySelectorAll('*');
+            allElements.forEach((el) => {
+                const text = el.textContent || '';
+                if (text.includes('SYSTEM INITIALIZATION') || 
+                    text.includes('You are one of the first users') ||
+                    text.includes('Links in system: 0/10') ||
+                    text.includes('collecting the first 10 links') ||
+                    text.includes('Early Bird Bonus')) {
+                    
+                    found.push({
+                        element: el,
+                        tagName: el.tagName,
+                        className: el.className,
+                        id: el.id,
+                        parent: el.parentElement,
+                        text: text.substring(0, 200),
+                        styles: window.getComputedStyle(el),
+                        position: el.getBoundingClientRect()
+                    });
+                }
+            });
+            
+            // Ищем по стилям (purple gradient)
+            const purpleElements = document.querySelectorAll('[class*="from-blue"], [class*="to-purple"], [class*="bg-gradient"]');
+            purpleElements.forEach((el) => {
+                const text = el.textContent || '';
+                if (text.includes('SYSTEM') || text.includes('0/10')) {
+                    found.push({
+                        element: el,
+                        tagName: el.tagName,
+                        className: el.className,
+                        id: el.id,
+                        parent: el.parentElement,
+                        text: text.substring(0, 200),
+                        styles: window.getComputedStyle(el),
+                        position: el.getBoundingClientRect(),
+                        note: 'Found by purple gradient style'
+                    });
+                }
+            });
+            
+            // Выводим результаты
+            if (found.length > 0) {
+                let html = `<h2 class="found">Found ${found.length} elements:</h2>`;
+                found.forEach((item, i) => {
+                    html += `
+                        <div class="found">
+                            <h3>Element ${i + 1}</h3>
+                            <p><strong>Tag:</strong> ${item.tagName}</p>
+                            <p><strong>Class:</strong> ${item.className}</p>
+                            <p><strong>ID:</strong> ${item.id || 'none'}</p>
+                            <p><strong>Parent:</strong> ${item.parent ? item.parent.tagName + ' ' + item.parent.className : 'none'}</p>
+                            <p><strong>Position:</strong> x=${item.position.x}, y=${item.position.y}, width=${item.position.width}, height=${item.position.height}</p>
+                            <p><strong>Display:</strong> ${item.styles.display}, <strong>Visibility:</strong> ${item.styles.visibility}, <strong>Opacity:</strong> ${item.styles.opacity}</p>
+                            <p><strong>Text:</strong> ${item.text}</p>
+                            ${item.note ? `<p><strong>Note:</strong> ${item.note}</p>` : ''}
+                            <button onclick="removeElement(${i})">Remove This Element</button>
+                        </div>
+                    `;
+                });
+                results.innerHTML = html;
+                window.foundElements = found;
+            } else {
+                results.innerHTML = '<h2 class="removed">✅ No modal found!</h2>';
+            }
+        }
+        
+        function removeElement(index) {
+            if (window.foundElements && window.foundElements[index]) {
+                const el = window.foundElements[index].element;
+                el.style.display = 'none';
+                el.style.visibility = 'hidden';
+                el.style.opacity = '0';
+                el.remove();
+                document.getElementById('results').innerHTML += `<p class="removed">✅ Element ${index} removed!</p>`;
+                setTimeout(findModal, 1000);
+            }
+        }
+        
+        function removeModal() {
+            const allElements = document.querySelectorAll('*');
+            let removed = 0;
+            allElements.forEach((el) => {
+                const text = el.textContent || '';
+                if (text.includes('SYSTEM INITIALIZATION') || 
+                    text.includes('You are one of the first users') ||
+                    text.includes('Links in system: 0/10')) {
+                    
+                    // Ищем родителя с fixed позиционированием
+                    let parent = el.closest('[class*="fixed"], [class*="backdrop"], [class*="modal"], [class*="z-50"]');
+                    if (!parent) {
+                        let current = el;
+                        for (let i = 0; i < 10; i++) {
+                            if (!current || !current.parentElement) break;
+                            current = current.parentElement;
+                            const style = window.getComputedStyle(current);
+                            if (style.position === 'fixed' || current.className.includes('fixed')) {
+                                parent = current;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (parent) {
+                        parent.style.display = 'none';
+                        parent.style.visibility = 'hidden';
+                        parent.style.opacity = '0';
+                        parent.remove();
+                        removed++;
+                    }
+                }
+            });
+            
+            document.getElementById('results').innerHTML = `<h2 class="removed">✅ Removed ${removed} modal(s)!</h2>`;
+            setTimeout(findModal, 1000);
+        }
+        
+        function clearCache() {
+            // Очищаем localStorage
+            Object.keys(localStorage).forEach(key => {
+                if (key.includes('system') || key.includes('init') || key.includes('warning') || key.includes('total')) {
+                    localStorage.removeItem(key);
+                    console.log('Removed from localStorage:', key);
+                }
+            });
+            
+            // Очищаем sessionStorage
+            Object.keys(sessionStorage).forEach(key => {
+                if (key.includes('system') || key.includes('init') || key.includes('warning') || key.includes('total')) {
+                    sessionStorage.removeItem(key);
+                    console.log('Removed from sessionStorage:', key);
+                }
+            });
+            
+            document.getElementById('results').innerHTML = '<h2 class="removed">✅ Cache cleared! Reload the page.</h2>';
+        }
+        
+        // Автозапуск при загрузке
+        window.addEventListener('load', () => {
+            setTimeout(findModal, 1000);
+        });
+    </script>
+</body>
+</html>
+
