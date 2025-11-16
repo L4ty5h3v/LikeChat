@@ -148,6 +148,68 @@ export default function App({ Component, pageProps }: AppProps) {
             }
           }
         });
+
+        // ⚠️ КРИТИЧЕСКИ ВАЖНО: Проверяем modal-root, popover-root - модальное окно может рендериться туда
+        const modalRoots = ['modal-root', 'popover-root', 'hover-popover-root'];
+        modalRoots.forEach((rootId) => {
+          const rootEl = document.getElementById(rootId);
+          if (rootEl) {
+            const rootText = rootEl.textContent || '';
+            if (rootText.includes('SYSTEM INITIALIZATION') || 
+                rootText.includes('You are one of the first users') ||
+                rootText.includes('Links in system: 0/10')) {
+              // Ищем все children с текстом модального окна
+              const rootChildren = rootEl.querySelectorAll('*');
+              rootChildren.forEach((child) => {
+                const childText = child.textContent || '';
+                if (childText.includes('SYSTEM INITIALIZATION')) {
+                  console.warn('🧹 [_APP] Found modal in', rootId, 'removing:', child);
+                  child.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important;';
+                  try {
+                    child.remove();
+                  } catch (e) {
+                    try {
+                      if (child.parentNode) {
+                        child.parentNode.removeChild(child);
+                      }
+                    } catch (e2) {}
+                  }
+                }
+              });
+              // Если modal-root содержит только модальное окно, очищаем его
+              if (rootText.includes('SYSTEM INITIALIZATION') && rootEl.children.length > 0) {
+                console.warn('🧹 [_APP] Clearing', rootId, 'as it contains only modal');
+                try {
+                  rootEl.innerHTML = '';
+                } catch (e) {}
+              }
+            }
+          }
+        });
+
+        // ⚠️ ДОПОЛНИТЕЛЬНО: Ищем ВСЕ div с fixed позиционированием
+        const allDivs = document.querySelectorAll('div');
+        allDivs.forEach((div) => {
+          const computedStyle = window.getComputedStyle(div);
+          if (computedStyle.position === 'fixed') {
+            const divText = div.textContent || '';
+            if (divText.includes('SYSTEM INITIALIZATION') || 
+                divText.includes('You are one of the first users') ||
+                divText.includes('Links in system: 0/10')) {
+              console.warn('🧹 [_APP] Found fixed div with modal text, removing:', div);
+              div.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important;';
+              try {
+                div.remove();
+              } catch (e) {
+                try {
+                  if (div.parentNode) {
+                    div.parentNode.removeChild(div);
+                  }
+                } catch (e2) {}
+              }
+            }
+          }
+        });
       } catch (error) {
         console.error('❌ [_APP] Error removing system init modal:', error);
       }
@@ -192,17 +254,38 @@ export default function App({ Component, pageProps }: AppProps) {
       });
     }
 
-    // Периодически проверяем (на случай если MutationObserver не сработал)
-    const interval = setInterval(() => {
-      removeSystemInitModal();
-      immediateRemove();
-    }, 100); // Увеличена частота проверки до 100ms
+        // Периодически проверяем (на случай если MutationObserver не сработал)
+        const interval = setInterval(() => {
+          removeSystemInitModal();
+          immediateRemove();
+        }, 50); // Увеличена частота проверки до 50ms для более агрессивного удаления
 
-    // Останавливаем через 30 секунд
-    setTimeout(() => {
-      clearInterval(interval);
-      observer.disconnect();
-    }, 30000);
+        // Останавливаем через 60 секунд (увеличено с 30)
+        setTimeout(() => {
+          clearInterval(interval);
+          observer.disconnect();
+        }, 60000);
+
+        // ⚠️ ДОПОЛНИТЕЛЬНО: Следим за созданием modal-root элемента
+        const modalRootObserver = new MutationObserver(() => {
+          const modalRoot = document.getElementById('modal-root');
+          if (modalRoot) {
+            removeSystemInitModal(); // Немедленно проверяем modal-root
+            immediateRemove();
+          }
+        });
+
+        if (document.body) {
+          modalRootObserver.observe(document.body, {
+            childList: true,
+            subtree: true,
+            attributes: false,
+          });
+        }
+
+        setTimeout(() => {
+          modalRootObserver.disconnect();
+        }, 60000);
 
     return () => {
       clearInterval(interval);
@@ -254,7 +337,7 @@ export default function App({ Component, pageProps }: AppProps) {
     };
   }, []);
 
-      return (
+  return (
         <>
           <Head>
             <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />

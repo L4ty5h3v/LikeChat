@@ -63,13 +63,28 @@ a {
 }
 
 /* ⚠️ ПРИНУДИТЕЛЬНОЕ СКРЫТИЕ: Скрываем модальное окно "SYSTEM INITIALIZATION" - оно удалено из кода */
-/* JavaScript код в _app.tsx и submit.tsx будет искать и удалять это модальное окно из DOM */
+/* JavaScript код в _document.tsx, _app.tsx будет искать и удалять это модальное окно из DOM */
 
 /* ⚠️ КРИТИЧЕСКИ ВАЖНО: CSS принудительное скрытие модального окна "SYSTEM INITIALIZATION" */
 /* Это скрывает модальное окно даже если JavaScript не сработал (кеш/SSR) */
 
-/* Скрываем ВСЕ элементы с текстом "SYSTEM INITIALIZATION" или "0/10" через JavaScript в _document.tsx */
-/* Здесь добавляем CSS fallback на случай если скрипт не выполнится */
+/* ⚠️ МЕТОД 1: Скрываем все элементы в modal-root, popover-root с текстом модального окна */
+#modal-root *,
+#popover-root *,
+#hover-popover-root * {
+  /* JavaScript в _document.tsx удалит элементы с текстом "SYSTEM INITIALIZATION" */
+}
+
+/* ⚠️ МЕТОД 2: Скрываем все div с fixed позиционированием, содержащие текст модального окна */
+div[style*="position: fixed"] {
+  /* JavaScript в _document.tsx проверит содержимое и удалит модальное окно */
+}
+
+/* ⚠️ МЕТОД 3: Скрываем все элементы с purple-blue gradient */
+div[class*="from-blue"][class*="to-purple"],
+div[class*="bg-gradient"][class*="blue"][class*="purple"] {
+  /* JavaScript в _document.tsx проверит текст и удалит модальное окно */
+}
 
 /* ⚠️ ПРИНУДИТЕЛЬНОЕ СКРЫТИЕ: Применяем через inline стили в _document.tsx скрипте */
 

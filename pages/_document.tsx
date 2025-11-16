@@ -154,6 +154,75 @@ export default function Document() {
                       }
                     }
                     
+                    // ⚠️ МЕТОД 4: КРИТИЧЕСКИ ВАЖНО - Проверяем и удаляем из modal-root, popover-root
+                    // Модальное окно может рендериться через React Portal в эти элементы
+                    var modalRoots = ['modal-root', 'popover-root', 'hover-popover-root', 'root'];
+                    for (var r = 0; r < modalRoots.length; r++) {
+                      var rootEl = document.getElementById(modalRoots[r]);
+                      if (rootEl) {
+                        var rootText = rootEl.textContent || rootEl.innerText || '';
+                        if (rootText.indexOf('SYSTEM INITIALIZATION') !== -1 || 
+                            rootText.indexOf('You are one of the first users') !== -1 ||
+                            rootText.indexOf('Links in system: 0/10') !== -1) {
+                          // Ищем все children в modal-root с текстом модального окна
+                          var rootChildren = rootEl.querySelectorAll('*');
+                          for (var rc = 0; rc < rootChildren.length; rc++) {
+                            var child = rootChildren[rc];
+                            var childText = child.textContent || child.innerText || '';
+                            if (childText.indexOf('SYSTEM INITIALIZATION') !== -1) {
+                              // ПРИНУДИТЕЛЬНО скрываем и удаляем
+                              child.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; position: absolute !important; left: -9999px !important; top: -9999px !important; width: 0 !important; height: 0 !important; overflow: hidden !important;';
+                              try {
+                                child.remove();
+                                foundCount++;
+                              } catch(e4) {
+                                try {
+                                  if (child.parentNode) {
+                                    child.parentNode.removeChild(child);
+                                    foundCount++;
+                                  }
+                                } catch(e5) {}
+                              }
+                            }
+                          }
+                          // Также проверяем сам modal-root - если он содержит только модальное окно, очищаем его
+                          if (rootText.indexOf('SYSTEM INITIALIZATION') !== -1 && rootEl.children.length > 0) {
+                            try {
+                              rootEl.innerHTML = '';
+                              foundCount++;
+                            } catch(e6) {}
+                          }
+                        }
+                      }
+                    }
+                    
+                    // ⚠️ МЕТОД 5: Ищем ВСЕ div с fixed позиционированием и проверяем их содержимое
+                    var allFixedDivs = document.querySelectorAll('div');
+                    for (var fd = 0; fd < allFixedDivs.length; fd++) {
+                      var fixedDiv = allFixedDivs[fd];
+                      var fixedStyle = window.getComputedStyle ? window.getComputedStyle(fixedDiv) : null;
+                      if (fixedStyle && fixedStyle.position === 'fixed') {
+                        var fixedText = fixedDiv.textContent || fixedDiv.innerText || '';
+                        if (fixedText.indexOf('SYSTEM INITIALIZATION') !== -1 || 
+                            fixedText.indexOf('You are one of the first users') !== -1 ||
+                            fixedText.indexOf('Links in system: 0/10') !== -1) {
+                          // ПРИНУДИТЕЛЬНО скрываем и удаляем
+                          fixedDiv.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; position: absolute !important; left: -9999px !important; top: -9999px !important; width: 0 !important; height: 0 !important; overflow: hidden !important;';
+                          try {
+                            fixedDiv.remove();
+                            foundCount++;
+                          } catch(e7) {
+                            try {
+                              if (fixedDiv.parentNode) {
+                                fixedDiv.parentNode.removeChild(fixedDiv);
+                                foundCount++;
+                              }
+                            } catch(e8) {}
+                          }
+                        }
+                      }
+                    }
+                    
                     if (foundCount > 0) {
                       console.warn('🧹 [_DOCUMENT] Removed ' + foundCount + ' SYSTEM INITIALIZATION modal(s)');
                     }
@@ -208,11 +277,31 @@ export default function Document() {
                   }, 10000);
                 }
                 
-                // Периодическая проверка
-                var interval = setInterval(removeSystemInitModal, 100);
+                // ⚠️ Периодическая проверка - УВЕЛИЧИВАЕМ частоту и длительность
+                var interval = setInterval(removeSystemInitModal, 50); // Проверяем каждые 50ms
                 setTimeout(function() {
                   clearInterval(interval);
-                }, 10000);
+                }, 30000); // Останавливаем через 30 секунд (было 10)
+                
+                // ⚠️ ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: Следим за созданием modal-root элемента
+                if (typeof MutationObserver !== 'undefined') {
+                  var modalRootObserver = new MutationObserver(function(mutations) {
+                    var modalRoot = document.getElementById('modal-root');
+                    if (modalRoot) {
+                      removeSystemInitModal(); // Немедленно проверяем modal-root
+                    }
+                  });
+                  if (document.body) {
+                    modalRootObserver.observe(document.body, {
+                      childList: true,
+                      subtree: true,
+                      attributes: false
+                    });
+                  }
+                  setTimeout(function() {
+                    modalRootObserver.disconnect();
+                  }, 30000);
+                }
               })();
             `,
           }}
