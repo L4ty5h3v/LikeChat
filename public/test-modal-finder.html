@@ -348,6 +348,15 @@
         window.addEventListener('load', () => {
             setTimeout(runFullTest, 1000);
         });
+        
+        // ⚠️ ДОПОЛНИТЕЛЬНО: Выводим результаты в консоль для удобства
+        const originalRunFullTest = runFullTest;
+        runFullTest = function() {
+            console.log('%c🔍 [TEST-MODAL-FINDER] Запуск полного теста...', 'color: #0f0; font-size: 14px; font-weight: bold;');
+            const result = originalRunFullTest();
+            console.log('%c📊 [TEST-MODAL-FINDER] Тест завершен. Проверьте результаты на странице.', 'color: #0ff; font-size: 12px;');
+            return result;
+        };
     </script>
 </body>
 </html>
