@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔍 Test: Find SYSTEM INITIALIZATION Modal Everywhere</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #0f0;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .section {
+            background: #2a2a2a;
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 3px solid #0f0;
+        }
+        .found {
+            background: #ff0;
+            color: #000;
+            padding: 10px;
+            margin: 5px 0;
+            border-left: 3px solid #f00;
+            word-wrap: break-word;
+        }
+        .not-found {
+            color: #0f0;
+            padding: 5px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background: #333;
+            color: #0f0;
+            border: 1px solid #0f0;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #0f0;
+            color: #1a1a1a;
+        }
+        .error { color: #f00; }
+        .warning { color: #ff0; }
+        .success { color: #0f0; }
+        pre {
+            background: #000;
+            padding: 10px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        h1, h2 { color: #0f0; }
+        .info { color: #0ff; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Test: Find SYSTEM INITIALIZATION Modal Everywhere</h1>
+    <button onclick="runFullTest()">▶️ Run Full Test NOW</button>
+    <button onclick="removeAllFound()">🗑️ Remove All Found Modals</button>
+    <button onclick="clearResults()">🗑️ Clear Results</button>
+    <div id="results"></div>
+
+    <script>
+        const results = document.getElementById('results');
+        
+        function addResult(title, content, type = 'section') {
+            const div = document.createElement('div');
+            div.className = type;
+            div.innerHTML = `<h2>${title}</h2><div>${content}</div>`;
+            results.appendChild(div);
+        }
+
+        function clearResults() {
+            results.innerHTML = '';
+        }
+
+        function runFullTest() {
+            clearResults();
+            let totalFound = 0;
+
+            addResult('🔍 TEST STARTED', `Started at: ${new Date().toISOString()}`, 'info');
+
+            // 1. Проверяем modal-root, popover-root и другие root элементы
+            addResult('1️⃣ Checking Root Elements', '');
+            const rootIds = ['modal-root', 'popover-root', 'hover-popover-root', 'root', '__next'];
+            rootIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    const text = el.textContent || '';
+                    const hasModal = text.includes('SYSTEM INITIALIZATION') || 
+                                    text.includes('You are one of the first users') ||
+                                    text.includes('Links in system: 0/10');
+                    
+                    if (hasModal) {
+                        totalFound++;
+                        addResult(`❌ FOUND in #${id}`, `
+                            <pre>Element: ${el.outerHTML.substring(0, 500)}</pre>
+                            <pre>Text: ${text.substring(0, 300)}</pre>
+                            <pre>Children count: ${el.children.length}</pre>
+                            <pre>Classes: ${el.className || 'none'}</pre>
+                            <pre>ID: ${el.id || 'none'}</pre>
+                        `, 'found');
+                    } else {
+                        addResult(`✅ Not found in #${id}`, `Children: ${el.children.length}`, 'not-found');
+                    }
+                } else {
+                    addResult(`ℹ️ #${id} doesn't exist`, '', 'not-found');
+                }
+            });
+
+            // 2. Ищем все элементы с текстом "SYSTEM INITIALIZATION"
+            addResult('2️⃣ Searching ALL Elements with "SYSTEM INITIALIZATION" Text', '');
+            const allElements = document.querySelectorAll('*');
+            const modalElements = [];
+            
+            allElements.forEach(el => {
+                const text = el.textContent || el.innerText || '';
+                if (text.includes('SYSTEM INITIALIZATION') || 
+                    text.includes('You are one of the first users') ||
+                    text.includes('Links in system: 0/10')) {
+                    
+                    // Проверяем, что это не родитель уже найденного элемента
+                    let isChild = false;
+                    modalElements.forEach(found => {
+                        if (found.contains(el)) {
+                            isChild = true;
+                        }
+                    });
+                    
+                    if (!isChild) {
+                        modalElements.push(el);
+                        totalFound++;
+                        
+                        const parent = el.parentElement;
+                        const computedStyle = window.getComputedStyle(el);
+                        
+                        addResult(`❌ FOUND Element: ${el.tagName}`, `
+                            <pre>Tag: ${el.tagName}</pre>
+                            <pre>ID: ${el.id || 'none'}</pre>
+                            <pre>Classes: ${el.className || 'none'}</pre>
+                            <pre>Position: ${computedStyle.position}</pre>
+                            <pre>Display: ${computedStyle.display}</pre>
+                            <pre>Visibility: ${computedStyle.visibility}</pre>
+                            <pre>Z-index: ${computedStyle.zIndex}</pre>
+                            <pre>Parent: ${parent ? parent.tagName + (parent.id ? '#' + parent.id : '') + (parent.className ? '.' + parent.className.split(' ')[0] : '') : 'none'}</pre>
+                            <pre>Text: ${text.substring(0, 200)}</pre>
+                            <pre>HTML: ${el.outerHTML.substring(0, 500)}</pre>
+                        `, 'found');
+                    }
+                }
+            });
+
+            if (modalElements.length === 0) {
+                addResult('✅ No elements with modal text found', '', 'not-found');
+            }
+
+            // 3. Ищем все элементы с purple gradient (from-blue, to-purple)
+            addResult('3️⃣ Searching Purple Gradient Elements', '');
+            const purpleSelectors = [
+                '[class*="from-blue"]',
+                '[class*="to-purple"]',
+                '[class*="bg-gradient"]',
+                '[class*="from-blue-500"]',
+                '[class*="to-purple-500"]'
+            ];
+            
+            const purpleElements = [];
+            purpleSelectors.forEach(selector => {
+                try {
+                    const elements = document.querySelectorAll(selector);
+                    elements.forEach(el => {
+                        if (!purpleElements.includes(el)) {
+                            purpleElements.push(el);
+                            const text = el.textContent || '';
+                            if (text.includes('SYSTEM INITIALIZATION')) {
+                                totalFound++;
+                                addResult(`❌ FOUND Purple Gradient with Modal: ${selector}`, `
+                                    <pre>Element: ${el.outerHTML.substring(0, 500)}</pre>
+                                    <pre>Classes: ${el.className}</pre>
+                                    <pre>Text: ${text.substring(0, 200)}</pre>
+                                `, 'found');
+                            }
+                        }
+                    });
+                } catch(e) {
+                    addResult(`⚠️ Error with selector ${selector}`, e.message, 'warning');
+                }
+            });
+
+            if (purpleElements.length === 0) {
+                addResult('✅ No purple gradient elements found', '', 'not-found');
+            }
+
+            // 4. Ищем все элементы с position: fixed
+            addResult('4️⃣ Searching Fixed Position Elements', '');
+            const allDivs = document.querySelectorAll('div');
+            const fixedElements = [];
+            
+            allDivs.forEach(div => {
+                const computedStyle = window.getComputedStyle(div);
+                if (computedStyle.position === 'fixed') {
+                    fixedElements.push(div);
+                    const text = div.textContent || '';
+                    if (text.includes('SYSTEM INITIALIZATION') || 
+                        text.includes('You are one of the first users')) {
+                        totalFound++;
+                        addResult(`❌ FOUND Fixed Element with Modal`, `
+                            <pre>Element: ${div.outerHTML.substring(0, 500)}</pre>
+                            <pre>Classes: ${div.className || 'none'}</pre>
+                            <pre>ID: ${div.id || 'none'}</pre>
+                            <pre>Z-index: ${computedStyle.zIndex}</pre>
+                            <pre>Text: ${text.substring(0, 200)}</pre>
+                        `, 'found');
+                    }
+                }
+            });
+
+            addResult(`ℹ️ Total fixed elements found: ${fixedElements.length}`, '', 'info');
+
+            // 5. Ищем в body по селекторам
+            addResult('5️⃣ Searching by Specific Selectors', '');
+            const specificSelectors = [
+                '.fixed',
+                '.backdrop',
+                '.modal',
+                '[class*="z-50"]',
+                '[class*="fixed"]',
+                '[class*="backdrop"]',
+                '[class*="modal"]'
+            ];
+            
+            specificSelectors.forEach(selector => {
+                try {
+                    const elements = document.querySelectorAll(selector);
+                    elements.forEach(el => {
+                        const text = el.textContent || '';
+                        if (text.includes('SYSTEM INITIALIZATION')) {
+                            totalFound++;
+                            addResult(`❌ FOUND with selector: ${selector}`, `
+                                <pre>Element: ${el.outerHTML.substring(0, 500)}</pre>
+                                <pre>Classes: ${el.className}</pre>
+                            `, 'found');
+                        }
+                    });
+                } catch(e) {
+                    addResult(`⚠️ Error with selector ${selector}`, e.message, 'warning');
+                }
+            });
+
+            // 6. Проверяем document.body.innerHTML
+            addResult('6️⃣ Checking document.body.innerHTML', '');
+            const bodyHTML = document.body.innerHTML;
+            if (bodyHTML.includes('SYSTEM INITIALIZATION')) {
+                totalFound++;
+                const index = bodyHTML.indexOf('SYSTEM INITIALIZATION');
+                addResult(`❌ FOUND in body.innerHTML`, `
+                    <pre>Found at index: ${index}</pre>
+                    <pre>Context: ${bodyHTML.substring(Math.max(0, index - 200), index + 500)}</pre>
+                `, 'found');
+            } else {
+                addResult('✅ Not found in body.innerHTML', '', 'not-found');
+            }
+
+            // 7. Проверяем все script теги
+            addResult('7️⃣ Checking All Script Tags', '');
+            const scripts = document.querySelectorAll('script');
+            scripts.forEach((script, index) => {
+                const content = script.textContent || script.innerHTML || '';
+                if (content.includes('SYSTEM INITIALIZATION')) {
+                    totalFound++;
+                    addResult(`❌ FOUND in Script #${index}`, `
+                        <pre>Type: ${script.type || 'inline'}</pre>
+                        <pre>Src: ${script.src || 'inline script'}</pre>
+                        <pre>Content: ${content.substring(0, 500)}</pre>
+                    `, 'found');
+                }
+            });
+
+            // 8. Итоговый результат
+            addResult('📊 FINAL RESULT', `
+                <h3 class="error">Total Modal Instances Found: ${totalFound}</h3>
+                <p>Test completed at: ${new Date().toISOString()}</p>
+                ${totalFound > 0 ? 
+                    '<p class="error">⚠️ MODAL STILL EXISTS IN DOM!</p>' : 
+                    '<p class="success">✅ No modal found in DOM</p>'
+                }
+            `, totalFound > 0 ? 'found' : 'not-found');
+
+            // Автоматически прокручиваем к результатам
+            window.scrollTo(0, 0);
+        }
+
+        function removeAllFound() {
+            let removed = 0;
+            
+            // Удаляем modal-root
+            const modalRoot = document.getElementById('modal-root');
+            if (modalRoot) {
+                const text = modalRoot.textContent || '';
+                if (text.includes('SYSTEM INITIALIZATION')) {
+                    modalRoot.remove();
+                    removed++;
+                    console.log('✅ Removed modal-root');
+                }
+            }
+
+            // Удаляем все элементы с purple gradient
+            const purpleElements = document.querySelectorAll('[class*="from-blue"]');
+            purpleElements.forEach(el => {
+                if (el.textContent?.includes('SYSTEM INITIALIZATION')) {
+                    el.remove();
+                    removed++;
+                    console.log('✅ Removed purple gradient element:', el);
+                }
+            });
+
+            // Удаляем все fixed элементы с модальным текстом
+            const allDivs = document.querySelectorAll('div');
+            allDivs.forEach(div => {
+                const style = window.getComputedStyle(div);
+                if (style.position === 'fixed') {
+                    const text = div.textContent || '';
+                    if (text.includes('SYSTEM INITIALIZATION')) {
+                        div.remove();
+                        removed++;
+                        console.log('✅ Removed fixed element:', div);
+                    }
+                }
+            });
+
+            addResult('🗑️ REMOVAL RESULT', `
+                <h3>Removed ${removed} element(s)</h3>
+                <p>Please refresh the page and run test again to verify.</p>
+            `, removed > 0 ? 'success' : 'info');
+
+            if (removed > 0) {
+                alert(`✅ Removed ${removed} modal element(s)! Please refresh and test again.`);
+            } else {
+                alert('ℹ️ No modal elements found to remove.');
+            }
+        }
+
+        // Автоматически запускаем тест при загрузке
+        window.addEventListener('load', () => {
+            setTimeout(runFullTest, 1000);
+        });
+    </script>
+</body>
+</html>
+
