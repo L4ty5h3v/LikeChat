@@ -235,13 +235,21 @@ export async function markLinkCompleted(userFid: number, linkId: string): Promis
   }
 }
 
-export async function markTokenPurchased(userFid: number): Promise<void> {
+export async function markTokenPurchased(userFid: number, txHash?: string): Promise<void> {
   if (!redis) return;
   
   try {
-    await upsertUserProgress(userFid, {
+    const updates: Partial<UserProgress> = {
       token_purchased: true,
-    });
+    };
+    
+    // Сохраняем txHash если передан (для dexscreener и истории транзакций)
+    if (txHash) {
+      updates.token_purchase_tx_hash = txHash;
+      console.log(`✅ [DB] Saving token purchase txHash ${txHash} for user ${userFid}`);
+    }
+    
+    await upsertUserProgress(userFid, updates);
   } catch (error) {
     console.error('Error marking token as purchased in Upstash:', error);
   }

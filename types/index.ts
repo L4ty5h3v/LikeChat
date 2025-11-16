@@ -25,6 +25,7 @@ export interface UserProgress {
   user_fid: number;
   completed_links: string[]; // ID завершенных ссылок
   token_purchased: boolean;
+  token_purchase_tx_hash?: string; // Hash транзакции покупки токена (для dexscreener)
   selected_activity?: ActivityType;
   current_link_id?: string; // ID опубликованной ссылки
   created_at: string;

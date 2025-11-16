@@ -17,6 +17,9 @@ module.exports = {
         light: '#F8F9FA',       // Светлый
         success: '#00D084',     // Ярко-зелёный
         warning: '#FFB800',     // Жёлтый
+        gold: '#D4AF37',        // Золотой
+        'gold-light': '#FFD700', // Светло-золотой
+        'gold-dark': '#B8860B',  // Тёмно-золотой
       },
       fontFamily: {
         'bold': ['Inter', 'system-ui', 'sans-serif'],

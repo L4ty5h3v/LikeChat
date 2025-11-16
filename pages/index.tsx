@@ -26,10 +26,29 @@ export default function Home() {
     
     // Проверяем localStorage только на клиенте
     if (typeof window !== 'undefined') {
-    const savedUser = localStorage.getItem('farcaster_user');
-    const savedActivity = localStorage.getItem('selected_activity');
-    
-    if (savedUser) {
+      // ⚠️ КРИТИЧЕСКИ ВАЖНО: Очищаем link_published флаг при загрузке главной страницы
+      // Это позволяет пользователю начать новый цикл публикации
+      // Делаем это СРАЗУ при монтировании компонента, до любой другой логики
+      const linkPublishedFlag = sessionStorage.getItem('link_published') || localStorage.getItem('link_published');
+      if (linkPublishedFlag === 'true') {
+        console.log('🧹 [INDEX] Clearing link_published flag on home page mount (new cycle can start)', {
+          sessionStorage: sessionStorage.getItem('link_published'),
+          localStorage: localStorage.getItem('link_published'),
+          timestamp: new Date().toISOString(),
+        });
+        sessionStorage.removeItem('link_published');
+        localStorage.removeItem('link_published');
+        console.log('✅ [INDEX] Flag cleared - new publication cycle can start', {
+          sessionStorageAfter: sessionStorage.getItem('link_published'),
+          localStorageAfter: localStorage.getItem('link_published'),
+          timestamp: new Date().toISOString(),
+        });
+      }
+      
+      const savedUser = localStorage.getItem('farcaster_user');
+      const savedActivity = localStorage.getItem('selected_activity');
+      
+      if (savedUser) {
         try {
           const parsedUser = JSON.parse(savedUser);
           console.log('🔍 Loading saved user from localStorage:', parsedUser);
@@ -59,10 +78,10 @@ export default function Home() {
           localStorage.removeItem('farcaster_user');
           setUser(null);
         }
-    }
-    
-    if (savedActivity) {
-      setSelectedActivity(savedActivity as ActivityType);
+      }
+      
+      if (savedActivity) {
+        setSelectedActivity(savedActivity as ActivityType);
       }
     }
   }, []);
@@ -97,13 +116,24 @@ export default function Home() {
       // Пытаемся получить адрес кошелька через Farcaster Mini App SDK
       try {
         console.log('🔄 Connecting Farcaster wallet via SDK...');
+        console.log('🔍 [WALLET-CONNECT] Starting wallet connection process...', {
+          timestamp: new Date().toISOString(),
+          windowAvailable: typeof window !== 'undefined',
+        });
         
         // Используем Farcaster Mini App SDK для получения адреса кошелька
         if (typeof window !== 'undefined') {
           try {
-            // Динамический импорт SDK
-            const sdkModule = await import('@farcaster/miniapp-sdk');
+            // Динамический импорт SDK с таймаутом
+            console.log('📦 [WALLET-CONNECT] Importing Farcaster SDK...');
+            const sdkModule = await Promise.race([
+              import('@farcaster/miniapp-sdk'),
+              new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('SDK import timeout (5s)')), 5000)
+              )
+            ]) as any;
             const { sdk } = sdkModule;
+            console.log('✅ [WALLET-CONNECT] SDK imported successfully');
             
             // Пробуем получить Ethereum провайдер через SDK
             console.log('🔄 Trying to get Ethereum provider via SDK...');
@@ -426,6 +456,15 @@ export default function Home() {
       console.log('✅ [INDEX] User saved via context (should be in localStorage now)');
       
       if (typeof window !== 'undefined') {
+        // ⚠️ ДОПОЛНИТЕЛЬНАЯ ОЧИСТКА ФЛАГА: Очищаем link_published флаг после успешной авторизации
+        // (основная очистка уже выполнена в useEffect при монтировании, но на всякий случай)
+        const linkPublishedFlag = sessionStorage.getItem('link_published') || localStorage.getItem('link_published');
+        if (linkPublishedFlag === 'true') {
+          console.log('🧹 [INDEX] Clearing link_published flag after successful auth (backup cleanup)');
+          sessionStorage.removeItem('link_published');
+          localStorage.removeItem('link_published');
+        }
+        
         // Проверяем, есть ли уже выбранная активность
         const savedActivity = localStorage.getItem('selected_activity');
         console.log('📋 [INDEX] Saved activity:', savedActivity);
@@ -447,11 +486,22 @@ export default function Home() {
       setSuccess(true);
     } catch (error: any) {
       console.error('❌ Error during Farcaster authorization:', error);
+      console.error('❌ Error details:', {
+        message: error?.message,
+        stack: error?.stack,
+        name: error?.name,
+        code: error?.code,
+      });
+      
+      // Убеждаемся, что loading сбрасывается в любом случае
+      setLoading(false);
+      
       setErrorModal({
         show: true,
-        message: `Ошибка при авторизации: ${error.message || 'Неизвестная ошибка'}`
+        message: `Ошибка при авторизации: ${error?.message || 'Неизвестная ошибка'}\n\nПроверьте консоль браузера для деталей.`
       });
       setSuccess(false);
+      return; // Явно выходим из функции
     } finally {
       // Проверяем успешность авторизации по наличию пользователя
       const wasSuccessful = typeof window !== 'undefined' && localStorage.getItem('farcaster_user');
@@ -460,6 +510,7 @@ export default function Home() {
       } else {
         console.log('❌ Farcaster authorization failed');
       }
+      // Убеждаемся, что loading сбрасывается в finally
       setLoading(false);
     }
   };

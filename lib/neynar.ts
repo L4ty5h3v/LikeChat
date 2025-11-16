@@ -16,6 +16,52 @@ const neynarClient = axios.create({
   },
 });
 
+// Кэш для результатов проверки активности (в памяти, истекает через 60 секунд)
+interface CacheEntry {
+  result: boolean;
+  timestamp: number;
+}
+
+const activityCache = new Map<string, CacheEntry>();
+const CACHE_TTL_MS = 60 * 1000; // 60 секунд
+
+// Генерируем ключ кэша
+function getCacheKey(castHash: string, userFid: number, activityType: ActivityType): string {
+  return `${activityType}:${castHash}:${userFid}`;
+}
+
+// Проверяем кэш
+function getCachedResult(key: string): boolean | null {
+  const entry = activityCache.get(key);
+  if (!entry) return null;
+  
+  const now = Date.now();
+  if (now - entry.timestamp > CACHE_TTL_MS) {
+    activityCache.delete(key);
+    return null;
+  }
+  
+  return entry.result;
+}
+
+// Сохраняем в кэш
+function setCachedResult(key: string, result: boolean): void {
+  activityCache.set(key, {
+    result,
+    timestamp: Date.now(),
+  });
+  
+  // Очищаем старые записи, если кэш слишком большой (больше 1000 записей)
+  if (activityCache.size > 1000) {
+    const now = Date.now();
+    for (const [k, v] of activityCache.entries()) {
+      if (now - v.timestamp > CACHE_TTL_MS) {
+        activityCache.delete(k);
+      }
+    }
+  }
+}
+
 // Извлечь hash каста из URL
 export function extractCastHash(castUrl: string): string | null {
   try {
@@ -244,6 +290,14 @@ export async function checkUserLiked(
     return false;
   }
 
+  // Проверяем кэш
+  const cacheKey = getCacheKey(castHash, userFid, 'like');
+  const cached = getCachedResult(cacheKey);
+  if (cached !== null) {
+    console.log(`💾 [CACHE] Using cached like result for cast ${castHash}, user ${userFid}: ${cached ? '✅ FOUND' : '❌ NOT FOUND'}`);
+    return cached;
+  }
+
   try {
     const response = await neynarClient.get('/farcaster/reactions', {
       params: {
@@ -258,6 +312,9 @@ export async function checkUserLiked(
       (r: NeynarReaction) => 
         r.reactor_fid === userFid && r.reaction_type === 'like'
     );
+    
+    // Сохраняем в кэш
+    setCachedResult(cacheKey, found);
     
     console.log(`🔍 Checked like for cast ${castHash}, user ${userFid}: ${found ? '✅ FOUND' : '❌ NOT FOUND'}`);
     return found;
@@ -277,6 +334,14 @@ export async function checkUserRecasted(
     return false;
   }
 
+  // Проверяем кэш
+  const cacheKey = getCacheKey(castHash, userFid, 'recast');
+  const cached = getCachedResult(cacheKey);
+  if (cached !== null) {
+    console.log(`💾 [CACHE] Using cached recast result for cast ${castHash}, user ${userFid}: ${cached ? '✅ FOUND' : '❌ NOT FOUND'}`);
+    return cached;
+  }
+
   try {
     const response = await neynarClient.get('/farcaster/reactions', {
       params: {
@@ -291,6 +356,9 @@ export async function checkUserRecasted(
       (r: NeynarReaction) => 
         r.reactor_fid === userFid && r.reaction_type === 'recast'
     );
+    
+    // Сохраняем в кэш
+    setCachedResult(cacheKey, found);
     
     console.log(`🔍 Checked recast for cast ${castHash}, user ${userFid}: ${found ? '✅ FOUND' : '❌ NOT FOUND'}`);
     return found;
@@ -310,6 +378,14 @@ export async function checkUserCommented(
     return false;
   }
 
+  // Проверяем кэш
+  const cacheKey = getCacheKey(castHash, userFid, 'comment');
+  const cached = getCachedResult(cacheKey);
+  if (cached !== null) {
+    console.log(`💾 [CACHE] Using cached comment result for cast ${castHash}, user ${userFid}: ${cached ? '✅ FOUND' : '❌ NOT FOUND'}`);
+    return cached;
+  }
+
   try {
     const response = await neynarClient.get('/farcaster/casts', {
       params: {
@@ -321,6 +397,9 @@ export async function checkUserCommented(
     const found = casts.some(
       (cast: NeynarComment) => cast.author_fid === userFid
     );
+    
+    // Сохраняем в кэш
+    setCachedResult(cacheKey, found);
     
     console.log(`🔍 Checked comment for cast ${castHash}, user ${userFid}: ${found ? '✅ FOUND' : '❌ NOT FOUND'}`);
     return found;

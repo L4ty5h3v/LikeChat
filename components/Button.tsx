@@ -25,19 +25,39 @@ const Button: React.FC<ButtonProps> = ({
   const baseStyles = 'px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 text-sm sm:text-base';
   
   const variantStyles = {
-    primary: 'bg-gradient-to-r from-yellow-300 via-yellow-500 via-amber-600 to-amber-800 text-white hover:shadow-xl hover:shadow-amber-500/50 hover:from-yellow-400 hover:via-yellow-600 hover:via-amber-700 hover:to-amber-900 transition-all duration-300 relative overflow-hidden',
-    success: 'bg-gradient-to-r from-yellow-400 via-amber-500 to-amber-700 text-white hover:shadow-xl hover:shadow-amber-500/50 hover:from-yellow-500 hover:via-amber-600 hover:to-amber-800 transition-all duration-300',
-    warning: 'bg-gradient-to-r from-yellow-300 via-amber-500 to-amber-800 text-white hover:shadow-xl hover:shadow-amber-500/50 hover:from-yellow-400 hover:via-amber-600 hover:to-amber-900 transition-all duration-300',
-    secondary: 'bg-gradient-to-r from-yellow-100 to-amber-100 text-amber-900 border-2 border-amber-300 hover:from-yellow-200 hover:to-amber-200 hover:border-amber-400',
+    primary: 'text-white hover:shadow-xl hover:shadow-yellow-500/50 transition-all duration-300 relative overflow-hidden',
+    success: 'text-white hover:shadow-xl hover:shadow-yellow-500/50 transition-all duration-300',
+    warning: 'text-white hover:shadow-xl hover:shadow-yellow-500/50 transition-all duration-300',
+    secondary: 'text-amber-900 border-2 border-yellow-400 hover:border-yellow-500',
   };
 
   const widthStyles = fullWidth ? 'w-full' : '';
+
+  const getBackgroundStyle = () => {
+    if (disabled || loading) {
+      return { background: 'linear-gradient(to right, #C0A030, #9A7308)' }; // Приглушенный золотой для disabled
+    }
+    
+    switch (variant) {
+      case 'primary':
+        return { background: 'linear-gradient(to right, #FFD700, #B8860B)' };
+      case 'success':
+        return { background: 'linear-gradient(to right, #FFD700, #B8860B)' };
+      case 'warning':
+        return { background: 'linear-gradient(to right, #FFD700, #B8860B)' };
+      case 'secondary':
+        return { background: 'linear-gradient(to right, #FFF9DC, #FFE5B4)' };
+      default:
+        return { background: 'linear-gradient(to right, #FFD700, #B8860B)' };
+    }
+  };
 
   return (
     <button
       type={type}
       onClick={onClick}
       disabled={disabled || loading}
+      style={getBackgroundStyle()}
       className={`${baseStyles} ${variantStyles[variant]} ${widthStyles} ${className} relative`}
     >
       {/* Металлический эффект через псевдоэлемент */}

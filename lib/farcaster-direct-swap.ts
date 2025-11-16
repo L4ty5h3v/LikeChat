@@ -57,46 +57,47 @@ async function getEthPriceUsd(): Promise<number> {
 }
 
 // Получить количество токенов, которое можно купить на $0.10
+// Использует API вместо прямых вызовов RPC (избегает eth_call в wallet)
 export async function getTokenAmountForPurchase(
   paymentToken: 'ETH' | 'USDC' = 'ETH'
 ): Promise<string | null> {
   try {
-    const BASE_RPC_URL = 'https://mainnet.base.org';
-    const publicProvider = new ethers.JsonRpcProvider(BASE_RPC_URL);
-    
-    const tokenOutAddress = TOKEN_CONTRACT_ADDRESS;
-    let amountIn: bigint;
-    
     if (paymentToken === 'USDC') {
-      amountIn = ethers.parseUnits(PURCHASE_AMOUNT_USD.toString(), 6);
+      // Используем API для получения котировки USDC → MCT
+      const response = await fetch('/api/quote', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'amount',
+          usdcAmount: PURCHASE_AMOUNT_USD,
+        }),
+      });
+
+      if (!response.ok) {
+        console.error('❌ Failed to get quote from API');
+        return null;
+      }
+
+      const data = await response.json();
+      
+      if (data.success && data.mctAmount) {
+        const mctAmountBigInt = BigInt(data.mctAmount);
+        return ethers.formatUnits(mctAmountBigInt, DEFAULT_TOKEN_DECIMALS);
+      }
+      
+      return null;
     } else {
+      // Для ETH: используем API для получения цены, затем рассчитываем
       const ethPriceUsd = await getEthPriceUsd();
       const ethAmountNeeded = PURCHASE_AMOUNT_USD / ethPriceUsd;
-      amountIn = ethers.parseEther(ethAmountNeeded.toFixed(18));
+      // Для ETH лучше использовать прямой swap через Farcaster SDK (useSwapToken)
+      // Эта функция используется только для USDC
+      return null;
     }
-    
-    const tokenInAddress = paymentToken === 'ETH' ? WRAPPED_ETH_ADDRESS : USDC_ADDRESS;
-    const quoter = new ethers.Contract(UNISWAP_V3_QUOTER, UNISWAP_QUOTER_ABI, publicProvider);
-    const feeTiers = [10000, 3000, 500];
-    
-    for (const fee of feeTiers) {
-      try {
-        const tokenAmountOut = await quoter.quoteExactInputSingle.staticCall(
-          tokenInAddress,
-          tokenOutAddress,
-          fee,
-          amountIn,
-          0
-        );
-        return ethers.formatUnits(tokenAmountOut, DEFAULT_TOKEN_DECIMALS);
-      } catch (error) {
-        continue;
-      }
-    }
-    
-    return null;
   } catch (error) {
-    console.error('Error getting token amount:', error);
+    console.error('❌ Error getting token amount from API:', error);
     return null;
   }
 }
@@ -150,10 +151,7 @@ export async function buyTokenViaDirectSwap(
     const tokenOutAddress = TOKEN_CONTRACT_ADDRESS; // MCT Token
 
     // Рассчитываем amountIn на основе $0.10 USD по рыночному курсу
-    // Используем публичный RPC для Quoter (Farcaster провайдер не поддерживает eth_call)
-    const BASE_RPC_URL = 'https://mainnet.base.org';
-    const publicProvider = new ethers.JsonRpcProvider(BASE_RPC_URL);
-    
+    // Используем API для получения котировки (избегаем eth_call в wallet)
     let amountIn: bigint;
     let tokenAmountOut: bigint = BigInt(0);
     
@@ -161,25 +159,35 @@ export async function buyTokenViaDirectSwap(
       // Для USDC просто используем $0.10 = 0.10 USDC
       amountIn = ethers.parseUnits(PURCHASE_AMOUNT_USD.toString(), 6); // 0.10 USDC
       
-      // Получаем количество токенов через Quoter (используем публичный RPC)
-      const quoter = new ethers.Contract(UNISWAP_V3_QUOTER, UNISWAP_QUOTER_ABI, publicProvider);
-      const feeTiers = [10000, 3000, 500];
-      
-      for (const fee of feeTiers) {
-        try {
-          tokenAmountOut = await quoter.quoteExactInputSingle.staticCall(
-            USDC_ADDRESS,
-            tokenOutAddress,
-            fee,
-            amountIn,
-            0
-          );
-          console.log(`💰 Quote: ${ethers.formatUnits(amountIn, 6)} USDC → ${ethers.formatUnits(tokenAmountOut, DEFAULT_TOKEN_DECIMALS)} MCT (fee: ${fee/10000}%)`);
-          break;
-        } catch (error) {
-          console.warn(`⚠️ Quote failed for fee ${fee}, trying next...`);
-          continue;
+      // Получаем количество токенов через API (избегаем eth_call)
+      console.log(`🔍 Getting quote via API: ${PURCHASE_AMOUNT_USD} USDC → MCT...`);
+      try {
+        const response = await fetch('/api/quote', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            type: 'amount',
+            usdcAmount: PURCHASE_AMOUNT_USD,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to get quote from API');
         }
+
+        const data = await response.json();
+        
+        if (data.success && data.mctAmount) {
+          tokenAmountOut = BigInt(data.mctAmount);
+          console.log(`💰 API Quote: ${ethers.formatUnits(amountIn, 6)} USDC → ${ethers.formatUnits(tokenAmountOut, DEFAULT_TOKEN_DECIMALS)} MCT`);
+        } else {
+          throw new Error(data.error || 'Failed to get quote from API');
+        }
+      } catch (error: any) {
+        console.error('❌ Error getting quote from API:', error);
+        throw new Error('Не удалось получить котировку от Uniswap через API: ' + (error.message || error));
       }
       
       if (tokenAmountOut === BigInt(0)) {
@@ -187,42 +195,33 @@ export async function buyTokenViaDirectSwap(
       }
     } else {
       // Для ETH: получаем цену ETH в USD и рассчитываем amountIn
+      // Для ETH swaps рекомендуется использовать useSwapToken из onchainkit (уже используется в buyToken.tsx)
+      // Эта функция оставлена для обратной совместимости, но для ETH лучше использовать прямой путь
       const ethPriceUsd = await getEthPriceUsd();
       const ethAmountNeeded = PURCHASE_AMOUNT_USD / ethPriceUsd;
       amountIn = ethers.parseEther(ethAmountNeeded.toFixed(18));
       
-      // Получаем количество токенов через Quoter (используем публичный RPC)
-      const quoter = new ethers.Contract(UNISWAP_V3_QUOTER, UNISWAP_QUOTER_ABI, publicProvider);
-      const feeTiers = [10000, 3000, 500];
+      // Для ETH не требуется API quote, так как прямой swap WETH -> MCT выполняется через Router
+      // Используем расчетный amountOut на основе цены (можно улучшить через API в будущем)
+      // Пока используем приблизительное значение для ETH swaps
+      const estimatedMCTPerEth = 1000; // Примерное значение, можно улучшить через API
+      tokenAmountOut = ethers.parseUnits((Number(amountIn) / 1e18 * estimatedMCTPerEth).toFixed(DEFAULT_TOKEN_DECIMALS), DEFAULT_TOKEN_DECIMALS);
       
-      for (const fee of feeTiers) {
-        try {
-          tokenAmountOut = await quoter.quoteExactInputSingle.staticCall(
-            WRAPPED_ETH_ADDRESS,
-            tokenOutAddress,
-            fee,
-            amountIn,
-            0
-          );
-          console.log(`💰 Quote: ${ethers.formatEther(amountIn)} ETH ($${PURCHASE_AMOUNT_USD}) → ${ethers.formatUnits(tokenAmountOut, DEFAULT_TOKEN_DECIMALS)} MCT (fee: ${fee/10000}%)`);
-          break;
-        } catch (error) {
-          console.warn(`⚠️ Quote failed for fee ${fee}, trying next...`);
-          continue;
-        }
-      }
-      
-      if (tokenAmountOut === BigInt(0)) {
-        throw new Error('Не удалось получить котировку от Uniswap');
-      }
+      console.log(`💰 ETH Quote (estimated): ${ethers.formatEther(amountIn)} ETH ($${PURCHASE_AMOUNT_USD}) → ${ethers.formatUnits(tokenAmountOut, DEFAULT_TOKEN_DECIMALS)} MCT`);
     }
 
     console.log(`🔄 Direct swap: ${paymentToken} → MCT`);
     console.log(`   Purchase amount: $${PURCHASE_AMOUNT_USD} USD`);
     console.log(`   Token In: ${tokenInAddress}`);
     console.log(`   Token Out: ${tokenOutAddress}`);
-    console.log(`   Amount In: ${paymentToken === 'ETH' ? ethers.formatEther(amountIn) : ethers.formatUnits(amountIn, 6)} ${paymentToken}`);
-    console.log(`   Amount Out: ${ethers.formatUnits(tokenAmountOut, DEFAULT_TOKEN_DECIMALS)} MCT`);
+    if (paymentToken === 'USDC') {
+      console.log(`   Amount In: ${ethers.formatUnits(amountIn, 6)} ${paymentToken}`);
+      console.log(`   Amount Out: ${ethers.formatUnits(tokenAmountOut, DEFAULT_TOKEN_DECIMALS)} MCT`);
+    } else {
+      // Для ETH: amountIn уже рассчитан выше
+      console.log(`   Amount In: ${ethers.formatEther(amountIn)} ${paymentToken}`);
+      console.log(`   Amount Out: ${ethers.formatUnits(tokenAmountOut, DEFAULT_TOKEN_DECIMALS)} MCT`);
+    }
 
     // Для USDC: проверяем и делаем approve
     if (paymentToken === 'USDC') {
@@ -390,7 +389,7 @@ export async function buyTokenViaDirectSwap(
 
         // Отправляем транзакцию
         const tx = await router.exactInputSingle(swapParams, {
-          value: paymentToken === 'ETH' ? amountIn : 0,
+          value: paymentToken === 'USDC' ? 0 : amountIn, // Для USDC value = 0, для ETH = amountIn
           gasLimit: 500000,
         });
 

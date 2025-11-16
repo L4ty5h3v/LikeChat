@@ -14,8 +14,78 @@ import { sendTokenPurchaseNotification } from '@/lib/farcaster-notifications';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
 
 const PURCHASE_AMOUNT_USDC = 0.10; // Покупаем MCT на 0.10 USDC
-const USDC_CONTRACT_ADDRESS = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'; // USDC на Base (6 decimals) - правильный адрес
+const USDC_CONTRACT_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // USDC на Base (6 decimals) - правильный адрес
 const MCT_CONTRACT_ADDRESS = '0x04d388da70c32fc5876981097c536c51c8d3d236'; // MCT Token
+
+// Публиковать cast в Warpcast с tx hash после успешного swap для social proof
+async function publishSwapCastWithTxHash(
+  txHash: string,
+  mctReceived: number,
+  usdcSpent: number,
+  username?: string
+): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  try {
+    if (typeof window === 'undefined') {
+      return {
+        success: false,
+        error: 'SDK доступен только на клиенте',
+      };
+    }
+
+    const isInFarcasterFrame = window.self !== window.top;
+    if (!isInFarcasterFrame) {
+      console.log('ℹ️ [CAST] Not in Farcaster frame, skipping cast publication');
+      return {
+        success: false,
+        error: 'Not in Farcaster Mini App',
+      };
+    }
+
+    const { sdk } = await import('@farcaster/miniapp-sdk');
+
+    if (!sdk || !sdk.actions) {
+      console.warn('⚠️ [CAST] SDK or actions not available');
+      return {
+        success: false,
+        error: 'SDK actions not available',
+      };
+    }
+
+    // Формируем текст cast с tx hash для social proof
+    const txUrl = `https://basescan.org/tx/${txHash}`;
+    const castText = `💎 Just swapped ${usdcSpent} USDC for ${mctReceived.toFixed(4)} MCT tokens!\n\n${txUrl}\n\n#MCT #Base #DeFi`;
+
+    // Используем composeCast если доступен, иначе fallback на openUrl
+    if (typeof (sdk.actions as any).composeCast === 'function') {
+      await (sdk.actions as any).composeCast({
+        text: castText,
+        embeds: [txUrl],
+      });
+      console.log('✅ [CAST] Swap cast published via composeCast with tx hash');
+      return { success: true };
+    } else if (sdk.actions.openUrl) {
+      // Fallback: открываем Compose с предзаполненным текстом
+      const warpcastUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(castText)}`;
+      await sdk.actions.openUrl({ url: warpcastUrl });
+      console.log('✅ [CAST] Swap cast compose opened via openUrl with tx hash');
+      return { success: true };
+    }
+
+    return {
+      success: false,
+      error: 'No compose method available',
+    };
+  } catch (error: any) {
+    console.error('❌ [CAST] Error publishing swap cast:', error);
+    return {
+      success: false,
+      error: error?.message || 'Failed to publish cast',
+    };
+  }
+}
 
 // Removed: fetchEthUsdPrice() - теперь используем полностью onchain quotes через Uniswap WETH/USDC
 
@@ -360,14 +430,15 @@ export default function BuyToken() {
         
         // Отметить покупку в базе данных и отправить уведомление
         if (user) {
-          markTokenPurchased(user.fid).then(() => {
-            console.log('✅ Token purchase marked in database');
+          // Передаем txHash если доступен (для dexscreener и истории транзакций)
+          markTokenPurchased(user.fid, txHash || undefined).then(() => {
+            console.log('✅ [DB] Token purchase marked in database' + (txHash ? ` with txHash: ${txHash}` : ''));
             
             // Отправляем уведомление через MiniKit SDK для вирусного распространения
             sendTokenPurchaseNotification(
               mctReceived, // Количество полученных MCT
               PURCHASE_AMOUNT_USDC, // Потрачено USDC
-              undefined, // txHash недоступен из useSwapToken
+              txHash || undefined, // txHash если доступен
               user.username
             ).then((result) => {
               if (result.success) {
@@ -378,11 +449,24 @@ export default function BuyToken() {
             }).catch((notifError) => {
               console.error('❌ [NOTIFICATION] Error sending purchase notification:', notifError);
             });
+            
+            // Публикуем cast в Warpcast с tx hash для social proof (если txHash доступен)
+            if (txHash) {
+              publishSwapCastWithTxHash(txHash, mctReceived, PURCHASE_AMOUNT_USDC, user.username).then((result) => {
+                if (result.success) {
+                  console.log('✅ [CAST] Swap cast published to Warpcast with tx hash for social proof');
+                } else {
+                  console.warn('⚠️ [CAST] Failed to publish swap cast:', result.error);
+                }
+              }).catch((castError) => {
+                console.error('❌ [CAST] Error publishing swap cast:', castError);
+              });
+            } else {
+              console.log('ℹ️ [CAST] No txHash available, skipping cast publication');
+            }
           }).catch((dbError) => {
-            console.error('Error marking token purchase in DB:', dbError);
+            console.error('❌ [DB] Error marking token purchase in DB:', dbError);
           });
-          
-          // Публикация cast убрана - чтобы избежать баннера "Upgrade to Pro"
         }
         
         // Переход к публикации ссылки через 3 секунды
@@ -390,7 +474,7 @@ export default function BuyToken() {
           router.push('/submit');
         }, 3000);
       }
-  }, [mctBalance, isSwapping, oldBalanceBeforeSwap, user, router]);
+  }, [mctBalance, isSwapping, oldBalanceBeforeSwap, user, router, txHash]);
 
   const confirmBuyToken = async (isRetry: boolean = false) => {
     if (!user) {
@@ -448,26 +532,79 @@ export default function BuyToken() {
 
       let result;
       try {
+        // Проверяем, что FID доступен для логирования
+        console.log(`🔍 [SWAP] User FID: ${user.fid}, Wallet context should be set by onchainkit`);
+        console.log(`🔍 [SWAP] Swap params:`, {
+          sellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`,
+          buyToken: `eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`,
+          sellAmount: usdcAmountStr,
+          sellAmountFormatted: `${PURCHASE_AMOUNT_USDC} USDC (${usdcAmountStr} wei)`,
+          slippageTolerance: 1, // 1% для MCT/WETH пары (больше волатильности)
+        });
+
         result = await swapTokenAsync({
           sellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`, // USDC на Base
           buyToken: `eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`, // MCT Token на Base
-          sellAmount: usdcAmountStr, // 0.10 USDC в wei (6 decimals)
+          sellAmount: usdcAmountStr, // 0.10 USDC = 100000 wei (parseUnits(0.10, 6))
+          slippageTolerance: 1, // 1% slippage для MCT/WETH пары (больше волатильности чем стандартные пары)
         });
+        
         // Очищаем таймаут при успешном запуске
         if (timeoutId) {
           clearTimeout(timeoutId);
           setSwapTimeoutId(null);
         }
-      } catch (swapError) {
+      } catch (swapError: any) {
         // Очищаем таймаут при ошибке
         if (timeoutId) {
           clearTimeout(timeoutId);
           setSwapTimeoutId(null);
         }
+        
+        console.error('❌ [SWAP] Swap error:', {
+          message: swapError?.message,
+          code: swapError?.code,
+          name: swapError?.name,
+          stack: swapError?.stack,
+        });
         throw swapError;
       }
 
-      console.log('📊 Swap result:', result);
+      // Детальное логирование результата swap
+      console.log('📊 [SWAP] Swap result:', {
+        success: !!result,
+        result: result,
+        resultType: typeof result,
+        resultKeys: result ? Object.keys(result) : [],
+        userFid: user.fid,
+        sellAmount: `${PURCHASE_AMOUNT_USDC} USDC (${usdcAmountStr} wei)`,
+        sellToken: USDC_CONTRACT_ADDRESS,
+        buyToken: MCT_CONTRACT_ADDRESS,
+      });
+
+      // Пытаемся извлечь txHash из результата (если доступен)
+      // swapTokenAsync может вернуть объект с txHash или просто открыть форму в кошельке
+      let extractedTxHash: string | undefined = undefined;
+      if (result) {
+        if (typeof result === 'string') {
+          // Если result - это строка, возможно это txHash
+          extractedTxHash = result;
+        } else if (typeof result === 'object') {
+          // Пробуем разные возможные поля
+          extractedTxHash = (result as any).txHash || 
+                           (result as any).hash || 
+                           (result as any).transactionHash ||
+                           (result as any).tx?.hash ||
+                           (result as any).transaction?.hash;
+        }
+      }
+
+      if (extractedTxHash) {
+        console.log('✅ [SWAP] Transaction hash extracted from result:', extractedTxHash);
+        setTxHash(extractedTxHash);
+      } else {
+        console.log('ℹ️ [SWAP] No txHash in result - swap form opened in wallet, will wait for balance update');
+      }
 
       // useSwapToken открывает swap форму в Farcaster кошельке
       // Пользователь завершает swap в кошельке
@@ -734,7 +871,7 @@ export default function BuyToken() {
         {/* Модальное окно подтверждения покупки - убрано для one-tap UX */}
 
         {/* Информационный блок */}
-        <div className="bg-gradient-to-r from-primary to-pink-500 text-white rounded-2xl p-6">
+        <div className="text-white rounded-2xl p-6" style={{ background: 'linear-gradient(to right, #FFD700, #B8860B)' }}>
           <h3 className="text-xl font-bold mb-3 flex items-center gap-2">
             <span>ℹ️</span>
             Important Information

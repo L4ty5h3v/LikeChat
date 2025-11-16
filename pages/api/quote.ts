@@ -5,15 +5,18 @@ import { base } from 'viem/chains';
 // Константы
 const MCT_ADDRESS = '0x04d388da70c32fc5876981097c536c51c8d3d236'; // MCT Token
 const WETH_ADDRESS = '0x4200000000000000000000000000000000000006'; // WETH на Base
-const USDC_ADDRESS_ON_BASE = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'; // USDC на Base (6 decimals) - правильный адрес
-const UNISWAP_V3_QUOTER = '0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a'; // Uniswap V3 Quoter на Base
+const USDC_ADDRESS_ON_BASE = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // USDC на Base (6 decimals)
+const UNISWAP_V3_QUOTER = '0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a'; // Uniswap V3 Quoter на Base (правильный адрес без последней 5)
 const MCT_DECIMALS = 18;
 const USDC_DECIMALS = 6;
 
 // Создаем public client для Base (используем RPC URL из env или дефолтный)
+// Используем переменную BASE_RPC_URL или BASERPCURL из env
+const BASE_RPC_URL = process.env.BASE_RPC_URL || process.env.BASERPCURL || 'https://mainnet.base.org';
+
 const publicClient = createPublicClient({
   chain: base,
-  transport: http(process.env.BASE_RPC_URL || 'https://mainnet.base.org'),
+  transport: http(BASE_RPC_URL),
 });
 
 // ABI для Uniswap V3 Quoter (упрощенный формат)

@@ -108,7 +108,20 @@ export default function Tasks() {
       const progress = await getUserProgress(userFid);
       const completedLinks = progress?.completed_links || [];
 
-      const taskList: TaskProgress[] = links.map((link: LinkSubmission) => ({
+      // ⚠️ ДОПОЛНИТЕЛЬНАЯ ФИЛЬТРАЦИЯ: Фильтруем по activityType на фронтенде (на случай если backend не отфильтровал)
+      let filteredLinks = links;
+      if (currentActivity) {
+        filteredLinks = links.filter((link: LinkSubmission) => {
+          const matches = link.activity_type === currentActivity;
+          if (!matches) {
+            console.warn(`⚠️ [TASKS] Link ${link.id} filtered out - activity_type: ${link.activity_type}, expected: ${currentActivity}`);
+          }
+          return matches;
+        });
+        console.log(`🔍 [TASKS] Frontend filtering: ${links.length} links → ${filteredLinks.length} links (activity: ${currentActivity})`);
+      }
+
+      const taskList: TaskProgress[] = filteredLinks.map((link: LinkSubmission) => ({
         link_id: link.id,
         cast_url: link.cast_url,
         username: link.username,
@@ -128,6 +141,8 @@ export default function Tasks() {
         cast_url: t.cast_url?.substring(0, 40) + '...',
         completed: t.completed,
       })));
+      console.log(`🔍 [TASKS] Activity filter: ${currentActivity || 'NONE'}, Raw links from API: ${links.length}, Filtered links: ${filteredLinks.length}, Final tasks: ${taskList.length}`);
+      console.log(`📊 [TASKS] Activity types in loaded links:`, links.map((l: LinkSubmission) => l.activity_type));
       
       // Проверяем: если все задания завершены, проверяем прогресс и делаем автоматический редирект
       // ⚠️ ВАЖНО: Проверяем, не опубликована ли уже ссылка пользователем, чтобы избежать бесконечного редиректа
@@ -164,7 +179,15 @@ export default function Tasks() {
             }
             // Если все задания завершены и токен куплен, но ссылка еще не опубликована → редирект на /submit
             // ⚠️ ВАЖНО: Делаем редирект только один раз, не при каждом вызове loadTasks
+            // ⚠️ ВАЖНО: НЕ редиректим, если уже есть флаг link_published (ссылка уже опубликована)
             else if (progress.token_purchased && !userHasPublishedLink) {
+              // Проверяем флаг link_published - если ссылка уже опубликована, не редиректим
+              const linkPublished = sessionStorage.getItem('link_published');
+              if (linkPublished === 'true') {
+                console.log(`ℹ️ [TASKS] Link already published (from sessionStorage), skipping redirect to /submit`);
+                return;
+              }
+              
               // Проверяем, не делали ли мы уже редирект (используем флаг в sessionStorage)
               const redirectDone = sessionStorage.getItem('redirect_to_submit_done');
               if (!redirectDone) {

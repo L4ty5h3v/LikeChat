@@ -112,11 +112,18 @@ export async function markLinkCompleted(userFid: number, linkId: string): Promis
 }
 
 // Установить флаг покупки токена
-export async function markTokenPurchased(userFid: number): Promise<void> {
+export async function markTokenPurchased(userFid: number, txHash?: string): Promise<void> {
   const progress = await getUserProgress(userFid);
   if (!progress) return;
   
   progress.token_purchased = true;
+  
+  // Сохраняем txHash если передан (для dexscreener и истории транзакций)
+  if (txHash) {
+    progress.token_purchase_tx_hash = txHash;
+    console.log(`✅ [DB] Saving token purchase txHash ${txHash} for user ${userFid}`);
+  }
+  
   progress.updated_at = new Date().toISOString();
   userProgress.set(userFid, progress);
 }
