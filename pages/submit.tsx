@@ -1007,36 +1007,6 @@ export default function Submit() {
           </div>
         </div>
 
-        {/* Информация о системе для первых пользователей */}
-        {showWarning && totalLinks < 10 && (
-          <div className="bg-gradient-to-r from-blue-500/20 to-purple-500/20 backdrop-blur-sm border-2 border-blue-400 rounded-2xl p-6 mb-8 shadow-xl">
-            <h3 className="font-black text-blue-800 mb-3 flex items-center gap-3 text-xl">
-              <span className="text-3xl">🚀</span>
-              SYSTEM INITIALIZATION
-            </h3>
-            <p className="text-blue-800 mb-3 font-bold text-lg">
-              You are one of the first users!
-            </p>
-            <p className="text-blue-700 mb-4">
-              The system is collecting the first <strong>10 links</strong>. You can submit your link now and help initialize the platform!
-            </p>
-            <div className="bg-white bg-opacity-70 rounded-xl p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-bold text-gray-800">Links in system:</span>
-                <span className="text-2xl font-black text-blue-600">{totalLinks}/10</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
-                <div 
-                  className="bg-gradient-to-r from-blue-500 to-purple-500 h-full transition-all duration-500"
-                  style={{ width: `${(totalLinks / 10) * 100}%` }}
-                ></div>
-              </div>
-            </div>
-            <p className="text-blue-700 mt-4 text-sm">
-              💡 <strong>Early Bird Bonus:</strong> As one of the first 10 users, you can submit your link immediately!
-            </p>
-          </div>
-        )}
 
         {/* Форма публикации */}
         <div className="bg-white rounded-2xl shadow-xl p-8 mb-8">
