@@ -749,7 +749,18 @@ export default function Submit() {
           ok: response.ok,
           data: data.error || data,
         });
-        throw new Error(data.error || 'Failed to submit link');
+        
+        // ⚠️ ФИЛЬТР: Игнорируем старую ошибку "System is initializing" из API
+        const apiError = data.error || 'Failed to submit link';
+        if (apiError.includes('System is initializing') || 
+            apiError.includes('first 10 users') || 
+            apiError.includes('early bird') ||
+            apiError.includes('collecting the first 10')) {
+          console.warn('⚠️ [SUBMIT] Ignoring old "System is initializing" error from API - this should not appear anymore');
+          throw new Error('Ошибка при публикации ссылки. Пожалуйста, попробуйте снова.');
+        }
+        
+        throw new Error(apiError);
       }
 
       if (data.link) {
@@ -983,7 +994,7 @@ export default function Submit() {
 
   // ⚠️ ПРОВЕРКА: Убеждаемся, что модальное окно "SYSTEM INITIALIZATION" удалено
   // Если вы видите это модальное окно, очистите кеш браузера (Ctrl+Shift+R)
-  
+
   return (
     <Layout title="Multi Like - Publish Link">
       <div className="max-w-3xl mx-auto">
