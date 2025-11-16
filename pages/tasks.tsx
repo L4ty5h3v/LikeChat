@@ -447,8 +447,116 @@ export default function Tasks() {
   };
 
   // ⚠️ КРИТИЧЕСКИ ВАЖНО: Удаляем модальное окно "SYSTEM INITIALIZATION" при монтировании компонента
+  // ⚠️ ДОПОЛНИТЕЛЬНО: Диагностика - ищем и логируем все найденные элементы
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    
+    // 🔍 ДИАГНОСТИЧЕСКАЯ ФУНКЦИЯ: Ищет и логирует все элементы с модальным окном
+    const findAndLogModal = () => {
+      try {
+        console.log('%c🔍 [TASKS-DIAGNOSTIC] Поиск модального окна...', 'color: #0f0; font-size: 14px; font-weight: bold;');
+        let foundCount = 0;
+        const foundElements: any[] = [];
+        
+        // 1. Проверяем modal-root
+        const modalRoot = document.getElementById('modal-root');
+        if (modalRoot) {
+          const modalText = modalRoot.textContent || '';
+          if (modalText.includes('SYSTEM INITIALIZATION')) {
+            foundCount++;
+            foundElements.push({ type: 'modal-root', element: modalRoot });
+            console.error('❌ [TASKS-DIAGNOSTIC] НАЙДЕНО в modal-root:', {
+              element: modalRoot,
+              text: modalText.substring(0, 200),
+              classes: modalRoot.className,
+              children: modalRoot.children.length,
+              outerHTML: modalRoot.outerHTML.substring(0, 500)
+            });
+          }
+        }
+        
+        // 2. Ищем все элементы с текстом
+        const allElements = document.querySelectorAll('*');
+        allElements.forEach((el) => {
+          const text = el.textContent || el.innerText || '';
+          if (text.includes('SYSTEM INITIALIZATION') || 
+              text.includes('You are one of the first users') ||
+              text.includes('Links in system: 0/10')) {
+            
+            // Проверяем, не дочерний ли это элемент уже найденного
+            let isChild = false;
+            foundElements.forEach(found => {
+              if (found.element.contains(el)) isChild = true;
+            });
+            
+            if (!isChild) {
+              foundCount++;
+              const style = window.getComputedStyle(el);
+              foundElements.push({ type: 'text', element: el });
+              console.error('❌ [TASKS-DIAGNOSTIC] НАЙДЕН элемент:', {
+                tagName: el.tagName,
+                id: el.id || 'none',
+                className: el.className || 'none',
+                position: style.position,
+                display: style.display,
+                zIndex: style.zIndex,
+                text: text.substring(0, 150),
+                element: el,
+                outerHTML: el.outerHTML.substring(0, 500)
+              });
+            }
+          }
+        });
+        
+        // 3. Ищем purple gradient
+        const purpleElements = document.querySelectorAll('[class*="from-blue"], [class*="to-purple"]');
+        purpleElements.forEach((el) => {
+          const text = el.textContent || '';
+          if (text.includes('SYSTEM INITIALIZATION')) {
+            foundCount++;
+            foundElements.push({ type: 'purple', element: el });
+            console.error('❌ [TASKS-DIAGNOSTIC] НАЙДЕН purple gradient:', {
+              element: el,
+              classes: el.className,
+              text: text.substring(0, 150)
+            });
+          }
+        });
+        
+        // 4. Ищем fixed элементы
+        const allDivs = document.querySelectorAll('div');
+        allDivs.forEach((div) => {
+          const style = window.getComputedStyle(div);
+          if (style.position === 'fixed') {
+            const text = div.textContent || '';
+            if (text.includes('SYSTEM INITIALIZATION')) {
+              foundCount++;
+              foundElements.push({ type: 'fixed', element: div });
+              console.error('❌ [TASKS-DIAGNOSTIC] НАЙДЕН fixed элемент:', {
+                element: div,
+                classes: div.className || 'none',
+                zIndex: style.zIndex,
+                text: text.substring(0, 150)
+              });
+            }
+          }
+        });
+        
+        console.log(`\n📊 [TASKS-DIAGNOSTIC] ИТОГО: Найдено ${foundCount} экземпляров модального окна`);
+        if (foundCount > 0) {
+          console.error('⚠️ [TASKS-DIAGNOSTIC] МОДАЛЬНОЕ ОКНО ВСЕ ЕЩЕ В DOM!');
+          console.log('Найденные элементы сохранены в window.foundModalElements');
+          (window as any).foundModalElements = foundElements;
+        } else {
+          console.log('✅ [TASKS-DIAGNOSTIC] МОДАЛЬНОЕ ОКНО НЕ НАЙДЕНО В DOM');
+        }
+        
+        return foundElements;
+      } catch (e) {
+        console.error('❌ [TASKS-DIAGNOSTIC] Ошибка при поиске:', e);
+        return [];
+      }
+    };
     
     const removeModal = () => {
       try {
@@ -507,13 +615,20 @@ export default function Tasks() {
       }
     };
     
-    // Выполняем немедленно и периодически
+    // 🔍 Сначала запускаем диагностику
+    setTimeout(() => {
+      findAndLogModal();
+    }, 1000); // Даем время на рендеринг
+    
+    // Затем удаляем
     removeModal();
     setTimeout(removeModal, 0);
     setTimeout(removeModal, 100);
     setTimeout(removeModal, 500);
     
-    const interval = setInterval(removeModal, 100);
+    const interval = setInterval(() => {
+      removeModal();
+    }, 100);
     setTimeout(() => clearInterval(interval), 10000);
     
     return () => clearInterval(interval);
