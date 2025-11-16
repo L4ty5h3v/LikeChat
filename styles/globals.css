@@ -109,16 +109,8 @@ div[class*="to-purple-600"] {
   z-index: -9999 !important;
 }
 
-/* ⚠️ МЕТОД 2B: Скрываем элементы с текстом модального окна через CSS (если JS не загрузился) */
-/* Это работает даже если JavaScript не выполнился (кеш, старый билд) */
-div:has-text("SYSTEM INITIALIZATION"),
-div:has-text("You are one of the first users"),
-div:has-text("Links in system: 0/10"),
-div:has-text("Early Bird Bonus") {
-  display: none !important;
-  visibility: hidden !important;
-  opacity: 0 !important;
-}
+/* ⚠️ МЕТОД 2B: Дополнительное скрытие через inline стили в _document.tsx */
+/* JavaScript в _document.tsx будет искать и удалять элементы с текстом модального окна */
 
 /* ⚠️ МЕТОД 3: Скрываем все fixed элементы с высоким z-index (модальные окна) */
 div[style*="position: fixed"][style*="z-index"],
