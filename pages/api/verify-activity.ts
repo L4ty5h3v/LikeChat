@@ -1,6 +1,6 @@
 // API endpoint для проверки активности пользователя на Farcaster
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { checkUserActivity } from '@/lib/neynar';
+import { checkUserActivityByHash } from '@/lib/neynar';
 import type { ActivityType } from '@/types';
 
 export default async function handler(
@@ -12,25 +12,26 @@ export default async function handler(
   }
 
   try {
-    const { castUrl, userFid, activityType } = req.body;
+    const { castHash, userFid, activityType } = req.body;
 
     console.log('🔍 [VERIFY-API] Received verification request:', {
-      castUrl: castUrl ? castUrl.substring(0, 50) + '...' : 'MISSING',
+      castHash,
       userFid,
       activityType,
-      hasCastUrl: !!castUrl,
+      hasCastHash: !!castHash,
       hasUserFid: !!userFid,
       hasActivityType: !!activityType,
     });
 
-    if (!castUrl || !userFid || !activityType) {
+    if (!castHash || !userFid || !activityType) {
       console.error('❌ [VERIFY-API] Missing required parameters:', {
-        hasCastUrl: !!castUrl,
+        hasCastHash: !!castHash,
         hasUserFid: !!userFid,
         hasActivityType: !!activityType,
       });
       return res.status(400).json({ 
-        error: 'Missing required parameters',
+        error: 'Missing required parameters: castHash, userFid, activityType',
+        success: false,
         completed: false 
       });
     }
@@ -54,38 +55,39 @@ export default async function handler(
     // Проверяем наличие API ключа Neynar
     if (!process.env.NEXT_PUBLIC_NEYNAR_API_KEY) {
       console.warn('⚠️ [VERIFY-API] NEXT_PUBLIC_NEYNAR_API_KEY not configured - cannot verify activity');
-      // Временно разрешаем для тестирования, если API ключ не настроен
-      // В продакшене нужно настроить API ключ для реальной проверки
-      return res.status(200).json({ 
-        completed: true, // Временно разрешаем для тестирования
-        warning: 'Neynar API key not configured - verification skipped (marked as completed for testing)',
-        castUrl,
+      // ❌ Ошибки Neynar НЕ засчитываются как выполненные
+      return res.status(500).json({ 
+        success: false,
+        completed: false,
+        error: 'Neynar API key not configured',
+        castHash,
         activityType 
       });
     }
 
-    console.log('📡 [VERIFY-API] Calling checkUserActivity...', {
-      castUrl: castUrl.substring(0, 50) + '...',
+    console.log('📡 [VERIFY-API] Calling checkUserActivityByHash...', {
+      castHash,
       userFid,
       activityType,
     });
 
-    const isCompleted = await checkUserActivity(
-      castUrl,
+    const isCompleted = await checkUserActivityByHash(
+      castHash,
       userFid,
       activityType as ActivityType
     );
 
-    console.log('✅ [VERIFY-API] checkUserActivity result:', {
+    console.log('✅ [VERIFY-API] checkUserActivityByHash result:', {
       isCompleted,
-      castUrl: castUrl.substring(0, 50) + '...',
+      castHash,
       userFid,
       activityType,
     });
 
     return res.status(200).json({ 
+      success: true,
       completed: isCompleted,
-      castUrl,
+      castHash,
       activityType 
     });
   } catch (error: any) {
@@ -96,12 +98,13 @@ export default async function handler(
       response: error?.response?.data,
       status: error?.response?.status,
     });
-    // В случае ошибки API, разрешаем для продолжения тестирования
-    // Это позволяет тестировать систему даже если API не работает
-    return res.status(200).json({ 
-      completed: true, // Временно разрешаем при ошибке для тестирования
+    // ❌ Ошибки Neynar НЕ засчитываются как выполненные
+    return res.status(500).json({ 
+      success: false,
+      completed: false,
       error: error.message || 'Failed to verify activity',
-      warning: 'Verification error occurred - activity marked as completed for testing'
+      castHash: req.body.castHash,
+      activityType: req.body.activityType
     });
   }
 }

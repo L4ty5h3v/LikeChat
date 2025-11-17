@@ -8,7 +8,8 @@ echo ========================================
 echo.
 
 echo [1/3] Добавление файлов...
-git add pages/tasks.tsx components/TaskCard.tsx types/index.ts next.config.js
+git add -A
+git add pages/tasks.tsx components/TaskCard.tsx types/index.ts lib/neynar.ts pages/api/verify-activity.ts next.config.js deploy-now.bat
 if errorlevel 1 (
     echo ОШИБКА при добавлении файлов!
     pause

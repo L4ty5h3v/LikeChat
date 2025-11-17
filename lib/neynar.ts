@@ -307,8 +307,9 @@ export async function checkUserLiked(
       },
     });
 
-    const reactions = response.data.reactions || [];
-    const found = reactions.some(
+    const reactions = response.data?.reactions || response.data?.result?.reactions || [];
+    // ✅ Условие успеха: response.reactions.length > 0 (есть реакции от пользователя)
+    const found = reactions.length > 0 && reactions.some(
       (r: NeynarReaction) => 
         r.reactor_fid === userFid && r.reaction_type === 'like'
     );
@@ -316,7 +317,7 @@ export async function checkUserLiked(
     // Сохраняем в кэш
     setCachedResult(cacheKey, found);
     
-    console.log(`🔍 Checked like for cast ${castHash}, user ${userFid}: ${found ? '✅ FOUND' : '❌ NOT FOUND'}`);
+    console.log(`🔍 Checked like for cast ${castHash}, user ${userFid}: reactions=${reactions.length}, found=${found ? '✅ FOUND' : '❌ NOT FOUND'}`);
     return found;
   } catch (error: any) {
     console.error('❌ Error checking like:', error?.response?.data || error?.message || error);
@@ -351,8 +352,9 @@ export async function checkUserRecasted(
       },
     });
 
-    const reactions = response.data.reactions || [];
-    const found = reactions.some(
+    const reactions = response.data?.reactions || response.data?.result?.reactions || [];
+    // ✅ Условие успеха: response.reactions.length > 0 (есть рекасты от пользователя)
+    const found = reactions.length > 0 && reactions.some(
       (r: NeynarReaction) => 
         r.reactor_fid === userFid && r.reaction_type === 'recast'
     );
@@ -360,7 +362,7 @@ export async function checkUserRecasted(
     // Сохраняем в кэш
     setCachedResult(cacheKey, found);
     
-    console.log(`🔍 Checked recast for cast ${castHash}, user ${userFid}: ${found ? '✅ FOUND' : '❌ NOT FOUND'}`);
+    console.log(`🔍 Checked recast for cast ${castHash}, user ${userFid}: reactions=${reactions.length}, found=${found ? '✅ FOUND' : '❌ NOT FOUND'}`);
     return found;
   } catch (error: any) {
     console.error('❌ Error checking recast:', error?.response?.data || error?.message || error);
@@ -393,15 +395,19 @@ export async function checkUserCommented(
       },
     });
 
-    const casts = response.data.casts || [];
+    // ✅ Условие успеха: response.result.casts.some(c => c.author.fid === userFid)
+    const casts = response.data?.result?.casts || response.data?.casts || [];
     const found = casts.some(
-      (cast: NeynarComment) => cast.author_fid === userFid
+      (cast: any) => {
+        const authorFid = cast.author?.fid || cast.author_fid;
+        return authorFid === userFid;
+      }
     );
     
     // Сохраняем в кэш
     setCachedResult(cacheKey, found);
     
-    console.log(`🔍 Checked comment for cast ${castHash}, user ${userFid}: ${found ? '✅ FOUND' : '❌ NOT FOUND'}`);
+    console.log(`🔍 Checked comment for cast ${castHash}, user ${userFid}: casts=${casts.length}, found=${found ? '✅ FOUND' : '❌ NOT FOUND'}`);
     return found;
   } catch (error: any) {
     console.error('❌ Error checking comment:', error?.response?.data || error?.message || error);
@@ -409,19 +415,18 @@ export async function checkUserCommented(
   }
 }
 
-// Универсальная проверка активности
-export async function checkUserActivity(
-  castUrl: string,
+// Универсальная проверка активности по castHash (правильный алгоритм)
+export async function checkUserActivityByHash(
+  castHash: string,
   userFid: number,
   activityType: ActivityType
 ): Promise<boolean> {
-  const castHash = extractCastHash(castUrl);
-  if (!castHash) {
-    console.error('❌ Invalid cast URL - cannot extract hash:', castUrl);
+  if (!castHash || !castHash.startsWith('0x')) {
+    console.error('❌ Invalid cast hash:', castHash);
     return false;
   }
 
-  console.log(`🔍 Checking ${activityType} for cast ${castHash} (${castUrl}), user ${userFid}`);
+  console.log(`🔍 Checking ${activityType} for cast ${castHash}, user ${userFid}`);
 
   switch (activityType) {
     case 'like':
@@ -434,6 +439,21 @@ export async function checkUserActivity(
       console.error('❌ Unknown activity type:', activityType);
       return false;
   }
+}
+
+// Универсальная проверка активности по URL (для обратной совместимости)
+export async function checkUserActivity(
+  castUrl: string,
+  userFid: number,
+  activityType: ActivityType
+): Promise<boolean> {
+  const castHash = extractCastHash(castUrl);
+  if (!castHash) {
+    console.error('❌ Invalid cast URL - cannot extract hash:', castUrl);
+    return false;
+  }
+
+  return await checkUserActivityByHash(castHash, userFid, activityType);
 }
 
 // Получить информацию о пользователе по FID
