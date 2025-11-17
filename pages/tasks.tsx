@@ -491,8 +491,10 @@ export default function Tasks() {
         }
       }
 
-      // Перезагружаем прогресс из БД для подтверждения
-      const updatedProgress = await getUserProgress(user.fid);
+      // Перезагружаем прогресс из API для подтверждения
+      const progressResponse = await fetch(`/api/user-progress?userFid=${user.fid}&t=${Date.now()}`);
+      const progressData = await progressResponse.json();
+      const updatedProgress = progressData.progress || null;
       const completedLinks = updatedProgress?.completed_links || [];
       
       // Обновляем задачи на основе данных из БД
