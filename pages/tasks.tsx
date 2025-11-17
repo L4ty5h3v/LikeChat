@@ -6,7 +6,7 @@ import Layout from '@/components/Layout';
 import TaskCard from '@/components/TaskCard';
 import ProgressBar from '@/components/ProgressBar';
 import Button from '@/components/Button';
-import { getUserProgress, markLinkCompleted, getAllLinks } from '@/lib/db-config';
+import { getAllLinks } from '@/lib/db-config';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
 import type { LinkSubmission, ActivityType, TaskProgress } from '@/types';
 
@@ -107,14 +107,18 @@ export default function Tasks() {
       const linksData = await linksResponse.json();
       const links = linksData.links || [];
       
-      const progress = await getUserProgress(userFid);
+      // Получаем прогресс пользователя через API endpoint
+      const progressResponse = await fetch(`/api/user-progress?userFid=${userFid}&t=${Date.now()}`);
+      const progressData = await progressResponse.json();
+      const progress = progressData.progress || null;
       const completedLinks = progress?.completed_links || [];
       
-      console.log(`📊 [TASKS] Loading progress from DB:`, {
+      console.log(`📊 [TASKS] Loading progress from API:`, {
         userFid,
         completedLinksCount: completedLinks.length,
         completedLinks: completedLinks,
         activity: currentActivity,
+        progressFromAPI: progress,
       });
 
       // ⚠️ ДОПОЛНИТЕЛЬНАЯ ФИЛЬТРАЦИЯ: Фильтруем по activityType на фронтенде (на случай если backend не отфильтровал)
@@ -172,7 +176,7 @@ export default function Tasks() {
         
         // Проверяем прогресс пользователя и наличие опубликованной ссылки
         Promise.all([
-          getUserProgress(user.fid),
+          fetch(`/api/user-progress?userFid=${user.fid}&t=${Date.now()}`).then(r => r.json()).then(d => d.progress),
           getAllLinks(),
         ]).then(([progress, allLinks]) => {
           if (progress) {
@@ -295,12 +299,29 @@ export default function Tasks() {
           linkId,
           timestamp: new Date().toISOString(),
         });
-        await markLinkCompleted(user.fid, linkId);
         
-        // Перезагружаем прогресс из БД для подтверждения
-        const updatedProgress = await getUserProgress(user.fid);
+        // Сохраняем через API endpoint
+        const saveResponse = await fetch('/api/mark-completed', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userFid: user.fid,
+            linkId,
+          }),
+        });
+        
+        if (!saveResponse.ok) {
+          throw new Error('Failed to save completed link');
+        }
+        
+        // Перезагружаем прогресс из API для подтверждения
+        const progressResponse = await fetch(`/api/user-progress?userFid=${user.fid}&t=${Date.now()}`);
+        const progressData = await progressResponse.json();
+        const updatedProgress = progressData.progress || null;
         const completedLinks = updatedProgress?.completed_links || [];
-        console.log(`✅ [TASKS] Link saved. Updated completed links in DB:`, completedLinks);
+        console.log(`✅ [TASKS] Link saved. Updated completed links from API:`, completedLinks);
         
         // Обновляем задачи на основе данных из БД для синхронизации
         setTasks(prevTasks => {
@@ -419,7 +440,17 @@ export default function Tasks() {
 
             if (data.completed) {
               // Сохраняем в БД
-              await markLinkCompleted(user.fid, task.link_id);
+              // Сохраняем через API endpoint
+              await fetch('/api/mark-completed', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  userFid: user.fid,
+                  linkId: task.link_id,
+                }),
+              });
               console.log(`✅ Marked link ${task.link_id} as completed for user ${user.fid}`);
               
               // Обновляем состояние задачи
@@ -436,7 +467,17 @@ export default function Tasks() {
             verificationErrors.push(`${task.cast_url}: ${error.message || 'Unknown error'}`);
             // В случае ошибки сети, отмечаем как выполненное для продолжения тестирования
             if (error.message?.includes('fetch') || error.message?.includes('network')) {
-              await markLinkCompleted(user.fid, task.link_id);
+              // Сохраняем через API endpoint
+              await fetch('/api/mark-completed', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  userFid: user.fid,
+                  linkId: task.link_id,
+                }),
+              });
               updatedTasks[i] = {
                 ...task,
                 completed: true,
