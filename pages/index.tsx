@@ -768,38 +768,6 @@ export default function Home() {
                     <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-primary/20 to-accent/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                   </button>
                 </div>
-
-                {/* Главная кнопка в стиле glassmorphism */}
-                <button
-                  onClick={handleContinue}
-                  disabled={!selectedActivity}
-                  className={`
-                    relative group w-full px-12 py-6 rounded-2xl text-white font-black text-xl
-                    transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100
-                    overflow-hidden
-                    ${selectedActivity 
-                      ? 'shadow-2xl shadow-amber-500/50 bg-gradient-to-r from-yellow-400 via-amber-600 via-yellow-500 to-amber-800 hover:from-yellow-500 hover:via-amber-700 hover:via-yellow-600 hover:to-amber-900' 
-                      : 'bg-gradient-to-r from-gray-500/50 to-gray-600/50'
-                    }
-                  `}
-                >
-                  <div className="flex items-center justify-center gap-3">
-                    {loading ? (
-                      <>
-                        <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        <span>LOADING...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>CONTINUE TO TASKS</span>
-                        <span className="text-2xl">🚀</span>
-                      </>
-                    )}
-                  </div>
-                  {selectedActivity && !loading && (
-                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-primary/20 to-accent/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                  )}
-                </button>
               </div>
             </div>
           )}
