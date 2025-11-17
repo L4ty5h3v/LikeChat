@@ -27,41 +27,12 @@ export default function Document() {
           __html: `
             /* ⚠️ КРИТИЧЕСКИ ВАЖНО: Принудительное скрытие модального окна через inline CSS */
             /* Это выполняется ДО загрузки JavaScript и скрывает модальное окно НЕМЕДЛЕННО */
-            /* ⚠️ УСИЛЕННАЯ ВЕРСИЯ: Скрываем ВСЕ возможные варианты модального окна */
+            /* ⚠️ ИСПРАВЛЕНО: Скрываем ТОЛЬКО modal-root, popover-root, hover-popover-root */
+            /* НЕ скрываем все градиенты, так как это скрывает и нужные элементы страницы */
             #modal-root,
             #popover-root,
-            #hover-popover-root,
-            div[class*="from-blue"][class*="to-purple"],
-            div[class*="bg-gradient"][class*="from-blue"],
-            div[class*="bg-gradient"][class*="to-purple"],
-            div[class*="from-blue-500"][class*="to-purple-500"],
-            div[class*="from-blue-600"][class*="to-purple-600"],
-            div[class*="from-blue-400"][class*="to-purple-400"],
-            div[class*="from-blue-700"][class*="to-purple-700"],
-            [class*="bg-gradient-to-r"][class*="from-blue"],
-            [class*="bg-gradient-to-r"][class*="to-purple"],
-            [class*="bg-gradient-to-br"][class*="from-blue"],
-            [class*="bg-gradient-to-br"][class*="to-purple"],
-            [class*="bg-gradient-to-bl"][class*="from-blue"],
-            [class*="bg-gradient-to-bl"][class*="to-purple"] {
-              display: none !important;
-              visibility: hidden !important;
-              opacity: 0 !important;
-              pointer-events: none !important;
-              position: absolute !important;
-              left: -9999px !important;
-              top: -9999px !important;
-              width: 0 !important;
-              height: 0 !important;
-              overflow: hidden !important;
-              z-index: -9999 !important;
-            }
-            /* ⚠️ ДОПОЛНИТЕЛЬНО: Скрываем все fixed элементы с высоким z-index, которые могут быть модальными окнами */
-            div[style*="position: fixed"][style*="z-index: 50"],
-            div[style*="position:fixed"][style*="z-index:50"],
-            div[style*="position: fixed"][style*="z-index: 40"],
-            div[style*="position:fixed"][style*="z-index:40"] {
-              /* Проверяем содержимое через JavaScript, но скрываем по умолчанию */
+            #hover-popover-root {
+              /* JavaScript проверит содержимое и удалит, если найдёт модальное окно */
             }
           `
         }} />
