@@ -187,131 +187,6 @@ export default function Submit() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [publishedLinkId, setPublishedLinkId] = useState<string | null>(null);
 
-  // ⚠️ КРИТИЧЕСКИ ВАЖНО: Удаляем модальное окно "SYSTEM INITIALIZATION" ДО рендера
-  // ⚠️ Этот useEffect выполняется ПЕРВЫМ и удаляет модальное окно немедленно
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    
-    // 🔍 ДИАГНОСТИКА: Ищем и логируем модальное окно
-    const findAndRemoveModal = () => {
-      try {
-        console.log('%c🔍 [SUBMIT-DIAGNOSTIC] Поиск модального окна...', 'color: #f00; font-size: 16px; font-weight: bold;');
-        
-        // 1. Проверяем modal-root
-        const modalRoot = document.getElementById('modal-root');
-        if (modalRoot) {
-          const text = modalRoot.textContent || '';
-          if (text.includes('SYSTEM INITIALIZATION')) {
-            console.error('❌ [SUBMIT-DIAGNOSTIC] НАЙДЕНО в modal-root!', {
-              element: modalRoot,
-              text: text.substring(0, 200),
-              outerHTML: modalRoot.outerHTML.substring(0, 500)
-            });
-            modalRoot.remove();
-            console.log('✅ [SUBMIT-DIAGNOSTIC] modal-root удален');
-          }
-        }
-        
-        // 2. Ищем все элементы с текстом
-        const allElements = document.querySelectorAll('*');
-        allElements.forEach((el) => {
-          const text = el.textContent || (el instanceof HTMLElement ? el.innerText : '') || '';
-          if (text.includes('SYSTEM INITIALIZATION') || 
-              text.includes('You are one of the first users') ||
-              text.includes('Links in system: 0/10')) {
-            
-            const style = window.getComputedStyle(el);
-            console.error('❌ [SUBMIT-DIAGNOSTIC] НАЙДЕН элемент:', {
-              tagName: el.tagName,
-              id: el.id || 'none',
-              className: el.className || 'none',
-              position: style.position,
-              zIndex: style.zIndex,
-              text: text.substring(0, 100)
-            });
-            
-            // Ищем родителя
-            let parent = el.closest('[class*="fixed"], [class*="backdrop"], [class*="modal"], [class*="z-50"]');
-            if (!parent) {
-              let current = el.parentElement;
-              for (let i = 0; i < 20 && current; i++) {
-                const currentStyle = window.getComputedStyle(current);
-                if (currentStyle.position === 'fixed' && parseInt(currentStyle.zIndex) >= 40) {
-                  parent = current;
-                  break;
-                }
-                current = current.parentElement;
-              }
-            }
-            
-            if (parent && parent instanceof HTMLElement) {
-              console.error('❌ [SUBMIT-DIAGNOSTIC] Удаляем родителя:', parent);
-              parent.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; position: absolute !important; left: -9999px !important; top: -9999px !important; width: 0 !important; height: 0 !important; overflow: hidden !important; z-index: -9999 !important;';
-              try {
-                parent.remove();
-                console.log('✅ [SUBMIT-DIAGNOSTIC] Родитель удален');
-              } catch (e) {
-                if (parent.parentNode) {
-                  parent.parentNode.removeChild(parent);
-                  console.log('✅ [SUBMIT-DIAGNOSTIC] Родитель удален через parentNode');
-                }
-              }
-            } else if (el instanceof HTMLElement) {
-              el.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important;';
-              console.log('✅ [SUBMIT-DIAGNOSTIC] Элемент скрыт');
-            }
-          }
-        });
-      } catch (e) {
-        console.error('❌ [SUBMIT-DIAGNOSTIC] Ошибка:', e);
-      }
-    };
-    
-    // Выполняем НЕМЕДЛЕННО несколько раз
-    findAndRemoveModal();
-    setTimeout(findAndRemoveModal, 0);
-    setTimeout(findAndRemoveModal, 10);
-    setTimeout(findAndRemoveModal, 50);
-    setTimeout(findAndRemoveModal, 100);
-    setTimeout(findAndRemoveModal, 200);
-    setTimeout(findAndRemoveModal, 500);
-    
-    // Периодически проверяем
-    const interval = setInterval(findAndRemoveModal, 100);
-    setTimeout(() => clearInterval(interval), 10000);
-    
-    return () => clearInterval(interval);
-  }, []);
-
-  // ⚠️ ОЧИСТКА: Удаляем все флаги, связанные с system initialization при монтировании
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      // ⚠️ АГРЕССИВНАЯ ОЧИСТКА: Удаляем ВСЕ возможные флаги system initialization
-      const allSystemInitFlags = [
-        'systeminit', 'system_init', 'isInitializing', 'system_initialization',
-        'showSystemInit', 'showSystemInitModal', 'systemInitModal',
-        'showWarning', 'systemInit', 'earlyBird', 'early_bird',
-        'totalLinks', 'linksCount', 'total_links'
-      ];
-      
-      allSystemInitFlags.forEach(flag => {
-        try {
-          if (sessionStorage.getItem(flag)) {
-            console.warn(`🧹 [SUBMIT] Removing system init flag from sessionStorage: ${flag}`);
-            sessionStorage.removeItem(flag);
-          }
-          if (localStorage.getItem(flag)) {
-            console.warn(`🧹 [SUBMIT] Removing system init flag from localStorage: ${flag}`);
-            localStorage.removeItem(flag);
-          }
-        } catch (e) {
-          // Игнорируем ошибки доступа к storage
-        }
-      });
-      
-      console.log('🧹 [SUBMIT] Cleared all system initialization flags from storage');
-    }
-  }, []);
 
   // ⚠️ БЛОКИРОВКА НАВИГАЦИИ: Проверяем флаг при монтировании и блокируем навигацию назад
   useEffect(() => {
@@ -876,17 +751,7 @@ export default function Submit() {
           data: data.error || data,
         });
         
-        // ⚠️ ФИЛЬТР: Игнорируем старую ошибку "System is initializing" из API
-        const apiError = data.error || 'Failed to submit link';
-        if (apiError.includes('System is initializing') || 
-            apiError.includes('first 10 users') || 
-            apiError.includes('early bird') ||
-            apiError.includes('collecting the first 10')) {
-          console.warn('⚠️ [SUBMIT] Ignoring old "System is initializing" error from API - this should not appear anymore');
-          throw new Error('Ошибка при публикации ссылки. Пожалуйста, попробуйте снова.');
-        }
-        
-        throw new Error(apiError);
+        throw new Error(data.error || 'Failed to submit link');
       }
 
       if (data.link) {
@@ -1085,18 +950,7 @@ export default function Submit() {
         cause: err.cause,
       });
       
-      // ⚠️ ФИЛЬТР: Игнорируем старую ошибку "System is initializing" - она больше не должна появляться
-      const errorMessage = err.message || 'An error occurred';
-      if (errorMessage.includes('System is initializing') || 
-          errorMessage.includes('first 10 users') || 
-          errorMessage.includes('early bird') ||
-          errorMessage.includes('collecting the first 10')) {
-        console.warn('⚠️ [SUBMIT] Ignoring old "System is initializing" error - this should not appear anymore');
-        // Не показываем эту ошибку пользователю, просто логируем
-        setError('Ошибка при публикации ссылки. Пожалуйста, попробуйте снова.');
-      } else {
-        setError(errorMessage);
-      }
+      setError(err.message || 'An error occurred');
       setLoading(false); // Разблокируем форму только при ошибке
     }
     // finally блок убран - loading управляется вручную для предотвращения повторной отправки
@@ -1115,8 +969,6 @@ export default function Submit() {
     );
   }
 
-  // ⚠️ ПРИМЕЧАНИЕ: Удаление модального окна "SYSTEM INITIALIZATION" обрабатывается в _document.tsx и _app.tsx
-  // Дополнительная очистка storage уже выполняется в первом useEffect выше
 
   return (
     <Layout title="Multi Like - Publish Link">
