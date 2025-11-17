@@ -109,6 +109,13 @@ export default function Tasks() {
       
       const progress = await getUserProgress(userFid);
       const completedLinks = progress?.completed_links || [];
+      
+      console.log(`📊 [TASKS] Loading progress from DB:`, {
+        userFid,
+        completedLinksCount: completedLinks.length,
+        completedLinks: completedLinks,
+        activity: currentActivity,
+      });
 
       // ⚠️ ДОПОЛНИТЕЛЬНАЯ ФИЛЬТРАЦИЯ: Фильтруем по activityType на фронтенде (на случай если backend не отфильтровал)
       let filteredLinks = links;
@@ -263,6 +270,7 @@ export default function Tasks() {
   };
 
   const handleToggleTask = async (linkId: string, nextState: boolean) => {
+    // Оптимистично обновляем UI
     setTasks(prevTasks => {
       const updatedTasks = prevTasks.map(task =>
         task.link_id === linkId
@@ -279,12 +287,55 @@ export default function Tasks() {
       return updatedTasks;
     });
 
+    // Сохраняем в базу данных
     if (nextState && user) {
       try {
+        console.log(`💾 [TASKS] Saving completed link to DB:`, {
+          userFid: user.fid,
+          linkId,
+          timestamp: new Date().toISOString(),
+        });
         await markLinkCompleted(user.fid, linkId);
+        
+        // Перезагружаем прогресс из БД для подтверждения
+        const updatedProgress = await getUserProgress(user.fid);
+        const completedLinks = updatedProgress?.completed_links || [];
+        console.log(`✅ [TASKS] Link saved. Updated completed links in DB:`, completedLinks);
+        
+        // Обновляем задачи на основе данных из БД для синхронизации
+        setTasks(prevTasks => {
+          const syncedTasks = prevTasks.map(task => ({
+            ...task,
+            completed: completedLinks.includes(task.link_id),
+            verified: completedLinks.includes(task.link_id),
+          }));
+          
+          const syncedCount = syncedTasks.filter(task => task.completed).length;
+          setCompletedCount(syncedCount);
+          return syncedTasks;
+        });
       } catch (error) {
-        console.error('Error marking link as completed:', error);
+        console.error('❌ [TASKS] Error marking link as completed:', error);
+        // Откатываем оптимистичное обновление при ошибке
+        setTasks(prevTasks => {
+          const rolledBackTasks = prevTasks.map(task =>
+            task.link_id === linkId
+              ? {
+                  ...task,
+                  completed: !nextState,
+                  verified: !nextState,
+                }
+              : task
+          );
+          const rolledBackCount = rolledBackTasks.filter(task => task.completed).length;
+          setCompletedCount(rolledBackCount);
+          return rolledBackTasks;
+        });
       }
+    } else if (!nextState && user) {
+      // Если снимаем отметку, нужно удалить из БД (опционально, если нужно поддерживать)
+      // Пока просто логируем
+      console.log(`🗑️ [TASKS] Unchecking link:`, { userFid: user.fid, linkId });
     }
   };
 
