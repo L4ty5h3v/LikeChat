@@ -132,10 +132,13 @@ export default function Tasks() {
         verified: completedLinks.includes(link.id),
       }));
 
+      // Считаем количество завершенных заданий ТОЛЬКО для текущего типа активности
+      const completedCountForActivity = taskList.filter(task => task.completed).length;
+
       setTasks(taskList);
-      setCompletedCount(completedLinks.length);
+      setCompletedCount(completedCountForActivity);
       
-      console.log(`✅ Loaded ${taskList.length} tasks, ${completedLinks.length} completed`);
+      console.log(`✅ Loaded ${taskList.length} tasks, ${completedCountForActivity} completed for activity ${currentActivity}`);
       console.log(`📋 Task links:`, taskList.map((t, i) => ({
         index: i + 1,
         link_id: t.link_id,
