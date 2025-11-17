@@ -283,8 +283,8 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
       await clearAllLinks();
     }
 
-    // Список начальных ссылок
-    const initialLinks = [
+    // Список начальных ссылок - по 10 для каждого типа активности (всего 30 ссылок)
+    const baseLinks = [
       'https://farcaster.xyz/gladness/0xaa4214bf',
       'https://farcaster.xyz/svs-smm/0xf17842cb',
       'https://farcaster.xyz/svs-smm/0x4fce02cd',
@@ -303,8 +303,13 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
     const linksToAdd: LinkSubmission[] = [];
     const userCache = new Map<string, { fid: number; username: string; pfp_url: string }>();
 
-    for (let index = 0; index < initialLinks.length; index++) {
-      const castUrl = initialLinks[index];
+    // Создаем по 10 ссылок для каждого типа активности (всего 30 ссылок)
+    for (let activityIndex = 0; activityIndex < activityTypes.length; activityIndex++) {
+      const activityType = activityTypes[activityIndex];
+      
+      for (let linkIndex = 0; linkIndex < baseLinks.length; linkIndex++) {
+        const castUrl = baseLinks[linkIndex];
+        const index = activityIndex * baseLinks.length + linkIndex;
       console.log(`🔍 Fetching cast author data for: ${castUrl}`);
       
       try {
@@ -323,14 +328,14 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
             username: authorData.username,
             pfp_url: authorData.pfp_url,
             cast_url: castUrl,
-            activity_type: activityTypes[index % activityTypes.length],
+            activity_type: activityType,
             completed_by: [],
             created_at: new Date().toISOString(),
           });
-          console.log(`✅ [${index + 1}/${initialLinks.length}] Loaded real data for @${authorData.username} (FID: ${authorData.fid})`);
+          console.log(`✅ [${index + 1}/${baseLinks.length * activityTypes.length}] Loaded real data for @${authorData.username} (FID: ${authorData.fid}) [${activityType}]`);
         } else {
           // Если не удалось получить данные из каста, пытаемся получить данные пользователя по username из URL
-          console.warn(`⚠️ [${index + 1}/${initialLinks.length}] Failed to get author data from cast for ${castUrl}`);
+          console.warn(`⚠️ [${index + 1}/${baseLinks.length * activityTypes.length}] Failed to get author data from cast for ${castUrl}`);
           console.warn(`⚠️ Author data received:`, authorData);
           console.warn(`⚠️ Cast may not exist in Neynar API, trying to get user by username from URL...`);
           
@@ -351,10 +356,10 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
 
           if (usernameFromUrl && !cachedUser) {
             try {
-              console.log(`🔍 [${index + 1}/${initialLinks.length}] Trying to get user data by username: ${usernameFromUrl}`);
+              console.log(`🔍 [${index + 1}/${baseLinks.length * activityTypes.length}] Trying to get user data by username: ${usernameFromUrl}`);
               userData = await getUserByUsername(usernameFromUrl);
               
-              console.log(`🔍 [${index + 1}/${initialLinks.length}] getUserByUsername returned:`, {
+              console.log(`🔍 [${index + 1}/${baseLinks.length * activityTypes.length}] getUserByUsername returned:`, {
                 hasData: !!userData,
                 fid: userData?.fid,
                 username: userData?.username,
@@ -365,10 +370,10 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
               });
               
               if (userData && userData.fid) {
-                console.log(`✅ [${index + 1}/${initialLinks.length}] Got user data by username: @${userData.username || userData.display_name} (FID: ${userData.fid})`);
+                console.log(`✅ [${index + 1}/${baseLinks.length * activityTypes.length}] Got user data by username: @${userData.username || userData.display_name} (FID: ${userData.fid})`);
               } else {
-                console.warn(`⚠️ [${index + 1}/${initialLinks.length}] User data not found or invalid for username: ${usernameFromUrl}`);
-                console.warn(`⚠️ [${index + 1}/${initialLinks.length}] UserData received:`, userData);
+                console.warn(`⚠️ [${index + 1}/${baseLinks.length * activityTypes.length}] User data not found or invalid for username: ${usernameFromUrl}`);
+                console.warn(`⚠️ [${index + 1}/${baseLinks.length * activityTypes.length}] UserData received:`, userData);
               }
 
               if (userData && userData.fid && userData.username) {
@@ -379,7 +384,7 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
                 });
               }
             } catch (userError: any) {
-              console.error(`❌ [${index + 1}/${initialLinks.length}] Failed to get user by username:`, {
+              console.error(`❌ [${index + 1}/${baseLinks.length * activityTypes.length}] Failed to get user by username:`, {
                 message: userError?.message,
                 stack: userError?.stack,
                 response: userError?.response?.data,
@@ -387,7 +392,7 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
               });
             }
           } else {
-            console.warn(`⚠️ [${index + 1}/${initialLinks.length}] No username extracted from URL: ${castUrl}`);
+            console.warn(`⚠️ [${index + 1}/${baseLinks.length * activityTypes.length}] No username extracted from URL: ${castUrl}`);
           }
           
           // Если username из URL не найден, но это может быть реальный пользователь,
@@ -433,11 +438,11 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
               username: userData.username || userData.display_name || usernameFromUrl || `user_${index + 1}`,
               pfp_url: pfpUrl,
               cast_url: castUrl,
-              activity_type: activityTypes[index % activityTypes.length],
+              activity_type: activityType,
               completed_by: [],
               created_at: new Date().toISOString(),
             });
-            console.log(`✅ [${index + 1}/${initialLinks.length}] Loaded real user data by username: @${userData.username || userData.display_name} (FID: ${userData.fid}, pfp: ${pfpUrl})`);
+            console.log(`✅ [${index + 1}/${baseLinks.length * activityTypes.length}] Loaded real user data by username: @${userData.username || userData.display_name} (FID: ${userData.fid}, pfp: ${pfpUrl}) [${activityType}]`);
           } else {
             // Если не удалось получить данные пользователя, используем fallback
             linksToAdd.push({
@@ -446,15 +451,15 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
               username: usernameFromUrl || `user_${index + 1}`, // Используем username из URL если есть
               pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${castHash}`,
               cast_url: castUrl,
-              activity_type: activityTypes[index % activityTypes.length],
+              activity_type: activityType,
               completed_by: [],
               created_at: new Date().toISOString(),
             });
-            console.log(`⚠️ [${index + 1}/${initialLinks.length}] Using fallback data for ${castUrl} (username: ${usernameFromUrl || `user_${index + 1}`})`);
+            console.log(`⚠️ [${index + 1}/${baseLinks.length * activityTypes.length}] Using fallback data for ${castUrl} (username: ${usernameFromUrl || `user_${index + 1}`}) [${activityType}]`);
           }
         }
       } catch (error: any) {
-        console.error(`❌ [${index + 1}/${initialLinks.length}] Error fetching author data for ${castUrl}:`, error);
+        console.error(`❌ [${index + 1}/${baseLinks.length * activityTypes.length}] Error fetching author data for ${castUrl}:`, error);
         console.error(`❌ Error details:`, {
           message: error.message,
           stack: error.stack,
@@ -524,11 +529,11 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
             username: userData.username || userData.display_name || usernameFromUrl || `user_${index + 1}`,
             pfp_url: pfpUrl,
             cast_url: castUrl,
-            activity_type: activityTypes[index % activityTypes.length],
+            activity_type: activityType,
             completed_by: [],
             created_at: new Date().toISOString(),
           });
-          console.log(`✅ [${index + 1}/${initialLinks.length}] Loaded real user data after error: @${userData.username || userData.display_name} (FID: ${userData.fid}, pfp: ${pfpUrl})`);
+          console.log(`✅ [${index + 1}/${baseLinks.length * activityTypes.length}] Loaded real user data after error: @${userData.username || userData.display_name} (FID: ${userData.fid}, pfp: ${pfpUrl}) [${activityType}]`);
         } else {
           // Если не удалось получить данные пользователя, используем fallback
           linksToAdd.push({
@@ -537,19 +542,19 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
             username: usernameFromUrl || `user_${index + 1}`, // Используем username из URL если есть
             pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${castHash}`,
             cast_url: castUrl,
-            activity_type: activityTypes[index % activityTypes.length],
+            activity_type: activityType,
             completed_by: [],
             created_at: new Date().toISOString(),
           });
-          console.log(`⚠️ [${index + 1}/${initialLinks.length}] Using fallback data due to error for ${castUrl} (username: ${usernameFromUrl || `user_${index + 1}`})`);
+          console.log(`⚠️ [${index + 1}/${baseLinks.length * activityTypes.length}] Using fallback data due to error for ${castUrl} (username: ${usernameFromUrl || `user_${index + 1}`}) [${activityType}]`);
         }
       }
       
       // Задержка между запросами, чтобы не перегружать API и избежать rate limiting
-      // Увеличиваем задержку для последних элементов, так как они могут быть более проблемными
-      const delay = index < 6 ? 500 : 1000; // Больше задержка для элементов 7-10
-      if (index < initialLinks.length - 1) {
+      const delay = 500;
+      if (index < baseLinks.length * activityTypes.length - 1) {
         await new Promise(resolve => setTimeout(resolve, delay));
+      }
       }
     }
 
@@ -567,8 +572,8 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
       await redis.lpush(KEYS.LINKS, JSON.stringify(link));
     }
 
-    // Устанавливаем счетчик
-    await redis.set(KEYS.TOTAL_LINKS_COUNT, initialLinks.length);
+    // Устанавливаем счетчик (всего должно быть 30 ссылок: 10 like + 10 recast + 10 comment)
+    await redis.set(KEYS.TOTAL_LINKS_COUNT, baseLinks.length * activityTypes.length);
 
     console.log(`✅ Successfully initialized ${linksToAdd.length} links`);
     return { success: true, count: linksToAdd.length };
