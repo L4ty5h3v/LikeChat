@@ -8,6 +8,7 @@ import ProgressBar from '@/components/ProgressBar';
 import Button from '@/components/Button';
 import { getAllLinks } from '@/lib/db-config';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
+import { extractCastHash } from '@/lib/neynar';
 import type { LinkSubmission, ActivityType, TaskProgress } from '@/types';
 
 export default function Tasks() {
@@ -134,14 +135,20 @@ export default function Tasks() {
         console.log(`🔍 [TASKS] Frontend filtering: ${links.length} links → ${filteredLinks.length} links (activity: ${currentActivity})`);
       }
 
-      const taskList: TaskProgress[] = filteredLinks.map((link: LinkSubmission) => ({
-        link_id: link.id,
-        cast_url: link.cast_url,
-        username: link.username,
-        pfp_url: link.pfp_url,
-        completed: completedLinks.includes(link.id),
-        verified: completedLinks.includes(link.id),
-      }));
+      const taskList: TaskProgress[] = filteredLinks.map((link: LinkSubmission) => {
+        const castHash = extractCastHash(link.cast_url) || '';
+        return {
+          link_id: link.id,
+          cast_url: link.cast_url,
+          cast_hash: castHash,
+          activity_type: link.activity_type,
+          user_fid_required: userFid, // FID текущего пользователя
+          username: link.username,
+          pfp_url: link.pfp_url,
+          completed: completedLinks.includes(link.id),
+          verified: completedLinks.includes(link.id),
+        };
+      });
 
       // Считаем количество завершенных заданий ТОЛЬКО для текущего типа активности
       const completedCountForActivity = taskList.filter(task => task.completed).length;
@@ -273,267 +280,149 @@ export default function Tasks() {
     }
   };
 
-  const handleToggleTask = async (linkId: string, nextState: boolean) => {
-    // Оптимистично обновляем UI
-    setTasks(prevTasks => {
-      const updatedTasks = prevTasks.map(task =>
-        task.link_id === linkId
-          ? {
-              ...task,
-              completed: nextState,
-              verified: nextState,
-            }
-          : task
-      );
+  // ❌ Убрано: handleToggleTask - нет ручных чекбоксов, только автоматическая проверка через VERIFY ALL TASKS
 
-      const updatedCount = updatedTasks.filter(task => task.completed).length;
-      setCompletedCount(updatedCount);
-      return updatedTasks;
-    });
+  // ✅ Обёртка для проверки активности через API
+  const verifyActivity = async ({
+    castHash,
+    activityType,
+    viewerFid,
+  }: {
+    castHash: string;
+    activityType: ActivityType;
+    viewerFid: number;
+  }): Promise<{ completed: boolean }> => {
+    try {
+      const response = await fetch('/api/verify-activity', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          castHash,
+          userFid: viewerFid,
+          activityType,
+        }),
+      });
 
-    // Сохраняем в базу данных
-    if (nextState && user) {
-      try {
-        console.log(`💾 [TASKS] Saving completed link to DB:`, {
-          userFid: user.fid,
-          linkId,
-          timestamp: new Date().toISOString(),
-        });
-        
-        // Сохраняем через API endpoint
-        const saveResponse = await fetch('/api/mark-completed', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            userFid: user.fid,
-            linkId,
-          }),
-        });
-        
-        if (!saveResponse.ok) {
-          throw new Error('Failed to save completed link');
-        }
-        
-        // Перезагружаем прогресс из API для подтверждения
-        const progressResponse = await fetch(`/api/user-progress?userFid=${user.fid}&t=${Date.now()}`);
-        const progressData = await progressResponse.json();
-        const updatedProgress = progressData.progress || null;
-        const completedLinks = updatedProgress?.completed_links || [];
-        console.log(`✅ [TASKS] Link saved. Updated completed links from API:`, completedLinks);
-        
-        // Обновляем задачи на основе данных из БД для синхронизации
-        setTasks(prevTasks => {
-          const syncedTasks = prevTasks.map(task => ({
-            ...task,
-            completed: completedLinks.includes(task.link_id),
-            verified: completedLinks.includes(task.link_id),
-          }));
-          
-          const syncedCount = syncedTasks.filter(task => task.completed).length;
-          setCompletedCount(syncedCount);
-          return syncedTasks;
-        });
-      } catch (error) {
-        console.error('❌ [TASKS] Error marking link as completed:', error);
-        // Откатываем оптимистичное обновление при ошибке
-        setTasks(prevTasks => {
-          const rolledBackTasks = prevTasks.map(task =>
-            task.link_id === linkId
-              ? {
-                  ...task,
-                  completed: !nextState,
-                  verified: !nextState,
-                }
-              : task
-          );
-          const rolledBackCount = rolledBackTasks.filter(task => task.completed).length;
-          setCompletedCount(rolledBackCount);
-          return rolledBackTasks;
-        });
+      const data = await response.json();
+      
+      // ❌ Ошибки Neynar НЕ засчитываются как выполненные
+      if (!response.ok || !data.success) {
+        return { completed: false };
       }
-    } else if (!nextState && user) {
-      // Если снимаем отметку, нужно удалить из БД (опционально, если нужно поддерживать)
-      // Пока просто логируем
-      console.log(`🗑️ [TASKS] Unchecking link:`, { userFid: user.fid, linkId });
+
+      return { completed: data.completed || false };
+    } catch (error: any) {
+      console.error('❌ Neynar API error:', error);
+      return { completed: false };
     }
   };
 
-  // Проверить выполнение всех заданий
+  // Проверить выполнение всех заданий (правильный алгоритм с Promise.all)
   const handleVerifyAll = async () => {
     console.log('🔍 [VERIFY] Starting verification process...');
-    console.log('🔍 [VERIFY] Current state:', {
-      hasUser: !!user,
-      userFid: user?.fid,
-      username: user?.username,
-      hasActivity: !!activity,
-      activity,
-      tasksCount: tasks.length,
-      completedCount,
-    });
     
     // Проверяем наличие user из контекста
-    if (!user) {
-      console.error('❌ [VERIFY] User is null in context!');
+    if (!user || !user.fid) {
+      console.error('❌ [VERIFY] User is null or missing FID!');
       alert('Ошибка: данные пользователя не найдены. Пожалуйста, авторизуйтесь заново.');
       router.push('/');
       return;
     }
-    
+
     if (!activity) {
-      console.error('❌ [VERIFY] Missing activity:', {
-        hasUser: !!user,
-        hasActivity: !!activity,
-      });
-      return;
-    }
-    
-    // ⚠️ ПРОВЕРКА FID: Убеждаемся, что fid существует и валиден
-    if (!user.fid || typeof user.fid !== 'number') {
-      console.error('❌ [VERIFY] Invalid or missing user.fid:', user.fid);
-      alert('Ошибка: не найден FID пользователя. Попробуйте перезагрузить страницу.');
+      console.error('❌ [VERIFY] Missing activity');
       return;
     }
 
     setVerifying(true);
-    const incomplete: string[] = [];
-    let verificationErrors: string[] = [];
-    let warnings: string[] = [];
-    let updatedTasks = [...tasks]; // Создаем копию массива для обновления
 
     try {
-      console.log(`🔍 [VERIFY] Processing ${updatedTasks.length} tasks...`);
-      
-      for (let i = 0; i < updatedTasks.length; i++) {
-        const task = updatedTasks[i];
-        if (!task.completed) {
-          console.log(`🔍 [VERIFY] [${i+1}/${updatedTasks.length}] Verifying task: ${task.cast_url} for user ${user.fid}`);
-          
+      console.log(`🔍 [VERIFY] Processing ALL ${tasks.length} tasks in parallel...`);
+
+      // ✅ Параллельная проверка всех задач через Promise.all
+      const updatedTasks = await Promise.all(
+        tasks.map(async (task) => {
           try {
-            // Используем серверный API endpoint для проверки
-            const verifyRequest = {
-              castUrl: task.cast_url,
-              userFid: user.fid,
-              activityType: activity,
-            };
-            
-            console.log(`📡 [VERIFY] [${i+1}/${updatedTasks.length}] Sending verify request:`, verifyRequest);
-            
-            const response = await fetch('/api/verify-activity', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(verifyRequest),
+            // ✅ Важный момент: viewerFid = текущий пользователь (кто проверяет)
+            const result = await verifyActivity({
+              castHash: task.cast_hash,
+              activityType: task.activity_type || activity,
+              viewerFid: user.fid, // ✅ используем текущего пользователя
             });
 
-            console.log(`📡 [VERIFY] [${i+1}/${updatedTasks.length}] Response status:`, response.status);
-            
-            const data = await response.json();
-            
-            console.log(`✅ [VERIFY] [${i+1}/${updatedTasks.length}] Verification result:`, data);
+            // Если задача выполнена - сохраняем в БД
+            if (result.completed) {
+              try {
+                const markResponse = await fetch('/api/mark-completed', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    userFid: user.fid,
+                    linkId: task.link_id,
+                  }),
+                });
 
-            if (data.warning) {
-              warnings.push(data.warning);
+                if (markResponse.ok) {
+                  const markData = await markResponse.json();
+                  if (markData.success) {
+                    console.log(`✅ Marked link ${task.link_id} as completed in DB`);
+                  }
+                }
+              } catch (markError) {
+                console.error(`❌ Failed to mark link ${task.link_id} as completed:`, markError);
+                // Не прерываем процесс, но логируем ошибку
+              }
             }
 
-            if (data.completed) {
-              // Сохраняем в БД
-              // Сохраняем через API endpoint
-              await fetch('/api/mark-completed', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  userFid: user.fid,
-                  linkId: task.link_id,
-                }),
-              });
-              console.log(`✅ Marked link ${task.link_id} as completed for user ${user.fid}`);
-              
-              // Обновляем состояние задачи
-              updatedTasks[i] = {
-                ...task,
-                completed: true,
-                verified: true,
-              };
-            } else {
-              incomplete.push(task.cast_url);
-            }
-          } catch (error: any) {
-            console.error(`❌ Error verifying ${task.cast_url}:`, error);
-            verificationErrors.push(`${task.cast_url}: ${error.message || 'Unknown error'}`);
-            // В случае ошибки сети, отмечаем как выполненное для продолжения тестирования
-            if (error.message?.includes('fetch') || error.message?.includes('network')) {
-              // Сохраняем через API endpoint
-              await fetch('/api/mark-completed', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  userFid: user.fid,
-                  linkId: task.link_id,
-                }),
-              });
-              updatedTasks[i] = {
-                ...task,
-                completed: true,
-                verified: true,
-              };
-              warnings.push(`Network error for ${task.cast_url} - marked as completed`);
-            } else {
-              incomplete.push(task.cast_url);
-            }
+            return {
+              ...task,
+              completed: result.completed,
+              verified: true,
+            };
+          } catch (err: any) {
+            console.error('❌ Neynar API error for task:', task.link_id, err);
+            return {
+              ...task,
+              completed: false,
+              verified: true, // Помечаем как проверенное, но не выполненное
+            };
           }
-        }
-      }
+        })
+      );
 
-      // Перезагружаем прогресс из API для подтверждения
-      const progressResponse = await fetch(`/api/user-progress?userFid=${user.fid}&t=${Date.now()}`);
-      const progressData = await progressResponse.json();
-      const updatedProgress = progressData.progress || null;
-      const completedLinks = updatedProgress?.completed_links || [];
-      
-      // Обновляем задачи на основе данных из БД
-      const finalTasks = updatedTasks.map(task => ({
-        ...task,
-        completed: completedLinks.includes(task.link_id),
-        verified: completedLinks.includes(task.link_id),
-      }));
-      
-      const newCompletedCount = finalTasks.filter(t => t.completed).length;
-      
-      console.log(`📊 Progress update: ${newCompletedCount}/${tasks.length} tasks completed`);
-      console.log(`📊 Completed links in DB:`, completedLinks);
-      console.log(`📊 Tasks updated:`, finalTasks.map(t => ({ id: t.link_id, completed: t.completed })));
-      
       // Обновляем состояние
-      setTasks(finalTasks);
+      const newCompletedCount = updatedTasks.filter(t => t.completed).length;
+      
+      setTasks(updatedTasks);
       setCompletedCount(newCompletedCount);
-      setIncompleteLinks(incomplete);
+      setIncompleteLinks(updatedTasks.filter(t => !t.completed).map(t => t.cast_url));
 
-      if (warnings.length > 0) {
-        console.warn('⚠️ Verification warnings:', warnings);
+      console.log(`📊 [VERIFY] Verification complete: ${newCompletedCount}/${updatedTasks.length} completed`);
+
+      // ✅ Перезагружаем задачи из API для получения актуальных данных
+      if (newCompletedCount > 0) {
+        setTimeout(() => {
+          loadTasks(user.fid, false);
+        }, 1000);
       }
 
-      if (verificationErrors.length > 0) {
-        console.warn('⚠️ Verification errors:', verificationErrors);
-      }
-
-      if (incomplete.length === 0 && newCompletedCount === tasks.length) {
-        // Все задания выполнены, переходим к покупке токена
+      // ✅ Если все выполнены - редирект на покупку токена
+      const allCompleted = updatedTasks.every((t) => t.completed);
+      if (allCompleted && updatedTasks.length > 0) {
+        console.log(`✅ All tasks completed! (${newCompletedCount}/${updatedTasks.length})`);
         setTimeout(() => {
           router.push('/buyToken');
         }, 1500);
-      } else if (incomplete.length > 0) {
-        // Показываем предупреждение, но не блокируем полностью
-        const message = incomplete.length === tasks.length 
-          ? 'Не удалось проверить выполнение задач. Возможно, API ключ Neynar не настроен или задачи действительно не выполнены.'
-          : `Не удалось проверить ${incomplete.length} из ${tasks.length} задач.`;
+      } else if (newCompletedCount < updatedTasks.length) {
+        // Показываем предупреждение
+        const incompleteCount = updatedTasks.length - newCompletedCount;
+        const message = `Вы не выполнили все задания. Проверьте оставшиеся ${incompleteCount} ссылок.`;
         console.warn(message);
+        alert(message);
       }
     } catch (error: any) {
       console.error('❌ Error verifying tasks:', error);
@@ -659,7 +548,6 @@ export default function Tasks() {
                 task={task}
                 index={index}
                 onOpen={() => handleOpenLink(task.cast_url)}
-                onToggleComplete={(nextState) => handleToggleTask(task.link_id, nextState)}
               />
             ))}
           </div>

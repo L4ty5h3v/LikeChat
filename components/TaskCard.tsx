@@ -6,10 +6,9 @@ interface TaskCardProps {
   task: TaskProgress;
   index: number;
   onOpen: () => void;
-  onToggleComplete?: (nextState: boolean) => void;
 }
 
-const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen, onToggleComplete }) => {
+const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
   return (
     <div
       className={`
@@ -24,7 +23,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen, onToggleComple
       `}
     >
       <div className="flex items-center gap-4">
-        {/* Номер задания */}
+        {/* Номер задания / Индикатор статуса (НЕ интерактивный, только визуальный) */}
         <div
           className={`
             flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg
@@ -36,6 +35,8 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen, onToggleComple
                 : 'bg-gray-200 text-gray-600'
             }
           `}
+          style={{ cursor: 'default', pointerEvents: 'none' }}
+          aria-label={task.completed && task.verified ? 'Task completed' : `Task ${index + 1}`}
         >
           {task.completed && task.verified ? '✓' : index + 1}
         </div>
@@ -74,20 +75,8 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen, onToggleComple
               }
             `}
           >
-            {task.completed && task.verified ? 'Completed' : 'Open'}
+            {task.completed && task.verified ? 'Completed' : 'Open Post'}
           </button>
-
-          {onToggleComplete && (
-            <label className="flex items-center gap-2 text-xs text-gray-500 select-none">
-              <input
-                type="checkbox"
-                className="w-4 h-4 accent-primary"
-                checked={task.completed}
-                onChange={(event) => onToggleComplete(event.target.checked)}
-              />
-              <span>{task.completed ? 'Marked done' : 'Mark done'}</span>
-            </label>
-          )}
         </div>
       </div>
 
