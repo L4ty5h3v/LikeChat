@@ -532,24 +532,7 @@ export default function Home() {
     }, 500); // Небольшая задержка для плавного перехода
   };
 
-  // Переход к заданиям
-  const handleContinue = async () => {
-    if (!user || !selectedActivity) return;
-
-    setLoading(true);
-    try {
-      await setUserActivity(user.fid, selectedActivity);
-      router.push('/tasks');
-    } catch (error) {
-      console.error('Error saving activity:', error);
-      setErrorModal({
-        show: true,
-        message: 'Ошибка сохранения настроек'
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+  // ⚠️ УДАЛЕНО: handleContinue больше не нужен, так как переход происходит автоматически при выборе активности
 
   return (
     <Layout title="Multi Like - Authorization">
