@@ -310,9 +310,10 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
       for (let linkIndex = 0; linkIndex < baseLinks.length; linkIndex++) {
         const castUrl = baseLinks[linkIndex];
         const index = activityIndex * baseLinks.length + linkIndex;
-      console.log(`🔍 Fetching cast author data for: ${castUrl}`);
-      
-      try {
+        
+        console.log(`🔍 Fetching cast author data for: ${castUrl} [${activityType}]`);
+        
+        try {
         // Получаем реальные данные автора каста
         const authorData = await getCastAuthor(castUrl);
         
