@@ -35,6 +35,9 @@ export interface UserProgress {
 export interface TaskProgress {
   link_id: string;
   cast_url: string;
+  cast_hash: string; // ✅ Hash каста для проверки через Neynar API
+  activity_type: ActivityType;
+  user_fid_required: number;
   completed: boolean;
   verified: boolean;
   username: string;

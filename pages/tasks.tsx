@@ -342,12 +342,24 @@ export default function Tasks() {
       console.log(`🔍 [VERIFY] Processing ALL ${tasks.length} tasks in parallel...`);
 
       // ✅ Параллельная проверка всех задач через Promise.all
-      const updatedTasks = await Promise.all(
-        tasks.map(async (task) => {
+      const updatedTasks: TaskProgress[] = await Promise.all(
+        tasks.map(async (task: TaskProgress) => {
           try {
             // ✅ Важный момент: viewerFid = текущий пользователь (кто проверяет)
+            // Проверяем наличие cast_hash перед использованием
+            // Явно типизируем task.cast_hash, чтобы TypeScript понимал тип
+            const castHash: string = task.cast_hash || '';
+            if (!castHash) {
+              console.warn(`⚠️ Task ${task.link_id} has no cast_hash, skipping verification`);
+              return {
+                ...task,
+                completed: false,
+                verified: true,
+              } as TaskProgress;
+            }
+
             const result = await verifyActivity({
-              castHash: task.cast_hash,
+              castHash: castHash,
               activityType: task.activity_type || activity,
               viewerFid: user.fid, // ✅ используем текущего пользователя
             });
@@ -382,14 +394,14 @@ export default function Tasks() {
               ...task,
               completed: result.completed,
               verified: true,
-            };
+            } as TaskProgress;
           } catch (err: any) {
             console.error('❌ Neynar API error for task:', task.link_id, err);
             return {
               ...task,
               completed: false,
               verified: true, // Помечаем как проверенное, но не выполненное
-            };
+            } as TaskProgress;
           }
         })
       );
