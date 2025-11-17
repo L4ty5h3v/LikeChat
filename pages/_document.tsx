@@ -3,7 +3,7 @@ import { Html, Head, Main, NextScript } from 'next/document';
 export default function Document() {
   // ⚠️ КРИТИЧЕСКИ ВАЖНО: Добавляем версию для предотвращения кеша браузера
   const version = Date.now(); // Уникальная версия при каждой сборке
-  // 🔄 FORCE DEPLOY: 2025-01-27 - Force new build to clear Vercel cache
+  // 🔄 FORCE DEPLOY: 2025-01-27 15:30 - Force new build to clear Vercel cache + ULTRA-AGGRESSIVE modal removal
 
   return (
     <Html lang="ru">
