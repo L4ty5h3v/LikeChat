@@ -1017,48 +1017,45 @@ export default function Submit() {
         setError('');
         
         // Публикуем cast в Farcaster только для соответствующего типа активности
-        // Это предотвращает спам и делает публикацию более targeted
-        // ⚠️ ВАЖНО: Это асинхронная операция, НЕ блокирует выполнение
-        // Флаг уже установлен выше, так что даже если useEffect сработает - он увидит флаг
-        if (activity) {
-          console.log('📤 [SUBMIT] Starting publishCastByActivityType (async, non-blocking):', {
-            activity,
-            castUrl: castUrl.substring(0, 50) + '...',
-            flagBeforePublish: {
-              sessionStorage: sessionStorage.getItem('link_published'),
-              localStorage: localStorage.getItem('link_published'),
-            },
-            timestamp: new Date().toISOString(),
-          });
-          
-          publishCastByActivityType(activity, castUrl).then((result) => {
-            console.log('📤 [SUBMIT] publishCastByActivityType completed:', {
-              success: result.success,
-              error: result.error,
-              flagAfterPublish: {
-                sessionStorage: sessionStorage.getItem('link_published'),
-                localStorage: localStorage.getItem('link_published'),
-              },
-              timestamp: new Date().toISOString(),
-            });
-            if (result.success) {
-              console.log('✅ [SUBMIT] Cast published to Farcaster via MiniKit SDK');
-            } else {
-              console.warn('⚠️ [SUBMIT] Failed to publish cast to Farcaster:', result.error);
-              // Не блокируем flow, если публикация не удалась
-            }
-          }).catch((publishError) => {
-            console.error('❌ [SUBMIT] Error publishing cast to Farcaster:', {
-              error: publishError,
-              flagAfterError: {
-                sessionStorage: sessionStorage.getItem('link_published'),
-                localStorage: localStorage.getItem('link_published'),
-              },
-              timestamp: new Date().toISOString(),
-            });
-            // Не блокируем flow, если публикация не удалась
-          });
-        }
+        // ⚠️ ОТКЛЮЧЕНО: Автоматическая публикация каста с текстом "Liked via mini-app" отключена
+        // Пользователь не хочет автоматически создавать репост/рекаст
+        // if (activity) {
+        //   console.log('📤 [SUBMIT] Starting publishCastByActivityType (async, non-blocking):', {
+        //     activity,
+        //     castUrl: castUrl.substring(0, 50) + '...',
+        //     flagBeforePublish: {
+        //       sessionStorage: sessionStorage.getItem('link_published'),
+        //       localStorage: localStorage.getItem('link_published'),
+        //     },
+        //     timestamp: new Date().toISOString(),
+        //   });
+        //   
+        //   publishCastByActivityType(activity, castUrl).then((result) => {
+        //     console.log('📤 [SUBMIT] publishCastByActivityType completed:', {
+        //       success: result.success,
+        //       error: result.error,
+        //       flagAfterPublish: {
+        //         sessionStorage: sessionStorage.getItem('link_published'),
+        //         localStorage: localStorage.getItem('link_published'),
+        //       },
+        //       timestamp: new Date().toISOString(),
+        //     });
+        //     if (result.success) {
+        //       console.log('✅ [SUBMIT] Cast published to Farcaster via MiniKit SDK');
+        //     } else {
+        //       console.warn('⚠️ [SUBMIT] Failed to publish cast to Farcaster:', result.error);
+        //     }
+        //   }).catch((publishError) => {
+        //     console.error('❌ [SUBMIT] Error publishing cast to Farcaster:', {
+        //       error: publishError,
+        //       flagAfterError: {
+        //         sessionStorage: sessionStorage.getItem('link_published'),
+        //         localStorage: localStorage.getItem('link_published'),
+        //       },
+        //       timestamp: new Date().toISOString(),
+        //     });
+        //   });
+        // }
         
         // Финальная проверка флага после всех операций (но до return)
         const finalFlagCheckAfterAllOps = {
