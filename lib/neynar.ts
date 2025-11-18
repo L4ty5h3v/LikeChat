@@ -69,6 +69,95 @@ function isFullHash(hash: string): boolean {
 }
 
 // ------------------------
+// RESOLVE SHORT LINK
+// ------------------------
+/**
+ * Разрешает короткую ссылку farcaster.xyz через Neynar API
+ * Извлекает username и частичный hash, затем ищет полный hash в кастах пользователя
+ */
+export async function resolveShortLink(shortUrl: string): Promise<string | null> {
+  if (!cleanApiKey) {
+    console.warn('⚠️ [RESOLVE] NEXT_PUBLIC_NEYNAR_API_KEY not configured');
+    return null;
+  }
+
+  try {
+    // Парсим URL типа https://farcaster.xyz/username/0xabc...
+    const urlPattern = /^https?:\/\/farcaster\.xyz\/([^\/]+)\/(0x[a-fA-F0-9]+)/;
+    const match = shortUrl.match(urlPattern);
+    
+    if (!match) {
+      console.warn('⚠️ [RESOLVE] URL не соответствует формату farcaster.xyz/username/hash:', shortUrl);
+      return null;
+    }
+
+    const [, username, partialHash] = match;
+    
+    // Если hash уже полный, возвращаем его
+    if (partialHash.length >= 42) {
+      return partialHash;
+    }
+
+    console.log(`🔄 [RESOLVE] Resolving short link for ${username} with partial hash ${partialHash.substring(0, 10)}...`);
+
+    // Получаем касты пользователя через Neynar API
+    // Используем endpoint для получения кастов по username
+    const url = `https://api.neynar.com/v2/farcaster/user/by_username?username=${encodeURIComponent(username)}`;
+    
+    const userRes = await fetch(url, {
+      headers: { "api_key": cleanApiKey }
+    });
+
+    if (!userRes.ok) {
+      console.error(`❌ [RESOLVE] Failed to get user: ${userRes.status} ${userRes.statusText}`);
+      return null;
+    }
+
+    const userData = await userRes.json();
+    const userFid = userData?.result?.user?.fid;
+
+    if (!userFid) {
+      console.error('❌ [RESOLVE] User FID not found in response:', userData);
+      return null;
+    }
+
+    // Получаем последние касты пользователя
+    const castsUrl = `https://api.neynar.com/v2/farcaster/casts?fid=${userFid}&limit=50`;
+    
+    const castsRes = await fetch(castsUrl, {
+      headers: { "api_key": cleanApiKey }
+    });
+
+    if (!castsRes.ok) {
+      console.error(`❌ [RESOLVE] Failed to get casts: ${castsRes.status} ${castsRes.statusText}`);
+      return null;
+    }
+
+    const castsData = await castsRes.json();
+    const casts = castsData?.result?.casts || [];
+
+    // Ищем каст с совпадающим частичным hash
+    const cleanPartialHash = partialHash.toLowerCase();
+    const matchingCast = casts.find((cast: any) => {
+      const castHash = cast.hash?.toLowerCase() || '';
+      return castHash.startsWith(cleanPartialHash);
+    });
+
+    if (matchingCast?.hash) {
+      console.log(`✅ [RESOLVE] Found full hash: ${matchingCast.hash} for partial ${partialHash}`);
+      return matchingCast.hash;
+    }
+
+    console.warn(`⚠️ [RESOLVE] No matching cast found for partial hash ${partialHash}`);
+    return null;
+
+  } catch (err) {
+    console.error('❌ [RESOLVE] Error resolving short link:', err);
+    return null;
+  }
+}
+
+// ------------------------
 // EXPAND SHORT HASH
 // ------------------------
 export async function expandShortHash(shortHash: string): Promise<string | null> {
