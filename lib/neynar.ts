@@ -17,54 +17,29 @@ export interface VerifyResult {
 
 // Функция для извлечения hash из ссылки
 export function extractCastHash(url: string): string | null {
+  if (!url) return null;
+
   try {
-    // Валидация: проверяем, что это полный URL
-    if (!url || url.length < 50) {
-      console.warn('⚠️ [EXTRACT] URL слишком короткий или пустой:', url);
-      return null;
+    const parsed = new URL(url);
+
+    // Поддержка формата farcaster.xyz/namespace/<hash>
+    const segments = parsed.pathname.split('/').filter(Boolean);
+
+    const last = segments[segments.length - 1];
+
+    // Если последний сегмент выглядит как 0x-hash любого размера
+    if (/^0x[0-9a-fA-F]{6,}$/i.test(last)) {
+      return last.toLowerCase();
     }
 
-    // Проверяем, что это валидный URL Farcaster
-    const validPatterns = [
-      /^https?:\/\/(warpcast\.com|farcaster\.xyz|firefly\.app|kiosk\.app)/,
-      /^0x[a-fA-F0-9]{40}$/ // Прямой hash
-    ];
-
-    const isValidUrl = validPatterns.some(pattern => pattern.test(url));
-    if (!isValidUrl && !url.startsWith('0x')) {
-      console.warn('⚠️ [EXTRACT] Невалидный URL формата:', url);
-      return null;
-    }
-
-    // Если это прямой hash (полный), возвращаем его
-    if (/^0x[a-fA-F0-9]{40}$/.test(url)) {
-      return url;
-    }
-
-    // Извлекаем hash из URL
-    const parts = url.split("/");
-    const last = parts[parts.length - 1];
-    
-    if (!last || !last.startsWith("0x")) {
-      console.warn('⚠️ [EXTRACT] Hash не найден в URL:', url);
-      return null;
-    }
-
-    // Проверяем, что hash не обрезан (должен быть минимум 10 символов для короткого hash)
-    if (last.length < 10) {
-      console.warn('⚠️ [EXTRACT] Hash слишком короткий (возможно обрезан):', last);
-      return null;
-    }
-
-    return last;
+    return null;
   } catch (err) {
-    console.error('❌ [EXTRACT] Ошибка при извлечении hash:', err);
     return null;
   }
 }
 
 // Проверка, является ли hash полным (42 символа)
-function isFullHash(hash: string): boolean {
+export function isFullHash(hash: string): boolean {
   return /^0x[a-fA-F0-9]{40}$/.test(hash);
 }
 
@@ -158,19 +133,24 @@ export async function resolveShortLink(shortUrl: string): Promise<string | null>
 }
 
 // ------------------------
-// EXPAND SHORT HASH
+// RESOLVE FULL HASH
 // ------------------------
-export async function expandShortHash(shortHash: string): Promise<string | null> {
-  if (shortHash.length >= 42) return shortHash;
-
-  // Если hash слишком короткий (меньше 10 символов), это явно обрезанный hash
-  if (shortHash.length < 10) {
-    console.warn(`⚠️ [EXPAND] Hash слишком короткий для расширения: ${shortHash}`);
+/**
+ * Автоматически получает полный hash через Neynar API для короткого hash
+ */
+export async function resolveFullHash(shortHash: string): Promise<string | null> {
+  if (!shortHash || shortHash.length < 6) {
+    console.warn(`⚠️ [RESOLVE-FULL] Hash слишком короткий: ${shortHash}`);
     return null;
   }
 
+  // Если hash уже полный (42 символа), возвращаем его
+  if (isFullHash(shortHash)) {
+    return shortHash;
+  }
+
   if (!cleanApiKey) {
-    console.warn('⚠️ NEXT_PUBLIC_NEYNAR_API_KEY not configured');
+    console.warn('⚠️ [RESOLVE-FULL] NEXT_PUBLIC_NEYNAR_API_KEY not configured');
     return null;
   }
 
@@ -180,7 +160,7 @@ export async function expandShortHash(shortHash: string): Promise<string | null>
     
     const url = `https://api.neynar.com/v2/farcaster/cast?identifier=${cleanHash}&type=hash`;
 
-    console.log(`🔄 [EXPAND] Attempting to expand hash: ${cleanHash.substring(0, 20)}...`);
+    console.log(`🔄 [RESOLVE-FULL] Resolving short hash: ${cleanHash.substring(0, 20)}...`);
 
     const res = await fetch(url, {
       headers: {
@@ -189,24 +169,31 @@ export async function expandShortHash(shortHash: string): Promise<string | null>
     });
 
     if (!res.ok) {
-      console.error(`❌ [EXPAND] API error: ${res.status} ${res.statusText}`);
+      console.error(`❌ [RESOLVE-FULL] API error: ${res.status} ${res.statusText}`);
       return null;
     }
 
     const data = await res.json();
 
     if (data?.result?.cast?.hash) {
-      console.log(`✅ [EXPAND] Full hash recovered: ${data.result.cast.hash}`);
+      console.log(`✅ [RESOLVE-FULL] Full hash resolved: ${data.result.cast.hash}`);
       return data.result.cast.hash;
     }
 
-    console.error("❌ [EXPAND] Full hash not found in response:", data);
+    console.error("❌ [RESOLVE-FULL] Full hash not found in response:", data);
     return null;
 
   } catch (err) {
-    console.error("❌ [EXPAND] Error expanding hash:", err);
+    console.error("❌ [RESOLVE-FULL] Error resolving hash:", err);
     return null;
   }
+}
+
+// ------------------------
+// EXPAND SHORT HASH (legacy, использует resolveFullHash)
+// ------------------------
+export async function expandShortHash(shortHash: string): Promise<string | null> {
+  return await resolveFullHash(shortHash);
 }
 
 // Функция диагностики cast
@@ -381,19 +368,19 @@ export async function checkUserActivityByHash(
     return false;
   }
 
-  // ✅ ШАГ 1: Если hash короткий → расширяем до полного
+  // ✅ ШАГ 1: Если hash короткий → автоматически получаем полный hash через Neynar
   let fullHash = castHash;
   if (!isFullHash(castHash)) {
-    console.log(`🔄 [ACTIVITY] Short hash detected (${castHash.length} chars), expanding to full hash...`);
-    const expanded = await expandShortHash(castHash);
+    console.log(`🔄 [ACTIVITY] Short hash detected (${castHash.length} chars), resolving full hash...`);
+    const full = await resolveFullHash(castHash);
     
-    if (!expanded) {
-      console.error(`❌ [ACTIVITY] Failed to expand short hash: ${castHash}`);
+    if (!full) {
+      console.error(`❌ [ACTIVITY] Failed to resolve full hash: ${castHash}`);
       return false;
     }
     
-    fullHash = expanded;
-    console.log(`✅ [ACTIVITY] Expanded ${castHash} → ${fullHash}`);
+    fullHash = full;
+    console.log(`✅ [ACTIVITY] Resolved ${castHash} → ${fullHash}`);
   }
 
   // ✅ ШАГ 2: Проверяем активность с полным hash

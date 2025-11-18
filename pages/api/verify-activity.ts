@@ -1,10 +1,11 @@
 // API endpoint для проверки активности пользователя на Farcaster
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { 
-  expandShortHash,
+  resolveFullHash,
   checkUserLiked,
   checkUserRecasted,
-  checkUserCommented
+  checkUserCommented,
+  isFullHash
 } from '@/lib/neynar';
 import type { ActivityType } from '@/types';
 
@@ -66,12 +67,12 @@ export default async function handler(
 
     let fullHash = castHash;
 
-    // 1. Expand short farcaster.xyz hash
-    if (fullHash.length < 42) {
-      console.log(`🔄 [VERIFY-API] Short hash detected (${fullHash.length} chars), expanding...`);
-      const expanded = await expandShortHash(fullHash);
+    // 1. Автоматически получаем полный hash через Neynar, если hash короткий
+    if (!isFullHash(fullHash)) {
+      console.log(`🔄 [VERIFY-API] Short hash detected (${fullHash.length} chars), resolving full hash...`);
+      const resolved = await resolveFullHash(fullHash);
 
-      if (!expanded) {
+      if (!resolved) {
         return res.status(200).json({
           success: false,
           completed: false,
@@ -81,8 +82,8 @@ export default async function handler(
         });
       }
 
-      fullHash = expanded;
-      console.log(`✅ [VERIFY-API] Expanded ${castHash} → ${fullHash}`);
+      fullHash = resolved;
+      console.log(`✅ [VERIFY-API] Resolved ${castHash} → ${fullHash}`);
     }
 
     // 2. Check activity
