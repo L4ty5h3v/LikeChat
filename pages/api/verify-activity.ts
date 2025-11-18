@@ -2,6 +2,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { 
   resolveFullHash,
+  resolveShortLink,
+  extractCastHash,
   checkUserLiked,
   checkUserRecasted,
   checkUserCommented,
@@ -18,7 +20,7 @@ export default async function handler(
   }
 
   try {
-    const { castHash, castUrl, userFid, activityType } = req.body;
+    let { castHash, castUrl, userFid, activityType } = req.body;
 
     console.log('🔍 [VERIFY-API] Received verification request:', {
       castHash,
@@ -35,8 +37,21 @@ export default async function handler(
       });
     }
 
-    // Проверяем, что hash не обрезан (если он короче 10 символов, это явно обрезанный)
-    if (castHash.length < 10) {
+    // ✅ ШАГ 0: Если передан castUrl (короткая ссылка farcaster.xyz), пытаемся разрешить её
+    if (castUrl && castUrl.includes('farcaster.xyz/') && castUrl.length < 100) {
+      console.log('🔄 [VERIFY-API] Detected short farcaster.xyz URL, attempting to resolve...');
+      const resolvedHash = await resolveShortLink(castUrl);
+      
+      if (resolvedHash) {
+        console.log(`✅ [VERIFY-API] Resolved short URL to full hash: ${resolvedHash}`);
+        castHash = resolvedHash;
+      } else {
+        console.warn('⚠️ [VERIFY-API] Failed to resolve short URL, will try to resolve hash directly');
+      }
+    }
+
+    // Проверяем, что hash не слишком короткий (минимум 6 символов для частичного hash)
+    if (castHash.length < 6) {
       return res.status(200).json({
         success: false,
         completed: false,

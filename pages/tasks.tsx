@@ -325,10 +325,12 @@ export default function Tasks() {
   // ✅ Обёртка для проверки активности через API
   const verifyActivity = async ({
     castHash,
+    castUrl,
     activityType,
     viewerFid,
   }: {
     castHash: string;
+    castUrl?: string;
     activityType: ActivityType;
     viewerFid: number;
   }): Promise<{ completed: boolean; userMessage?: string; hashWarning?: string; isError?: boolean; neynarExplorerUrl?: string }> => {
@@ -340,7 +342,7 @@ export default function Tasks() {
         },
         body: JSON.stringify({
           castHash,
-          castUrl: castHash, // Передаем также полный URL, если он есть
+          castUrl: castUrl || castHash, // Передаем castUrl если есть, иначе castHash
           userFid: viewerFid,
           activityType,
         }),
@@ -475,8 +477,10 @@ export default function Tasks() {
               }
             }
 
+            // Передаем также cast_url для автоматического разрешения коротких ссылок
             const result = await verifyActivity({
               castHash: hashToVerify,
+              castUrl: task.cast_url, // Передаем полный URL для разрешения коротких ссылок
               activityType: task.activity_type || activity,
               viewerFid: user.fid, // ✅ используем текущего пользователя
             });

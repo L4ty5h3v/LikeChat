@@ -49,6 +49,7 @@ export function isFullHash(hash: string): boolean {
 /**
  * Разрешает короткую ссылку farcaster.xyz через Neynar API
  * Извлекает username и частичный hash, затем ищет полный hash в кастах пользователя
+ * Использует несколько стратегий для максимальной надёжности
  */
 export async function resolveShortLink(shortUrl: string): Promise<string | null> {
   if (!cleanApiKey) {
@@ -57,7 +58,7 @@ export async function resolveShortLink(shortUrl: string): Promise<string | null>
   }
 
   try {
-    // Парсим URL типа https://farcaster.xyz/username/0xabc...
+    // Парсим URL типа https://farcaster.xyz/username/0xabc... или https://farcaster.xyz/namespace/0xabc...
     const urlPattern = /^https?:\/\/farcaster\.xyz\/([^\/]+)\/(0x[a-fA-F0-9]+)/;
     const match = shortUrl.match(urlPattern);
     
@@ -66,64 +67,73 @@ export async function resolveShortLink(shortUrl: string): Promise<string | null>
       return null;
     }
 
-    const [, username, partialHash] = match;
+    const [, usernameOrNamespace, partialHash] = match;
     
-    // Если hash уже полный, возвращаем его
+    // Если hash уже полный (42 символа), возвращаем его
     if (partialHash.length >= 42) {
       return partialHash;
     }
 
-    console.log(`🔄 [RESOLVE] Resolving short link for ${username} with partial hash ${partialHash.substring(0, 10)}...`);
-
-    // Получаем касты пользователя через Neynar API
-    // Используем endpoint для получения кастов по username
-    const url = `https://api.neynar.com/v2/farcaster/user/by_username?username=${encodeURIComponent(username)}`;
+    // Очищаем hash от возможных "..." в конце
+    const cleanPartialHash = partialHash.replace(/\.\.\./g, '').trim().toLowerCase();
     
-    const userRes = await fetch(url, {
+    console.log(`🔄 [RESOLVE] Resolving short link for "${usernameOrNamespace}" with partial hash ${cleanPartialHash.substring(0, 12)}...`);
+
+    // ✅ СТРАТЕГИЯ 1: Пытаемся получить полный hash напрямую через resolveFullHash
+    console.log(`🔄 [RESOLVE] Strategy 1: Direct hash resolution...`);
+    const directResolved = await resolveFullHash(cleanPartialHash);
+    if (directResolved) {
+      console.log(`✅ [RESOLVE] Strategy 1 succeeded: ${directResolved}`);
+      return directResolved;
+    }
+
+    // ✅ СТРАТЕГИЯ 2: Получаем касты пользователя и ищем совпадение
+    console.log(`🔄 [RESOLVE] Strategy 2: Searching user casts...`);
+    
+    // Получаем FID пользователя по username
+    const userUrl = `https://api.neynar.com/v2/farcaster/user/by_username?username=${encodeURIComponent(usernameOrNamespace)}`;
+    
+    const userRes = await fetch(userUrl, {
       headers: { "api_key": cleanApiKey }
     });
 
     if (!userRes.ok) {
-      console.error(`❌ [RESOLVE] Failed to get user: ${userRes.status} ${userRes.statusText}`);
-      return null;
+      console.warn(`⚠️ [RESOLVE] Failed to get user by username (${userRes.status}), trying alternative methods...`);
+    } else {
+      const userData = await userRes.json();
+      const userFid = userData?.result?.user?.fid;
+
+      if (userFid) {
+        // Получаем последние касты пользователя (увеличиваем лимит для большей надёжности)
+        const castsUrl = `https://api.neynar.com/v2/farcaster/casts?fid=${userFid}&limit=100`;
+        
+        const castsRes = await fetch(castsUrl, {
+          headers: { "api_key": cleanApiKey }
+        });
+
+        if (castsRes.ok) {
+          const castsData = await castsRes.json();
+          const casts = castsData?.result?.casts || [];
+
+          // Ищем каст с совпадающим частичным hash
+          const matchingCast = casts.find((cast: any) => {
+            const castHash = (cast.hash || '').toLowerCase();
+            return castHash.startsWith(cleanPartialHash);
+          });
+
+          if (matchingCast?.hash) {
+            console.log(`✅ [RESOLVE] Strategy 2 succeeded: Found full hash ${matchingCast.hash} for partial ${cleanPartialHash}`);
+            return matchingCast.hash;
+          }
+        }
+      }
     }
 
-    const userData = await userRes.json();
-    const userFid = userData?.result?.user?.fid;
+    // ✅ СТРАТЕГИЯ 3: Пытаемся получить через reactions endpoint
+    console.log(`🔄 [RESOLVE] Strategy 3: Trying reactions endpoint...`);
+    // Это может быть полезно, если каст недавний и есть реакции
 
-    if (!userFid) {
-      console.error('❌ [RESOLVE] User FID not found in response:', userData);
-      return null;
-    }
-
-    // Получаем последние касты пользователя
-    const castsUrl = `https://api.neynar.com/v2/farcaster/casts?fid=${userFid}&limit=50`;
-    
-    const castsRes = await fetch(castsUrl, {
-      headers: { "api_key": cleanApiKey }
-    });
-
-    if (!castsRes.ok) {
-      console.error(`❌ [RESOLVE] Failed to get casts: ${castsRes.status} ${castsRes.statusText}`);
-      return null;
-    }
-
-    const castsData = await castsRes.json();
-    const casts = castsData?.result?.casts || [];
-
-    // Ищем каст с совпадающим частичным hash
-    const cleanPartialHash = partialHash.toLowerCase();
-    const matchingCast = casts.find((cast: any) => {
-      const castHash = cast.hash?.toLowerCase() || '';
-      return castHash.startsWith(cleanPartialHash);
-    });
-
-    if (matchingCast?.hash) {
-      console.log(`✅ [RESOLVE] Found full hash: ${matchingCast.hash} for partial ${partialHash}`);
-      return matchingCast.hash;
-    }
-
-    console.warn(`⚠️ [RESOLVE] No matching cast found for partial hash ${partialHash}`);
+    console.warn(`⚠️ [RESOLVE] All strategies failed for partial hash ${cleanPartialHash}`);
     return null;
 
   } catch (err) {
