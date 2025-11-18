@@ -137,8 +137,19 @@ export async function checkUserLiked(castHash: string, userFid: number): Promise
       headers: { "api_key": cleanApiKey }
     });
 
+    if (!res.ok) {
+      console.error(`❌ [LIKE] API error: ${res.status} ${res.statusText}`);
+      return false;
+    }
+
     const data = await res.json();
-    return data?.reactions?.length > 0;
+    
+    // Проверяем, есть ли реакция от конкретного пользователя
+    const userReaction = data?.reactions?.some((r: any) => r?.fid === userFid);
+    
+    console.log(`🔍 [LIKE] Cast: ${castHash}, User: ${userFid}, Found: ${userReaction}, Total reactions: ${data?.reactions?.length || 0}`);
+    
+    return userReaction || false;
 
   } catch (err) {
     console.error("❌ checkUserLiked error:", err);
@@ -162,8 +173,19 @@ export async function checkUserRecasted(castHash: string, userFid: number): Prom
       headers: { "api_key": cleanApiKey }
     });
 
+    if (!res.ok) {
+      console.error(`❌ [RECAST] API error: ${res.status} ${res.statusText}`);
+      return false;
+    }
+
     const data = await res.json();
-    return data?.reactions?.length > 0;
+    
+    // Проверяем, есть ли рекаст от конкретного пользователя
+    const userReaction = data?.reactions?.some((r: any) => r?.fid === userFid);
+    
+    console.log(`🔍 [RECAST] Cast: ${castHash}, User: ${userFid}, Found: ${userReaction}, Total reactions: ${data?.reactions?.length || 0}`);
+    
+    return userReaction || false;
 
   } catch (err) {
     console.error("❌ checkUserRecasted error:", err);
@@ -187,9 +209,18 @@ export async function checkUserCommented(castHash: string, userFid: number): Pro
       headers: { "api_key": cleanApiKey }
     });
 
+    if (!res.ok) {
+      console.error(`❌ [COMMENT] API error: ${res.status} ${res.statusText}`);
+      return false;
+    }
+
     const data = await res.json();
 
-    return data?.result?.casts?.some((c: any) => c.author?.fid === userFid) || false;
+    const userComment = data?.result?.casts?.some((c: any) => c.author?.fid === userFid) || false;
+    
+    console.log(`🔍 [COMMENT] Cast: ${castHash}, User: ${userFid}, Found: ${userComment}, Total comments: ${data?.result?.casts?.length || 0}`);
+
+    return userComment;
 
   } catch (err) {
     console.error("❌ checkUserCommented error:", err);
