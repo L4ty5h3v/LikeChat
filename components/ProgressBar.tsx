@@ -1,12 +1,14 @@
 // Progress bar for task completion
 import React from 'react';
+import type { TaskProgress } from '@/types';
 
 interface ProgressBarProps {
   completed: number;
   total: number;
+  tasks?: TaskProgress[]; // Опционально: для отображения статусов
 }
 
-const ProgressBar: React.FC<ProgressBarProps> = ({ completed, total }) => {
+const ProgressBar: React.FC<ProgressBarProps> = ({ completed, total, tasks }) => {
   const percentage = (completed / total) * 100;
 
   return (
@@ -33,21 +35,62 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ completed, total }) => {
         </div>
       </div>
 
-      {/* Hearts for visualization */}
-      <div className="flex justify-center gap-1 mt-3">
-        {Array.from({ length: total }).map((_, index) => (
-          <span
-            key={index}
-            className={`text-sm transition-all duration-300 ${
-              index < completed
-                ? 'text-primary scale-105'
-                : 'text-gray-300'
-            }`}
-          >
-            ❤️
-          </span>
-        ))}
-      </div>
+      {/* Статусы задач для визуализации */}
+      {tasks && tasks.length > 0 && (
+        <div className="flex justify-center gap-1 mt-3 flex-wrap">
+          {tasks.map((task, index) => {
+            let emoji = '⏳'; // Ожидает проверки
+            let className = 'text-gray-400';
+            
+            if (task.completed && task.verified) {
+              emoji = '🟢'; // Выполнено
+              className = 'text-green-500 scale-110';
+            } else if (task.error) {
+              emoji = '🔴'; // Ошибка
+              className = 'text-red-500 scale-110';
+            } else if (task.verifying) {
+              emoji = '🟡'; // Выполняется
+              className = 'text-yellow-500 scale-110 animate-pulse';
+            }
+            
+            return (
+              <span
+                key={task.link_id}
+                className={`text-sm transition-all duration-300 ${className}`}
+                title={
+                  task.completed && task.verified
+                    ? 'Выполнено'
+                    : task.error
+                    ? 'Ошибка'
+                    : task.verifying
+                    ? 'Выполняется'
+                    : 'Ожидает проверки'
+                }
+              >
+                {emoji}
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Hearts for visualization (fallback если нет tasks) */}
+      {(!tasks || tasks.length === 0) && (
+        <div className="flex justify-center gap-1 mt-3">
+          {Array.from({ length: total }).map((_, index) => (
+            <span
+              key={index}
+              className={`text-sm transition-all duration-300 ${
+                index < completed
+                  ? 'text-primary scale-105'
+                  : 'text-gray-300'
+              }`}
+            >
+              ❤️
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

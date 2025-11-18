@@ -70,12 +70,26 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
               px-4 py-1.5 rounded-lg font-medium text-sm transition-all duration-300
               ${
                 task.completed && task.verified
-                  ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-yellow-400 via-amber-600 to-amber-800 text-white hover:shadow-xl hover:shadow-amber-500/50 hover:from-yellow-500 hover:via-amber-700 hover:to-amber-900 transition-all duration-300'
+                  ? 'bg-green-500 text-white cursor-not-allowed hover:bg-green-600'
+                  : task.error
+                  ? 'bg-red-500 text-white hover:bg-red-600 hover:shadow-lg'
+                  : task.verifying
+                  ? 'bg-yellow-500 text-white cursor-wait hover:bg-yellow-600'
+                  : task.opened
+                  ? 'bg-blue-500 text-white hover:bg-blue-600 hover:shadow-lg'
+                  : 'bg-gray-500 text-white hover:bg-gray-600 hover:shadow-lg'
               }
             `}
           >
-            {task.completed && task.verified ? 'Completed' : 'Open Post'}
+            {task.completed && task.verified 
+              ? 'Completed ✓' 
+              : task.error
+              ? 'Не найдено'
+              : task.verifying
+              ? 'В процессе...'
+              : task.opened 
+              ? 'Opened' 
+              : 'Open Post'}
           </button>
         </div>
       </div>

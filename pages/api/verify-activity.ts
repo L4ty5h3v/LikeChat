@@ -65,10 +65,27 @@ export default async function handler(
       });
     }
 
+    // ⚠️ Проверка длины cast_hash перед проверкой
+    const hashLength = castHash.length;
+    const EXPECTED_FULL_HASH_LENGTH = 42; // 0x + 40 hex chars
+    let hashWarning: string | null = null;
+    
+    if (hashLength < EXPECTED_FULL_HASH_LENGTH) {
+      if (hashLength < 20) {
+        hashWarning = `Hash слишком короткий (${hashLength} символов). Полный hash должен быть ${EXPECTED_FULL_HASH_LENGTH} символов. Проверьте в Neynar Explorer: https://neynar.com/explorer/casts?castHash=${castHash}`;
+        console.error(`❌ [VERIFY-API] ${hashWarning}`);
+      } else {
+        hashWarning = `Hash короче стандартного (${hashLength} символов). Убедитесь, что это полный hash.`;
+        console.warn(`⚠️ [VERIFY-API] ${hashWarning}`);
+      }
+    }
+
     console.log('📡 [VERIFY-API] Calling checkUserActivityByHash...', {
       castHash,
+      hashLength,
       userFid,
       activityType,
+      neynarExplorerUrl: `https://neynar.com/explorer/casts?castHash=${castHash}`,
     });
 
     const isCompleted = await checkUserActivityByHash(
@@ -80,15 +97,40 @@ export default async function handler(
     console.log('✅ [VERIFY-API] checkUserActivityByHash result:', {
       isCompleted,
       castHash,
+      hashLength,
       userFid,
       activityType,
     });
+
+    // Формируем понятное сообщение для пользователя
+    let userMessage: string | null = null;
+    let isError = false;
+    if (!isCompleted) {
+      if (hashLength < 20) {
+        userMessage = 'Неверный формат ссылки. Проверьте, что вы скопировали полную ссылку на cast.';
+        isError = true;
+      } else {
+        // Проверяем, была ли ошибка расширения hash (cast не найден)
+        // Это определяется по тому, что checkUserActivityByHash вернул false
+        // и возможно hash не был расширен
+        userMessage = 'Активность не найдена в сети. Убедитесь, что вы выполнили действие через официальный клиент Farcaster, связанный с Neynar. Попробуйте ещё раз через 1-2 минуты.';
+        // Если hash был коротким и не удалось расширить - это ошибка
+        if (hashLength < 42) {
+          isError = true;
+        }
+      }
+    }
 
     return res.status(200).json({ 
       success: true,
       completed: isCompleted,
       castHash,
-      activityType 
+      hashLength,
+      activityType,
+      hashWarning: hashWarning || undefined,
+      userMessage: userMessage || undefined,
+      isError: isError || undefined,
+      neynarExplorerUrl: `https://neynar.com/explorer/casts?castHash=${castHash}`,
     });
   } catch (error: any) {
     console.error('❌ [VERIFY-API] Error verifying activity:', {

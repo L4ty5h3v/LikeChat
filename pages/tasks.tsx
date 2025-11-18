@@ -21,6 +21,20 @@ export default function Tasks() {
   const [completedCount, setCompletedCount] = useState(0);
   const [incompleteLinks, setIncompleteLinks] = useState<string[]>([]);
   const [showPublishedSuccess, setShowPublishedSuccess] = useState(false);
+  const [verificationMessages, setVerificationMessages] = useState<Array<{ linkId: string; message: string; neynarUrl?: string }>>([]);
+  // Загружаем openedTasks из localStorage при инициализации
+  const [openedTasks, setOpenedTasks] = useState<Record<string, boolean>>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('opened_tasks');
+        return saved ? JSON.parse(saved) : {};
+      } catch (e) {
+        console.warn('Failed to load opened tasks from localStorage:', e);
+        return {};
+      }
+    }
+    return {};
+  });
 
   // Загрузка данных
   useEffect(() => {
@@ -147,6 +161,7 @@ export default function Tasks() {
           pfp_url: link.pfp_url,
           completed: completedLinks.includes(link.id),
           verified: completedLinks.includes(link.id),
+          opened: openedTasks[link.id] === true, // Сохраняем состояние opened из локального состояния
         };
       });
 
@@ -257,8 +272,33 @@ export default function Tasks() {
     }
   };
 
+  // Отметить задачу как открытую
+  const markOpened = (linkId: string) => {
+    setOpenedTasks(prev => {
+      const updated = { ...prev, [linkId]: true };
+      // Сохраняем в localStorage
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('opened_tasks', JSON.stringify(updated));
+        } catch (e) {
+          console.warn('Failed to save opened tasks to localStorage:', e);
+        }
+      }
+      return updated;
+    });
+    // Также обновляем в tasks для немедленного отображения
+    setTasks(prevTasks => 
+      prevTasks.map(task => 
+        task.link_id === linkId ? { ...task, opened: true } : task
+      )
+    );
+  };
+
   // Открыть ссылку
-  const handleOpenLink = (castUrl: string) => {
+  const handleOpenLink = (castUrl: string, linkId: string) => {
+    // Отмечаем задачу как открытую
+    markOpened(linkId);
+    
     // Определяем, мобильное ли устройство
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     
@@ -291,7 +331,7 @@ export default function Tasks() {
     castHash: string;
     activityType: ActivityType;
     viewerFid: number;
-  }): Promise<{ completed: boolean }> => {
+  }): Promise<{ completed: boolean; userMessage?: string; hashWarning?: string; isError?: boolean; neynarExplorerUrl?: string }> => {
     try {
       const response = await fetch('/api/verify-activity', {
         method: 'POST',
@@ -309,13 +349,28 @@ export default function Tasks() {
       
       // ❌ Ошибки Neynar НЕ засчитываются как выполненные
       if (!response.ok || !data.success) {
-        return { completed: false };
+        return { 
+          completed: false,
+          userMessage: data.userMessage || 'Ошибка при проверке активности. Попробуйте ещё раз.',
+          hashWarning: data.hashWarning,
+          isError: data.isError || true,
+          neynarExplorerUrl: data.neynarExplorerUrl,
+        };
       }
 
-      return { completed: data.completed || false };
+      return { 
+        completed: data.completed || false,
+        userMessage: data.userMessage,
+        hashWarning: data.hashWarning,
+        isError: data.isError,
+        neynarExplorerUrl: data.neynarExplorerUrl,
+      };
     } catch (error: any) {
       console.error('❌ Neynar API error:', error);
-      return { completed: false };
+      return { 
+        completed: false,
+        userMessage: 'Ошибка при проверке активности. Попробуйте ещё раз через 1-2 минуты.',
+      };
     }
   };
 
@@ -341,7 +396,13 @@ export default function Tasks() {
     try {
       console.log(`🔍 [VERIFY] Processing ALL ${tasks.length} tasks in parallel...`);
 
+      // ✅ Сначала помечаем все задачи как проверяемые
+      setTasks(prevTasks => 
+        prevTasks.map(task => ({ ...task, verifying: true, error: false }))
+      );
+
       // ✅ Параллельная проверка всех задач через Promise.all
+      const messages: Array<{ linkId: string; message: string; neynarUrl?: string }> = [];
       const updatedTasks: TaskProgress[] = await Promise.all(
         tasks.map(async (task: TaskProgress) => {
           try {
@@ -351,10 +412,17 @@ export default function Tasks() {
             const castHash: string = task.cast_hash || '';
             if (!castHash) {
               console.warn(`⚠️ Task ${task.link_id} has no cast_hash, skipping verification`);
+              messages.push({
+                linkId: task.link_id,
+                message: 'Не удалось извлечь hash из ссылки. Проверьте формат ссылки.',
+              });
               return {
                 ...task,
                 completed: false,
                 verified: true,
+                verifying: false,
+                error: true, // Ошибка: нет hash
+                opened: task.opened || openedTasks[task.link_id] === true,
               } as TaskProgress;
             }
 
@@ -363,6 +431,27 @@ export default function Tasks() {
               activityType: task.activity_type || activity,
               viewerFid: user.fid, // ✅ используем текущего пользователя
             });
+
+            // Определяем, была ли ошибка (cast не найден)
+            const hasError = result.isError || (!result.completed && (
+              result.userMessage?.includes('не найден') || 
+              result.userMessage?.includes('Cast не найден') ||
+              result.userMessage?.includes('Неверный формат')
+            ));
+
+            // Собираем сообщения об ошибках для пользователя
+            if (!result.completed && result.userMessage) {
+              messages.push({
+                linkId: task.link_id,
+                message: result.userMessage,
+                neynarUrl: result.neynarExplorerUrl,
+              });
+            }
+
+            // Логируем предупреждения о hash
+            if (result.hashWarning) {
+              console.warn(`⚠️ [VERIFY] Hash warning for task ${task.link_id}:`, result.hashWarning);
+            }
 
             // Если задача выполнена - сохраняем в БД
             if (result.completed) {
@@ -394,17 +483,30 @@ export default function Tasks() {
               ...task,
               completed: result.completed,
               verified: true,
+              verifying: false,
+              error: hasError,
+              opened: task.opened || openedTasks[task.link_id] === true, // Сохраняем состояние opened
             } as TaskProgress;
           } catch (err: any) {
             console.error('❌ Neynar API error for task:', task.link_id, err);
+            messages.push({
+              linkId: task.link_id,
+              message: 'Ошибка при проверке активности. Попробуйте ещё раз через 1-2 минуты.',
+            });
             return {
               ...task,
               completed: false,
               verified: true, // Помечаем как проверенное, но не выполненное
+              verifying: false,
+              error: true, // Ошибка при проверке
+              opened: task.opened || openedTasks[task.link_id] === true,
             } as TaskProgress;
           }
         })
       );
+
+      // Сохраняем сообщения для отображения пользователю
+      setVerificationMessages(messages);
 
       // Обновляем состояние
       const newCompletedCount = updatedTasks.filter(t => t.completed).length;
@@ -430,9 +532,20 @@ export default function Tasks() {
           router.push('/buyToken');
         }, 1500);
       } else if (newCompletedCount < updatedTasks.length) {
-        // Показываем предупреждение
+        // Показываем предупреждение с детальными сообщениями
         const incompleteCount = updatedTasks.length - newCompletedCount;
-        const message = `Вы не выполнили все задания. Проверьте оставшиеся ${incompleteCount} ссылок.`;
+        let message = `Вы не выполнили все задания. Проверьте оставшиеся ${incompleteCount} ссылок.\n\n`;
+        
+        if (messages.length > 0) {
+          message += 'Детали:\n';
+          messages.forEach((msg, idx) => {
+            message += `\n${idx + 1}. ${msg.message}`;
+            if (msg.neynarUrl) {
+              message += `\n   Проверьте: ${msg.neynarUrl}`;
+            }
+          });
+        }
+        
         console.warn(message);
         alert(message);
       }
@@ -529,7 +642,7 @@ export default function Tasks() {
 
           {/* Модная карточка прогресса */}
           <div className="bg-white bg-opacity-95 backdrop-blur-sm rounded-3xl shadow-2xl p-8 mb-12 border border-white border-opacity-20 mt-32">
-            <ProgressBar completed={completedCount} total={tasks.length} />
+            <ProgressBar completed={completedCount} total={tasks.length} tasks={tasks} />
           </div>
 
           {/* Предупреждение о невыполненных заданиях */}
@@ -552,16 +665,58 @@ export default function Tasks() {
             </div>
           )}
 
+          {/* Сообщения о проблемах с верификацией */}
+          {verificationMessages.length > 0 && (
+            <div className="bg-gradient-to-r from-red-500/20 to-orange-500/20 backdrop-blur-sm border-2 border-red-500 rounded-2xl p-8 mb-8 shadow-xl">
+              <h3 className="font-black text-red-800 mb-4 flex items-center gap-3 text-2xl md:text-3xl">
+                <span className="text-3xl md:text-4xl">ℹ️</span>
+                ИНФОРМАЦИЯ О ПРОВЕРКЕ ({verificationMessages.length})
+              </h3>
+              <div className="space-y-4">
+                {verificationMessages.map((msg, index) => {
+                  const task = tasks.find(t => t.link_id === msg.linkId);
+                  return (
+                    <div key={index} className="bg-white bg-opacity-70 rounded-lg p-4">
+                      <p className="text-red-900 font-bold text-base md:text-lg mb-2">
+                        {task ? `Ссылка: ${task.cast_url.substring(0, 50)}...` : `Задача #${index + 1}`}
+                      </p>
+                      <p className="text-red-800 text-sm md:text-base mb-2">
+                        {msg.message}
+                      </p>
+                      {msg.neynarUrl && (
+                        <a
+                          href={msg.neynarUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline text-sm md:text-base font-semibold"
+                        >
+                          🔍 Проверить в Neynar Explorer →
+                        </a>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Список заданий */}
           <div className="space-y-6 mb-12">
-            {tasks.map((task, index) => (
-              <TaskCard
-                key={task.link_id}
-                task={task}
-                index={index}
-                onOpen={() => handleOpenLink(task.cast_url)}
-              />
-            ))}
+            {tasks.map((task, index) => {
+              // Объединяем opened из состояния tasks и openedTasks
+              const taskWithOpened = {
+                ...task,
+                opened: task.opened || openedTasks[task.link_id] === true,
+              };
+              return (
+                <TaskCard
+                  key={task.link_id}
+                  task={taskWithOpened}
+                  index={index}
+                  onOpen={() => handleOpenLink(task.cast_url, task.link_id)}
+                />
+              );
+            })}
           </div>
 
           {/* Модная кнопка проверки */}

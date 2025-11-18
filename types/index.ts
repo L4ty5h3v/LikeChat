@@ -40,6 +40,9 @@ export interface TaskProgress {
   user_fid_required: number;
   completed: boolean;
   verified: boolean;
+  opened?: boolean; // ✅ Отметка о том, что пользователь открыл пост
+  verifying?: boolean; // ✅ Задача проверяется в данный момент
+  error?: boolean; // ✅ Ошибка при проверке (cast не найден и т.д.)
   username: string;
   pfp_url: string;
 }
@@ -77,5 +80,19 @@ export interface NeynarComment {
   parent_hash: string;
   author_fid: number;
   text: string;
+}
+
+// Диагностика cast для проверки в Neynar Explorer
+export interface CastDiagnostics {
+  castHash: string;
+  isValid: boolean;
+  castFound: boolean;
+  neynarExplorerUrl: string;
+  castData: any | null;
+  reactions: {
+    likes: any[];
+    recasts: any[];
+  };
+  error?: string;
 }
 
