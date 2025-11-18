@@ -1,6 +1,11 @@
 // API endpoint для проверки активности пользователя на Farcaster
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { checkUserActivityByHash } from '@/lib/neynar';
+import { 
+  expandShortHash,
+  checkUserLiked,
+  checkUserRecasted,
+  checkUserCommented
+} from '@/lib/neynar';
 import type { ActivityType } from '@/types';
 
 export default async function handler(
@@ -18,17 +23,9 @@ export default async function handler(
       castHash,
       userFid,
       activityType,
-      hasCastHash: !!castHash,
-      hasUserFid: !!userFid,
-      hasActivityType: !!activityType,
     });
 
     if (!castHash || !userFid || !activityType) {
-      console.error('❌ [VERIFY-API] Missing required parameters:', {
-        hasCastHash: !!castHash,
-        hasUserFid: !!userFid,
-        hasActivityType: !!activityType,
-      });
       return res.status(400).json({ 
         error: 'Missing required parameters: castHash, userFid, activityType',
         success: false,
@@ -38,13 +35,6 @@ export default async function handler(
 
     // ⚠️ ГАРД: Проверяем наличие и валидность fid перед проверкой активности
     if (!userFid || typeof userFid !== 'number' || userFid <= 0 || !Number.isInteger(userFid)) {
-      console.error('❌ [VERIFY-API] Invalid or missing userFid:', {
-        userFid,
-        type: typeof userFid,
-        isNumber: typeof userFid === 'number',
-        isPositive: userFid > 0,
-        isInteger: Number.isInteger(userFid),
-      });
       return res.status(400).json({ 
         error: 'FID отсутствует или невалиден. Проверьте авторизацию перед верификацией.',
         completed: false,
@@ -54,99 +44,73 @@ export default async function handler(
 
     // Проверяем наличие API ключа Neynar
     if (!process.env.NEXT_PUBLIC_NEYNAR_API_KEY) {
-      console.warn('⚠️ [VERIFY-API] NEXT_PUBLIC_NEYNAR_API_KEY not configured - cannot verify activity');
-      // ❌ Ошибки Neynar НЕ засчитываются как выполненные
+      console.warn('⚠️ [VERIFY-API] NEXT_PUBLIC_NEYNAR_API_KEY not configured');
       return res.status(500).json({ 
         success: false,
         completed: false,
         error: 'Neynar API key not configured',
-        castHash,
-        activityType 
       });
     }
 
-    // ⚠️ Проверка длины cast_hash перед проверкой
-    const hashLength = castHash.length;
-    const EXPECTED_FULL_HASH_LENGTH = 42; // 0x + 40 hex chars
-    let hashWarning: string | null = null;
-    
-    if (hashLength < EXPECTED_FULL_HASH_LENGTH) {
-      if (hashLength < 20) {
-        hashWarning = `Hash слишком короткий (${hashLength} символов). Полный hash должен быть ${EXPECTED_FULL_HASH_LENGTH} символов. Проверьте в Neynar Explorer: https://neynar.com/explorer/casts?castHash=${castHash}`;
-        console.error(`❌ [VERIFY-API] ${hashWarning}`);
-      } else {
-        hashWarning = `Hash короче стандартного (${hashLength} символов). Убедитесь, что это полный hash.`;
-        console.warn(`⚠️ [VERIFY-API] ${hashWarning}`);
+    let fullHash = castHash;
+
+    // 1. Expand short farcaster.xyz hash
+    if (fullHash.length < 42) {
+      console.log(`🔄 [VERIFY-API] Short hash detected (${fullHash.length} chars), expanding...`);
+      const expanded = await expandShortHash(fullHash);
+
+      if (!expanded) {
+        return res.status(200).json({
+          success: false,
+          completed: false,
+          error: "Не удалось получить полный hash. Попробуйте позднее.",
+          hint: "Ссылка формата farcaster.xyz содержит короткий hash — мы автоматически пытаемся расширить его.",
+          castHash: fullHash,
+        });
       }
+
+      fullHash = expanded;
+      console.log(`✅ [VERIFY-API] Expanded ${castHash} → ${fullHash}`);
     }
 
-    console.log('📡 [VERIFY-API] Calling checkUserActivityByHash...', {
-      castHash,
-      hashLength,
-      userFid,
-      activityType,
-      neynarExplorerUrl: `https://neynar.com/explorer/casts?castHash=${castHash}`,
-    });
+    // 2. Check activity
+    let completed = false;
 
-    const isCompleted = await checkUserActivityByHash(
-      castHash,
-      userFid,
-      activityType as ActivityType
-    );
-
-    console.log('✅ [VERIFY-API] checkUserActivityByHash result:', {
-      isCompleted,
-      castHash,
-      hashLength,
-      userFid,
-      activityType,
-    });
-
-    // Формируем понятное сообщение для пользователя
-    let userMessage: string | null = null;
-    let isError = false;
-    if (!isCompleted) {
-      if (hashLength < 20) {
-        userMessage = 'Неверный формат ссылки. Проверьте, что вы скопировали полную ссылку на cast.';
-        isError = true;
-      } else {
-        // Проверяем, была ли ошибка расширения hash (cast не найден)
-        // Это определяется по тому, что checkUserActivityByHash вернул false
-        // и возможно hash не был расширен
-        userMessage = 'Активность не найдена в сети. Убедитесь, что вы выполнили действие через официальный клиент Farcaster, связанный с Neynar. Попробуйте ещё раз через 1-2 минуты.';
-        // Если hash был коротким и не удалось расширить - это ошибка
-        if (hashLength < 42) {
-          isError = true;
-        }
-      }
+    if (activityType === "like") {
+      completed = await checkUserLiked(fullHash, userFid);
+    } else if (activityType === "recast") {
+      completed = await checkUserRecasted(fullHash, userFid);
+    } else if (activityType === "comment") {
+      completed = await checkUserCommented(fullHash, userFid);
+    } else {
+      return res.status(400).json({
+        success: false,
+        completed: false,
+        error: `Unknown activity type: ${activityType}`,
+      });
     }
 
-    return res.status(200).json({ 
+    console.log('✅ [VERIFY-API] Verification result:', {
+      completed,
+      castHash: fullHash,
+      activityType,
+    });
+
+    return res.status(200).json({
       success: true,
-      completed: isCompleted,
-      castHash,
-      hashLength,
-      activityType,
-      hashWarning: hashWarning || undefined,
-      userMessage: userMessage || undefined,
-      isError: isError || undefined,
-      neynarExplorerUrl: `https://neynar.com/explorer/casts?castHash=${castHash}`,
+      completed,
+      castHash: fullHash,
+      activityType
     });
-  } catch (error: any) {
-    console.error('❌ [VERIFY-API] Error verifying activity:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name,
-      response: error?.response?.data,
-      status: error?.response?.status,
-    });
-    // ❌ Ошибки Neynar НЕ засчитываются как выполненные
-    return res.status(500).json({ 
+
+  } catch (err: any) {
+    console.error("❌ verify-activity API error:", err);
+    
+    return res.status(500).json({
       success: false,
       completed: false,
-      error: error.message || 'Failed to verify activity',
-      castHash: req.body.castHash,
-      activityType: req.body.activityType
+      error: "Internal server error",
+      message: err?.message || 'Unknown error'
     });
   }
 }

@@ -17,33 +17,55 @@ export interface VerifyResult {
 
 // Функция для извлечения hash из ссылки
 export function extractCastHash(url: string): string | null {
-  if (!url || typeof url !== 'string') {
-    console.warn('⚠️ Invalid cast URL (empty or not a string):', url);
+  try {
+    const parts = url.split("/");
+    const last = parts[parts.length - 1];
+    if (last.startsWith("0x")) return last;
+    return null;
+  } catch {
     return null;
   }
-
-  const patterns = [
-    /\/(0x[a-fA-F0-9]{8,})$/,      // farcaster.xyz/.../0x123...
-    /\/c\/(0x[a-fA-F0-9]{8,})/,      // firefly.gg/c/0x123...
-    /\/cast\/(0x[a-fA-F0-9]{8,})/,   // warpcast.com/~/cast/0x123...
-    /(0x[a-fA-F0-9]{8,})/,           // Просто hash в строке
-  ];
-
-  for (const pattern of patterns) {
-    const match = url.match(pattern);
-    if (match && match[1]) {
-      console.log(`✅ Extracted cast hash: ${match[1]} from URL: ${url.substring(0, 50)}...`);
-      return match[1];
-    }
-  }
-
-  console.warn('⚠️ extractCastHash: unsupported URL', url);
-  return null;
 }
 
 // Проверка, является ли hash полным (42 символа)
 function isFullHash(hash: string): boolean {
   return /^0x[a-fA-F0-9]{40}$/.test(hash);
+}
+
+// ------------------------
+// EXPAND SHORT HASH
+// ------------------------
+export async function expandShortHash(shortHash: string): Promise<string | null> {
+  if (shortHash.length >= 42) return shortHash;
+
+  if (!cleanApiKey) {
+    console.warn('⚠️ NEXT_PUBLIC_NEYNAR_API_KEY not configured');
+    return null;
+  }
+
+  try {
+    const url = `https://api.neynar.com/v2/farcaster/cast?identifier=${shortHash}&type=hash`;
+
+    const res = await fetch(url, {
+      headers: {
+        "api_key": cleanApiKey
+      }
+    });
+
+    const data = await res.json();
+
+    if (data?.result?.cast?.hash) {
+      console.log("✅ Full hash recovered:", data.result.cast.hash);
+      return data.result.cast.hash;
+    }
+
+    console.error("❌ Full hash not found:", data);
+    return null;
+
+  } catch (err) {
+    console.error("❌ expandShortHash error:", err);
+    return null;
+  }
 }
 
 // Функция диагностики cast
@@ -99,7 +121,84 @@ export async function diagnoseCast(castHash: string, userFid?: number): Promise<
   }
 }
 
+// ------------------------
+// CHECK LIKE
+// ------------------------
+export async function checkUserLiked(castHash: string, userFid: number): Promise<boolean> {
+  if (!cleanApiKey) {
+    console.warn('⚠️ NEXT_PUBLIC_NEYNAR_API_KEY not configured');
+    return false;
+  }
+
+  try {
+    const url = `https://api.neynar.com/v2/farcaster/reactions?cast_hash=${castHash}&types=likes&viewer_fid=${userFid}`;
+
+    const res = await fetch(url, {
+      headers: { "api_key": cleanApiKey }
+    });
+
+    const data = await res.json();
+    return data?.reactions?.length > 0;
+
+  } catch (err) {
+    console.error("❌ checkUserLiked error:", err);
+    return false;
+  }
+}
+
+// ------------------------
+// CHECK RECAST
+// ------------------------
+export async function checkUserRecasted(castHash: string, userFid: number): Promise<boolean> {
+  if (!cleanApiKey) {
+    console.warn('⚠️ NEXT_PUBLIC_NEYNAR_API_KEY not configured');
+    return false;
+  }
+
+  try {
+    const url = `https://api.neynar.com/v2/farcaster/reactions?cast_hash=${castHash}&types=recasts&viewer_fid=${userFid}`;
+
+    const res = await fetch(url, {
+      headers: { "api_key": cleanApiKey }
+    });
+
+    const data = await res.json();
+    return data?.reactions?.length > 0;
+
+  } catch (err) {
+    console.error("❌ checkUserRecasted error:", err);
+    return false;
+  }
+}
+
+// ------------------------
+// CHECK COMMENT
+// ------------------------
+export async function checkUserCommented(castHash: string, userFid: number): Promise<boolean> {
+  if (!cleanApiKey) {
+    console.warn('⚠️ NEXT_PUBLIC_NEYNAR_API_KEY not configured');
+    return false;
+  }
+
+  try {
+    const url = `https://api.neynar.com/v2/farcaster/casts?parent_hash=${castHash}`;
+
+    const res = await fetch(url, {
+      headers: { "api_key": cleanApiKey }
+    });
+
+    const data = await res.json();
+
+    return data?.result?.casts?.some((c: any) => c.author?.fid === userFid) || false;
+
+  } catch (err) {
+    console.error("❌ checkUserCommented error:", err);
+    return false;
+  }
+}
+
 // Проверка активности по типу (like, recast, comment)
+// ✅ Автоматически расширяет короткий hash до полного перед проверкой
 export async function checkUserActivityByHash(
   castHash: string, 
   userFid: number, 
@@ -110,42 +209,32 @@ export async function checkUserActivityByHash(
     return false;
   }
 
+  // ✅ ШАГ 1: Если hash короткий → расширяем до полного
+  let fullHash = castHash;
   if (!isFullHash(castHash)) {
-    console.error('❌ [ACTIVITY] Invalid hash format. Expected full hash (42 chars):', castHash);
-    return false;
-  }
-
-  try {
-    let url = '';
-    if (activityType === 'like' || activityType === 'recast') {
-      url = `${NEYNAR_BASE_URL}/farcaster/reactions?cast_hash=${castHash}&types=${activityType === 'like' ? 'likes' : 'recasts'}&viewer_fid=${userFid}`;
-    } else if (activityType === 'comment') {
-      url = `${NEYNAR_BASE_URL}/farcaster/casts?parent_hash=${castHash}`;
-    } else {
-      console.error('❌ [ACTIVITY] Unknown activity type:', activityType);
+    console.log(`🔄 [ACTIVITY] Short hash detected (${castHash.length} chars), expanding to full hash...`);
+    const expanded = await expandShortHash(castHash);
+    
+    if (!expanded) {
+      console.error(`❌ [ACTIVITY] Failed to expand short hash: ${castHash}`);
       return false;
     }
+    
+    fullHash = expanded;
+    console.log(`✅ [ACTIVITY] Expanded ${castHash} → ${fullHash}`);
+  }
 
-    const res = await fetch(url, { 
-      headers: { 
-        'api_key': cleanApiKey,
-        'Content-Type': 'application/json'
-      } 
-    });
-    const data = await res.json();
-
-    let completed = false;
-    if (activityType === 'like' || activityType === 'recast') {
-      completed = data.reactions && data.reactions.some((r: any) => r.reactor_fid === userFid);
-    } else if (activityType === 'comment') {
-      completed = data.result && data.result.casts && data.result.casts.some((c: any) => c.author?.fid === userFid);
-    }
-
-    console.log(`🔍 [ACTIVITY] Checked ${activityType} for cast ${castHash}, user ${userFid}: ${completed ? '✅ FOUND' : '❌ NOT FOUND'}`);
-    return completed;
-  } catch (err: any) {
-    console.error('❌ checkUserActivityByHash error:', err);
-    return false;
+  // ✅ ШАГ 2: Проверяем активность с полным hash
+  switch (activityType) {
+    case 'like':
+      return await checkUserLiked(fullHash, userFid);
+    case 'recast':
+      return await checkUserRecasted(fullHash, userFid);
+    case 'comment':
+      return await checkUserCommented(fullHash, userFid);
+    default:
+      console.error('❌ [ACTIVITY] Unknown activity type:', activityType);
+      return false;
   }
 }
 
