@@ -17,10 +17,11 @@ export default async function handler(
   }
 
   try {
-    const { castHash, userFid, activityType } = req.body;
+    const { castHash, castUrl, userFid, activityType } = req.body;
 
     console.log('🔍 [VERIFY-API] Received verification request:', {
       castHash,
+      castUrl,
       userFid,
       activityType,
     });
@@ -30,6 +31,17 @@ export default async function handler(
         error: 'Missing required parameters: castHash, userFid, activityType',
         success: false,
         completed: false 
+      });
+    }
+
+    // Проверяем, что hash не обрезан (если он короче 10 символов, это явно обрезанный)
+    if (castHash.length < 10) {
+      return res.status(200).json({
+        success: false,
+        completed: false,
+        error: "Hash слишком короткий (возможно обрезан). Требуется полный URL или полный hash.",
+        hint: "Пожалуйста, скопируйте полную ссылку из Warpcast или Farcaster. Полный hash должен содержать 42 символа (0x + 40 hex символов).",
+        castHash: castHash,
       });
     }
 
@@ -63,8 +75,8 @@ export default async function handler(
         return res.status(200).json({
           success: false,
           completed: false,
-          error: "Не удалось получить полный hash. Попробуйте позднее.",
-          hint: "Ссылка формата farcaster.xyz содержит короткий hash — мы автоматически пытаемся расширить его.",
+          error: "Не удалось получить полный hash. Hash слишком короткий или обрезан.",
+          hint: "Требуется полный URL или полный hash (0x + 40 hex символов). Скопируйте полную ссылку из Warpcast (например, https://warpcast.com/username/0x...) или Farcaster.",
           castHash: fullHash,
         });
       }
