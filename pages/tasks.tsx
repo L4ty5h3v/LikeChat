@@ -347,23 +347,29 @@ export default function Tasks() {
 
       const data = await response.json();
       
-      // ❌ Ошибки Neynar НЕ засчитываются как выполненные
-      if (!response.ok || !data.success) {
+      // Если HTTP ошибка (не 200) - это реальная ошибка
+      if (!response.ok) {
         return { 
           completed: false,
-          userMessage: data.userMessage || 'Ошибка при проверке активности. Попробуйте ещё раз.',
-          hashWarning: data.hashWarning,
-          isError: data.isError || true,
-          neynarExplorerUrl: data.neynarExplorerUrl,
+          userMessage: data.error || data.message || 'Ошибка при проверке активности. Попробуйте ещё раз.',
+          isError: true,
         };
       }
 
+      // Если success: false - это ошибка (не удалось расширить hash и т.д.)
+      if (!data.success) {
+        return { 
+          completed: false,
+          userMessage: data.error || data.hint || 'Ошибка при проверке активности. Попробуйте ещё раз.',
+          isError: true,
+        };
+      }
+
+      // success: true - проверка прошла успешно, но completed может быть false (активность не найдена)
       return { 
         completed: data.completed || false,
-        userMessage: data.userMessage,
-        hashWarning: data.hashWarning,
-        isError: data.isError,
-        neynarExplorerUrl: data.neynarExplorerUrl,
+        userMessage: data.completed ? undefined : 'Активность не найдена в сети. Убедитесь, что вы выполнили действие через официальный клиент Farcaster. Попробуйте ещё раз через 1-2 минуты.',
+        isError: false, // Это не ошибка, просто активность не найдена
       };
     } catch (error: any) {
       console.error('❌ Neynar API error:', error);
@@ -621,6 +627,7 @@ export default function Tasks() {
                     height={128}
                     className="w-full h-full object-cover"
                     priority
+                    unoptimized
                   />
                 </div>
               </div>
