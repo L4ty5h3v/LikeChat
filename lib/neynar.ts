@@ -40,6 +40,7 @@ export async function resolveCastUrl(url: string): Promise<string | null> {
       method: 'GET',
       headers: {
         'api-key': cleanApiKey,
+        'Authorization': `Bearer ${cleanApiKey}`, // Попробуем оба варианта
       },
     });
 
@@ -67,6 +68,7 @@ export async function resolveCastUrl(url: string): Promise<string | null> {
       headers: {
         'Content-Type': 'application/json',
         'api-key': cleanApiKey,
+        'Authorization': `Bearer ${cleanApiKey}`, // Попробуем оба варианта
       },
       body: JSON.stringify({ url }),
     });
@@ -96,6 +98,7 @@ export async function resolveCastUrl(url: string): Promise<string | null> {
         method: 'GET',
         headers: {
           'api-key': cleanApiKey,
+          'Authorization': `Bearer ${cleanApiKey}`, // Попробуем оба варианта
         },
       });
 
