@@ -324,10 +324,9 @@ export default function Tasks() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          castHash,
-          castUrl: castUrl || castHash, // Передаем castUrl если есть, иначе castHash
-          userFid: viewerFid,
+          castUrl: castUrl || castHash, // Передаем castUrl (или castHash если это URL)
           activityType,
+          userFid: viewerFid,
         }),
       });
 
@@ -418,52 +417,10 @@ export default function Tasks() {
               } as TaskProgress;
             }
 
-            // Проверяем, что hash не обрезан
-            // Если hash короткий, пытаемся использовать полный URL из cast_url
-            let hashToVerify = castHash;
-            if (castHash.length < 10 || (castHash.length < 42 && castHash.includes('...'))) {
-              console.warn(`⚠️ Task ${task.link_id} has truncated hash: ${castHash}`);
-              
-              // Пытаемся извлечь hash из полного URL, если он есть
-              if (task.cast_url && task.cast_url.length > 50) {
-                const fullHash = extractCastHash(task.cast_url);
-                if (fullHash && fullHash.length >= 10 && !fullHash.includes('...')) {
-                  console.log(`✅ [VERIFY] Using full hash from cast_url: ${fullHash.substring(0, 20)}...`);
-                  hashToVerify = fullHash;
-                } else {
-                  messages.push({
-                    linkId: task.link_id,
-                    message: 'Hash обрезан. Требуется полный URL или полный hash (0x + 40 hex символов). Скопируйте полную ссылку из Warpcast.',
-                  });
-                  return {
-                    ...task,
-                    completed: false,
-                    verified: true,
-                    verifying: false,
-                    error: true,
-                    opened: task.opened || openedTasks[task.link_id] === true,
-                  } as TaskProgress;
-                }
-              } else {
-                messages.push({
-                  linkId: task.link_id,
-                  message: 'Hash обрезан. Требуется полный URL или полный hash (0x + 40 hex символов). Скопируйте полную ссылку из Warpcast.',
-                });
-                return {
-                  ...task,
-                  completed: false,
-                  verified: true,
-                  verifying: false,
-                  error: true,
-                  opened: task.opened || openedTasks[task.link_id] === true,
-                } as TaskProgress;
-              }
-            }
-
-            // Передаем также cast_url для автоматического разрешения коротких ссылок
+            // Передаем cast_url для получения полного hash через getFullCastHash
             const result = await verifyActivity({
-              castHash: hashToVerify,
-              castUrl: task.cast_url, // Передаем полный URL для разрешения коротких ссылок
+              castHash: '', // Не используется, передаем castUrl
+              castUrl: task.cast_url, // ВАЖНО: передаем полный URL для разрешения
               activityType: task.activity_type || activity,
               viewerFid: user.fid, // ✅ используем текущего пользователя
             });
