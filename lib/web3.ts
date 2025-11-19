@@ -236,8 +236,14 @@ export async function approveUSDC(
       throw new Error('Farcaster Wallet не найден. Откройте приложение в Farcaster Mini App.');
     }
 
-    if (!TOKEN_SALE_CONTRACT_ADDRESS) {
-      throw new Error('Адрес смарт-контракта продажи не настроен. Установите NEXT_PUBLIC_TOKEN_SALE_CONTRACT_ADDRESS.');
+    // Проверяем, что адрес контракта валидный (не пустой и не только пробелы)
+    const cleanContractAddress = TOKEN_SALE_CONTRACT_ADDRESS?.trim();
+    if (!cleanContractAddress || cleanContractAddress.length < 10) {
+      console.warn('[web3] Token sale contract address not configured or invalid');
+      return {
+        success: false,
+        error: 'Адрес смарт-контракта продажи не настроен. Установите NEXT_PUBLIC_TOKEN_SALE_CONTRACT_ADDRESS.',
+      };
     }
 
     const signer = await provider.getSigner();
@@ -326,7 +332,14 @@ export async function buyToken(userFid: number): Promise<{
     }
 
     if (!saleContractAddress) {
-      throw new Error('Адрес смарт-контракта продажи не настроен. Установите NEXT_PUBLIC_TOKEN_SALE_CONTRACT_ADDRESS или NEXT_PUBLIC_TOKEN_SALE_USDC_CONTRACT_ADDRESS.');
+      const cleanContractAddress = saleContractAddress?.trim();
+      if (!cleanContractAddress || cleanContractAddress.length < 10) {
+        console.warn('[web3] Token sale contract address not configured or invalid');
+        return {
+          success: false,
+          error: 'Адрес смарт-контракта продажи не настроен. Установите NEXT_PUBLIC_TOKEN_SALE_CONTRACT_ADDRESS или NEXT_PUBLIC_TOKEN_SALE_USDC_CONTRACT_ADDRESS.',
+        };
+      }
     }
 
     // Проверить и переключить на Base сеть

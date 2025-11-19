@@ -314,10 +314,8 @@ export default function Tasks() {
           
           if (result.completed) {
             console.log(`✅ [POLLING] Activity found for link ${linkId}!`);
-            clearInterval(pollIntervalId);
-            delete pollingIntervalsRef.current[linkId];
             
-            // Обновляем задачу как выполненную
+            // Обновляем задачу как выполненную (НЕ останавливаем polling сразу)
             setTasks(prevTasks =>
               prevTasks.map(task =>
                 task.link_id === linkId
@@ -336,6 +334,11 @@ export default function Tasks() {
             } catch (e) {
               console.error('[POLLING] Error marking link as completed', e);
             }
+            
+            // Останавливаем polling только после успешного сохранения
+            clearInterval(pollIntervalId);
+            delete pollingIntervalsRef.current[linkId];
+            return; // Выходим из интервала
           } else if (pollCount >= maxPolls) {
             console.log(`⏰ [POLLING] Max polls reached for link ${linkId}, stopping`);
             clearInterval(pollIntervalId);

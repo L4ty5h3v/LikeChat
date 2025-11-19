@@ -137,15 +137,19 @@ export async function checkUserReactionsByCast(
 ): Promise<boolean> {
   if (!cleanApiKey) return false;
   
+  // Для комментариев используем специальную проверку
+  if (activityType === "comment") {
+    return await checkUserCommented(castHash, userFid);
+  }
+  
   try {
     // Маппинг типов активности на типы реакций Neynar
-    const reactionTypeMap: Record<ActivityType, string> = {
+    const reactionTypeMap: Record<"like" | "recast", string> = {
       like: "like",
       recast: "recast",
-      comment: "reply", // Neynar использует "reply" для комментариев
     };
     
-    const reactionType = reactionTypeMap[activityType];
+    const reactionType = reactionTypeMap[activityType as "like" | "recast"];
     if (!reactionType) {
       console.error("[neynar] Unknown activity type for reactions check:", activityType);
       return false;
@@ -209,15 +213,56 @@ export async function checkUserRecasted(fullHash: string, userFid: number): Prom
 
 export async function checkUserCommented(fullHash: string, userFid: number): Promise<boolean> {
   if (!cleanApiKey) return false;
+  
+  // Метод 1: Проверка через parent_hash (стандартный метод)
   try {
     const url = `https://api.neynar.com/v2/farcaster/casts?parent_hash=${fullHash}`;
     const res = await fetch(url, { headers: { "api-key": cleanApiKey, "api_key": cleanApiKey } });
     const data = await res.json();
-    return Array.isArray(data?.result?.casts) && data.result.casts.some((c: any) => c.author?.fid === userFid);
+    const casts = data?.result?.casts || data?.casts || [];
+    const hasComment = casts.some((c: any) => c.author?.fid === userFid);
+    if (hasComment) {
+      console.log("[neynar] checkUserCommented: found via parent_hash", { fullHash, userFid });
+      return true;
+    }
   } catch (e) {
-    console.error("[neynar] checkUserCommented error", e);
-    return false;
+    console.warn("[neynar] checkUserCommented: parent_hash method failed", e);
   }
+  
+  // Метод 2: Проверка через replies endpoint
+  try {
+    const repliesUrl = `https://api.neynar.com/v2/farcaster/cast/replies?identifier=${fullHash}&type=hash`;
+    const res = await fetch(repliesUrl, { headers: { "api-key": cleanApiKey, "api_key": cleanApiKey } });
+    const data = await res.json();
+    const replies = data?.result?.replies || data?.replies || [];
+    const hasReply = replies.some((r: any) => r.author?.fid === userFid);
+    if (hasReply) {
+      console.log("[neynar] checkUserCommented: found via replies endpoint", { fullHash, userFid });
+      return true;
+    }
+  } catch (e) {
+    console.warn("[neynar] checkUserCommented: replies endpoint failed", e);
+  }
+  
+  // Метод 3: Проверка через user/casts (все касты пользователя, ищем комментарии к этому cast)
+  try {
+    const userCastsUrl = `https://api.neynar.com/v2/farcaster/user/casts?fid=${userFid}&limit=100`;
+    const res = await fetch(userCastsUrl, { headers: { "api-key": cleanApiKey, "api_key": cleanApiKey } });
+    const data = await res.json();
+    const casts = data?.result?.casts || data?.casts || [];
+    const hasComment = casts.some((c: any) => {
+      const parentHash = c.parent_hash || c.parent?.hash || c.parent_author?.hash;
+      return parentHash?.toLowerCase() === fullHash.toLowerCase();
+    });
+    if (hasComment) {
+      console.log("[neynar] checkUserCommented: found via user/casts", { fullHash, userFid });
+      return true;
+    }
+  } catch (e) {
+    console.warn("[neynar] checkUserCommented: user/casts method failed", e);
+  }
+  
+  return false;
 }
 
 /** Универсальная проверка активности по типу (like, recast, comment) */
