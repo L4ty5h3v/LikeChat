@@ -331,15 +331,13 @@ export async function buyToken(userFid: number): Promise<{
       saleContractAddress = saleContractAddress.trim().replace(/[\r\n]/g, '');
     }
 
-    if (!saleContractAddress) {
-      const cleanContractAddress = saleContractAddress?.trim();
-      if (!cleanContractAddress || cleanContractAddress.length < 10) {
-        console.warn('[web3] Token sale contract address not configured or invalid');
-        return {
-          success: false,
-          error: 'Адрес смарт-контракта продажи не настроен. Установите NEXT_PUBLIC_TOKEN_SALE_CONTRACT_ADDRESS или NEXT_PUBLIC_TOKEN_SALE_USDC_CONTRACT_ADDRESS.',
-        };
-      }
+    const cleanContractAddress = saleContractAddress?.trim();
+    if (!cleanContractAddress || cleanContractAddress.length < 10) {
+      console.warn('[web3] Token sale contract address not configured or invalid');
+      return {
+        success: false,
+        error: 'Адрес смарт-контракта продажи не настроен. Установите NEXT_PUBLIC_TOKEN_SALE_CONTRACT_ADDRESS или NEXT_PUBLIC_TOKEN_SALE_USDC_CONTRACT_ADDRESS.',
+      };
     }
 
     // Проверить и переключить на Base сеть
