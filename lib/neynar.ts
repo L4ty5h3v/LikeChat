@@ -367,6 +367,89 @@ export async function checkUserCommented(castHash: string, userFid: number): Pro
 }
 
 // ------------------------
+// CHECK LIKES BY USERNAME (надежная проверка через лайки пользователя)
+// ------------------------
+/**
+ * Проверяет лайки пользователя через его FID, без зависимости от полного cast hash
+ * Фокусируется на активности пользователя, а не на конкретном посте
+ */
+export async function checkUserLikesByUsername(
+  username: string,
+  partialHash: string
+): Promise<{ liked: boolean; error?: string; details?: any }> {
+  if (!cleanApiKey) {
+    return { liked: false, error: 'NEXT_PUBLIC_NEYNAR_API_KEY not configured' };
+  }
+
+  try {
+    // Очищаем partial hash от возможных "..." в конце
+    const cleanPartialHash = partialHash.replace(/\.\.\./g, '').trim().toLowerCase();
+    
+    console.log(`🔄 [LIKES-USERNAME] Checking likes for ${username} with partial hash ${cleanPartialHash.substring(0, 12)}...`);
+
+    // ШАГ 1: Получаем FID по username
+    const userUrl = `https://api.neynar.com/v2/farcaster/user/by_username?username=${encodeURIComponent(username)}`;
+    const userRes = await fetch(userUrl, {
+      headers: { "api_key": cleanApiKey }
+    });
+
+    if (!userRes.ok) {
+      console.error(`❌ [LIKES-USERNAME] Failed to get user: ${userRes.status} ${userRes.statusText}`);
+      return { liked: false, error: `Failed to get user: ${userRes.status}` };
+    }
+
+    const userData = await userRes.json();
+    if (!userData?.result?.user?.fid) {
+      console.error('❌ [LIKES-USERNAME] User not found in response:', userData);
+      return { liked: false, error: 'User not found' };
+    }
+
+    const fid = userData.result.user.fid;
+    console.log(`✅ [LIKES-USERNAME] Found FID: ${fid} for username: ${username}`);
+
+    // ШАГ 2: Получаем лайки пользователя
+    const likesUrl = `https://api.neynar.com/v2/farcaster/user/likes?fid=${fid}&limit=50`;
+    const likesRes = await fetch(likesUrl, {
+      headers: { "api_key": cleanApiKey }
+    });
+
+    if (!likesRes.ok) {
+      console.error(`❌ [LIKES-USERNAME] Failed to get likes: ${likesRes.status} ${likesRes.statusText}`);
+      return { liked: false, error: `Failed to get likes: ${likesRes.status}` };
+    }
+
+    const likesData = await likesRes.json();
+    const likes = likesData?.result?.likes || [];
+
+    if (likes.length === 0) {
+      console.log(`⚠️ [LIKES-USERNAME] No likes found for user ${username}`);
+      return { liked: false };
+    }
+
+    console.log(`🔍 [LIKES-USERNAME] Checking ${likes.length} likes for partial hash match...`);
+
+    // ШАГ 3: Ищем совпадение по partial hash
+    const matchingLike = likes.find((like: any) => {
+      const castHash = (like.cast?.hash || '').toLowerCase();
+      const castId = (like.cast?.id || '').toLowerCase();
+      return castHash.startsWith(cleanPartialHash) || castId.includes(cleanPartialHash);
+    });
+
+    if (matchingLike) {
+      console.log(`✅ [LIKES-USERNAME] Found matching like! Cast hash: ${matchingLike.cast?.hash}`);
+      return { liked: true, details: matchingLike };
+    }
+
+    console.log(`⚠️ [LIKES-USERNAME] No matching like found for partial hash ${cleanPartialHash}`);
+    return { liked: false };
+
+  } catch (error: any) {
+    console.error('❌ [LIKES-USERNAME] Error checking likes by username:', error);
+    return { liked: false, error: error.message };
+  }
+}
+
+// ------------------------
 // CHECK ACTIVITY BY USERNAME (упрощенная проверка)
 // ------------------------
 /**
@@ -382,6 +465,15 @@ export async function checkUserActivityByUsername(
   if (!cleanApiKey) {
     console.warn('⚠️ [ACTIVITY-USERNAME] NEXT_PUBLIC_NEYNAR_API_KEY not configured');
     return false;
+  }
+
+  // Для лайков используем более надежную проверку через лайки пользователя
+  if (activityType === 'like' && partialHash && partialHash.length >= 6) {
+    const result = await checkUserLikesByUsername(targetUsername, partialHash);
+    if (result.liked) {
+      console.log(`✅ [ACTIVITY-USERNAME] Like verified by username: ${targetUsername}`);
+      return true;
+    }
   }
 
   try {
