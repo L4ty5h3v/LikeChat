@@ -26,21 +26,47 @@ export function extractAnyHash(url: string): string | null {
   return match ? match[0].toLowerCase() : null;
 }
 
-/** Resolve URL через Neynar (как в Inflynce) — возвращает полный hash или null */
+/** Resolve URL через Neynar — возвращает полный hash или null */
 export async function resolveCastUrl(url: string): Promise<string | null> {
   if (!cleanApiKey) {
     console.warn('[neynar] NEYNAR_API_KEY not configured');
     return null;
   }
 
+  // Метод 1: Попробуем через /v2/farcaster/cast с identifier=url
+  try {
+    const encodedUrl = encodeURIComponent(url);
+    const res = await fetch(`https://api.neynar.com/v2/farcaster/cast?identifier=${encodedUrl}&type=url`, {
+      method: 'GET',
+      headers: {
+        'api-key': cleanApiKey,
+      },
+    });
+
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch { data = null; }
+
+    if (res.ok && data) {
+      const hash = data?.result?.cast?.hash || data?.cast?.hash || data?.result?.hash || null;
+      if (hash) {
+        console.log('[neynar] resolveCastUrl: resolved via /cast endpoint', hash);
+        return hash.toLowerCase();
+      }
+    } else {
+      console.warn('[neynar] resolveCastUrl: /cast endpoint failed', res.status, res.statusText, text?.substring(0, 200));
+    }
+  } catch (err) {
+    console.warn('[neynar] resolveCastUrl: /cast endpoint error', err);
+  }
+
+  // Метод 2: Попробуем через /v2/farcaster/cast/resolve (POST)
   try {
     const res = await fetch('https://api.neynar.com/v2/farcaster/cast/resolve', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        // многие примеры Neynar ожидают header 'api-key' — оставим этот вариант
         'api-key': cleanApiKey,
-        // если у тебя docs требуют Authorization, можно добавить: Authorization: `Bearer ${cleanApiKey}`
       },
       body: JSON.stringify({ url }),
     });
@@ -49,20 +75,50 @@ export async function resolveCastUrl(url: string): Promise<string | null> {
     let data;
     try { data = JSON.parse(text); } catch { data = null; }
 
-    if (!res.ok) {
-      console.error('[neynar] resolveCastUrl response not ok', res.status, res.statusText, text);
-      return null;
+    if (res.ok && data) {
+      const hash = data?.cast?.hash || data?.result?.cast?.hash || data?.result?.hash || null;
+      if (hash) {
+        console.log('[neynar] resolveCastUrl: resolved via /cast/resolve endpoint', hash);
+        return hash.toLowerCase();
+      }
+    } else {
+      console.warn('[neynar] resolveCastUrl: /cast/resolve endpoint failed', res.status, res.statusText, text?.substring(0, 200));
     }
-
-    // разные форматы ответа — пробуем стандартные поля
-    const hash = data?.cast?.hash || data?.result?.cast?.hash || data?.result?.hash || null;
-    if (hash) return hash.toLowerCase();
-    console.warn('[neynar] resolveCastUrl: no hash in response', data);
-    return null;
   } catch (err) {
-    console.error('[neynar] resolveCastUrl error', err);
-    return null;
+    console.warn('[neynar] resolveCastUrl: /cast/resolve endpoint error', err);
   }
+
+  // Метод 3: Если в URL есть короткий hash, попробуем через /v2/farcaster/casts?short_hash
+  const shortHash = extractAnyHash(url);
+  if (shortHash && shortHash.length < 42) {
+    try {
+      const res = await fetch(`https://api.neynar.com/v2/farcaster/casts?short_hash=${shortHash}`, {
+        method: 'GET',
+        headers: {
+          'api-key': cleanApiKey,
+        },
+      });
+
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = null; }
+
+      if (res.ok && data) {
+        const casts = data?.result?.casts || data?.casts || [];
+        if (casts.length > 0 && casts[0]?.hash) {
+          console.log('[neynar] resolveCastUrl: resolved via /casts?short_hash endpoint', casts[0].hash);
+          return casts[0].hash.toLowerCase();
+        }
+      } else {
+        console.warn('[neynar] resolveCastUrl: /casts?short_hash endpoint failed', res.status, res.statusText, text?.substring(0, 200));
+      }
+    } catch (err) {
+      console.warn('[neynar] resolveCastUrl: /casts?short_hash endpoint error', err);
+    }
+  }
+
+  console.error('[neynar] resolveCastUrl: all methods failed for URL', url);
+  return null;
 }
 
 /** Универсальная функция получения полного hash по URL или короткому hash */

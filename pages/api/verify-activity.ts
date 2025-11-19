@@ -20,11 +20,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ success: false, completed: false, error: 'Missing params' });
   }
 
+  // Проверяем наличие API ключа
+  if (!process.env.NEYNAR_API_KEY) {
+    console.error('[VERIFY] NEYNAR_API_KEY not configured');
+    return res.status(500).json({
+      success: false,
+      completed: false,
+      error: 'Neynar API key not configured',
+    });
+  }
+
   // получаем полный hash (resolve if needed)
+  console.log('[VERIFY] Attempting to resolve castUrl:', castUrl);
   const fullHash = await getFullCastHash(castUrl);
   console.log('[VERIFY] resolved fullHash:', fullHash);
 
   if (!fullHash) {
+    console.error('[VERIFY] Failed to resolve full hash for URL:', castUrl);
     return res.status(200).json({
       success: false,
       completed: false,
