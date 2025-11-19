@@ -81,14 +81,20 @@ export async function getFullCastHash(input: string): Promise<string | null> {
   const full = extractFullHashFromUrl(normalized);
   if (full) return full;
 
-  // 2 — короткий hash - пытаемся расширить через resolve
+  // 2 — короткий hash - ОБЯЗАТЕЛЬНО пытаемся расширить через resolve
   const short = extractAnyHash(normalized);
   if (short) {
     // Если короткий hash, пытаемся расширить его до полного
     const resolved = await resolveCastUrl(normalized);
     if (resolved) return resolved;
-    // Если не удалось расширить, возвращаем короткий (может работать для некоторых API)
-    return short;
+    
+    // Если не удалось расширить через URL, попробуем resolve сам хеш
+    const resolvedHash = await resolveCastUrl(short);
+    if (resolvedHash) return resolvedHash;
+    
+    // Если всё равно не удалось, НЕ возвращаем короткий - API требует полный хеш
+    console.warn("[neynar] getFullCastHash: failed to expand short hash", short);
+    return null;
   }
 
   // 3 — resolve URL через Neynar
