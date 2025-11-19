@@ -38,6 +38,12 @@ const Layout: React.FC<LayoutProps> = ({ children, title = 'Like Chat 💌' }) =
         <title>{title}</title>
         <meta name="description" content="Mutual love from Mrs. Crypto" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        
+        {/* Farcaster Mini App мета-теги - предотвращают распознавание как Frame */}
+        <meta name="farcaster:miniapp" content="true" />
+        <meta name="farcaster:frame" content="false" />
+        <meta property="og:type" content="website" />
+        
         <link rel="icon" href="/favicon.ico" />
       </Head>
       
