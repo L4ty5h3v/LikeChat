@@ -40,9 +40,13 @@ export function extractAnyHash(url: string): string | null {
 // RESOLVE URL → FULL HASH (как Inflynce)
 // ----------------------------
 export async function resolveCastUrl(url: string): Promise<string | null> {
-  if (!cleanApiKey) return null;
+  if (!cleanApiKey) {
+    console.warn("[neynar] resolveCastUrl: NEYNAR_API_KEY not configured");
+    return null;
+  }
 
   try {
+    console.log("[neynar] resolveCastUrl: attempting to resolve", url);
     const res = await fetch(
       "https://api.neynar.com/v2/farcaster/cast/resolve",
       {
@@ -56,11 +60,22 @@ export async function resolveCastUrl(url: string): Promise<string | null> {
       }
     );
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error("[neynar] resolveCastUrl: API error", res.status, res.statusText, errorText?.substring(0, 200));
+      return null;
+    }
 
     const data = await res.json();
     const hash = data?.cast?.hash || data?.result?.cast?.hash || null;
-    return hash ? hash.toLowerCase() : null;
+    
+    if (hash) {
+      console.log("[neynar] resolveCastUrl: successfully resolved", url, "→", hash);
+      return hash.toLowerCase();
+    } else {
+      console.warn("[neynar] resolveCastUrl: no hash in response", data);
+      return null;
+    }
   } catch (err) {
     console.error("[neynar] resolveCastUrl err", err);
     return null;
