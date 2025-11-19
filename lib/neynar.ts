@@ -152,3 +152,89 @@ export async function checkUserActivityByHash(
 export function extractCastHash(url: string): string | null {
   return extractFullHashFromUrl(url);
 }
+
+/** Получить данные каста по URL (включая автора) */
+export async function getCastAuthor(castUrl: string): Promise<{ fid: number; username: string; pfp_url: string } | null> {
+  if (!cleanApiKey) {
+    console.warn('[neynar] NEYNAR_API_KEY not configured');
+    return null;
+  }
+
+  try {
+    const fullHash = await getFullCastHash(castUrl);
+    if (!fullHash) {
+      console.warn('[neynar] getCastAuthor: could not resolve hash from URL', castUrl);
+      return null;
+    }
+
+    const url = `https://api.neynar.com/v2/farcaster/cast?identifier=${fullHash}&type=hash`;
+    const res = await fetch(url, { headers: { 'api-key': cleanApiKey } });
+    const data = await res.json();
+
+    const cast = data?.result?.cast || data?.cast || null;
+    if (!cast || !cast.author) {
+      console.warn('[neynar] getCastAuthor: no cast or author found', data);
+      return null;
+    }
+
+    const author = cast.author;
+    return {
+      fid: author.fid || 0,
+      username: author.username || author.display_name || '',
+      pfp_url: author.pfp?.url || author.pfp_url || author.profile?.pfp?.url || '',
+    };
+  } catch (err) {
+    console.error('[neynar] getCastAuthor error', err);
+    return null;
+  }
+}
+
+/** Получить данные пользователя по username */
+export async function getUserByUsername(username: string): Promise<{ fid: number; username: string; display_name?: string; pfp?: { url: string }; pfp_url?: string; profile?: { pfp: { url: string } } } | null> {
+  if (!cleanApiKey) {
+    console.warn('[neynar] NEYNAR_API_KEY not configured');
+    return null;
+  }
+
+  try {
+    const url = `https://api.neynar.com/v2/farcaster/user/by_username?username=${encodeURIComponent(username)}`;
+    const res = await fetch(url, { headers: { 'api-key': cleanApiKey } });
+    const data = await res.json();
+
+    const user = data?.result?.user || data?.user || null;
+    if (!user) {
+      console.warn('[neynar] getUserByUsername: user not found', username);
+      return null;
+    }
+
+    return user;
+  } catch (err) {
+    console.error('[neynar] getUserByUsername error', err);
+    return null;
+  }
+}
+
+/** Получить данные пользователя по FID */
+export async function getUserByFid(fid: number): Promise<{ fid: number; username: string; display_name?: string; pfp?: { url: string }; pfp_url?: string; profile?: { pfp: { url: string } } } | null> {
+  if (!cleanApiKey) {
+    console.warn('[neynar] NEYNAR_API_KEY not configured');
+    return null;
+  }
+
+  try {
+    const url = `https://api.neynar.com/v2/farcaster/user/by_fid?fid=${fid}`;
+    const res = await fetch(url, { headers: { 'api-key': cleanApiKey } });
+    const data = await res.json();
+
+    const user = data?.result?.user || data?.user || null;
+    if (!user) {
+      console.warn('[neynar] getUserByFid: user not found', fid);
+      return null;
+    }
+
+    return user;
+  } catch (err) {
+    console.error('[neynar] getUserByFid error', err);
+    return null;
+  }
+}

@@ -2,7 +2,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import axios from 'axios';
 
-const NEYNAR_API_KEY = process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '';
+// Используем серверную переменную окружения (не NEXT_PUBLIC_*)
+const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY || '';
 const NEYNAR_BASE_URL = 'https://api.neynar.com/v2';
 
 export default async function handler(
