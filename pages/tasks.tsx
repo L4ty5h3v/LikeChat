@@ -1,5 +1,5 @@
 // Страница задач: прохождение 10 ссылок
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
 import Layout from '@/components/Layout';
@@ -25,6 +25,8 @@ export default function Tasks() {
   // Состояние openedTasks только в памяти (не сохраняется в localStorage)
   // Сбрасывается при каждой загрузке страницы, чтобы можно было открывать ссылки снова
   const [openedTasks, setOpenedTasks] = useState<Record<string, boolean>>({});
+  // Храним активные polling интервалы для очистки
+  const pollingIntervalsRef = useRef<Record<string, NodeJS.Timeout>>({});
 
   // Загрузка данных
   useEffect(() => {
@@ -278,10 +280,107 @@ export default function Tasks() {
     );
   };
 
+  // Polling для автоматической проверки активности после открытия ссылки
+  const startPollingForActivity = (castUrl: string, linkId: string, activityType: ActivityType) => {
+    if (!user?.fid) return;
+
+    // Если уже есть активный polling для этой ссылки, не создаем новый
+    if (pollingIntervalsRef.current[linkId]) {
+      console.log(`⚠️ [POLLING] Polling already active for link ${linkId}`);
+      return;
+    }
+
+    console.log(`🔄 [POLLING] Starting polling for link ${linkId}`, { castUrl, activityType });
+    
+    // Ждем 30 секунд перед первой проверкой (даем время на индексацию)
+    const initialDelay = 30000; // 30 секунд
+    
+    const timeoutId = setTimeout(() => {
+      let pollCount = 0;
+      const maxPolls = 10; // Максимум 10 проверок (5 минут)
+      const pollInterval = 30000; // Проверяем каждые 30 секунд
+      
+      const pollIntervalId = setInterval(async () => {
+        pollCount++;
+        console.log(`🔄 [POLLING] Poll attempt ${pollCount}/${maxPolls} for link ${linkId}`);
+        
+        try {
+          const result = await verifyActivity({
+            castHash: '',
+            castUrl: castUrl,
+            activityType: activityType,
+            viewerFid: user.fid,
+          });
+          
+          if (result.completed) {
+            console.log(`✅ [POLLING] Activity found for link ${linkId}!`);
+            clearInterval(pollIntervalId);
+            delete pollingIntervalsRef.current[linkId];
+            
+            // Обновляем задачу как выполненную
+            setTasks(prevTasks =>
+              prevTasks.map(task =>
+                task.link_id === linkId
+                  ? { ...task, completed: true, verified: true, verifying: false, error: false }
+                  : task
+              )
+            );
+            
+            // Помечаем ссылку как выполненную в базе
+            try {
+              await fetch('/api/mark-link-completed', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userFid: user.fid, linkId }),
+              });
+            } catch (e) {
+              console.error('[POLLING] Error marking link as completed', e);
+            }
+          } else if (pollCount >= maxPolls) {
+            console.log(`⏰ [POLLING] Max polls reached for link ${linkId}, stopping`);
+            clearInterval(pollIntervalId);
+            delete pollingIntervalsRef.current[linkId];
+          }
+        } catch (error) {
+          console.error(`❌ [POLLING] Error during poll for link ${linkId}`, error);
+          if (pollCount >= maxPolls) {
+            clearInterval(pollIntervalId);
+            delete pollingIntervalsRef.current[linkId];
+          }
+        }
+      }, pollInterval);
+      
+      // Сохраняем ID интервала для очистки
+      pollingIntervalsRef.current[linkId] = pollIntervalId;
+    }, initialDelay);
+    
+    // Сохраняем timeout ID тоже для очистки
+    pollingIntervalsRef.current[`${linkId}_timeout`] = timeoutId as any;
+  };
+
+  // Очистка всех polling интервалов при размонтировании
+  useEffect(() => {
+    return () => {
+      Object.values(pollingIntervalsRef.current).forEach(intervalId => {
+        if (typeof intervalId === 'number') {
+          clearInterval(intervalId);
+        } else {
+          clearTimeout(intervalId);
+        }
+      });
+      pollingIntervalsRef.current = {};
+    };
+  }, []);
+
   // Открыть ссылку
   const handleOpenLink = (castUrl: string, linkId: string) => {
     // Отмечаем задачу как открытую
     markOpened(linkId);
+    
+    // Запускаем polling для автоматической проверки
+    if (activity) {
+      startPollingForActivity(castUrl, linkId, activity);
+    }
     
     // Определяем, мобильное ли устройство
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);

@@ -7,6 +7,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import {
   getFullCastHash,
   checkUserActivityByHash,
+  checkUserReactionsByCast,
 } from "@/lib/neynar";
 
 export default async function handler(
@@ -45,13 +46,24 @@ export default async function handler(
     }
 
     // -----------------------
-    // 2. Проверка активности
+    // 2. Проверка активности (пробуем оба метода)
     // -----------------------
-    const completed = await checkUserActivityByHash(
+    // Метод 1: Стандартная проверка через cast_hash
+    let completed = await checkUserActivityByHash(
       fullHash,
       Number(userFid),
       activityType
     );
+
+    // Метод 2: Если не найдено, пробуем через user/reactions (более надежный для свежих реакций)
+    if (!completed) {
+      console.log("[VERIFY] Standard check failed, trying user/reactions endpoint...");
+      completed = await checkUserReactionsByCast(
+        fullHash,
+        Number(userFid),
+        activityType
+      );
+    }
 
     return res.status(200).json({
       success: true,

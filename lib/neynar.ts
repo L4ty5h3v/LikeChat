@@ -129,6 +129,58 @@ export async function getFullCastHash(input: string): Promise<string | null> {
 // ПРОВЕРКА АКТИВНОСТИ (лайк/реккаст/реплай)
 // ----------------------------
 
+/** Проверка реакций пользователя через /v2/farcaster/user/reactions (более надежный метод) */
+export async function checkUserReactionsByCast(
+  castHash: string,
+  userFid: number,
+  activityType: ActivityType
+): Promise<boolean> {
+  if (!cleanApiKey) return false;
+  
+  try {
+    // Маппинг типов активности на типы реакций Neynar
+    const reactionTypeMap: Record<ActivityType, string> = {
+      like: "like",
+      recast: "recast",
+      comment: "reply", // Neynar использует "reply" для комментариев
+    };
+    
+    const reactionType = reactionTypeMap[activityType];
+    if (!reactionType) {
+      console.error("[neynar] Unknown activity type for reactions check:", activityType);
+      return false;
+    }
+    
+    const url = `https://api.neynar.com/v2/farcaster/user/reactions?fid=${userFid}&reaction_type=${reactionType}&limit=100`;
+    const res = await fetch(url, { 
+      headers: { "api-key": cleanApiKey, "api_key": cleanApiKey } 
+    });
+    
+    if (!res.ok) {
+      console.warn("[neynar] checkUserReactionsByCast: API error", res.status, res.statusText);
+      return false;
+    }
+    
+    const data = await res.json();
+    const reactions = data?.result?.reactions || data?.reactions || [];
+    
+    // Проверяем, есть ли реакция на этот cast
+    const hasReaction = reactions.some((r: any) => {
+      const targetHash = r.target?.cast?.hash || r.cast_hash || r.target?.hash;
+      return targetHash?.toLowerCase() === castHash.toLowerCase();
+    });
+    
+    if (hasReaction) {
+      console.log("[neynar] checkUserReactionsByCast: found reaction", { castHash, userFid, activityType });
+    }
+    
+    return hasReaction;
+  } catch (e) {
+    console.error("[neynar] checkUserReactionsByCast error", e);
+    return false;
+  }
+}
+
 export async function checkUserLiked(fullHash: string, userFid: number): Promise<boolean> {
   if (!cleanApiKey) return false;
   try {
