@@ -22,19 +22,9 @@ export default function Tasks() {
   const [incompleteLinks, setIncompleteLinks] = useState<string[]>([]);
   const [showPublishedSuccess, setShowPublishedSuccess] = useState(false);
   const [verificationMessages, setVerificationMessages] = useState<Array<{ linkId: string; message: string; neynarUrl?: string }>>([]);
-  // Загружаем openedTasks из localStorage при инициализации
-  const [openedTasks, setOpenedTasks] = useState<Record<string, boolean>>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('opened_tasks');
-        return saved ? JSON.parse(saved) : {};
-      } catch (e) {
-        console.warn('Failed to load opened tasks from localStorage:', e);
-        return {};
-      }
-    }
-    return {};
-  });
+  // Состояние openedTasks только в памяти (не сохраняется в localStorage)
+  // Сбрасывается при каждой загрузке страницы, чтобы можно было открывать ссылки снова
+  const [openedTasks, setOpenedTasks] = useState<Record<string, boolean>>({});
 
   // Загрузка данных
   useEffect(() => {
@@ -149,6 +139,9 @@ export default function Tasks() {
         console.log(`🔍 [TASKS] Frontend filtering: ${links.length} links → ${filteredLinks.length} links (activity: ${currentActivity})`);
       }
 
+      // Сбрасываем состояние opened при загрузке задач, чтобы можно было открывать ссылки снова
+      setOpenedTasks({});
+      
       const taskList: TaskProgress[] = filteredLinks.map((link: LinkSubmission) => {
         const castHash = extractCastHash(link.cast_url) || '';
         return {
@@ -161,7 +154,7 @@ export default function Tasks() {
           pfp_url: link.pfp_url,
           completed: completedLinks.includes(link.id),
           verified: completedLinks.includes(link.id),
-          opened: openedTasks[link.id] === true, // Сохраняем состояние opened из локального состояния
+          opened: false, // Всегда начинаем с false при загрузке, чтобы можно было открывать ссылки снова
         };
       });
 
@@ -272,20 +265,10 @@ export default function Tasks() {
     }
   };
 
-  // Отметить задачу как открытую
+  // Отметить задачу как открытую (только в памяти, не сохраняем в localStorage)
+  // Это позволяет открывать ссылки снова при следующей загрузке страницы
   const markOpened = (linkId: string) => {
-    setOpenedTasks(prev => {
-      const updated = { ...prev, [linkId]: true };
-      // Сохраняем в localStorage
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem('opened_tasks', JSON.stringify(updated));
-        } catch (e) {
-          console.warn('Failed to save opened tasks to localStorage:', e);
-        }
-      }
-      return updated;
-    });
+    setOpenedTasks(prev => ({ ...prev, [linkId]: true }));
     // Также обновляем в tasks для немедленного отображения
     setTasks(prevTasks => 
       prevTasks.map(task => 
