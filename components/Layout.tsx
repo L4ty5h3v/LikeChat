@@ -62,6 +62,7 @@ const Layout: React.FC<LayoutProps> = ({ children, title = 'Like Chat 💌' }) =
                       height={40}
                       className="w-full h-full object-cover"
                       priority
+                      unoptimized
                     />
                   </button>
                 )}
