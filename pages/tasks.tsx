@@ -140,7 +140,8 @@ export default function Tasks() {
       }
 
       // Сбрасываем состояние opened при загрузке задач, чтобы можно было открывать ссылки снова
-      setOpenedTasks({});
+      // НЕ сбрасываем openedTasks в рамках одной сессии - сохраняем состояние открытых ссылок
+      // setOpenedTasks({});
       
       const taskList: TaskProgress[] = filteredLinks.map((link: LinkSubmission) => {
         const castHash = extractCastHash(link.cast_url) || '';
@@ -154,7 +155,7 @@ export default function Tasks() {
           pfp_url: link.pfp_url,
           completed: completedLinks.includes(link.id),
           verified: completedLinks.includes(link.id),
-          opened: false, // Всегда начинаем с false при загрузке, чтобы можно было открывать ссылки снова
+          opened: openedTasks[link.id] === true, // Сохраняем состояние opened из openedTasks
         };
       });
 

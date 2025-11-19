@@ -15,20 +15,19 @@ export interface VerifyResult {
   castHash?: string;
 }
 
-// Функция для извлечения hash из ссылки
+/* 1. Добавляем https:// если его нет */
+export function normalizeUrl(url: string): string {
+  if (!url) return url;
+  if (/^https?:\/\//i.test(url)) return url;
+  return "https://" + url;
+}
+
+/* 2. Ищем полный хеш 0x... */
 export function extractCastHash(url: string): string | null {
   if (!url) return null;
-
-  // Извлечь "0x..." через регэксп
   const match = url.match(/0x[a-fA-F0-9]{8,}/);
-
   if (!match) return null;
-
-  // Возвращаем только если hash полный (42 символа)
-  if (match[0].length === 42) return match[0];
-
-  // Если hash укороченный — возвращаем null, чтобы включился resolve
-  return null;
+  return match[0].length === 42 ? match[0] : null;
 }
 
 // Проверка, является ли hash полным (42 символа)
@@ -36,18 +35,9 @@ export function isFullHash(hash: string): boolean {
   return /^0x[a-fA-F0-9]{40}$/.test(hash);
 }
 
-// ------------------------
-// RESOLVE CAST URL (прямое разрешение через Neynar API)
-// ------------------------
-/**
- * Разрешает URL каста в полный hash через Neynar API endpoint /cast/resolve
- * Работает с любыми форматами URL (farcaster.xyz, warpcast.com и т.д.)
- */
+/* 3. Вызываем решатель Neynar для коротких ссылок */
 export async function resolveCastUrl(url: string): Promise<string | null> {
-  if (!cleanApiKey) {
-    console.warn('⚠️ [RESOLVE-URL] NEXT_PUBLIC_NEYNAR_API_KEY not configured');
-    return null;
-  }
+  if (!cleanApiKey) return null;
 
   try {
     const res = await fetch(
@@ -62,47 +52,29 @@ export async function resolveCastUrl(url: string): Promise<string | null> {
       }
     );
 
-    if (!res.ok) {
-      console.error(`❌ [RESOLVE-URL] API error: ${res.status} ${res.statusText}`);
-      return null;
-    }
+    if (!res.ok) return null;
 
     const data = await res.json();
-    const hash = data?.cast?.hash || data?.result?.cast?.hash || null;
-
-    if (hash) {
-      console.log(`✅ [RESOLVE-URL] Resolved URL to hash: ${hash}`);
-      return hash;
-    }
-
-    console.warn(`⚠️ [RESOLVE-URL] No hash found in response:`, data);
-    return null;
-  } catch (e) {
-    console.error("❌ [RESOLVE-URL] resolveCastUrl error:", e);
+    return (
+      data?.cast?.hash ||
+      data?.result?.cast?.hash ||
+      null
+    );
+  } catch {
     return null;
   }
 }
 
-// ------------------------
-// GET FULL CAST HASH (универсальная функция)
-// ------------------------
-/**
- * Получает полный hash из URL, используя несколько стратегий
- * 1. Пытается извлечь полный hash из URL
- * 2. Использует resolveCastUrl для разрешения URL через Neynar API
- * 3. Возвращает null, если ничего не получилось
- */
+/* 4. Главная функция: универсальный способ получить полный хеш */
 export async function getFullCastHash(url: string): Promise<string | null> {
-  // 1. Пытаемся извлечь полный hash из URL
-  const extracted = extractCastHash(url);
-  if (extracted) return extracted; // уже полноценный hash
+  if (!url) return null;
 
-  // 2. Используем resolveCastUrl — полный URL → полный hash
-  const resolved = await resolveCastUrl(url);
-  if (resolved) return resolved;
+  const normalized = normalizeUrl(url);
 
-  // 3. Если всё сломалось
-  return null;
+  const extracted = extractCastHash(normalized);
+  if (extracted) return extracted;
+
+  return await resolveCastUrl(normalized);
 }
 
 // ------------------------
