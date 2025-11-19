@@ -4,6 +4,7 @@ import {
   resolveFullHash,
   resolveShortLink,
   extractCastHash,
+  checkUserActivityByUsername,
   checkUserLiked,
   checkUserRecasted,
   checkUserCommented,
@@ -37,21 +38,43 @@ export default async function handler(
       });
     }
 
-    // ✅ ШАГ 0: Если передан castUrl (короткая ссылка farcaster.xyz), пытаемся разрешить её
-    if (castUrl && castUrl.includes('farcaster.xyz/') && castUrl.length < 100) {
-      console.log('🔄 [VERIFY-API] Detected short farcaster.xyz URL, attempting to resolve...');
-      const resolvedHash = await resolveShortLink(castUrl);
+    // ✅ ШАГ 0: Упрощенная проверка по username для коротких ссылок farcaster.xyz
+    if (castUrl && castUrl.includes('farcaster.xyz/')) {
+      const urlPattern = /^https?:\/\/farcaster\.xyz\/([^\/]+)\/(0x[a-fA-F0-9]*)/;
+      const match = castUrl.match(urlPattern);
       
-      if (resolvedHash) {
-        console.log(`✅ [VERIFY-API] Resolved short URL to full hash: ${resolvedHash}`);
-        castHash = resolvedHash;
-      } else {
-        console.warn('⚠️ [VERIFY-API] Failed to resolve short URL, will try to resolve hash directly');
+      if (match) {
+        const [, targetUsername, partialHash] = match;
+        const cleanPartialHash = partialHash && partialHash.length >= 6 ? partialHash.replace(/\.\.\./g, '').trim() : null;
+        
+        console.log(`🔄 [VERIFY-API] Detected farcaster.xyz link, checking by username: ${targetUsername}`);
+        
+        // Проверяем активность по username (покрывает 90% случаев)
+        const completed = await checkUserActivityByUsername(
+          targetUsername,
+          cleanPartialHash,
+          userFid,
+          activityType
+        );
+        
+        if (completed) {
+          console.log(`✅ [VERIFY-API] Activity verified by username: ${targetUsername}`);
+          return res.status(200).json({
+            success: true,
+            completed: true,
+            castHash: cleanPartialHash || 'verified-by-username',
+            activityType,
+            verifiedBy: 'username'
+          });
+        } else {
+          console.log(`⚠️ [VERIFY-API] Activity not found by username, will try hash resolution`);
+          // Продолжаем с обычной проверкой по hash
+        }
       }
     }
 
     // Проверяем, что hash не слишком короткий (минимум 6 символов для частичного hash)
-    if (castHash.length < 6) {
+    if (castHash && castHash.length < 6) {
       return res.status(200).json({
         success: false,
         completed: false,

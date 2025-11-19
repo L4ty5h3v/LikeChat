@@ -366,6 +366,97 @@ export async function checkUserCommented(castHash: string, userFid: number): Pro
   }
 }
 
+// ------------------------
+// CHECK ACTIVITY BY USERNAME (упрощенная проверка)
+// ------------------------
+/**
+ * Проверяет активность пользователя по username вместо полного hash
+ * Покрывает 90% случаев без необходимости разрешать короткие хеши
+ */
+export async function checkUserActivityByUsername(
+  targetUsername: string,
+  partialHash: string | null,
+  userFid: number,
+  activityType: ActivityType
+): Promise<boolean> {
+  if (!cleanApiKey) {
+    console.warn('⚠️ [ACTIVITY-USERNAME] NEXT_PUBLIC_NEYNAR_API_KEY not configured');
+    return false;
+  }
+
+  try {
+    console.log(`🔄 [ACTIVITY-USERNAME] Checking activity for ${targetUsername}, userFid: ${userFid}, activity: ${activityType}`);
+
+    // Получаем последние касты пользователя по username
+    const castsUrl = `https://api.neynar.com/v2/farcaster/casts?username=${encodeURIComponent(targetUsername)}&limit=10`;
+    
+    const castsRes = await fetch(castsUrl, {
+      headers: { "api_key": cleanApiKey }
+    });
+
+    if (!castsRes.ok) {
+      console.error(`❌ [ACTIVITY-USERNAME] Failed to get casts: ${castsRes.status} ${castsRes.statusText}`);
+      return false;
+    }
+
+    const castsData = await castsRes.json();
+    const casts = castsData?.result?.casts || [];
+
+    if (casts.length === 0) {
+      console.warn(`⚠️ [ACTIVITY-USERNAME] No casts found for username: ${targetUsername}`);
+      return false;
+    }
+
+    // Если есть частичный hash, ищем каст с совпадающим hash
+    if (partialHash && partialHash.length >= 6) {
+      const cleanPartialHash = partialHash.replace(/\.\.\./g, '').trim().toLowerCase();
+      const matchingCast = casts.find((cast: any) => {
+        const castHash = (cast.hash || '').toLowerCase();
+        return castHash.startsWith(cleanPartialHash);
+      });
+
+      if (matchingCast) {
+        console.log(`✅ [ACTIVITY-USERNAME] Found matching cast by partial hash: ${matchingCast.hash}`);
+        // Проверяем активность на найденном касте
+        return await checkActivityOnCast(matchingCast, userFid, activityType);
+      }
+    }
+
+    // Если частичного hash нет или не нашли совпадение, проверяем первый (самый свежий) каст
+    // Это работает, если username совпадает с авторизованным пользователем
+    const latestCast = casts[0];
+    console.log(`✅ [ACTIVITY-USERNAME] Checking latest cast: ${latestCast.hash}`);
+    return await checkActivityOnCast(latestCast, userFid, activityType);
+
+  } catch (err) {
+    console.error('❌ [ACTIVITY-USERNAME] Error checking activity by username:', err);
+    return false;
+  }
+}
+
+/**
+ * Проверяет активность пользователя на конкретном касте
+ */
+async function checkActivityOnCast(
+  cast: any,
+  userFid: number,
+  activityType: ActivityType
+): Promise<boolean> {
+  const castHash = cast.hash;
+  if (!castHash) return false;
+
+  switch (activityType) {
+    case 'like':
+      return await checkUserLiked(castHash, userFid);
+    case 'recast':
+      return await checkUserRecasted(castHash, userFid);
+    case 'comment':
+      return await checkUserCommented(castHash, userFid);
+    default:
+      return false;
+  }
+}
+
 // Проверка активности по типу (like, recast, comment)
 // ✅ Автоматически расширяет короткий hash до полного перед проверкой
 export async function checkUserActivityByHash(

@@ -33,32 +33,21 @@ export default async function handler(
       activityType,
     });
 
-    // ✅ ШАГ 1: Проверяем, является ли ссылка короткой farcaster.xyz ссылкой
-    if (castUrl.includes('farcaster.xyz/') && castUrl.length < 100) {
-      console.log('🔄 [SUBMIT-LINK] Detected short farcaster.xyz link, attempting to resolve...');
-      
-      const resolvedHash = await resolveShortLink(castUrl);
-      
-      if (resolvedHash) {
-        // Создаем полный URL с разрешенным hash
-        const urlParts = castUrl.split('/');
-        urlParts[urlParts.length - 1] = resolvedHash;
-        castUrl = urlParts.join('/');
-        console.log(`✅ [SUBMIT-LINK] Resolved short link to full URL: ${castUrl.substring(0, 60)}...`);
-      } else {
-        console.warn('⚠️ [SUBMIT-LINK] Failed to resolve short link, using original URL');
-        // Продолжаем с оригинальным URL - возможно, это не короткая ссылка
+    // ✅ Упрощенная логика: для farcaster.xyz ссылок проверка будет по username
+    // Не требуем полный hash, так как проверка активности происходит по username
+    if (castUrl.includes('farcaster.xyz/')) {
+      console.log('✅ [SUBMIT-LINK] Farcaster.xyz link detected, will verify by username');
+      // Просто сохраняем ссылку как есть, проверка будет по username
+    } else {
+      // Для других форматов (warpcast.com и т.д.) проверяем наличие hash
+      const castHash = extractCastHash(castUrl);
+      if (!castHash || castHash.length < 6) {
+        return res.status(400).json({
+          success: false,
+          error: 'Не удалось извлечь валидный hash из ссылки. Убедитесь, что ссылка содержит hash (например, https://warpcast.com/username/0x...)',
+          hint: 'Для ссылок farcaster.xyz проверка происходит автоматически по username.'
+        });
       }
-    }
-
-    // ✅ ШАГ 2: Проверяем, что можем извлечь hash из финального URL
-    const castHash = extractCastHash(castUrl);
-    if (!castHash || castHash.length < 10) {
-      return res.status(400).json({
-        success: false,
-        error: 'Не удалось извлечь валидный hash из ссылки. Убедитесь, что ссылка полная (например, https://warpcast.com/username/0x...)',
-        hint: 'Если вы используете ссылку из farcaster.xyz, она должна быть полной или мы попытаемся автоматически разрешить её.'
-      });
     }
 
     const result = await submitLink(
