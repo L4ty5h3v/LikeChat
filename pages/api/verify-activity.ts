@@ -1,89 +1,53 @@
-// API endpoint для проверки активности пользователя на Farcaster
-import type { NextApiRequest, NextApiResponse } from 'next';
-import { 
-  getFullCastHash,
-  checkUserActivityByHash
-} from '@/lib/neynar';
-import type { ActivityType } from '@/types';
+// pages/api/verify-activity.ts
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+import type { NextApiRequest, NextApiResponse } from 'next';
+
+import {
+  getFullCastHash,
+  checkUserLiked,
+  checkUserRecasted,
+  checkUserCommented,
+} from '@/lib/neynar';
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  const { castUrl, userFid, activityType } = req.body ?? {};
+
+  console.log('[VERIFY] request body:', { castUrl, userFid, activityType });
+
+  if (!castUrl || !userFid || !activityType) {
+    return res.status(400).json({ success: false, completed: false, error: 'Missing params' });
   }
 
-  try {
-    const { castUrl, userFid, activityType } = req.body;
+  // получаем полный hash (resolve if needed)
+  const fullHash = await getFullCastHash(castUrl);
+  console.log('[VERIFY] resolved fullHash:', fullHash);
 
-    console.log('🔍 [VERIFY-API] Received verification request:', {
-      castUrl,
-      userFid,
-      activityType,
-    });
-
-    if (!castUrl || !userFid || !activityType) {
-      return res.status(400).json({ 
-        error: 'Missing required parameters: castUrl, userFid, activityType',
-        success: false,
-        completed: false 
-      });
-    }
-
-    // ⚠️ ГАРД: Проверяем наличие и валидность fid перед проверкой активности
-    if (!userFid || typeof userFid !== 'number' || userFid <= 0 || !Number.isInteger(userFid)) {
-      return res.status(400).json({ 
-        error: 'FID отсутствует или невалиден. Проверьте авторизацию перед верификацией.',
-        completed: false,
-        authError: true,
-      });
-    }
-
-    // Проверяем наличие API ключа Neynar
-    if (!process.env.NEXT_PUBLIC_NEYNAR_API_KEY) {
-      console.warn('⚠️ [VERIFY-API] NEXT_PUBLIC_NEYNAR_API_KEY not configured');
-      return res.status(500).json({ 
-        success: false,
-        completed: false,
-        error: 'Neynar API key not configured',
-      });
-    }
-
-    // Получаем полный hash из URL
-    const fullHash = await getFullCastHash(castUrl);
-
-    if (!fullHash) {
-      return res.status(400).json({
-        success: false,
-        error: "Не удалось получить hash. Проверьте корректность ссылки.",
-      });
-    }
-
-    // Обычная проверка через Neynar
-    const completed = await checkUserActivityByHash(fullHash, userFid, activityType);
-
-    console.log('✅ [VERIFY-API] Verification result:', {
-      completed,
-      castHash: fullHash,
-      activityType,
-    });
-
-    return res.json({
-      success: true,
-      completed,
-      castHash: fullHash,
-    });
-
-  } catch (err: any) {
-    console.error("❌ verify-activity API error:", err);
-    
-    return res.status(500).json({
+  if (!fullHash) {
+    return res.status(200).json({
       success: false,
       completed: false,
-      error: "Internal server error",
-      message: err?.message || 'Unknown error'
+      error: 'Не удалось получить полный hash. Проверьте ссылку или попробуйте позже.',
+      neynarExplorerUrl: `https://explorer.neynar.com/search?q=${encodeURIComponent(castUrl)}`,
     });
   }
-}
 
+  // проверяем активность
+  let completed = false;
+  try {
+    if (activityType === 'like') completed = await checkUserLiked(fullHash, Number(userFid));
+    if (activityType === 'recast') completed = await checkUserRecasted(fullHash, Number(userFid));
+    if (activityType === 'comment') completed = await checkUserCommented(fullHash, Number(userFid));
+  } catch (e) {
+    console.error('[VERIFY] check error', e);
+    return res.status(500).json({ success: false, completed: false, error: 'Internal check error' });
+  }
+
+  return res.status(200).json({
+    success: true,
+    completed,
+    castHash: fullHash,
+    neynarExplorerUrl: `https://explorer.neynar.com/casts/${fullHash}`,
+  });
+}

@@ -319,15 +319,16 @@ export default function Tasks() {
     viewerFid: number;
   }): Promise<{ completed: boolean; userMessage?: string; hashWarning?: string; isError?: boolean; neynarExplorerUrl?: string }> => {
     try {
+      // Отправляем castUrl (весь URL, даже с "...")
       const response = await fetch('/api/verify-activity', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          castUrl: castUrl || castHash, // Передаем castUrl (или castHash если это URL)
-          activityType,
+          castUrl: castUrl || castHash, // Передаем весь URL
           userFid: viewerFid,
+          activityType,
         }),
       });
 
@@ -398,30 +399,27 @@ export default function Tasks() {
       const updatedTasks: TaskProgress[] = await Promise.all(
         tasks.map(async (task: TaskProgress) => {
           try {
-            // ✅ Важный момент: viewerFid = текущий пользователь (кто проверяет)
-            // Проверяем наличие cast_hash перед использованием
-            // Явно типизируем task.cast_hash, чтобы TypeScript понимал тип
-            const castHash: string = task.cast_hash || '';
-            if (!castHash) {
-              console.warn(`⚠️ Task ${task.link_id} has no cast_hash, skipping verification`);
+            // ✅ Отправляем castUrl (весь URL, даже с "...")
+            // API сам разрешит URL через getFullCastHash
+            if (!task.cast_url) {
+              console.warn(`⚠️ Task ${task.link_id} has no cast_url, skipping verification`);
               messages.push({
                 linkId: task.link_id,
-                message: 'Не удалось извлечь hash из ссылки. Проверьте формат ссылки. Требуется полный URL (например, https://warpcast.com/username/0x...) или полный hash (0x + 40 символов).',
+                message: 'Отсутствует ссылка на cast. Проверьте формат ссылки.',
               });
               return {
                 ...task,
                 completed: false,
                 verified: true,
                 verifying: false,
-                error: true, // Ошибка: нет hash
+                error: true,
                 opened: task.opened || openedTasks[task.link_id] === true,
               } as TaskProgress;
             }
 
-            // Передаем cast_url для получения полного hash через getFullCastHash
             const result = await verifyActivity({
               castHash: '', // Не используется, передаем castUrl
-              castUrl: task.cast_url, // ВАЖНО: передаем полный URL для разрешения
+              castUrl: task.cast_url, // ВАЖНО: передаем весь URL для разрешения
               activityType: task.activity_type || activity,
               viewerFid: user.fid, // ✅ используем текущего пользователя
             });

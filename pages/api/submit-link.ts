@@ -1,7 +1,7 @@
 // API endpoint для публикации ссылки
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { submitLink } from '@/lib/db-config';
-import { resolveShortLink, extractCastHash } from '@/lib/neynar';
+import { extractCastHash } from '@/lib/neynar';
 
 export default async function handler(
   req: NextApiRequest,
