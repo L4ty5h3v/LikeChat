@@ -410,16 +410,17 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
           if (userData && userData.fid) {
             // Извлекаем pfp_url из различных форматов ответа Neynar API
             let pfpUrl = null;
-            if (userData.pfp?.url) {
-              pfpUrl = userData.pfp.url;
-            } else if (userData.pfp_url) {
-              pfpUrl = userData.pfp_url;
-            } else if (userData.pfp) {
-              pfpUrl = typeof userData.pfp === 'string' ? userData.pfp : userData.pfp.url;
-            } else if (userData.profile?.pfp?.url) {
-              pfpUrl = userData.profile.pfp.url;
-            } else if (userData.profile?.pfp_url) {
-              pfpUrl = userData.profile.pfp_url;
+            const userDataAny = userData as any; // Type assertion для обработки разных форматов
+            if (userDataAny.pfp?.url) {
+              pfpUrl = userDataAny.pfp.url;
+            } else if (userDataAny.pfp_url) {
+              pfpUrl = userDataAny.pfp_url;
+            } else if (userDataAny.pfp) {
+              pfpUrl = typeof userDataAny.pfp === 'string' ? userDataAny.pfp : userDataAny.pfp.url;
+            } else if (userDataAny.profile?.pfp?.url) {
+              pfpUrl = userDataAny.profile.pfp.url;
+            } else if (userDataAny.profile?.pfp_url) {
+              pfpUrl = userDataAny.profile.pfp_url;
             }
             
             // Если не нашли pfp_url, используем fallback
@@ -436,14 +437,14 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
             linksToAdd.push({
               id: `init_link_${index + 1}_${baseTimestamp + index}`,
               user_fid: userData.fid,
-              username: userData.username || userData.display_name || usernameFromUrl || `user_${index + 1}`,
+              username: userData.username || (userDataAny.display_name) || usernameFromUrl || `user_${index + 1}`,
               pfp_url: pfpUrl,
               cast_url: castUrl,
               activity_type: activityType,
               completed_by: [],
               created_at: new Date().toISOString(),
             });
-            console.log(`✅ [${index + 1}/${baseLinks.length * activityTypes.length}] Loaded real user data by username: @${userData.username || userData.display_name} (FID: ${userData.fid}, pfp: ${pfpUrl}) [${activityType}]`);
+            console.log(`✅ [${index + 1}/${baseLinks.length * activityTypes.length}] Loaded real user data by username: @${userData.username || (userDataAny.display_name)} (FID: ${userData.fid}, pfp: ${pfpUrl}) [${activityType}]`);
           } else {
             // Если не удалось получить данные пользователя, используем fallback
             linksToAdd.push({
@@ -484,10 +485,11 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
             userData = cachedUser || await getUserByUsername(usernameFromUrl);
             if (userData && userData.fid) {
               console.log(`✅ Got user data by username after error: @${userData.username} (FID: ${userData.fid})`);
+              const userDataAnyRetry = userData as any;
               userCache.set((userData.username || usernameFromUrl).toLowerCase(), {
                 fid: userData.fid,
                 username: userData.username || usernameFromUrl,
-                pfp_url: userData?.pfp?.url || userData?.pfp_url || userData?.profile?.pfp?.url || '',
+                pfp_url: userDataAnyRetry?.pfp?.url || userDataAnyRetry?.pfp_url || userDataAnyRetry?.profile?.pfp?.url || '',
               });
             }
           } catch (retryError: any) {
@@ -502,16 +504,17 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
 
         if (userData && userData.fid) {
           let pfpUrl = null;
-          if (userData.pfp?.url) {
-            pfpUrl = userData.pfp.url;
-          } else if (userData.pfp_url) {
-            pfpUrl = userData.pfp_url;
-          } else if (userData.pfp) {
-            pfpUrl = typeof userData.pfp === 'string' ? userData.pfp : userData.pfp.url;
-          } else if (userData.profile?.pfp?.url) {
-            pfpUrl = userData.profile.pfp.url;
-          } else if (userData.profile?.pfp_url) {
-            pfpUrl = userData.profile.pfp_url;
+          const userDataAny = userData as any; // Type assertion для обработки разных форматов
+          if (userDataAny.pfp?.url) {
+            pfpUrl = userDataAny.pfp.url;
+          } else if (userDataAny.pfp_url) {
+            pfpUrl = userDataAny.pfp_url;
+          } else if (userDataAny.pfp) {
+            pfpUrl = typeof userDataAny.pfp === 'string' ? userDataAny.pfp : userDataAny.pfp.url;
+          } else if (userDataAny.profile?.pfp?.url) {
+            pfpUrl = userDataAny.profile.pfp.url;
+          } else if (userDataAny.profile?.pfp_url) {
+            pfpUrl = userDataAny.profile.pfp_url;
           }
           
           if (!pfpUrl) {
@@ -527,14 +530,14 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
           linksToAdd.push({
             id: `init_link_${index + 1}_${baseTimestamp + index}`,
             user_fid: userData.fid,
-            username: userData.username || userData.display_name || usernameFromUrl || `user_${index + 1}`,
+            username: userData.username || (userDataAny.display_name) || usernameFromUrl || `user_${index + 1}`,
             pfp_url: pfpUrl,
             cast_url: castUrl,
             activity_type: activityType,
             completed_by: [],
             created_at: new Date().toISOString(),
           });
-          console.log(`✅ [${index + 1}/${baseLinks.length * activityTypes.length}] Loaded real user data after error: @${userData.username || userData.display_name} (FID: ${userData.fid}, pfp: ${pfpUrl}) [${activityType}]`);
+          console.log(`✅ [${index + 1}/${baseLinks.length * activityTypes.length}] Loaded real user data after error: @${userData.username || (userDataAny.display_name)} (FID: ${userData.fid}, pfp: ${pfpUrl}) [${activityType}]`);
         } else {
           // Если не удалось получить данные пользователя, используем fallback
           linksToAdd.push({
