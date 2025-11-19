@@ -1,6 +1,6 @@
 // API endpoint для публикации ссылки
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { submitLink } from '@/lib/db-config';
+import { submitLink, getAllLinks, getUserProgress } from '@/lib/db-config';
 import { extractCastHash } from '@/lib/neynar';
 
 export default async function handler(
@@ -26,11 +26,48 @@ export default async function handler(
       });
     }
 
+    // Проверка 1: пользователь должен выполнить 10 заданий
+    const progress = await getUserProgress(Number(userFid));
+    if (!progress) {
+      return res.status(400).json({
+        success: false,
+        error: 'Прогресс пользователя не найден. Пожалуйста, начните с выполнения заданий.',
+      });
+    }
+
+    const completedCount = progress.completed_links?.length || 0;
+    if (completedCount < 10) {
+      return res.status(400).json({
+        success: false,
+        error: `Вы можете отправить свою ссылку только после выполнения 10 заданий. Выполнено: ${completedCount}/10`,
+        completedCount,
+        requiredCount: 10,
+      });
+    }
+
+    // Проверка 2: пользователь может отправить ссылку только после того, как в чат было отправлено 10 других ссылок
+    const allLinks = await getAllLinks();
+    // Фильтруем ссылки от других пользователей (не от текущего)
+    const otherUsersLinks = allLinks.filter(link => link.user_fid !== Number(userFid));
+    const otherLinksCount = otherUsersLinks.length;
+    
+    if (otherLinksCount < 10) {
+      return res.status(400).json({
+        success: false,
+        error: `Вы можете отправить свою ссылку только после того, как в чат было отправлено 10 других ссылок. Отправлено другими пользователями: ${otherLinksCount}/10`,
+        otherLinksCount,
+        requiredCount: 10,
+      });
+    }
+
     console.log('📝 API /submit-link: Submitting link:', {
       userFid,
       username,
       castUrl: castUrl.substring(0, 50) + '...',
       activityType,
+      completedCount,
+      otherLinksCount,
+      totalLinksInChat: allLinks.length,
     });
 
     // ✅ Упрощенная логика: для farcaster.xyz ссылок проверка будет по username

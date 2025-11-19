@@ -582,8 +582,22 @@ export default function Submit() {
       return;
     }
 
-    // Проверка: все 10 ссылок пройдены
-    if (progress.completed_links.length < 10) {
+    // Проверка 1: все 10 заданий должны быть выполнены
+    const completedCount = progress.completed_links?.length || 0;
+    if (completedCount < 10) {
+      console.log(`🚫 [SUBMIT] Not enough completed tasks: ${completedCount}/10`);
+      router.replace('/tasks'); // Используем replace
+      return;
+    }
+
+    // Проверка 2: пользователь может отправить ссылку только после того, как в чат было отправлено 10 других ссылок
+    const allLinks = await getAllLinks();
+    // Фильтруем ссылки от других пользователей (не от текущего)
+    const otherUsersLinks = allLinks.filter(link => link.user_fid !== userFid);
+    const otherLinksCount = otherUsersLinks.length;
+    
+    if (otherLinksCount < 10) {
+      console.log(`🚫 [SUBMIT] Not enough links from other users: ${otherLinksCount}/10`);
       router.replace('/tasks'); // Используем replace
       return;
     }
@@ -749,7 +763,34 @@ export default function Submit() {
           status: response.status,
           ok: response.ok,
           data: data.error || data,
+          completedCount: data.completedCount,
+          otherLinksCount: data.otherLinksCount,
+          requiredCount: data.requiredCount,
         });
+        
+        // Если ошибка связана с недостаточным количеством выполненных заданий
+        if (data.completedCount !== undefined && data.requiredCount !== undefined) {
+          const errorMessage = data.error || `Вы можете отправить свою ссылку только после выполнения 10 заданий. Выполнено: ${data.completedCount}/10`;
+          setError(errorMessage);
+          setLoading(false);
+          // Редиректим на страницу заданий через 3 секунды
+          setTimeout(() => {
+            router.push('/tasks');
+          }, 3000);
+          return;
+        }
+        
+        // Если ошибка связана с недостаточным количеством ссылок от других пользователей
+        if (data.otherLinksCount !== undefined && data.requiredCount !== undefined) {
+          const errorMessage = data.error || `Вы можете отправить свою ссылку только после того, как в чат было отправлено 10 других ссылок. Отправлено другими пользователями: ${data.otherLinksCount}/10`;
+          setError(errorMessage);
+          setLoading(false);
+          // Редиректим на страницу заданий через 3 секунды
+          setTimeout(() => {
+            router.push('/tasks');
+          }, 3000);
+          return;
+        }
         
         throw new Error(data.error || 'Failed to submit link');
       }
@@ -950,8 +991,18 @@ export default function Submit() {
         cause: err.cause,
       });
       
-      setError(err.message || 'An error occurred');
+      const errorMessage = err.message || 'An error occurred';
+      setError(errorMessage);
       setLoading(false); // Разблокируем форму только при ошибке
+      
+      // Если ошибка связана с недостаточным количеством выполненных заданий или ссылок от других пользователей, редиректим на /tasks
+      if (errorMessage.includes('10 заданий') || errorMessage.includes('10 других ссылок') || 
+          errorMessage.includes('completedCount') || errorMessage.includes('otherLinksCount') || 
+          errorMessage.includes('других пользователей')) {
+        setTimeout(() => {
+          router.push('/tasks');
+        }, 3000);
+      }
     }
     // finally блок убран - loading управляется вручную для предотвращения повторной отправки
   };
