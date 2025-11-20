@@ -326,11 +326,17 @@ export default function Tasks() {
             
             // Помечаем ссылку как выполненную в базе
             try {
-              await fetch('/api/mark-link-completed', {
+              const markResponse = await fetch('/api/mark-completed', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userFid: user.fid, linkId }),
               });
+              
+              if (!markResponse.ok) {
+                console.error(`[POLLING] Failed to mark link as completed: ${markResponse.status} ${markResponse.statusText}`);
+              } else {
+                console.log(`✅ [POLLING] Link ${linkId} marked as completed in DB`);
+              }
             } catch (e) {
               console.error('[POLLING] Error marking link as completed', e);
             }
