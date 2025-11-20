@@ -75,8 +75,6 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
                   ? 'bg-red-500 text-white hover:bg-red-600 hover:shadow-lg animate-pulse'
                   : task.completed && !task.verified
                   ? 'bg-yellow-500 text-white cursor-wait hover:bg-yellow-600'
-                  : task.opened && !task.completed && !task.verifying
-                  ? 'bg-red-500 text-white hover:bg-red-600 hover:shadow-lg animate-pulse'
                   : task.verifying && !task.opened && !task.completed
                   ? 'bg-red-500 text-white hover:bg-red-600 hover:shadow-lg animate-pulse'
                   : task.verifying
@@ -97,8 +95,6 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
               ? 'В процессе...'
               : task.verifying && !task.opened && !task.completed
               ? 'Не открыто ❌'
-              : task.opened && !task.completed && !task.verifying
-              ? 'Opened ❌'
               : task.verifying
               ? 'В процессе...'
               : task.opened 
