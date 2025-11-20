@@ -42,23 +42,30 @@ export function extractAnyHash(url: string): string | null {
 export async function resolveCastUrl(url: string): Promise<string | null> {
   if (!cleanApiKey) {
     console.warn("[neynar] resolveCastUrl: NEYNAR_API_KEY not configured");
+    console.warn("[neynar] resolveCastUrl: process.env.NEYNAR_API_KEY =", process.env.NEYNAR_API_KEY ? "SET (length: " + process.env.NEYNAR_API_KEY.length + ")" : "NOT SET");
     return null;
   }
 
   try {
     console.log("[neynar] resolveCastUrl: attempting to resolve", url);
+    console.log("[neynar] resolveCastUrl: API key present, length:", cleanApiKey.length);
     
     // Правильный метод: GET /v2/farcaster/cast?identifier={url}&type=url
     const apiUrl = `https://api.neynar.com/v2/farcaster/cast?identifier=${encodeURIComponent(url)}&type=url`;
+    console.log("[neynar] resolveCastUrl: API URL:", apiUrl.substring(0, 100) + "...");
+    
     const res = await fetch(apiUrl, {
       headers: {
         "api_key": cleanApiKey,
       }
     });
 
+    console.log("[neynar] resolveCastUrl: Response status:", res.status, res.statusText);
+
     if (!res.ok) {
       const errorText = await res.text();
-      console.error("[neynar] resolveCastUrl: API error", res.status, res.statusText, errorText?.substring(0, 200));
+      console.error("[neynar] resolveCastUrl: API error", res.status, res.statusText);
+      console.error("[neynar] resolveCastUrl: Error details:", errorText?.substring(0, 300));
       return null;
     }
 
@@ -69,11 +76,14 @@ export async function resolveCastUrl(url: string): Promise<string | null> {
       console.log("[neynar] resolveCastUrl: successfully resolved", url, "→", hash);
       return hash.toLowerCase();
     } else {
-      console.warn("[neynar] resolveCastUrl: no hash in response", data);
+      console.warn("[neynar] resolveCastUrl: no hash in response");
+      console.warn("[neynar] resolveCastUrl: Response data:", JSON.stringify(data, null, 2).substring(0, 500));
       return null;
     }
-  } catch (err) {
+  } catch (err: any) {
     console.error("[neynar] resolveCastUrl err", err);
+    console.error("[neynar] resolveCastUrl err message:", err?.message);
+    console.error("[neynar] resolveCastUrl err stack:", err?.stack?.substring(0, 300));
     return null;
   }
 }
