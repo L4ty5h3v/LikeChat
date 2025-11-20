@@ -64,22 +64,29 @@ export default async function handler(
     // -----------------------
     // 2. Проверка активности (пробуем оба метода)
     // -----------------------
+    console.log("[VERIFY] Checking activity:", { fullHash, userFid: Number(userFid), activityType, hashLength: fullHash.length });
+    
     // Метод 1: Стандартная проверка через cast_hash
+    console.log("[VERIFY] Method 1: checkUserActivityByHash");
     let completed = await checkUserActivityByHash(
       fullHash,
       Number(userFid),
       activityType
     );
+    console.log("[VERIFY] Method 1 result:", completed);
 
     // Метод 2: Если не найдено, пробуем через user/reactions (более надежный для свежих реакций)
     if (!completed) {
-      console.log("[VERIFY] Standard check failed, trying user/reactions endpoint...");
+      console.log("[VERIFY] Method 1 failed, trying Method 2: checkUserReactionsByCast");
       completed = await checkUserReactionsByCast(
         fullHash,
         Number(userFid),
         activityType
       );
+      console.log("[VERIFY] Method 2 result:", completed);
     }
+
+    console.log("[VERIFY] Final result:", { completed, castHash: fullHash });
 
     return res.status(200).json({
       success: true,
