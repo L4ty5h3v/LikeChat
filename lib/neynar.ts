@@ -202,15 +202,70 @@ export async function checkUserReactionsByCast(
 
 export async function checkUserLiked(fullHash: string, userFid: number): Promise<boolean> {
   if (!cleanApiKey) return false;
+  
+  console.log("[neynar] checkUserLiked: checking", { fullHash, userFid, hashLength: fullHash.length });
+  
+  // Метод 1: Проверка через /v2/farcaster/reactions
   try {
     const url = `https://api.neynar.com/v2/farcaster/reactions?cast_hash=${fullHash}&types=likes&viewer_fid=${userFid}`;
+    console.log("[neynar] checkUserLiked: trying endpoint", url.substring(0, 100) + "...");
     const res = await fetch(url, { headers: { "api-key": cleanApiKey, "api_key": cleanApiKey } });
-    const data = await res.json();
-    return Array.isArray(data?.reactions) && data.reactions.some((r: any) => r.reactor_fid === userFid);
-  } catch (e) {
-    console.error("[neynar] checkUserLiked error", e);
-    return false;
+    
+    console.log("[neynar] checkUserLiked: response status", res.status);
+    
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.warn("[neynar] checkUserLiked: API error", res.status, errorText?.substring(0, 200));
+    } else {
+      const data = await res.json();
+      console.log("[neynar] checkUserLiked: response data", JSON.stringify(data, null, 2).substring(0, 500));
+      
+      // Проверяем разные форматы ответа
+      const reactions = data?.reactions || data?.result?.reactions || [];
+      const hasLike = Array.isArray(reactions) && reactions.some((r: any) => {
+        const reactorFid = r.reactor_fid || r.fid || r.user?.fid;
+        return reactorFid === userFid;
+      });
+      
+      if (hasLike) {
+        console.log("[neynar] checkUserLiked: found like via /reactions endpoint");
+        return true;
+      }
+    }
+  } catch (e: any) {
+    console.error("[neynar] checkUserLiked: /reactions endpoint error", e?.message);
   }
+  
+  // Метод 2: Проверка через /v2/farcaster/cast (получаем каст и проверяем реакции)
+  try {
+    const castUrl = `https://api.neynar.com/v2/farcaster/cast?identifier=${fullHash}&type=hash`;
+    console.log("[neynar] checkUserLiked: trying /cast endpoint");
+    const res = await fetch(castUrl, { headers: { "api_key": cleanApiKey } });
+    
+    if (res.ok) {
+      const data = await res.json();
+      const cast = data?.cast || data?.result?.cast;
+      
+      if (cast) {
+        // Проверяем реакции в касте
+        const reactions = cast.reactions || cast.likes || [];
+        const hasLike = Array.isArray(reactions) && reactions.some((r: any) => {
+          const reactorFid = r.fid || r.reactor_fid || r.user?.fid;
+          return reactorFid === userFid;
+        });
+        
+        if (hasLike) {
+          console.log("[neynar] checkUserLiked: found like via /cast endpoint");
+          return true;
+        }
+      }
+    }
+  } catch (e: any) {
+    console.error("[neynar] checkUserLiked: /cast endpoint error", e?.message);
+  }
+  
+  console.log("[neynar] checkUserLiked: no like found");
+  return false;
 }
 
 export async function checkUserRecasted(fullHash: string, userFid: number): Promise<boolean> {
