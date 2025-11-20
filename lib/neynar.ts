@@ -144,7 +144,7 @@ export async function getFullCastHash(shortUrl: string): Promise<string | null> 
 // ПРОВЕРКА АКТИВНОСТИ (лайк/реккаст/реплай)
 // ----------------------------
 
-/** Проверка реакций пользователя через /v2/farcaster/user/reactions (более надежный метод) */
+/** Проверка реакций пользователя через /v2/farcaster/cast (единственный рабочий метод) */
 export async function checkUserReactionsByCast(
   castHash: string,
   userFid: number,
@@ -157,22 +157,14 @@ export async function checkUserReactionsByCast(
     return await checkUserCommented(castHash, userFid);
   }
   
+  // Для лайков и рекастов используем проверку через /v2/farcaster/cast
+  // Это единственный рабочий endpoint для проверки реакций
   try {
-    // Маппинг типов активности на типы реакций Neynar
-    const reactionTypeMap: Record<"like" | "recast", string> = {
-      like: "like",
-      recast: "recast",
-    };
+    console.log("[neynar] checkUserReactionsByCast: checking via /cast endpoint", { castHash, userFid, activityType });
     
-    const reactionType = reactionTypeMap[activityType as "like" | "recast"];
-    if (!reactionType) {
-      console.error("[neynar] Unknown activity type for reactions check:", activityType);
-      return false;
-    }
-    
-    const url = `https://api.neynar.com/v2/farcaster/user/reactions?fid=${userFid}&reaction_type=${reactionType}&limit=100`;
-    const res = await fetch(url, { 
-      headers: { "api-key": cleanApiKey, "api_key": cleanApiKey } 
+    const castUrl = `https://api.neynar.com/v2/farcaster/cast?identifier=${castHash}&type=hash`;
+    const res = await fetch(castUrl, { 
+      headers: { "api_key": cleanApiKey } 
     });
     
     if (!res.ok) {
@@ -181,21 +173,41 @@ export async function checkUserReactionsByCast(
     }
     
     const data = await res.json();
-    const reactions = data?.result?.reactions || data?.reactions || [];
+    const cast = data?.cast || data?.result?.cast;
     
-    // Проверяем, есть ли реакция на этот cast
-    const hasReaction = reactions.some((r: any) => {
-      const targetHash = r.target?.cast?.hash || r.cast_hash || r.target?.hash;
-      return targetHash?.toLowerCase() === castHash.toLowerCase();
-    });
-    
-    if (hasReaction) {
-      console.log("[neynar] checkUserReactionsByCast: found reaction", { castHash, userFid, activityType });
+    if (!cast) {
+      console.warn("[neynar] checkUserReactionsByCast: cast not found");
+      return false;
     }
     
-    return hasReaction;
-  } catch (e) {
-    console.error("[neynar] checkUserReactionsByCast error", e);
+    // Проверяем реакции в зависимости от типа активности
+    if (activityType === "like") {
+      const likes = cast.reactions?.likes || [];
+      const hasLike = likes.some((like: any) => {
+        const reactorFid = like.fid || like.reactor_fid || like.user?.fid || like.author?.fid;
+        return reactorFid === userFid;
+      });
+      
+      if (hasLike) {
+        console.log("[neynar] checkUserReactionsByCast: found like", { castHash, userFid });
+      }
+      return hasLike;
+    } else if (activityType === "recast") {
+      const recasts = cast.reactions?.recasts || [];
+      const hasRecast = recasts.some((recast: any) => {
+        const reactorFid = recast.fid || recast.reactor_fid || recast.user?.fid || recast.author?.fid;
+        return reactorFid === userFid;
+      });
+      
+      if (hasRecast) {
+        console.log("[neynar] checkUserReactionsByCast: found recast", { castHash, userFid });
+      }
+      return hasRecast;
+    }
+    
+    return false;
+  } catch (e: any) {
+    console.error("[neynar] checkUserReactionsByCast error", e?.message);
     return false;
   }
 }
