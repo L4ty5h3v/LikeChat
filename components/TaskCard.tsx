@@ -93,6 +93,8 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
               ? task.opened
                 ? 'Opened ❌'
                 : 'Не найдено'
+              : task.completed && !task.verified
+              ? 'В процессе...'
               : task.verifying && !task.opened && !task.completed
               ? 'Не открыто ❌'
               : task.opened && !task.completed && !task.verifying
