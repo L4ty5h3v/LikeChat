@@ -471,12 +471,39 @@ export default function BuyToken() {
           });
         }
         
-        // Переход к публикации ссылки через 3 секунды
+        // Переход к публикации ссылки через 2 секунды
         setTimeout(() => {
-          router.push('/submit');
-        }, 3000);
+          console.log('🚀 [BUYTOKEN] Redirecting to /submit after token purchase');
+          router.replace('/submit'); // Используем replace вместо push
+        }, 2000);
       }
   }, [mctBalance, isSwapping, oldBalanceBeforeSwap, user, router, txHash]);
+  
+  // Проверяем, куплен ли токен при загрузке страницы
+  useEffect(() => {
+    const checkTokenPurchase = async () => {
+      if (!user?.fid) return;
+      
+      try {
+        const progressResponse = await fetch(`/api/user-progress?userFid=${user.fid}&t=${Date.now()}`);
+        const progressData = await progressResponse.json();
+        const progress = progressData.progress;
+        
+        if (progress?.token_purchased && !purchased) {
+          console.log('✅ [BUYTOKEN] Token already purchased, redirecting to /submit');
+          setPurchased(true);
+          // Редирект на /submit если токен уже куплен
+          setTimeout(() => {
+            router.replace('/submit');
+          }, 1000);
+        }
+      } catch (error) {
+        console.error('❌ [BUYTOKEN] Error checking token purchase status:', error);
+      }
+    };
+    
+    checkTokenPurchase();
+  }, [user, purchased, router]);
 
   const confirmBuyToken = async (isRetry: boolean = false) => {
     if (!user) {
