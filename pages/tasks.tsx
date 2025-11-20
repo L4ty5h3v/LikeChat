@@ -526,12 +526,20 @@ export default function Tasks() {
               } as TaskProgress;
             }
 
+            console.log(`[CLIENT] handleVerifyAll: Verifying task ${task.link_id}`, {
+              castUrl: task.cast_url,
+              activityType: task.activity_type || activity,
+              userFid: user.fid
+            });
+            
             const result = await verifyActivity({
               castHash: '', // Не используется, передаем castUrl
               castUrl: task.cast_url, // ВАЖНО: передаем весь URL для разрешения
               activityType: task.activity_type || activity,
               viewerFid: user.fid, // ✅ используем текущего пользователя
             });
+            
+            console.log(`[CLIENT] handleVerifyAll: Result for task ${task.link_id}:`, result);
 
             // Определяем, была ли ошибка (cast не найден)
             const hasError = result.isError || (!result.completed && (
