@@ -157,12 +157,13 @@ export async function checkUserReactionsByCast(
     return await checkUserCommented(castHash, userFid);
   }
   
-  // Для лайков и рекастов используем проверку через /v2/farcaster/cast
-  // Это единственный рабочий endpoint для проверки реакций
+  // ВАЖНО: Neynar API возвращает пустой массив likes/recasts по умолчанию
+  // Нужно использовать параметр viewer_fid, чтобы получить информацию о реакции конкретного пользователя
   try {
-    console.log("[neynar] checkUserReactionsByCast: checking via /cast endpoint", { castHash, userFid, activityType });
+    console.log("[neynar] checkUserReactionsByCast: checking via /cast endpoint with viewer_fid", { castHash, userFid, activityType });
     
-    const castUrl = `https://api.neynar.com/v2/farcaster/cast?identifier=${castHash}&type=hash`;
+    // Добавляем viewer_fid к запросу - это вернет информацию о реакции этого пользователя
+    const castUrl = `https://api.neynar.com/v2/farcaster/cast?identifier=${castHash}&type=hash&viewer_fid=${userFid}`;
     const res = await fetch(castUrl, { 
       headers: { "api_key": cleanApiKey } 
     });
@@ -180,29 +181,68 @@ export async function checkUserReactionsByCast(
       return false;
     }
     
-    // Проверяем реакции в зависимости от типа активности
+    // Проверяем viewer_context - это содержит информацию о реакции viewer_fid
+    const viewerContext = cast.viewer_context;
+    console.log("[neynar] checkUserReactionsByCast: viewer_context", viewerContext);
+    
     if (activityType === "like") {
-      const likes = cast.reactions?.likes || [];
-      const hasLike = likes.some((like: any) => {
-        const reactorFid = like.fid || like.reactor_fid || like.user?.fid || like.author?.fid;
-        return reactorFid === userFid;
-      });
-      
+      // viewer_context.liked указывает, поставил ли viewer лайк
+      const hasLike = viewerContext?.liked === true;
       if (hasLike) {
-        console.log("[neynar] checkUserReactionsByCast: found like", { castHash, userFid });
+        console.log("[neynar] checkUserReactionsByCast: ✅ found like via viewer_context", { castHash, userFid });
+        return true;
       }
-      return hasLike;
-    } else if (activityType === "recast") {
-      const recasts = cast.reactions?.recasts || [];
-      const hasRecast = recasts.some((recast: any) => {
-        const reactorFid = recast.fid || recast.reactor_fid || recast.user?.fid || recast.author?.fid;
-        return reactorFid === userFid;
-      });
       
-      if (hasRecast) {
-        console.log("[neynar] checkUserReactionsByCast: found recast", { castHash, userFid });
+      // Fallback: проверяем массив likes (может быть заполнен, если viewer_fid указан)
+      const likes = cast.reactions?.likes || [];
+      if (likes.length > 0) {
+        const hasLikeInArray = likes.some((like: any) => {
+          const reactorFid = like.fid || like.reactor_fid || like.user?.fid || like.author?.fid;
+          return reactorFid === userFid;
+        });
+        if (hasLikeInArray) {
+          console.log("[neynar] checkUserReactionsByCast: ✅ found like in array", { castHash, userFid });
+          return true;
+        }
       }
-      return hasRecast;
+      
+      console.log("[neynar] checkUserReactionsByCast: ❌ like not found", { 
+        castHash, 
+        userFid, 
+        viewerLiked: viewerContext?.liked,
+        likesCount: cast.reactions?.likes_count || 0,
+        likesArrayLength: likes.length
+      });
+      return false;
+    } else if (activityType === "recast") {
+      // viewer_context.recasted указывает, сделал ли viewer рекаст
+      const hasRecast = viewerContext?.recasted === true;
+      if (hasRecast) {
+        console.log("[neynar] checkUserReactionsByCast: ✅ found recast via viewer_context", { castHash, userFid });
+        return true;
+      }
+      
+      // Fallback: проверяем массив recasts
+      const recasts = cast.reactions?.recasts || [];
+      if (recasts.length > 0) {
+        const hasRecastInArray = recasts.some((recast: any) => {
+          const reactorFid = recast.fid || recast.reactor_fid || recast.user?.fid || recast.author?.fid;
+          return reactorFid === userFid;
+        });
+        if (hasRecastInArray) {
+          console.log("[neynar] checkUserReactionsByCast: ✅ found recast in array", { castHash, userFid });
+          return true;
+        }
+      }
+      
+      console.log("[neynar] checkUserReactionsByCast: ❌ recast not found", { 
+        castHash, 
+        userFid, 
+        viewerRecasted: viewerContext?.recasted,
+        recastsCount: cast.reactions?.recasts_count || 0,
+        recastsArrayLength: recasts.length
+      });
+      return false;
     }
     
     return false;
@@ -217,10 +257,10 @@ export async function checkUserLiked(fullHash: string, userFid: number): Promise
   
   console.log("[neynar] checkUserLiked: checking", { fullHash, userFid, hashLength: fullHash.length });
   
-  // Единственный рабочий метод: Проверка через /v2/farcaster/cast (получаем каст и проверяем реакции)
+  // ВАЖНО: Используем viewer_fid для получения информации о реакции конкретного пользователя
   try {
-    const castUrl = `https://api.neynar.com/v2/farcaster/cast?identifier=${fullHash}&type=hash`;
-    console.log("[neynar] checkUserLiked: fetching cast data");
+    const castUrl = `https://api.neynar.com/v2/farcaster/cast?identifier=${fullHash}&type=hash&viewer_fid=${userFid}`;
+    console.log("[neynar] checkUserLiked: fetching cast data with viewer_fid");
     const res = await fetch(castUrl, { headers: { "api_key": cleanApiKey } });
     
     console.log("[neynar] checkUserLiked: response status", res.status);
@@ -242,38 +282,44 @@ export async function checkUserLiked(fullHash: string, userFid: number): Promise
     console.log("[neynar] checkUserLiked: cast found", {
       author: cast.author?.username,
       authorFid: cast.author?.fid,
-      likesCount: cast.reactions?.likes?.length || 0
+      likesCount: cast.reactions?.likes_count || 0,
+      viewerLiked: cast.viewer_context?.liked
     });
     
-    // Проверяем реакции в касте
+    // Проверяем viewer_context - это правильный способ проверки реакции viewer
+    const viewerContext = cast.viewer_context;
+    if (viewerContext?.liked === true) {
+      console.log("[neynar] checkUserLiked: ✅ like found via viewer_context");
+      return true;
+    }
+    
+    // Fallback: проверяем массив likes (может быть заполнен, если viewer_fid указан)
     const likes = cast.reactions?.likes || [];
-    console.log("[neynar] checkUserLiked: checking", likes.length, "likes");
+    console.log("[neynar] checkUserLiked: checking", likes.length, "likes in array");
     
     if (likes.length > 0) {
       likes.forEach((like: any, i: number) => {
         const fid = like.fid || like.reactor_fid || like.user?.fid || like.author?.fid;
         console.log(`[neynar] checkUserLiked: like ${i + 1} - FID: ${fid}, checking against ${userFid}`);
       });
-    }
-    
-    const hasLike = likes.some((like: any) => {
-      const reactorFid = like.fid || like.reactor_fid || like.user?.fid || like.author?.fid;
-      const match = reactorFid === userFid;
-      if (match) {
-        console.log("[neynar] checkUserLiked: ✅ FOUND LIKE from user", userFid);
-      }
-      return match;
-    });
-    
-    if (hasLike) {
-      console.log("[neynar] checkUserLiked: ✅ like found via /cast endpoint");
-      return true;
-    } else {
-      console.log("[neynar] checkUserLiked: ❌ like not found. Likes on cast:", likes.length);
-      if (likes.length === 0) {
-        console.log("[neynar] checkUserLiked: ⚠️  No likes on this cast at all");
+      
+      const hasLike = likes.some((like: any) => {
+        const reactorFid = like.fid || like.reactor_fid || like.user?.fid || like.author?.fid;
+        const match = reactorFid === userFid;
+        if (match) {
+          console.log("[neynar] checkUserLiked: ✅ FOUND LIKE from user", userFid);
+        }
+        return match;
+      });
+      
+      if (hasLike) {
+        console.log("[neynar] checkUserLiked: ✅ like found via likes array");
+        return true;
       }
     }
+    
+    console.log("[neynar] checkUserLiked: ❌ like not found. Likes count:", cast.reactions?.likes_count || 0, "viewerLiked:", viewerContext?.liked);
+    return false;
   } catch (e: any) {
     console.error("[neynar] checkUserLiked: /cast endpoint error", e?.message);
   }
