@@ -529,8 +529,15 @@ export default function Tasks() {
             console.log(`[CLIENT] handleVerifyAll: Verifying task ${task.link_id}`, {
               castUrl: task.cast_url,
               activityType: task.activity_type || activity,
-              userFid: user.fid
+              userFid: user.fid,
+              userFidType: typeof user.fid,
+              userObject: { fid: user.fid, username: user.username }
             });
+            
+            // ВАЖНО: Проверяем, что FID правильный
+            if (!user.fid || user.fid !== 799806) {
+              console.warn(`[CLIENT] handleVerifyAll: WARNING - User FID is ${user.fid}, expected 799806`);
+            }
             
             const result = await verifyActivity({
               castHash: '', // Не используется, передаем castUrl
@@ -539,7 +546,12 @@ export default function Tasks() {
               viewerFid: user.fid, // ✅ используем текущего пользователя
             });
             
-            console.log(`[CLIENT] handleVerifyAll: Result for task ${task.link_id}:`, result);
+            console.log(`[CLIENT] handleVerifyAll: Result for task ${task.link_id}:`, {
+              completed: result.completed,
+              isError: result.isError,
+              userMessage: result.userMessage,
+              castHash: result.hashWarning
+            });
 
             // Определяем, была ли ошибка (cast не найден)
             const hasError = result.isError || (!result.completed && (
