@@ -182,6 +182,26 @@ export async function getAllLinks(): Promise<LinkSubmission[]> {
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 }
 
+// Удалить ссылку
+export async function deleteLink(linkId: string): Promise<boolean> {
+  try {
+    const initialLength = linkSubmissions.length;
+    linkSubmissions = linkSubmissions.filter(link => link.id !== linkId);
+    const deleted = linkSubmissions.length < initialLength;
+    
+    if (deleted) {
+      console.log(`✅ Link ${linkId} deleted successfully from memory DB`);
+    } else {
+      console.warn(`⚠️ Link ${linkId} not found for deletion`);
+    }
+    
+    return deleted;
+  } catch (error) {
+    console.error('Error deleting link from memory DB:', error);
+    return false;
+  }
+}
+
 // Получить общее количество ссылок
 export async function getTotalLinksCount(): Promise<number> {
   generateTestData();
