@@ -87,41 +87,68 @@ export async function resolveCastUrl(url: string): Promise<string | null> {
 // Принимает ВСЁ: warpcast, farcaster, miniapps, embed
 // Короткие и длинные hash
 // ----------------------------
-export async function getFullCastHash(input: string): Promise<string | null> {
-  if (!input) return null;
+export async function getFullCastHash(shortUrl: string): Promise<string | null> {
+  if (!shortUrl) return null;
 
-  const normalized = normalizeUrl(input);
+  // 1. Если уже полный хеш 0x... (64 символа) — возвращаем как есть
+  const fullHashMatch = shortUrl.match(/^0x[a-fA-F0-9]{64}$/);
+  if (fullHashMatch) {
+    console.log("[neynar] getFullCastHash: already full hash (64 chars)", shortUrl);
+    return shortUrl.toLowerCase();
+  }
 
-  // 1 — полный hash внутри URL
-  const full = extractFullHashFromUrl(normalized);
-  if (full) return full;
+  // 2. Проверяем, есть ли полный хеш внутри URL
+  const hashInUrl = shortUrl.match(/0x[a-fA-F0-9]{64}/);
+  if (hashInUrl) {
+    console.log("[neynar] getFullCastHash: found full hash in URL", hashInUrl[0]);
+    return hashInUrl[0].toLowerCase();
+  }
 
-  // 2 — короткий hash - ОБЯЗАТЕЛЬНО пытаемся расширить через resolve
-  const short = extractAnyHash(normalized);
-  if (short) {
-    // Если короткий hash, пытаемся расширить его до полного
+  // 3. Если это короткая ссылка farcaster.xyz/miniapps/... или warpcast.com
+  const isUrl = shortUrl.includes('farcaster.xyz') || shortUrl.includes('warpcast.com') || shortUrl.includes('http');
+  if (isUrl) {
+    try {
+      // Нормализуем URL перед запросом
+      const normalized = normalizeUrl(shortUrl);
+      
+      // Пробуем GET-запрос вместо HEAD — некоторые серверы не возвращают редирект в HEAD
+      console.log("[neynar] getFullCastHash: trying GET redirect for", normalized);
+      const response = await fetch(normalized, { 
+        method: 'GET', 
+        redirect: 'follow',
+        // Не загружаем тело ответа, только заголовки
+        headers: { 'Accept': 'text/html' }
+      });
+      const finalUrl = response.url;
+      console.log("[neynar] getFullCastHash: final URL after redirect", finalUrl);
+
+      // Из финального URL вытягиваем хеш (64 символа для полного hash)
+      const match = finalUrl.match(/0x[a-fA-F0-9]{64}/);
+      if (match) {
+        console.log("[neynar] getFullCastHash: resolved via GET redirect", shortUrl, "→", match[0]);
+        return match[0].toLowerCase();
+      }
+    } catch (e) {
+      console.log('[neynar] getFullCastHash: GET redirect failed, fallback to Neynar search', e);
+    }
+  }
+
+  // 3. Fallback через resolveCastUrl (более надежный метод, работает на бесплатном плане)
+  // Примечание: Neynar Search API требует платный план, поэтому используем resolveCastUrl
+
+  // 4. Последняя попытка через resolveCastUrl (старый метод)
+  try {
+    const normalized = normalizeUrl(shortUrl);
     const resolved = await resolveCastUrl(normalized);
-    if (resolved) return resolved;
-    
-    // Если не удалось расширить через URL, попробуем resolve сам хеш
-    const resolvedHash = await resolveCastUrl(short);
-    if (resolvedHash) return resolvedHash;
-    
-    // Если всё равно не удалось, НЕ возвращаем короткий - API требует полный хеш
-    console.warn("[neynar] getFullCastHash: failed to expand short hash", short);
-    return null;
+    if (resolved) {
+      console.log("[neynar] getFullCastHash: resolved via resolveCastUrl", shortUrl, "→", resolved);
+      return resolved;
+    }
+  } catch (e) {
+    console.error("[neynar] getFullCastHash: resolveCastUrl error", e);
   }
 
-  // 3 — resolve URL через Neynar
-  const resolved = await resolveCastUrl(normalized);
-  if (resolved) return resolved;
-
-  // 4 — ещё одна попытка resolve только хэша
-  if (input.startsWith("0x")) {
-    const resolved2 = await resolveCastUrl(input);
-    if (resolved2) return resolved2;
-  }
-
+  console.warn("[neynar] getFullCastHash: Cannot resolve cast hash from", shortUrl);
   return null;
 }
 

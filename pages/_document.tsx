@@ -1,16 +1,35 @@
-import { Html, Head, Main, NextScript } from 'next/document';
+import { Html, Head, Main, NextScript, DocumentContext } from 'next/document';
+
+function getBaseUrl(): string {
+  // Используем переменную окружения или Vercel URL
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL;
+  
+  if (baseUrl) {
+    // Если VERCEL_URL, добавляем https://
+    return baseUrl.startsWith('http') ? baseUrl : `https://${baseUrl}`;
+  }
+  
+  // Fallback на дефолтный домен
+  return 'https://likechat-farcaster.vercel.app';
+}
+
+Document.getInitialProps = async (ctx: DocumentContext) => {
+  return {};
+};
 
 export default function Document() {
+  const baseUrl = getBaseUrl();
+  
   return (
     <Html>
       <Head>
         <meta property="fc:miniapp" content="v1" />
         <meta property="fc:miniapp:title" content="LikeChat Farcaster" />
-        <meta property="fc:miniapp:image" content="https://likechat-farcaster.vercel.app/og.png" />
+        <meta property="fc:miniapp:image" content={`${baseUrl}/og.png`} />
         <meta property="fc:miniapp:description" content="Взаимные лайки, рекасты и комментарии в Farcaster" />
         <meta property="fc:miniapp:button:1" content="Открыть LikeChat" />
         <meta property="fc:miniapp:button:1:action" content="link" />
-        <meta property="fc:miniapp:button:1:target" content="https://likechat-farcaster.vercel.app/" />
+        <meta property="fc:miniapp:button:1:target" content={baseUrl} />
       </Head>
       <body>
         <Main />
