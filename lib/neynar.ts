@@ -238,7 +238,7 @@ export async function checkUserLiked(fullHash: string, userFid: number): Promise
     console.log("[neynar] checkUserLiked: checking", likes.length, "likes");
     
     if (likes.length > 0) {
-      likes.forEach((like, i) => {
+      likes.forEach((like: any, i: number) => {
         const fid = like.fid || like.reactor_fid || like.user?.fid || like.author?.fid;
         console.log(`[neynar] checkUserLiked: like ${i + 1} - FID: ${fid}, checking against ${userFid}`);
       });
