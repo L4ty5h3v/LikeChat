@@ -113,7 +113,13 @@ export async function getFullCastHash(shortUrl: string): Promise<string | null> 
   // 3. Если это URL (farcaster.xyz, warpcast.com и т.д.) - используем resolveCastUrl
   // Это правильный метод через GET /v2/farcaster/cast?identifier={url}&type=url
   const isUrl = shortUrl.includes('farcaster.xyz') || shortUrl.includes('warpcast.com') || shortUrl.includes('http');
-  if (isUrl && cleanApiKey) {
+  if (isUrl) {
+    if (!cleanApiKey) {
+      console.error("[neynar] getFullCastHash: NEYNAR_API_KEY not configured - cannot resolve URL");
+      console.error("[neynar] getFullCastHash: process.env.NEYNAR_API_KEY =", process.env.NEYNAR_API_KEY ? "SET" : "NOT SET");
+      return null;
+    }
+    
     try {
       const normalized = normalizeUrl(shortUrl);
       console.log("[neynar] getFullCastHash: trying resolveCastUrl for URL", normalized);
@@ -121,9 +127,12 @@ export async function getFullCastHash(shortUrl: string): Promise<string | null> 
       if (resolved) {
         console.log("[neynar] getFullCastHash: resolved via resolveCastUrl", shortUrl, "→", resolved);
         return resolved.toLowerCase();
+      } else {
+        console.warn("[neynar] getFullCastHash: resolveCastUrl returned null for", normalized);
       }
-    } catch (e) {
-      console.log('[neynar] getFullCastHash: resolveCastUrl failed', e);
+    } catch (e: any) {
+      console.error('[neynar] getFullCastHash: resolveCastUrl failed with error:', e?.message);
+      console.error('[neynar] getFullCastHash: error stack:', e?.stack?.substring(0, 200));
     }
   }
 

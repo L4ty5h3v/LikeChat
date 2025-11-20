@@ -18,6 +18,17 @@ export default async function handler(
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  // Проверка API ключа в начале
+  const neynarApiKey = process.env.NEYNAR_API_KEY;
+  if (!neynarApiKey || !neynarApiKey.trim()) {
+    console.error("❌ [verify-activity] NEYNAR_API_KEY not configured on server");
+    return res.status(500).json({
+      success: false,
+      completed: false,
+      error: "Server configuration error: NEYNAR_API_KEY not set. Please configure it in Vercel environment variables.",
+    });
+  }
+
   try {
     const { castUrl, userFid, activityType } = req.body;
 
@@ -29,21 +40,26 @@ export default async function handler(
       });
     }
 
+    console.log("[VERIFY] Starting verification for:", { castUrl, userFid, activityType });
+
     // -----------------------
     // 1. Получение universal hash
     // -----------------------
     const fullHash = await getFullCastHash(castUrl);
 
     if (!fullHash) {
+      console.error("[VERIFY] Failed to resolve hash from URL:", castUrl);
       return res.status(200).json({
         success: false,
         completed: false,
-        error: "Не удалось получить hash из ссылки.",
+        error: "Не удалось получить hash из ссылки. Проверьте, что ссылка корректна и каст существует в сети Farcaster.",
         neynarExplorerUrl: `https://explorer.neynar.com/search?q=${encodeURIComponent(
           castUrl
         )}`,
       });
     }
+
+    console.log("[VERIFY] Successfully resolved hash:", fullHash);
 
     // -----------------------
     // 2. Проверка активности (пробуем оба метода)
