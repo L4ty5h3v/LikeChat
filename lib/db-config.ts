@@ -23,6 +23,7 @@ export const markTokenPurchased = db.markTokenPurchased;
 export const setUserActivity = db.setUserActivity;
 export const submitLink = db.submitLink;
 export const getAllLinks = db.getAllLinks;
+export const deleteLink = db.deleteLink;
 export const subscribeToLinks = db.subscribeToLinks;
 // getTotalLinksCount - не используется, удалено для очистки кода
 

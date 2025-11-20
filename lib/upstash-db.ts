@@ -94,6 +94,41 @@ export async function getAllLinks(): Promise<LinkSubmission[]> {
   }
 }
 
+export async function deleteLink(linkId: string): Promise<boolean> {
+  if (!redis) return false;
+  
+  try {
+    // Получаем все ссылки
+    const links = await redis.lrange(KEYS.LINKS, 0, -1);
+    
+    // Находим индекс ссылки для удаления
+    let linkIndex = -1;
+    for (let i = 0; i < links.length; i++) {
+      const linkStr = links[i];
+      const link = typeof linkStr === 'string' ? JSON.parse(linkStr) : linkStr;
+      if (link.id === linkId) {
+        linkIndex = i;
+        break;
+      }
+    }
+    
+    if (linkIndex === -1) {
+      console.warn(`⚠️ Link ${linkId} not found for deletion`);
+      return false;
+    }
+    
+    // Удаляем ссылку из списка
+    // В Redis списках удаляем по значению
+    await redis.lrem(KEYS.LINKS, 1, links[linkIndex]);
+    
+    console.log(`✅ Link ${linkId} deleted successfully`);
+    return true;
+  } catch (error) {
+    console.error('Error deleting link from Upstash:', error);
+    return false;
+  }
+}
+
 export async function submitLink(
   userFid: number,
   username: string,

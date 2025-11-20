@@ -522,6 +522,19 @@ export default function Tasks() {
                 linkId: task.link_id,
                 message: 'Отсутствует ссылка на cast. Проверьте формат ссылки.',
               });
+              
+              // Удаляем ссылку из базы данных
+              try {
+                await fetch('/api/delete-link', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ linkId: task.link_id }),
+                });
+                console.log(`🗑️ Deleted link ${task.link_id} (no cast_url)`);
+              } catch (e) {
+                console.error(`❌ Failed to delete link ${task.link_id}:`, e);
+              }
+              
               return {
                 ...task,
                 completed: false,
@@ -565,6 +578,25 @@ export default function Tasks() {
               result.userMessage?.includes('Cast не найден') ||
               result.userMessage?.includes('Неверный формат')
             ));
+            
+            // Если каст не найден (error: true), удаляем ссылку из базы данных
+            if (result.isError) {
+              try {
+                const deleteResponse = await fetch('/api/delete-link', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ linkId: task.link_id }),
+                });
+                
+                if (deleteResponse.ok) {
+                  console.log(`🗑️ Deleted link ${task.link_id} (cast not found)`);
+                } else {
+                  console.warn(`⚠️ Failed to delete link ${task.link_id}: ${deleteResponse.status}`);
+                }
+              } catch (e) {
+                console.error(`❌ Error deleting link ${task.link_id}:`, e);
+              }
+            }
 
             // Собираем сообщения об ошибках для пользователя
             if (!result.completed && result.userMessage) {
