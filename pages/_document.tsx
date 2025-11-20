@@ -14,7 +14,8 @@ function getBaseUrl(): string {
 }
 
 Document.getInitialProps = async (ctx: DocumentContext) => {
-  return {};
+  const initialProps = await ctx.defaultGetInitialProps(ctx);
+  return initialProps;
 };
 
 export default function Document() {
