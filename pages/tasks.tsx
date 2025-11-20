@@ -525,12 +525,25 @@ export default function Tasks() {
               
               // Удаляем ссылку из базы данных
               try {
-                await fetch('/api/delete-link', {
+                const deleteResponse = await fetch('/api/delete-link', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ linkId: task.link_id }),
                 });
-                console.log(`🗑️ Deleted link ${task.link_id} (no cast_url)`);
+                
+                if (deleteResponse.ok) {
+                  console.log(`🗑️ Deleted link ${task.link_id} (no cast_url)`);
+                  // Удаляем задание из списка задач
+                  setTasks(prevTasks => prevTasks.filter(t => t.link_id !== task.link_id));
+                  // Перезагружаем список задач через 1 секунду, чтобы получить новую ссылку
+                  setTimeout(() => {
+                    if (user?.fid) {
+                      loadTasks(user.fid, false);
+                    }
+                  }, 1000);
+                } else {
+                  console.warn(`⚠️ Failed to delete link ${task.link_id}: ${deleteResponse.status}`);
+                }
               } catch (e) {
                 console.error(`❌ Failed to delete link ${task.link_id}:`, e);
               }
@@ -590,6 +603,14 @@ export default function Tasks() {
                 
                 if (deleteResponse.ok) {
                   console.log(`🗑️ Deleted link ${task.link_id} (cast not found)`);
+                  // Удаляем задание из списка задач
+                  setTasks(prevTasks => prevTasks.filter(t => t.link_id !== task.link_id));
+                  // Перезагружаем список задач через 1 секунду, чтобы получить новую ссылку
+                  setTimeout(() => {
+                    if (user?.fid) {
+                      loadTasks(user.fid, false);
+                    }
+                  }, 1000);
                 } else {
                   console.warn(`⚠️ Failed to delete link ${task.link_id}: ${deleteResponse.status}`);
                 }
