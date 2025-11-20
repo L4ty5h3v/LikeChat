@@ -421,18 +421,25 @@ export default function Tasks() {
     viewerFid: number;
   }): Promise<{ completed: boolean; userMessage?: string; hashWarning?: string; isError?: boolean; neynarExplorerUrl?: string }> => {
     try {
+      const requestBody = {
+        castUrl: castUrl || castHash, // Передаем весь URL
+        userFid: viewerFid,
+        activityType,
+      };
+      
+      console.log('[CLIENT] verifyActivity: Sending request:', requestBody);
+      console.log('[CLIENT] verifyActivity: viewerFid type:', typeof viewerFid, 'value:', viewerFid);
+      
       // Отправляем castUrl (весь URL, даже с "...")
       const response = await fetch('/api/verify-activity', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          castUrl: castUrl || castHash, // Передаем весь URL
-          userFid: viewerFid,
-          activityType,
-        }),
+        body: JSON.stringify(requestBody),
       });
+
+      console.log('[CLIENT] verifyActivity: Response status:', response.status, response.statusText);
 
       const data = await response.json();
       
