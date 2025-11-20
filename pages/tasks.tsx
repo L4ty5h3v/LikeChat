@@ -4,7 +4,6 @@ import { useRouter } from 'next/router';
 import Image from 'next/image';
 import Layout from '@/components/Layout';
 import TaskCard from '@/components/TaskCard';
-import ProgressBar from '@/components/ProgressBar';
 import Button from '@/components/Button';
 import { getAllLinks } from '@/lib/db-config';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
@@ -821,10 +820,6 @@ export default function Tasks() {
             </p>
           </div>
 
-          {/* Модная карточка прогресса */}
-          <div className="bg-white bg-opacity-95 backdrop-blur-sm rounded-3xl shadow-2xl p-8 mb-12 border border-white border-opacity-20 mt-32">
-            <ProgressBar completed={completedCount} total={tasks.length} tasks={tasks} />
-          </div>
 
           {/* Предупреждение о невыполненных заданиях */}
           {incompleteLinks.length > 0 && (
