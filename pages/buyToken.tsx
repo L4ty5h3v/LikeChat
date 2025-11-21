@@ -1,6 +1,7 @@
 // Страница покупки токена Миссис Крипто
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import Image from 'next/image';
 import Layout from '@/components/Layout';
 import Button from '@/components/Button';
 import { useAccount, useBalance, useConnect, useBlockNumber } from 'wagmi';
@@ -694,34 +695,69 @@ export default function BuyToken() {
 
   return (
     <Layout title="Multi Like - Buy Token">
-      <div className="max-w-4xl mx-auto">
-        {/* Заголовок */}
-        <div className="text-center mb-8">
-          <div className="w-32 h-32 bg-primary bg-opacity-10 rounded-full flex items-center justify-center mx-auto mb-6">
-            <span className="text-8xl">💎</span>
-          </div>
-          <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-4">
-            Buy Mrs Crypto Token
-          </h1>
-          <p className="text-xl md:text-2xl text-gray-600">
-            Purchase token to unlock features
-          </p>
-        </div>
+      {/* Hero Section с градиентом */}
+      <div className="relative min-h-screen overflow-hidden">
+        {/* Анимированный градиент фон */}
+        <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient bg-300%"></div>
+        
+        {/* Геометрические фигуры */}
+        <div className="absolute top-20 right-20 w-32 h-32 bg-white bg-opacity-10 rounded-full animate-float"></div>
+        <div className="absolute bottom-32 left-20 w-24 h-24 bg-white bg-opacity-15 rounded-full animate-float" style={{animationDelay: '2s'}}></div>
+        
+        <div className="relative z-10 max-w-7xl mx-auto px-6 py-8">
+          {/* Заголовок в стиле модного сайта */}
+          <div className="text-center mb-16">
+            <div className="relative -mt-2 sm:mt-0">
+              <h1 className="text-white mb-12 sm:mb-24 leading-none flex items-center justify-center gap-4 sm:gap-8 px-4 sm:px-16">
+                <span className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-white">
+                  BUY
+                </span>
+                <span className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-white">
+                  TOKEN
+                </span>
+              </h1>
+            </div>
 
-        {/* Карточка покупки */}
-        <div className="bg-white rounded-2xl shadow-xl p-8 mb-8">
+            <div className="flex items-center justify-center gap-3 sm:gap-6 mt-12 sm:mt-24 mb-8 sm:mb-16">
+              <div className="w-10 sm:w-20 h-1 bg-white"></div>
+              <div className="flex items-center gap-4">
+                {/* Увеличенное фото Миссис Крипто */}
+                <div className="w-28 h-28 sm:w-40 sm:h-40 rounded-full overflow-hidden border-4 border-white shadow-2xl">
+                  <Image
+                    src="/images/mrs-crypto.jpg"
+                    alt="Mrs. Crypto"
+                    width={160}
+                    height={160}
+                    className="w-full h-full object-cover"
+                    priority
+                    unoptimized
+                  />
+                </div>
+              </div>
+              <div className="w-10 sm:w-20 h-1 bg-white"></div>
+            </div>
+            <p className="text-xl sm:text-3xl md:text-4xl text-white font-bold mb-4 tracking-wide px-4">
+              <span className="text-white">💎</span> MRS. CRYPTO TOKEN <span className="text-white">💎</span>
+            </p>
+            <p className="text-lg text-white text-opacity-90 max-w-2xl mx-auto">
+              Purchase token to unlock link publishing
+            </p>
+          </div>
+
+          {/* Модная карточка покупки */}
+          <div className="bg-white bg-opacity-95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 sm:p-12 mb-12 border border-white border-opacity-20 mt-6 sm:mt-12">
           {/* Информация о кошельке */}
           {walletAddress && (
-            <div className="bg-gray-50 rounded-xl p-6 mb-6">
+            <div className="bg-gradient-to-r from-primary/10 via-secondary/10 to-accent/10 rounded-xl p-6 mb-6 border border-primary/20">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-lg text-gray-600">Your wallet:</span>
-                <span className="font-mono text-lg font-semibold">
+                <span className="text-lg text-gray-700 font-semibold">Your wallet:</span>
+                <span className="font-mono text-lg font-bold text-primary">
                   {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-lg text-gray-600">Token balance:</span>
-                <span className="font-semibold text-primary text-xl">
+                <span className="text-lg text-gray-700 font-semibold">Token balance:</span>
+                <span className="font-bold text-primary text-2xl">
                   {parseFloat(tokenBalance).toFixed(2)} $MCT
                 </span>
               </div>
@@ -730,10 +766,7 @@ export default function BuyToken() {
 
           {!walletAddress && (
             <div className="mb-6">
-              <div className="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-6 text-center">
-                <p className="text-yellow-800 text-lg font-semibold mb-4">
-                  🔗 Connect your Farcaster wallet
-                </p>
+              <div className="text-center">
                 <Button
                   onClick={() => connect({ connector: farcasterMiniApp() })}
                   loading={isConnecting}
@@ -743,60 +776,10 @@ export default function BuyToken() {
                 >
                   {isConnecting ? 'Connecting...' : 'Connect Wallet'}
                 </Button>
-                <p className="text-yellow-700 text-sm mt-3">
-                  Your wallet will connect through Farcaster Mini App
-                </p>
               </div>
             </div>
           )}
 
-          {/* Детали покупки */}
-          <div className="border-2 border-primary border-opacity-30 rounded-xl p-8 mb-6">
-            <h3 className="text-3xl font-bold text-gray-900 mb-6 text-center">
-              Purchase Details
-            </h3>
-            
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-xl text-gray-600">Token:</span>
-                <span className="font-semibold text-xl">Mrs Crypto ($MCT)</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-xl text-gray-600">Price:</span>
-                <div className="text-right">
-                  <span className="font-bold text-primary text-3xl block">
-                    {isFree ? 'Free' : (displayUsdPrice || displayEthPrice || '—')}
-                  </span>
-                  {!isFree && useUSDC && tokenPriceEth && (
-                    <span className="text-sm text-gray-500">
-                      {parseFloat(tokenPriceEth).toFixed(6)} USDC
-                    </span>
-                  )}
-                  {!isFree && !useUSDC && displayEthPrice && (
-                    <span className="text-sm text-gray-500">
-                      {displayEthPrice}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-xl text-gray-600">You will receive:</span>
-                <span className="font-semibold text-xl">
-                  {mctAmountForPurchase 
-                    ? `${formatUnits(mctAmountForPurchase, 18).slice(0, 10)} $MCT`
-                    : (tokenPriceEth && parseFloat(tokenPriceEth) > 0 
-                      ? `${(PURCHASE_AMOUNT_USDC / parseFloat(tokenPriceEth)).toFixed(6)} $MCT`
-                      : 'Calculating...')}
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-6 pt-6 border-t border-gray-200">
-              <p className="text-lg text-gray-500 text-center">
-                After purchase you will be able to publish your link
-              </p>
-            </div>
-          </div>
 
           {/* Ошибка с retry */}
           {error && (
@@ -889,29 +872,49 @@ export default function BuyToken() {
 
           {/* Кнопка покупки */}
           {!purchased ? (
-            <Button
+            <button
               onClick={handleBuyToken}
-              loading={loading || isSwapping}
               disabled={loading || isSwapping || !walletAddress}
-              variant="primary"
-              fullWidth
-              className="text-xl py-5"
+              className={`
+                w-full text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold rounded-2xl shadow-2xl 
+                transform transition-all duration-300 relative z-10
+                bg-gradient-to-r from-primary via-red-600 to-accent text-white
+                hover:from-red-500 hover:via-purple-500 hover:to-accent
+                ${loading || isSwapping || !walletAddress
+                  ? 'opacity-50 cursor-not-allowed' 
+                  : 'opacity-100 cursor-pointer hover:scale-105 active:scale-95'
+                }
+                disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:transform-none
+              `}
             >
               {isSwapping 
-                ? '⏳ Waiting for swap to complete...' 
+                ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>WAITING FOR SWAP...</span>
+                  </div>
+                )
                 : loading 
-                  ? '🔄 Processing...' 
-                  : `💎 Buy Mrs Crypto Token${displayUsdPrice ? ` for ${displayUsdPrice}` : ' (Free)'}`}
-            </Button>
+                  ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>PROCESSING...</span>
+                    </div>
+                  )
+                  : `💎 BUY MRS. CRYPTO TOKEN${displayUsdPrice ? ` FOR ${displayUsdPrice}` : ' (FREE)'}`
+              }
+            </button>
           ) : (
-            <Button
+            <button
               onClick={() => router.push('/submit')}
-              variant="success"
-              fullWidth
-              className="text-xl py-5"
+              className="w-full text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold rounded-2xl shadow-2xl 
+                transform transition-all duration-300 relative z-10
+                bg-gradient-to-r from-green-500 via-green-600 to-green-700 text-white
+                hover:from-green-400 hover:via-green-500 hover:to-green-600
+                opacity-100 cursor-pointer hover:scale-105 active:scale-95"
             >
-              Publish Link →
-            </Button>
+              PUBLISH LINK →
+            </button>
           )}
           
           {/* Индикатор ожидания завершения swap */}
@@ -951,23 +954,42 @@ export default function BuyToken() {
           )}
         </div>
 
-        {/* Модальное окно подтверждения покупки - убрано для one-tap UX */}
+          {/* Модальное окно подтверждения покупки - убрано для one-tap UX */}
+          </div>
 
-        {/* Информационный блок */}
-        <div className="text-white rounded-2xl p-6" style={{ background: 'linear-gradient(to right, #FFD700, #B8860B)' }}>
-          <h3 className="text-xl font-bold mb-3 flex items-center gap-2">
-            <span>ℹ️</span>
-            Important Information
-          </h3>
-          <ul className="space-y-2 text-sm">
-            <li>• 🦄 Purchase 0.10 MCT through Base network smart contract</li>
-            <li>• Payment method: USDC (price pulled from smart contract)</li>
-            <li>• Network will automatically switch to Base if needed</li>
-            <li>• Token will be sent to your connected wallet</li>
-            <li>• You will need to approve USDC spending first, then purchase</li>
-            <li>• After purchase you will be able to publish your link</li>
-            <li>• Make sure you have enough USDC on Base for purchase and ETH for gas fees</li>
-          </ul>
+          {/* Модная инструкция */}
+          <div className="bg-gradient-to-r from-primary via-secondary to-accent text-white rounded-3xl p-8 shadow-2xl mt-32">
+            <h3 className="text-3xl font-black mb-6 flex items-center gap-3 font-display">
+              <span className="text-4xl">💎</span>
+              TOKEN PURCHASE INFO
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
+                  <span className="text-3xl font-black text-accent">01</span>
+                  <span className="font-bold text-xl">Purchase 0.10 MCT through Base network</span>
+                </div>
+                <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
+                  <span className="text-3xl font-black text-accent">02</span>
+                  <span className="font-bold text-xl">Payment method: USDC</span>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
+                  <span className="text-3xl font-black text-accent">03</span>
+                  <span className="font-bold text-xl">Network switches to Base automatically</span>
+                </div>
+                <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
+                  <span className="text-3xl font-black text-accent">04</span>
+                  <span className="font-bold text-xl">Token sent to your connected wallet</span>
+                </div>
+              </div>
+              <div className="flex items-center justify-center gap-3 p-3 bg-gradient-to-r from-accent to-secondary rounded-xl col-span-1 md:col-span-2 text-center">
+                <span className="text-3xl">🚀</span>
+                <span className="font-bold text-xl">After purchase you can publish your link!</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </Layout>

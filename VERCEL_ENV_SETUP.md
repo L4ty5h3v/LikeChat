@@ -47,3 +47,5 @@ echo "1F4EE142-7FBF-4BBB-83B3-9AF9E1588383" | vercel env add NEYNAR_API_KEY deve
 2. Функция `getFullCastHash()` будет работать с Neynar Search fallback
 3. Короткие ссылки `farcaster.xyz/miniapps/...` будут разрешаться через Neynar API
 
+
+
