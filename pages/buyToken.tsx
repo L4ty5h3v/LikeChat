@@ -955,7 +955,6 @@ export default function BuyToken() {
         </div>
 
           {/* Модальное окно подтверждения покупки - убрано для one-tap UX */}
-          </div>
 
           {/* Модная инструкция */}
           <div className="bg-gradient-to-r from-primary via-secondary to-accent text-white rounded-3xl p-8 shadow-2xl mt-32">
