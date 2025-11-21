@@ -1023,139 +1023,156 @@ export default function Submit() {
 
   return (
     <Layout title="Multi Like - Publish Link">
-      <div className="max-w-3xl mx-auto">
-        {/* Заголовок с анимацией */}
-        <div className="text-center mb-8">
-          <div className="flex justify-center gap-2 text-6xl mb-4 animate-pulse-slow">
-            <span>🎉</span>
-            <span>💌</span>
-            <span>🎊</span>
-          </div>
-          <h1 className="text-4xl font-bold text-primary mb-2">
-            Поздравляем!
-          </h1>
-          <p className="text-xl text-gray-600">
-            Вы выполнили все задания и купили токен
-          </p>
-          <p className="text-gray-500 mt-2">
-            Теперь опубликуйте свою ссылку
-          </p>
-        </div>
-
-        {/* Прогресс пользователя */}
-        <div className="bg-gradient-to-r from-success to-green-400 text-white rounded-2xl p-6 mb-8">
-          <h3 className="text-xl font-bold mb-4">Ваш прогресс:</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-white bg-opacity-20 rounded-lg p-4 text-center">
-              <div className="text-4xl mb-2">✅</div>
-              <p className="font-semibold">10 ссылок</p>
-              <p className="text-sm">пройдено</p>
-            </div>
-            <div className="bg-white bg-opacity-20 rounded-lg p-4 text-center">
-              <div className="text-4xl mb-2">💎</div>
-              <p className="font-semibold">Токен куплен</p>
-              <p className="text-sm">$0.10</p>
-            </div>
-          </div>
-        </div>
-
-
-        {/* Форма публикации */}
-        <div className="bg-white rounded-2xl shadow-xl p-8 mb-8">
-          <div className="mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              Опубликуйте вашу ссылку
-            </h2>
-            <p className="text-gray-600">
-              Вставьте ссылку на ваш каст в Farcaster/Warpcast
+      {/* Hero Section с градиентом */}
+      <div className="relative min-h-screen overflow-hidden">
+        {/* Анимированный градиент фон */}
+        <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient bg-300%"></div>
+        
+        {/* Геометрические фигуры */}
+        <div className="absolute top-20 right-20 w-32 h-32 bg-white bg-opacity-10 rounded-full animate-float"></div>
+        <div className="absolute bottom-32 left-20 w-24 h-24 bg-white bg-opacity-15 rounded-full animate-float" style={{animationDelay: '2s'}}></div>
+        
+        <div className="relative z-10 max-w-7xl mx-auto px-6 py-8">
+          {/* Заголовок в стиле модного сайта */}
+          <div className="text-center mb-16">
+            <h1 className="text-7xl md:text-9xl font-black text-white mb-8 font-display leading-none tracking-tight">
+              PUBLISH
+            </h1>
+            <p className="text-2xl md:text-3xl text-white text-opacity-90 max-w-2xl mx-auto mb-6">
+              Опубликуйте свою ссылку для взаимной поддержки
             </p>
           </div>
 
-          {/* Информация о выбранной активности */}
-          <div className="bg-primary bg-opacity-10 rounded-xl p-4 mb-6">
-            <p className="text-sm text-gray-700 mb-2">
-              <strong>Выбранная активность:</strong>
-            </p>
-            <div className="flex items-center gap-2 text-primary font-semibold text-lg">
-              {activity === 'like' && (
-                <>
-                  <span className="text-2xl">❤️</span>
-                  <span>Лайк</span>
-                </>
-              )}
-              {activity === 'recast' && (
-                <>
-                  <span className="text-2xl">🔄</span>
-                  <span>Рекаст</span>
-                </>
-              )}
-              {activity === 'comment' && (
-                <>
-                  <span className="text-2xl">💬</span>
-                  <span>Комментарий</span>
-                </>
-              )}
-            </div>
-            <p className="text-sm text-gray-600 mt-2">
-              Другие пользователи будут выполнять эту активность на вашей ссылке
-            </p>
-          </div>
+          {/* Модная карточка публикации */}
+          <div className="bg-white bg-opacity-95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 sm:p-12 mb-12 border border-white border-opacity-20 mt-6 sm:mt-12">
 
-          <form onSubmit={handleSubmit}>
-            <div className="mb-6">
-              <label
-                htmlFor="castUrl"
-                className="block text-sm font-semibold text-gray-700 mb-2"
-              >
-                Ссылка на ваш каст:
-              </label>
-              <input
-                type="url"
-                id="castUrl"
-                value={castUrl}
-                onChange={(e) => setCastUrl(e.target.value)}
-                placeholder="https://warpcast.com/username/0x123abc..."
-                className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-primary focus:outline-none transition-colors"
-                required
-              />
-              <p className="text-xs text-gray-500 mt-2">
-                Пример: https://warpcast.com/username/0x123abc
+
+            <div className="mb-8">
+              <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-3 text-center">
+                PUBLISH YOUR LINK
+              </h2>
+              <p className="text-lg text-gray-700 text-center">
+                Вставьте ссылку на ваш каст в Farcaster/Warpcast
               </p>
             </div>
 
-            {error && (
-              <div className="bg-red-50 border-2 border-red-300 rounded-xl p-4 mb-6">
-                <p className="text-red-800 font-semibold flex items-center gap-2">
-                  <span>❌</span>
-                  {error}
+            {/* Информация о выбранной активности */}
+            <div className="bg-gradient-to-r from-primary/10 via-secondary/10 to-accent/10 rounded-xl p-6 mb-6 border border-primary/20">
+              <p className="text-sm text-gray-700 mb-3 font-semibold">
+                Выбранная активность:
+              </p>
+              <div className="flex items-center gap-3 text-primary font-bold text-xl">
+                {activity === 'like' && (
+                  <>
+                    <span className="text-3xl">❤️</span>
+                    <span>LIKE</span>
+                  </>
+                )}
+                {activity === 'recast' && (
+                  <>
+                    <span className="text-3xl">🔄</span>
+                    <span>RECAST</span>
+                  </>
+                )}
+                {activity === 'comment' && (
+                  <>
+                    <span className="text-3xl">💬</span>
+                    <span>COMMENT</span>
+                  </>
+                )}
+              </div>
+              <p className="text-sm text-gray-600 mt-3">
+                Другие пользователи будут выполнять эту активность на вашей ссылке
+              </p>
+            </div>
+
+            <form onSubmit={handleSubmit}>
+              <div className="mb-6">
+                <label
+                  htmlFor="castUrl"
+                  className="block text-lg font-bold text-gray-900 mb-3"
+                >
+                  Ссылка на ваш каст:
+                </label>
+                <input
+                  type="url"
+                  id="castUrl"
+                  value={castUrl}
+                  onChange={(e) => setCastUrl(e.target.value)}
+                  placeholder="https://warpcast.com/username/0x123abc..."
+                  className="w-full px-6 py-4 border-2 border-gray-300 rounded-xl focus:border-primary focus:outline-none transition-colors text-lg"
+                  required
+                />
+                <p className="text-sm text-gray-500 mt-2">
+                  Пример: https://warpcast.com/username/0x123abc
                 </p>
               </div>
-            )}
 
-            <Button
-              type="submit"
-              loading={loading}
-              disabled={!castUrl}
-              variant="success"
-              fullWidth
-              className="text-xl py-5"
-            >
-              🚀 Publish Link
-            </Button>
-          </form>
-        </div>
+              {error && (
+                <div className="bg-red-50 border-2 border-red-300 rounded-xl p-6 mb-6">
+                  <p className="text-red-800 font-bold flex items-center gap-2 text-lg">
+                    <span>❌</span>
+                    {error}
+                  </p>
+                </div>
+              )}
 
-        {/* Инструкция */}
-        <div className="bg-gray-50 rounded-2xl p-6">
-          <h3 className="text-lg font-bold text-gray-900 mb-3">
-            📝 Что дальше?
-          </h3>
-          <ol className="space-y-2 text-gray-700 list-decimal list-inside">
-            <li>Ваша ссылка будет добавлена в очередь</li>
-            <li>Следующие 10 пользователей пройдут вашу ссылку</li>
-            <li>Они выполнят выбранную вами активность</li>
-            <li>Вы получите взаимную поддержку от сообщества</li>
-          </ol>
+              <button
+                type="submit"
+                disabled={loading || !castUrl}
+                className={`
+                  w-full text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold rounded-2xl shadow-2xl 
+                  transform transition-all duration-300 relative z-10
+                  bg-gradient-to-r from-green-500 via-green-600 to-green-700 text-white
+                  hover:from-green-400 hover:via-green-500 hover:to-green-600
+                  ${loading || !castUrl
+                    ? 'opacity-50 cursor-not-allowed' 
+                    : 'opacity-100 cursor-pointer hover:scale-105 active:scale-95'
+                  }
+                  disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:transform-none
+                `}
+              >
+                {loading ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>PUBLISHING...</span>
+                  </div>
+                ) : (
+                  '🚀 PUBLISH LINK'
+                )}
+              </button>
+            </form>
+          </div>
+
+          {/* Модная инструкция */}
+          <div className="bg-gradient-to-r from-primary via-secondary to-accent text-white rounded-3xl p-8 shadow-2xl mt-32">
+            <h3 className="text-3xl font-black mb-6 flex items-center gap-3 font-display">
+              <span className="text-4xl">📝</span>
+              WHAT'S NEXT?
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
+                  <span className="text-3xl font-black text-accent">01</span>
+                  <span className="font-bold text-xl">Your link will be added to queue</span>
+                </div>
+                <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
+                  <span className="text-3xl font-black text-accent">02</span>
+                  <span className="font-bold text-xl">Next 10 users will complete your link</span>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
+                  <span className="text-3xl font-black text-accent">03</span>
+                  <span className="font-bold text-xl">They will perform your selected activity</span>
+                </div>
+                <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
+                  <span className="text-3xl font-black text-accent">04</span>
+                  <span className="font-bold text-xl">You get mutual support from community</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

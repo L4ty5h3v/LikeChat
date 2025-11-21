@@ -472,11 +472,9 @@ export default function BuyToken() {
           });
         }
         
-        // Переход к публикации ссылки через 2 секунды
-        setTimeout(() => {
-          console.log('🚀 [BUYTOKEN] Redirecting to /submit after token purchase');
-          router.replace('/submit'); // Используем replace вместо push
-        }, 2000);
+        // Не переходим на /submit - остаемся на странице покупки
+        // Пользователь может опубликовать ссылку позже через /tasks
+        console.log('✅ [BUYTOKEN] Token purchase completed, staying on buy token page');
       }
   }, [mctBalance, isSwapping, oldBalanceBeforeSwap, user, router, txHash]);
   
@@ -491,12 +489,9 @@ export default function BuyToken() {
         const progress = progressData.progress;
         
         if (progress?.token_purchased && !purchased) {
-          console.log('✅ [BUYTOKEN] Token already purchased, redirecting to /submit');
+          console.log('✅ [BUYTOKEN] Token already purchased, staying on buy token page');
           setPurchased(true);
-          // Редирект на /submit если токен уже куплен
-          setTimeout(() => {
-            router.replace('/submit');
-          }, 1000);
+          // Не редиректим на /submit - остаемся на странице покупки
         }
       } catch (error) {
         console.error('❌ [BUYTOKEN] Error checking token purchase status:', error);
@@ -579,7 +574,6 @@ export default function BuyToken() {
           sellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`, // USDC на Base
           buyToken: `eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`, // MCT Token на Base
           sellAmount: usdcAmountStr, // 0.10 USDC = 100000 wei (parseUnits(0.10, 6))
-          slippageTolerance: 1, // 1% slippage tolerance
         });
         
         // Очищаем таймаут при успешном запуске
@@ -907,14 +901,14 @@ export default function BuyToken() {
             </button>
           ) : (
             <button
-              onClick={() => router.push('/submit')}
+              onClick={() => router.push('/tasks')}
               className="w-full text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold rounded-2xl shadow-2xl 
                 transform transition-all duration-300 relative z-10
                 bg-gradient-to-r from-green-500 via-green-600 to-green-700 text-white
                 hover:from-green-400 hover:via-green-500 hover:to-green-600
                 opacity-100 cursor-pointer hover:scale-105 active:scale-95"
             >
-              PUBLISH LINK →
+              GO TO TASKS →
             </button>
           )}
           
