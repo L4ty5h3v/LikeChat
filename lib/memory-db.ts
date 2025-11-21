@@ -186,16 +186,16 @@ export async function getAllLinks(): Promise<LinkSubmission[]> {
 export async function deleteLink(linkId: string): Promise<boolean> {
   try {
     const initialLength = linkSubmissions.length;
-    linkSubmissions = linkSubmissions.filter(link => link.id !== linkId);
-    const deleted = linkSubmissions.length < initialLength;
+    const index = linkSubmissions.findIndex(link => link.id === linkId);
     
-    if (deleted) {
+    if (index !== -1) {
+      linkSubmissions.splice(index, 1);
       console.log(`✅ Link ${linkId} deleted successfully from memory DB`);
+      return true;
     } else {
       console.warn(`⚠️ Link ${linkId} not found for deletion`);
+      return false;
     }
-    
-    return deleted;
   } catch (error) {
     console.error('Error deleting link from memory DB:', error);
     return false;
