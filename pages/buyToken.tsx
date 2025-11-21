@@ -137,6 +137,7 @@ export default function BuyToken() {
   const { user, isLoading: authLoading, isInitialized } = useFarcasterAuth(); // Используем контекст вместо localStorage
   const [txHash, setTxHash] = useState<string>('');
   const [purchased, setPurchased] = useState(false);
+  const [canPublishLink, setCanPublishLink] = useState(false);
   const [error, setError] = useState<string>('');
   const [tokenInfo, setTokenInfo] = useState<{
     name: string;
@@ -194,6 +195,17 @@ export default function BuyToken() {
     // Проверяем только, куплен ли уже токен
     if (progress?.token_purchased) {
       setPurchased(true);
+      
+      // Проверяем, можно ли опубликовать ссылку (все задачи выполнены)
+      const completedCount = progress.completed_links?.length || 0;
+      if (completedCount >= 10) {
+        // Проверяем, не опубликована ли уже ссылка
+        const linkPublished = sessionStorage.getItem('link_published') === 'true' || 
+                             localStorage.getItem('link_published') === 'true';
+        if (!linkPublished) {
+          setCanPublishLink(true);
+        }
+      }
     }
   };
 
@@ -437,6 +449,25 @@ export default function BuyToken() {
           markTokenPurchased(user.fid, txHash || undefined).then(() => {
             console.log('✅ [DB] Token purchase marked in database' + (txHash ? ` with txHash: ${txHash}` : ''));
             
+            // Проверяем, можно ли опубликовать ссылку (все задачи выполнены)
+            getUserProgress(user.fid).then((progress) => {
+              if (progress) {
+                const completedCount = progress.completed_links?.length || 0;
+                if (completedCount >= 10) {
+                  // Проверяем, не опубликована ли уже ссылка
+                  const linkPublished = typeof window !== 'undefined' && (
+                    sessionStorage.getItem('link_published') === 'true' || 
+                    localStorage.getItem('link_published') === 'true'
+                  );
+                  if (!linkPublished) {
+                    setCanPublishLink(true);
+                  }
+                }
+              }
+            }).catch((err) => {
+              console.error('❌ [BUYTOKEN] Error checking progress after purchase:', err);
+            });
+            
             // Отправляем уведомление через MiniKit SDK для вирусного распространения
             sendTokenPurchaseNotification(
               mctReceived, // Количество полученных MCT
@@ -472,8 +503,8 @@ export default function BuyToken() {
           });
         }
         
-        // Не переходим на /submit - остаемся на странице покупки
-        // Пользователь может опубликовать ссылку позже через /tasks
+        // Не переходим на /submit автоматически - остаемся на странице покупки
+        // Пользователь может нажать кнопку "PUBLISH LINK" если все задачи выполнены
         console.log('✅ [BUYTOKEN] Token purchase completed, staying on buy token page');
       }
   }, [mctBalance, isSwapping, oldBalanceBeforeSwap, user, router, txHash]);
@@ -898,6 +929,17 @@ export default function BuyToken() {
                   )
                   : `❤️ BUY MRS. CRYPTO TOKEN${displayUsdPrice ? ` FOR ${displayUsdPrice}` : ' (FREE)'}`
               }
+            </button>
+          ) : canPublishLink ? (
+            <button
+              onClick={() => router.push('/submit')}
+              className="w-full text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold rounded-2xl shadow-2xl 
+                transform transition-all duration-300 relative z-10
+                bg-gradient-to-r from-purple-500 via-pink-500 to-red-500 text-white
+                hover:from-purple-400 hover:via-pink-400 hover:to-red-400
+                opacity-100 cursor-pointer hover:scale-105 active:scale-95"
+            >
+              PUBLISH LINK →
             </button>
           ) : (
             <button

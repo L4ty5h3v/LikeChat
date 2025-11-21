@@ -196,13 +196,13 @@ export default function Submit() {
       const localFlag = localStorage.getItem('link_published');
       
       if (sessionFlag === 'true' || localFlag === 'true') {
-        console.log('🚫 [SUBMIT] Component mounted but link already published - redirecting to home immediately', {
+        console.log('🚫 [SUBMIT] Component mounted but link already published - redirecting to /tasks', {
           sessionFlag,
           localFlag,
           timestamp: new Date().toISOString(),
         });
-        // Редиректим на главную страницу
-        router.replace('/');
+        // Редиректим на страницу задач, а не на главную
+        router.replace('/tasks');
         return; // Прерываем выполнение эффекта
       }
     }
@@ -314,53 +314,11 @@ export default function Submit() {
       const sessionFlag = sessionStorage.getItem('link_published');
       const localFlag = localStorage.getItem('link_published');
       
-      // Если флаг установлен в ЛЮБОМ хранилище - редиректим
+      // Если флаг установлен в ЛЮБОМ хранилище - редиректим на /tasks
       if (sessionFlag === 'true' || localFlag === 'true') {
-        // Финальная проверка прямо перед редиректом
-        const finalSessionCheck = sessionStorage.getItem('link_published');
-        const finalLocalCheck = localStorage.getItem('link_published');
-        
-        const redirectScheduledEventId = logEvent('✅ [SUBMIT]', {
-          action: 'Link already published detected on mount - scheduling redirect',
-          initialSessionFlag: sessionFlag,
-          initialLocalFlag: localFlag,
-          finalSessionCheck,
-          finalLocalCheck,
-          redirecting: 'to home in 100ms',
-          useEffectMountEventId,
-        });
-        
-        // Используем setTimeout для гарантии, что хранилище "успело" сохраниться
-        // Увеличено до 100ms для проверки race condition
+        console.log('✅ [SUBMIT] Link already published, redirecting to /tasks');
         setTimeout(() => {
-          // Еще раз проверяем перед фактическим редиректом
-          const preRedirectSession = sessionStorage.getItem('link_published');
-          const preRedirectLocal = localStorage.getItem('link_published');
-          
-          const beforeRedirectEventId = logEvent('🚀 [SUBMIT]', {
-            action: 'RIGHT BEFORE router.replace("/") call',
-            preRedirectSession,
-            preRedirectLocal,
-            delay: '100ms',
-            redirectScheduledEventId,
-            useEffectMountEventId,
-          });
-          
-          // Безопасное логирование callStack
-          try {
-            console.log(`📍 [ROUTER] router.replace('/') called from useEffect mount check`, {
-              eventId: beforeRedirectEventId,
-              flagStatus: { preRedirectSession, preRedirectLocal },
-              callStack: new Error().stack?.substring(0, 500), // Ограничиваем размер
-            });
-          } catch (stackError) {
-            console.log(`📍 [ROUTER] router.replace('/') called from useEffect mount check`, {
-              eventId: beforeRedirectEventId,
-              flagStatus: { preRedirectSession, preRedirectLocal },
-            });
-          }
-          
-          router.replace('/');
+          router.replace('/tasks');
         }, 100);
         return; // Выходим сразу, не выполняя дальнейшие проверки
       }
@@ -374,68 +332,16 @@ export default function Submit() {
       // Проверяем наличие user
       if (!user || !user.fid) {
         console.error('❌ [SUBMIT] No user found, redirecting to home...');
-        // Проверяем link_published еще раз перед редиректом (на случай если изменился)
-        const checkSession = sessionStorage.getItem('link_published');
-        const checkLocal = localStorage.getItem('link_published');
-        if (checkSession === 'true' || checkLocal === 'true') {
-          const preRedirectSession = sessionStorage.getItem('link_published');
-          const preRedirectLocal = localStorage.getItem('link_published');
-          console.log('✅ [SUBMIT] Link published flag detected before user check redirect:', {
-            checkSession,
-            checkLocal,
-            preRedirectSession,
-            preRedirectLocal,
-            timestamp: new Date().toISOString(),
-          });
-          setTimeout(() => {
-            const finalCheck = sessionStorage.getItem('link_published') || localStorage.getItem('link_published');
-            console.log('🔍 [SUBMIT] RIGHT BEFORE redirect (user check, 100ms delay):', {
-              finalCheck,
-              sessionStorage: sessionStorage.getItem('link_published'),
-              localStorage: localStorage.getItem('link_published'),
-              timestamp: new Date().toISOString(),
-              delay: '100ms',
-            });
-            router.replace('/');
-          }, 100);
-        } else {
-          router.push('/');
-        }
+        router.push('/');
         return;
       }
       
     const savedActivity = localStorage.getItem('selected_activity');
       if (!savedActivity) {
         console.error('❌ [SUBMIT] No activity selected, redirecting to home...');
-        // Проверяем link_published еще раз перед редиректом
-        const checkSession = sessionStorage.getItem('link_published');
-        const checkLocal = localStorage.getItem('link_published');
-        if (checkSession === 'true' || checkLocal === 'true') {
-          const preRedirectSession = sessionStorage.getItem('link_published');
-          const preRedirectLocal = localStorage.getItem('link_published');
-          console.log('✅ [SUBMIT] Link published flag detected before activity check redirect:', {
-            checkSession,
-            checkLocal,
-            preRedirectSession,
-            preRedirectLocal,
-            timestamp: new Date().toISOString(),
-          });
-          setTimeout(() => {
-            const finalCheck = sessionStorage.getItem('link_published') || localStorage.getItem('link_published');
-            console.log('🔍 [SUBMIT] RIGHT BEFORE redirect (activity check, 100ms delay):', {
-              finalCheck,
-              sessionStorage: sessionStorage.getItem('link_published'),
-              localStorage: localStorage.getItem('link_published'),
-              timestamp: new Date().toISOString(),
-              delay: '100ms',
-            });
-            router.replace('/');
-          }, 100);
-        } else {
-      router.push('/');
-        }
-      return;
-    }
+        router.push('/');
+        return;
+      }
 
     setActivity(savedActivity as ActivityType);
     
@@ -522,145 +428,58 @@ export default function Submit() {
   };
 
   const checkProgress = async (userFid: number) => {
-    // ⚠️ КРИТИЧЕСКИ ВАЖНО: Проверяем link_published в начале checkProgress
-    // Это предотвращает выполнение логики, если ссылка уже опубликована
+    // Упрощенная проверка: только проверяем, не опубликована ли уже ссылка
     if (typeof window !== 'undefined') {
       const sessionFlag = sessionStorage.getItem('link_published');
       const localFlag = localStorage.getItem('link_published');
-      console.log('🔍 [SUBMIT] checkProgress - checking storage:', {
-        sessionFlag,
-        localFlag,
-        timestamp: new Date().toISOString(),
-      });
       if (sessionFlag === 'true' || localFlag === 'true') {
-        console.log('✅ [SUBMIT] Link already published (from storage in checkProgress), redirecting to /tasks');
-        // ⚠️ ВАЖНО: Редиректим на /tasks, а не на главную
-        setTimeout(() => {
-          const finalCheckSession = sessionStorage.getItem('link_published');
-          const finalCheckLocal = localStorage.getItem('link_published');
-          console.log('🔍 [SUBMIT] RIGHT BEFORE redirect to /tasks (checkProgress start, 100ms delay):', {
-            finalCheckSession,
-            finalCheckLocal,
-            timestamp: new Date().toISOString(),
-            delay: '100ms',
-          });
-          router.replace('/tasks');
-        }, 100);
+        console.log('✅ [SUBMIT] Link already published, redirecting to /tasks');
+        router.replace('/tasks');
         return;
       }
     }
     
     const progress = await getUserProgress(userFid);
     
-    // Еще раз проверяем флаг после получения прогресса (на случай если установился)
-    if (typeof window !== 'undefined') {
-      const flagCheckSession = sessionStorage.getItem('link_published');
-      const flagCheckLocal = localStorage.getItem('link_published');
-      if (flagCheckSession === 'true' || flagCheckLocal === 'true') {
-        console.log('✅ [SUBMIT] Link published flag detected in checkProgress after getUserProgress, redirecting to /tasks:', {
-          flagCheckSession,
-          flagCheckLocal,
-        });
-        // ⚠️ ВАЖНО: Редиректим на /tasks, а не на главную
-        setTimeout(() => {
-          const finalCheckSession = sessionStorage.getItem('link_published');
-          const finalCheckLocal = localStorage.getItem('link_published');
-          console.log('🔍 [SUBMIT] RIGHT BEFORE redirect to /tasks (checkProgress after getUserProgress, 100ms delay):', {
-            finalCheckSession,
-            finalCheckLocal,
-            timestamp: new Date().toISOString(),
-            delay: '100ms',
-          });
-          router.replace('/tasks');
-        }, 100);
-        return;
-      }
-    }
-    
     if (!progress) {
-      router.replace('/'); // Используем replace, чтобы нельзя было вернуться
-      return;
-    }
-
-    // Проверка 1: все 10 заданий должны быть выполнены
-    const completedCount = progress.completed_links?.length || 0;
-    if (completedCount < 10) {
-      console.log(`🚫 [SUBMIT] Not enough completed tasks: ${completedCount}/10`);
-      router.replace('/tasks'); // Используем replace
-      return;
-    }
-
-    // Проверка 2: пользователь может отправить ссылку только после того, как в чат было отправлено 10 других ссылок
-    const allLinks = await getAllLinks();
-    // Фильтруем ссылки от других пользователей (не от текущего)
-    const otherUsersLinks = allLinks.filter(link => link.user_fid !== userFid);
-    const otherLinksCount = otherUsersLinks.length;
-    
-    if (otherLinksCount < 10) {
-      console.log(`🚫 [SUBMIT] Not enough links from other users: ${otherLinksCount}/10`);
-      router.replace('/tasks'); // Используем replace
+      router.replace('/');
       return;
     }
 
     // Проверка: токен куплен
     if (!progress.token_purchased) {
-      router.replace('/buyToken'); // Используем replace
+      router.replace('/buyToken');
       return;
     }
 
-    // ⚠️ ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: Если ссылка уже опубликована, редиректим на /tasks
-    // Это предотвращает зацикливание, если пользователь случайно попал на /submit после публикации
-    const linkAlreadyPublished = await checkIfLinkAlreadyPublished(userFid);
-    
-    // Финальная проверка флага перед редиректом
-    if (typeof window !== 'undefined') {
-      const finalFlagCheckSession = sessionStorage.getItem('link_published');
-      const finalFlagCheckLocal = localStorage.getItem('link_published');
-      if (finalFlagCheckSession === 'true' || finalFlagCheckLocal === 'true' || linkAlreadyPublished) {
-        console.log('✅ [SUBMIT] Link already published (final check in checkProgress), redirecting to /tasks:', {
-          finalFlagCheckSession,
-          finalFlagCheckLocal,
-          linkAlreadyPublished,
-        });
-        // Устанавливаем флаг в ОБА хранилища для надежности
-        sessionStorage.setItem('link_published', 'true');
-        localStorage.setItem('link_published', 'true');
-        // ⚠️ ВАЖНО: Редиректим на /tasks, а не на главную
-        setTimeout(() => {
-          const finalCheckSession = sessionStorage.getItem('link_published');
-          const finalCheckLocal = localStorage.getItem('link_published');
-          console.log('🔍 [SUBMIT] RIGHT BEFORE redirect to /tasks (checkProgress final check, 100ms delay):', {
-            finalCheckSession,
-            finalCheckLocal,
-            linkAlreadyPublished,
-            timestamp: new Date().toISOString(),
-            delay: '100ms',
-          });
-          router.replace('/tasks');
-        }, 100);
-        return;
-      }
+    // Проверка: все 10 заданий должны быть выполнены
+    const completedCount = progress.completed_links?.length || 0;
+    if (completedCount < 10) {
+      console.log(`🚫 [SUBMIT] Not enough completed tasks: ${completedCount}/10`);
+      router.replace('/tasks');
+      return;
     }
+
+    // Проверка: пользователь может отправить ссылку только после того, как в чат было отправлено 10 других ссылок
+    const allLinks = await getAllLinks();
+    const otherUsersLinks = allLinks.filter(link => link.user_fid !== userFid);
+    const otherLinksCount = otherUsersLinks.length;
     
+    if (otherLinksCount < 10) {
+      console.log(`🚫 [SUBMIT] Not enough links from other users: ${otherLinksCount}/10`);
+      router.replace('/tasks');
+      return;
+    }
+
+    // Проверка: ссылка уже опубликована
+    const linkAlreadyPublished = await checkIfLinkAlreadyPublished(userFid);
     if (linkAlreadyPublished) {
-      console.log('✅ [SUBMIT] Link already published (from DB), redirecting to /tasks');
-      // Устанавливаем флаг в ОБА хранилища для надежности
+      console.log('✅ [SUBMIT] Link already published, redirecting to /tasks');
       if (typeof window !== 'undefined') {
         sessionStorage.setItem('link_published', 'true');
         localStorage.setItem('link_published', 'true');
       }
-      // ⚠️ ВАЖНО: Редиректим на /tasks, а не на главную
-      setTimeout(() => {
-        const finalCheckSession = sessionStorage.getItem('link_published');
-        const finalCheckLocal = localStorage.getItem('link_published');
-        console.log('🔍 [SUBMIT] RIGHT BEFORE redirect to /tasks (linkAlreadyPublished, 100ms delay):', {
-          finalCheckSession,
-          finalCheckLocal,
-          timestamp: new Date().toISOString(),
-          delay: '100ms',
-        });
-        router.replace('/tasks');
-      }, 100);
+      router.replace('/tasks');
       return;
     }
 
