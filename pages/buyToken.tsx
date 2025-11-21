@@ -579,6 +579,7 @@ export default function BuyToken() {
           sellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`, // USDC на Base
           buyToken: `eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`, // MCT Token на Base
           sellAmount: usdcAmountStr, // 0.10 USDC = 100000 wei (parseUnits(0.10, 6))
+          slippageTolerance: 1, // 1% slippage tolerance
         });
         
         // Очищаем таймаут при успешном запуске
