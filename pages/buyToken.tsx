@@ -57,7 +57,7 @@ async function publishSwapCastWithTxHash(
 
     // Формируем текст cast с tx hash для social proof
     const txUrl = `https://basescan.org/tx/${txHash}`;
-    const castText = `💎 Just swapped ${usdcSpent} USDC for ${mctReceived.toFixed(4)} MCT tokens!\n\n${txUrl}\n\n#MCT #Base #DeFi`;
+    const castText = `❤️ Just swapped ${usdcSpent} USDC for ${mctReceived.toFixed(4)} MCT tokens!\n\n${txUrl}\n\n#MCT #Base #DeFi`;
 
     // Используем composeCast если доступен, иначе fallback на openUrl
     if (typeof (sdk.actions as any).composeCast === 'function') {
@@ -737,7 +737,7 @@ export default function BuyToken() {
               <div className="w-10 sm:w-20 h-1 bg-white"></div>
             </div>
             <p className="text-xl sm:text-3xl md:text-4xl text-white font-bold mb-4 tracking-wide px-4">
-              <span className="text-white">💎</span> MRS. CRYPTO TOKEN <span className="text-white">💎</span>
+              <span className="text-white">❤️</span> MRS. CRYPTO TOKEN <span className="text-white">❤️</span>
             </p>
             <p className="text-lg text-white text-opacity-90 max-w-2xl mx-auto">
               Purchase token to unlock link publishing
@@ -901,7 +901,7 @@ export default function BuyToken() {
                       <span>PROCESSING...</span>
                     </div>
                   )
-                  : `💎 BUY MRS. CRYPTO TOKEN${displayUsdPrice ? ` FOR ${displayUsdPrice}` : ' (FREE)'}`
+                  : `❤️ BUY MRS. CRYPTO TOKEN${displayUsdPrice ? ` FOR ${displayUsdPrice}` : ' (FREE)'}`
               }
             </button>
           ) : (
@@ -960,7 +960,7 @@ export default function BuyToken() {
           {/* Модная инструкция */}
           <div className="bg-gradient-to-r from-primary via-secondary to-accent text-white rounded-3xl p-8 shadow-2xl mt-32">
             <h3 className="text-3xl font-black mb-6 flex items-center gap-3 font-display">
-              <span className="text-4xl">💎</span>
+              <span className="text-4xl">❤️</span>
               TOKEN PURCHASE INFO
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

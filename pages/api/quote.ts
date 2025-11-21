@@ -25,8 +25,9 @@ console.log('🔗 [QUOTE-API] Using RPC endpoint:', BASE_RPC_URL.replace(/\/\/.*
 const publicClient = createPublicClient({
   chain: base,
   transport: http(BASE_RPC_URL, {
-    timeout: 10000, // 10 секунд таймаут
-    retryCount: 2, // 2 попытки при ошибке
+    timeout: 15000, // 15 секунд таймаут
+    retryCount: 1, // 1 попытка при ошибке (чтобы не усугублять rate limiting)
+    retryDelay: 2000, // 2 секунды задержка между попытками
   }),
 });
 
@@ -179,18 +180,35 @@ export default async function handler(
           });
         } catch (error: any) {
           const errorMsg = error?.message || error?.reason || 'Unknown error';
-          console.warn(`⚠️ [API] Quote failed for fee ${fee}:`, errorMsg);
+          const errorString = String(errorMsg).toLowerCase();
           
-          if (errorMsg.includes('STF') || errorMsg.includes('revert') || errorMsg.includes('missing revert data')) {
+          // Обработка rate limiting (429)
+          if (errorString.includes('429') || errorString.includes('too many requests') || errorString.includes('rate limit')) {
+            console.warn(`⚠️ [API] Rate limit hit for fee ${fee}, skipping...`);
             continue;
           }
+          
+          // Обработка HTTP ошибок
+          if (errorString.includes('http request failed') || errorString.includes('status: 429')) {
+            console.warn(`⚠️ [API] HTTP error for fee ${fee} (likely rate limit), skipping...`);
+            continue;
+          }
+          
+          // Обработка revert ошибок (пул не существует или нет ликвидности)
+          if (errorString.includes('stf') || errorString.includes('revert') || errorString.includes('missing revert data') || errorString.includes('execution reverted')) {
+            console.warn(`⚠️ [API] Execution reverted for fee ${fee} (pool may not exist), skipping...`);
+            continue;
+          }
+          
+          console.warn(`⚠️ [API] Quote failed for fee ${fee}:`, errorMsg);
         }
       }
 
-      // Если все fee tiers провалились
+      // Если все fee tiers провалились, возвращаем ошибку, но не критическую
+      console.error('❌ [API] All fee tiers failed. Possible reasons: rate limiting, no liquidity, or RPC issues.');
       return res.status(500).json({
         success: false,
-        error: 'Failed to get quote from Uniswap for all fee tiers',
+        error: 'Failed to get quote from Uniswap. This may be due to rate limiting or lack of liquidity. Please try again later.',
       });
     } else if (type === 'amount') {
       // Получаем количество MCT за usdcAmount USDC: USDC → WETH → MCT
@@ -274,17 +292,35 @@ export default async function handler(
           });
         } catch (error: any) {
           const errorMsg = error?.message || error?.reason || 'Unknown error';
-          console.warn(`⚠️ [API] Quote failed for fee ${fee}:`, errorMsg);
+          const errorString = String(errorMsg).toLowerCase();
           
-          if (errorMsg.includes('STF') || errorMsg.includes('revert') || errorMsg.includes('missing revert data')) {
+          // Обработка rate limiting (429)
+          if (errorString.includes('429') || errorString.includes('too many requests') || errorString.includes('rate limit')) {
+            console.warn(`⚠️ [API] Rate limit hit for fee ${fee}, skipping...`);
             continue;
           }
+          
+          // Обработка HTTP ошибок
+          if (errorString.includes('http request failed') || errorString.includes('status: 429')) {
+            console.warn(`⚠️ [API] HTTP error for fee ${fee} (likely rate limit), skipping...`);
+            continue;
+          }
+          
+          // Обработка revert ошибок (пул не существует или нет ликвидности)
+          if (errorString.includes('stf') || errorString.includes('revert') || errorString.includes('missing revert data') || errorString.includes('execution reverted')) {
+            console.warn(`⚠️ [API] Execution reverted for fee ${fee} (pool may not exist), skipping...`);
+            continue;
+          }
+          
+          console.warn(`⚠️ [API] Quote failed for fee ${fee}:`, errorMsg);
         }
       }
 
+      // Если все fee tiers провалились, возвращаем ошибку, но не критическую
+      console.error('❌ [API] All fee tiers failed. Possible reasons: rate limiting, no liquidity, or RPC issues.');
       return res.status(500).json({
         success: false,
-        error: 'Failed to get quote from Uniswap for all fee tiers',
+        error: 'Failed to get quote from Uniswap. This may be due to rate limiting or lack of liquidity. Please try again later.',
       });
     } else {
       return res.status(400).json({
@@ -293,10 +329,22 @@ export default async function handler(
       });
     }
   } catch (error: any) {
+    const errorMsg = error?.message || error?.reason || 'Unknown error';
+    const errorString = String(errorMsg).toLowerCase();
+    
+    // Специальная обработка rate limiting
+    if (errorString.includes('429') || errorString.includes('too many requests') || errorString.includes('rate limit')) {
+      console.error('❌ [API] Rate limit error in quote handler:', errorMsg);
+      return res.status(429).json({
+        success: false,
+        error: 'Rate limit exceeded. Please try again in a few moments.',
+      });
+    }
+    
     console.error('❌ [API] Error in quote handler:', error);
     return res.status(500).json({
       success: false,
-      error: error?.message || 'Internal server error',
+      error: errorMsg || 'Internal server error',
     });
   }
 }
