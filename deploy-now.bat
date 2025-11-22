@@ -17,7 +17,7 @@ if errorlevel 1 (
 )
 
 echo [2/3] Создание коммита...
-git commit -m "FIX: Remove GO TO TASKS button, always show PUBLISH LINK after token purchase"
+git commit -m "FIX: Always show PUBLISH LINK after token purchase, simplify purchase check logic"
 if errorlevel 1 (
     echo ОШИБКА при создании коммита! Возможно, нет изменений для коммита.
     pause

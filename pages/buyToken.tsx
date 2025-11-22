@@ -201,27 +201,16 @@ export default function BuyToken() {
     
     // Проверяем, куплен ли уже токен в базе данных
     if (progress?.token_purchased) {
-      // Дополнительно проверяем баланс токена (если баланс загружен)
-      const currentBalance = parseFloat(tokenBalance);
-      const hasBalance = currentBalance > 0;
-      
-      // Токен считается купленным только если он куплен в БД И есть баланс (или баланс еще не загружен)
-      if (hasBalance || !mctBalance) {
-        setPurchased(true);
-        // После покупки токена всегда можно опубликовать ссылку (если еще не опубликована)
-        const linkPublished = sessionStorage.getItem('link_published') === 'true' || 
-                             localStorage.getItem('link_published') === 'true';
-        if (!linkPublished) {
-          setCanPublishLink(true);
-        }
-      } else {
-        // Если токен в БД помечен как купленный, но баланс 0 - возможно транзакция не прошла
-        // Показываем кнопку покупки
-        setPurchased(false);
-        setCanPublishLink(false);
+      // Если токен куплен в БД, всегда считаем его купленным (не показываем кнопку покупки)
+      setPurchased(true);
+      // После покупки токена всегда можно опубликовать ссылку (если еще не опубликована)
+      const linkPublished = sessionStorage.getItem('link_published') === 'true' || 
+                           localStorage.getItem('link_published') === 'true';
+      if (!linkPublished) {
+        setCanPublishLink(true);
       }
     } else {
-      // Если токен не куплен в БД, всегда показываем кнопку покупки
+      // Если токен не куплен в БД, показываем кнопку покупки
       setPurchased(false);
       setCanPublishLink(false);
     }
@@ -467,29 +456,19 @@ export default function BuyToken() {
           markTokenPurchased(user.fid, txHash || undefined).then(() => {
             console.log('✅ [DB] Token purchase marked in database' + (txHash ? ` with txHash: ${txHash}` : ''));
             
-            // Проверяем, выполнены ли все задачи (10 задач)
-            getUserProgress(user.fid).then((progress) => {
-              if (progress) {
-                const completedCount = progress.completed_links?.length || 0;
-                if (completedCount >= 10) {
-                  // Проверяем, не опубликована ли уже ссылка
-                  const linkPublished = typeof window !== 'undefined' && (
-                    sessionStorage.getItem('link_published') === 'true' || 
-                    localStorage.getItem('link_published') === 'true'
-                  );
-                  if (!linkPublished) {
-                    setCanPublishLink(true);
-                    // Автоматически редиректим на /submit через 2 секунды
-                    console.log('✅ [BUYTOKEN] All tasks completed, redirecting to /submit in 2 seconds...');
-                    setTimeout(() => {
-                      router.push('/submit');
-                    }, 2000);
-                  }
-                }
-              }
-            }).catch((err) => {
-              console.error('❌ [BUYTOKEN] Error checking progress after purchase:', err);
-            });
+            // После покупки токена всегда можно опубликовать ссылку (если еще не опубликована)
+            const linkPublished = typeof window !== 'undefined' && (
+              sessionStorage.getItem('link_published') === 'true' || 
+              localStorage.getItem('link_published') === 'true'
+            );
+            if (!linkPublished) {
+              setCanPublishLink(true);
+              // Автоматически редиректим на /submit через 2 секунды
+              console.log('✅ [BUYTOKEN] Token purchased, redirecting to /submit in 2 seconds...');
+              setTimeout(() => {
+                router.push('/submit');
+              }, 2000);
+            }
             
             // Отправляем уведомление через MiniKit SDK для вирусного распространения
             sendTokenPurchaseNotification(
