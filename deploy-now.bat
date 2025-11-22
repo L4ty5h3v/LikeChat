@@ -9,7 +9,7 @@ echo.
 
 echo [1/3] Добавление файлов...
 git add -A
-git add pages/buyToken.tsx components/TaskCard.tsx pages/tasks.tsx
+git add pages/buyToken.tsx pages/submit.tsx pages/api/submit-link.ts
 if errorlevel 1 (
     echo ОШИБКА при добавлении файлов!
     pause
@@ -17,7 +17,7 @@ if errorlevel 1 (
 )
 
 echo [2/3] Создание коммита...
-git commit -m "FIX: Always show PUBLISH LINK after token purchase, simplify purchase check logic"
+git commit -m "FIX: Allow link publishing after token purchase without requiring all tasks completion"
 if errorlevel 1 (
     echo ОШИБКА при создании коммита! Возможно, нет изменений для коммита.
     pause

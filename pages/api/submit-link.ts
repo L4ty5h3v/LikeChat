@@ -26,7 +26,7 @@ export default async function handler(
       });
     }
 
-    // Проверка 1: пользователь должен выполнить 10 заданий
+    // Проверка 1: токен должен быть куплен
     const progress = await getUserProgress(Number(userFid));
     if (!progress) {
       return res.status(400).json({
@@ -35,15 +35,15 @@ export default async function handler(
       });
     }
 
-    const completedCount = progress.completed_links?.length || 0;
-    if (completedCount < 10) {
+    // Проверка: токен должен быть куплен
+    if (!progress.token_purchased) {
       return res.status(400).json({
         success: false,
-        error: `Вы можете отправить свою ссылку только после выполнения 10 заданий. Выполнено: ${completedCount}/10`,
-        completedCount,
-        requiredCount: 10,
+        error: 'Вы должны купить токен перед публикацией ссылки.',
       });
     }
+
+    // После покупки токена можно публиковать ссылку (не требуется выполнение всех задач)
 
     // Проверка 2: пользователь может отправить ссылку только после того, как в чат было отправлено 10 других ссылок
     const allLinks = await getAllLinks();
