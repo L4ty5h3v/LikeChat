@@ -809,6 +809,61 @@ export default function Submit() {
     // finally блок убран - loading управляется вручную для предотвращения повторной отправки
   };
 
+  // Если показывается поздравление, показываем полноэкранную страницу с поздравлением
+  if (showSuccessModal) {
+    return (
+      <Layout title="Поздравляем!">
+        <div className="relative min-h-screen overflow-hidden">
+          {/* Анимированный градиент фон */}
+          <div className="absolute inset-0 bg-gradient-to-br from-success via-green-400 to-emerald-500 animate-gradient bg-300%"></div>
+          
+          {/* Геометрические фигуры */}
+          <div className="absolute top-20 right-20 w-32 h-32 bg-white bg-opacity-20 rounded-full animate-float"></div>
+          <div className="absolute bottom-32 left-20 w-24 h-24 bg-white bg-opacity-25 rounded-full animate-float" style={{animationDelay: '2s'}}></div>
+          
+          <div className="relative z-10 flex items-center justify-center min-h-screen px-6 py-20">
+            <div className="bg-white rounded-3xl shadow-2xl p-8 sm:p-12 max-w-2xl w-full border-4 border-success">
+              <div className="text-center">
+                <div className="flex justify-center gap-2 text-7xl mb-6 animate-bounce">
+                  <span>🎉</span>
+                  <span>✨</span>
+                  <span>🎊</span>
+                </div>
+                <h2 className="text-4xl sm:text-5xl font-black text-success mb-4">
+                  Поздравляем!
+                </h2>
+                <p className="text-2xl sm:text-3xl text-gray-800 font-bold mb-6">
+                  Ваше задание опубликовано!
+                </p>
+                <p className="text-lg text-gray-600 mb-8">
+                  Ваша ссылка теперь доступна в списке заданий для других пользователей.
+                </p>
+                <div className="bg-success bg-opacity-10 rounded-2xl p-6 mb-8">
+                  <p className="text-base text-gray-700">
+                    <strong>Следующие 10 пользователей</strong> пройдут вашу ссылку и выполнят выбранную активность.
+                  </p>
+                </div>
+                <Button
+                  onClick={() => {
+                    console.log('🔍 [SUBMIT] Button "Закрыть" clicked - staying on submit page');
+                    // Закрываем поздравление, но остаемся на странице /submit
+                    setShowSuccessModal(false);
+                    setLoading(false);
+                  }}
+                  variant="success"
+                  fullWidth
+                  className="text-lg py-4"
+                >
+                  Закрыть
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
   if (!canSubmit) {
     return (
       <Layout title="Проверка доступа...">
@@ -978,113 +1033,6 @@ export default function Submit() {
         </div>
       </div>
 
-      {/* Модальное окно с поздравлением */}
-      {showSuccessModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl shadow-2xl p-8 sm:p-12 max-w-md w-full mx-4 border-4 border-success">
-            <div className="text-center">
-              <div className="flex justify-center gap-2 text-7xl mb-6 animate-bounce">
-                <span>🎉</span>
-                <span>✨</span>
-                <span>🎊</span>
-              </div>
-              <h2 className="text-3xl sm:text-4xl font-black text-success mb-4">
-                Поздравляем!
-              </h2>
-              <p className="text-xl sm:text-2xl text-gray-800 font-bold mb-6">
-                Ваше задание опубликовано!
-              </p>
-              <p className="text-gray-600 mb-8">
-                Ваша ссылка теперь доступна в списке заданий для других пользователей.
-              </p>
-              <div className="bg-success bg-opacity-10 rounded-2xl p-4 mb-8">
-                <p className="text-sm text-gray-700 mb-2">
-                  <strong>Следующие 10 пользователей</strong> пройдут вашу ссылку и выполнят выбранную активность.
-                </p>
-              </div>
-              <Button
-                onClick={() => {
-                  console.log('🔍 [SUBMIT] Button "Перейти к заданиям" clicked', {
-                    flagBeforeClick: {
-                      sessionStorage: typeof window !== 'undefined' ? sessionStorage.getItem('link_published') : null,
-                      localStorage: typeof window !== 'undefined' ? localStorage.getItem('link_published') : null,
-                    },
-                    timestamp: new Date().toISOString(),
-                  });
-                  
-                  // Закрываем модальное окно
-                  setShowSuccessModal(false);
-                  
-                  // Разблокируем форму
-                  setLoading(false);
-                  
-                  // Очищаем selected_activity, так как пользователь хочет выбрать другую активность
-                  if (typeof window !== 'undefined') {
-                    localStorage.removeItem('selected_activity');
-                    
-                    // Флаг link_published уже установлен при успешной публикации,
-                    // но убеждаемся, что он установлен (на случай, если что-то пошло не так)
-                    const existingSessionFlag = sessionStorage.getItem('link_published');
-                    const existingLocalFlag = localStorage.getItem('link_published');
-                    
-                    if (existingSessionFlag !== 'true' || existingLocalFlag !== 'true') {
-                      console.warn('⚠️ [SUBMIT] Flag not found after publication - setting it now', {
-                        existingSessionFlag,
-                        existingLocalFlag,
-                      });
-                      sessionStorage.setItem('link_published', 'true');
-                      localStorage.setItem('link_published', 'true');
-                    }
-                    
-                    // Логируем перед редиректом
-                    const beforeButtonRedirectEventId = logEvent('🔍 [SUBMIT]', {
-                      action: 'RIGHT BEFORE redirect (button click)',
-                      sessionStorage: sessionStorage.getItem('link_published'),
-                      localStorage: localStorage.getItem('link_published'),
-                    });
-                  }
-                  
-                  // Переходим на страницу задач после публикации ссылки
-                  // Используем setTimeout для гарантии, что все операции завершены
-                  setTimeout(() => {
-                    if (typeof window !== 'undefined') {
-                      const finalCheckSession = sessionStorage.getItem('link_published');
-                      const finalCheckLocal = localStorage.getItem('link_published');
-                      
-                      const finalButtonRedirectEventId = logEvent('🚀 [SUBMIT]', {
-                        action: 'Final check before router.replace("/tasks") (button click, 100ms delay)',
-                        finalCheckSession,
-                        finalCheckLocal,
-                        delay: '100ms',
-                      });
-                      
-                      // Безопасное логирование callStack
-                      try {
-                        console.log(`📍 [ROUTER] router.replace('/tasks') called from button click`, {
-                          eventId: finalButtonRedirectEventId,
-                          flagStatus: { finalCheckSession, finalCheckLocal },
-                          callStack: new Error().stack?.substring(0, 500), // Ограничиваем размер
-                        });
-                      } catch (stackError) {
-                        console.log(`📍 [ROUTER] router.replace('/tasks') called from button click`, {
-                          eventId: finalButtonRedirectEventId,
-                          flagStatus: { finalCheckSession, finalCheckLocal },
-                        });
-                      }
-                    }
-                    router.replace('/tasks?published=true');
-                  }, 100);
-                }}
-                variant="success"
-                fullWidth
-                className="text-lg py-4"
-              >
-                Перейти к заданиям →
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </Layout>
   );
 }

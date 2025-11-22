@@ -9,7 +9,7 @@ echo.
 
 echo [1/3] Добавление файлов...
 git add -A
-git add lib/upstash-db.ts pages/api/submit-link.ts pages/submit.tsx pages/tasks.tsx APP_LOGIC.md FULL_SEQUENCE.md
+git add lib/upstash-db.ts pages/api/submit-link.ts pages/submit.tsx pages/tasks.tsx tailwind.config.js APP_LOGIC.md FULL_SEQUENCE.md
 if errorlevel 1 (
     echo ОШИБКА при добавлении файлов!
     pause
@@ -17,7 +17,7 @@ if errorlevel 1 (
 )
 
 echo [2/3] Создание коммита...
-git commit -m "FIX: Complete app flow - remove 10 links check, fix redirects, improve task sorting, add documentation"
+git commit -m "FIX: Full-screen congratulations page, fix routing conflicts (remove app folder), improve task sorting"
 if errorlevel 1 (
     echo ОШИБКА при создании коммита! Возможно, нет изменений для коммита.
     pause
