@@ -9,7 +9,7 @@ echo.
 
 echo [1/3] Добавление файлов...
 git add -A
-git add pages/tasks.tsx components/TaskCard.tsx types/index.ts lib/neynar.ts pages/api/verify-activity.ts next.config.js deploy-now.bat
+git add pages/tasks.tsx components/TaskCard.tsx
 if errorlevel 1 (
     echo ОШИБКА при добавлении файлов!
     pause
@@ -17,7 +17,7 @@ if errorlevel 1 (
 )
 
 echo [2/3] Создание коммита...
-git commit -m "FIX: Ensure TaskProgress includes cast_hash - fix TypeScript compilation error on Vercel"
+git commit -m "FEAT: Add red highlighting for tasks with errors and remove incomplete tasks warning block"
 if errorlevel 1 (
     echo ОШИБКА при создании коммита! Возможно, нет изменений для коммита.
     pause

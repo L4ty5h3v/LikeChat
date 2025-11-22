@@ -14,7 +14,9 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
       className={`
         p-4 rounded-xl border-2 transition-all duration-300
         ${
-          task.completed && task.verified
+          task.error
+            ? 'bg-red-50 border-red-500 shadow-lg shadow-red-200'
+            : task.completed && task.verified
             ? 'bg-green-50 border-success'
             : task.completed && !task.verified
             ? 'bg-yellow-50 border-warning'
@@ -28,7 +30,9 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
           className={`
             flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg
             ${
-              task.completed && task.verified
+              task.error
+                ? 'bg-red-500 text-white'
+                : task.completed && task.verified
                 ? 'bg-success text-white'
                 : task.completed && !task.verified
                 ? 'bg-warning text-white'
@@ -36,9 +40,9 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
             }
           `}
           style={{ cursor: 'default', pointerEvents: 'none' }}
-          aria-label={task.completed && task.verified ? 'Task completed' : `Task ${index + 1}`}
+          aria-label={task.completed && task.verified ? 'Task completed' : task.error ? 'Task error' : `Task ${index + 1}`}
         >
-          {task.completed && task.verified ? '✓' : index + 1}
+          {task.error ? '❌' : task.completed && task.verified ? '✓' : index + 1}
         </div>
 
         {/* Информация о пользователе */}
@@ -105,7 +109,15 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
       </div>
 
       {/* Статус */}
-      {task.completed && !task.verified && (
+      {task.error && (
+        <div className="mt-3 p-2 bg-red-100 border border-red-300 rounded-lg">
+          <p className="text-sm text-red-800 flex items-center gap-2 font-semibold">
+            <span>❌</span>
+            <span>Ошибка: Активность не найдена. Убедитесь, что вы выполнили действие через официальный клиент Farcaster.</span>
+          </p>
+        </div>
+      )}
+      {task.completed && !task.verified && !task.error && (
         <div className="mt-3 p-2 bg-warning bg-opacity-20 rounded-lg">
           <p className="text-sm text-yellow-800 flex items-center gap-2">
             <span>⚠️</span>

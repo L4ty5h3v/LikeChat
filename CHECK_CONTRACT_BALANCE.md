@@ -81,3 +81,4 @@ curl "https://api.basescan.org/api?module=account&action=tokenlist&address=0xcd7
 Нужно найти адрес токена MCT на Base. Обычно он указан в конфигурации проекта или в контракте.
 
 
+

@@ -18,7 +18,6 @@ export default function Tasks() {
   const [activity, setActivity] = useState<ActivityType | null>(null);
   const [tasks, setTasks] = useState<TaskProgress[]>([]);
   const [completedCount, setCompletedCount] = useState(0);
-  const [incompleteLinks, setIncompleteLinks] = useState<string[]>([]);
   const [showPublishedSuccess, setShowPublishedSuccess] = useState(false);
   const [verificationMessages, setVerificationMessages] = useState<Array<{ linkId: string; message: string; neynarUrl?: string }>>([]);
   // Состояние openedTasks только в памяти (не сохраняется в localStorage)
@@ -584,12 +583,9 @@ export default function Tasks() {
               castHash: result.hashWarning
             });
 
-            // Определяем, была ли ошибка (cast не найден)
-            const hasError = result.isError || (!result.completed && (
-              result.userMessage?.includes('не найден') || 
-              result.userMessage?.includes('Cast не найден') ||
-              result.userMessage?.includes('Неверный формат')
-            ));
+            // Определяем, была ли ошибка (cast не найден или активность не найдена)
+            // Если активность не найдена (completed: false), это тоже ошибка для визуального отображения
+            const hasError = result.isError || (!result.completed && result.userMessage);
             
             // Если каст не найден (error: true), удаляем ссылку из базы данных
             if (result.isError) {
@@ -692,7 +688,6 @@ export default function Tasks() {
       
       setTasks(updatedTasks);
       setCompletedCount(newCompletedCount);
-      setIncompleteLinks(updatedTasks.filter(t => !t.completed).map(t => t.cast_url));
 
       console.log(`📊 [VERIFY] Verification complete: ${newCompletedCount}/${updatedTasks.length} completed`);
 
@@ -820,26 +815,6 @@ export default function Tasks() {
             </p>
           </div>
 
-
-          {/* Предупреждение о невыполненных заданиях */}
-          {incompleteLinks.length > 0 && (
-            <div className="bg-gradient-to-r from-warning/20 to-orange-500/20 backdrop-blur-sm border-2 border-warning rounded-2xl p-8 mb-8 shadow-xl">
-              <h3 className="font-black text-yellow-800 mb-4 flex items-center gap-3 text-2xl md:text-3xl">
-                <span className="text-3xl md:text-4xl">⚠️</span>
-                INCOMPLETE TASKS ({incompleteLinks.length})
-              </h3>
-              <p className="text-yellow-800 mb-4 font-bold text-lg md:text-xl">
-                The following links were not completed:
-              </p>
-              <ul className="space-y-3">
-                {incompleteLinks.map((link, index) => (
-                  <li key={index} className="text-yellow-900 truncate bg-white bg-opacity-50 px-4 py-3 rounded-lg text-base md:text-lg">
-                    • {link}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
 
           {/* Сообщения о проблемах с верификацией */}
           {verificationMessages.length > 0 && (
