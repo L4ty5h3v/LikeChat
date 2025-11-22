@@ -158,7 +158,7 @@ export default function Tasks() {
           opened: openedTasks[link.id] === true, // Сохраняем состояние opened из openedTasks
           _originalIndex: index, // Сохраняем оригинальный индекс для стабильной сортировки
         };
-      }).sort((a, b) => {
+      }).sort((a: TaskProgress, b: TaskProgress) => {
         // Сохраняем порядок с сервера (новые первыми), но добавляем стабильную сортировку
         // Сначала по статусу выполнения (невыполненные первыми)
         if (a.completed !== b.completed) {

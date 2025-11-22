@@ -50,9 +50,6 @@ export default async function handler(
       username,
       castUrl: castUrl.substring(0, 50) + '...',
       activityType,
-      completedCount,
-      otherLinksCount,
-      totalLinksInChat: allLinks.length,
     });
 
     // ✅ Упрощенная логика: для farcaster.xyz ссылок проверка будет по username
