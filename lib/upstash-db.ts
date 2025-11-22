@@ -41,7 +41,16 @@ export async function getLastTenLinks(activityType?: ActivityType): Promise<Link
       };
     }).sort((a, b) => {
       // Сортируем по дате создания (новые первыми)
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      const dateA = new Date(a.created_at).getTime();
+      const dateB = new Date(b.created_at).getTime();
+      
+      // Если даты одинаковые (или очень близкие), сортируем по ID для стабильности
+      if (Math.abs(dateA - dateB) < 1000) {
+        // Сортируем по ID в обратном порядке (новые ID первыми)
+        return b.id.localeCompare(a.id);
+      }
+      
+      return dateB - dateA;
     });
     
     // Фильтруем по activityType, если указан

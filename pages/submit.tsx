@@ -452,18 +452,7 @@ export default function Submit() {
       return;
     }
 
-    // После покупки токена можно публиковать ссылку (не требуется выполнение всех задач)
-
-    // Проверка: пользователь может отправить ссылку только после того, как в чат было отправлено 10 других ссылок
-    const allLinks = await getAllLinks();
-    const otherUsersLinks = allLinks.filter(link => link.user_fid !== userFid);
-    const otherLinksCount = otherUsersLinks.length;
-    
-    if (otherLinksCount < 10) {
-      console.log(`🚫 [SUBMIT] Not enough links from other users: ${otherLinksCount}/10`);
-      router.replace('/tasks');
-      return;
-    }
+    // После покупки токена можно публиковать ссылку (не требуется выполнение всех задач и не требуется 10 ссылок от других пользователей)
 
     // Проверка: ссылка уже опубликована
     const linkAlreadyPublished = await checkIfLinkAlreadyPublished(userFid);
@@ -1015,7 +1004,7 @@ export default function Submit() {
               </div>
               <Button
                 onClick={() => {
-                  console.log('🔍 [SUBMIT] Button "Выбрать другую активность" clicked', {
+                  console.log('🔍 [SUBMIT] Button "Перейти к заданиям" clicked', {
                     flagBeforeClick: {
                       sessionStorage: typeof window !== 'undefined' ? sessionStorage.getItem('link_published') : null,
                       localStorage: typeof window !== 'undefined' ? localStorage.getItem('link_published') : null,
@@ -1055,7 +1044,7 @@ export default function Submit() {
                     });
                   }
                   
-                  // Переходим на главную страницу (главная страница сама очистит флаг при загрузке)
+                  // Переходим на страницу задач после публикации ссылки
                   // Используем setTimeout для гарантии, что все операции завершены
                   setTimeout(() => {
                     if (typeof window !== 'undefined') {
@@ -1063,7 +1052,7 @@ export default function Submit() {
                       const finalCheckLocal = localStorage.getItem('link_published');
                       
                       const finalButtonRedirectEventId = logEvent('🚀 [SUBMIT]', {
-                        action: 'Final check before router.replace("/") (button click, 100ms delay)',
+                        action: 'Final check before router.replace("/tasks") (button click, 100ms delay)',
                         finalCheckSession,
                         finalCheckLocal,
                         delay: '100ms',
@@ -1071,26 +1060,26 @@ export default function Submit() {
                       
                       // Безопасное логирование callStack
                       try {
-                        console.log(`📍 [ROUTER] router.replace('/') called from button click`, {
+                        console.log(`📍 [ROUTER] router.replace('/tasks') called from button click`, {
                           eventId: finalButtonRedirectEventId,
                           flagStatus: { finalCheckSession, finalCheckLocal },
                           callStack: new Error().stack?.substring(0, 500), // Ограничиваем размер
                         });
                       } catch (stackError) {
-                        console.log(`📍 [ROUTER] router.replace('/') called from button click`, {
+                        console.log(`📍 [ROUTER] router.replace('/tasks') called from button click`, {
                           eventId: finalButtonRedirectEventId,
                           flagStatus: { finalCheckSession, finalCheckLocal },
                         });
                       }
                     }
-                    router.replace('/');
+                    router.replace('/tasks?published=true');
                   }, 100);
                 }}
                 variant="success"
                 fullWidth
                 className="text-lg py-4"
               >
-                Выбрать другую активность
+                Перейти к заданиям →
               </Button>
             </div>
           </div>

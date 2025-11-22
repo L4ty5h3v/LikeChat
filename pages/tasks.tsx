@@ -143,7 +143,7 @@ export default function Tasks() {
       // НЕ сбрасываем openedTasks в рамках одной сессии - сохраняем состояние открытых ссылок
       // setOpenedTasks({});
       
-      const taskList: TaskProgress[] = filteredLinks.map((link: LinkSubmission) => {
+      const taskList: TaskProgress[] = filteredLinks.map((link: LinkSubmission, index: number) => {
         const castHash = extractCastHash(link.cast_url) || '';
         return {
           link_id: link.id,
@@ -156,7 +156,16 @@ export default function Tasks() {
           completed: completedLinks.includes(link.id),
           verified: completedLinks.includes(link.id),
           opened: openedTasks[link.id] === true, // Сохраняем состояние opened из openedTasks
+          _originalIndex: index, // Сохраняем оригинальный индекс для стабильной сортировки
         };
+      }).sort((a, b) => {
+        // Сохраняем порядок с сервера (новые первыми), но добавляем стабильную сортировку
+        // Сначала по статусу выполнения (невыполненные первыми)
+        if (a.completed !== b.completed) {
+          return a.completed ? 1 : -1; // Невыполненные первыми
+        }
+        // Если статус одинаковый, сохраняем оригинальный порядок с сервера
+        return (a as any)._originalIndex - (b as any)._originalIndex;
       });
 
       // Считаем количество завершенных заданий ТОЛЬКО для текущего типа активности
@@ -222,36 +231,11 @@ export default function Tasks() {
               return; // Прекращаем выполнение, не делаем редирект
             }
             
-            // Если все задания завершены, но токен не куплен → редирект на /buyToken
-            if (!progress.token_purchased) {
-              console.log(`🚀 Redirecting to /buyToken (token not purchased)`);
-              setTimeout(() => {
-                router.replace('/buyToken'); // Используем replace для предотвращения возврата назад
-              }, 2000);
-            }
-            // Если все задания завершены и токен куплен, но ссылка еще не опубликована → редирект на /submit
-            // ⚠️ ВАЖНО: Делаем редирект только один раз, не при каждом вызове loadTasks
-            else if (progress.token_purchased && !userHasPublishedLink) {
-              // Финальная проверка флага перед редиректом
-              const finalFlagCheckSession = sessionStorage.getItem('link_published');
-              const finalFlagCheckLocal = localStorage.getItem('link_published');
-              if (finalFlagCheckSession === 'true' || finalFlagCheckLocal === 'true') {
-                console.log(`ℹ️ [TASKS] Link already published (final check), skipping redirect to /submit`);
-                return;
-              }
-              
-              // Проверяем, не делали ли мы уже редирект (используем флаг в sessionStorage)
-              const redirectDone = sessionStorage.getItem('redirect_to_submit_done');
-              if (!redirectDone) {
-                console.log(`🚀 Redirecting to /submit (all tasks completed, token purchased, link not published yet)`);
-                sessionStorage.setItem('redirect_to_submit_done', 'true');
-                setTimeout(() => {
-                  router.replace('/submit'); // Используем replace для предотвращения возврата назад
-                }, 2000);
-              } else {
-                console.log(`ℹ️ [TASKS] Redirect to /submit already done in this session, skipping`);
-              }
-            }
+            // Если все задания завершены → редирект на /buyToken (независимо от статуса токена)
+            console.log(`🚀 Redirecting to /buyToken (all tasks completed)`);
+            setTimeout(() => {
+              router.replace('/buyToken'); // Используем replace для предотвращения возврата назад
+            }, 2000);
           }
         }).catch((error) => {
           console.error('❌ [TASKS] Error checking user progress for auto-redirect:', error);
