@@ -9,7 +9,7 @@ echo.
 
 echo [1/3] Добавление файлов...
 git add -A
-git add pages/tasks.tsx components/TaskCard.tsx
+git add pages/buyToken.tsx components/TaskCard.tsx pages/tasks.tsx
 if errorlevel 1 (
     echo ОШИБКА при добавлении файлов!
     pause
@@ -17,7 +17,7 @@ if errorlevel 1 (
 )
 
 echo [2/3] Создание коммита...
-git commit -m "FEAT: Add red highlighting for tasks with errors and remove incomplete tasks warning block"
+git commit -m "FIX: Auto-redirect to submit page after token purchase and fix button colors for error tasks"
 if errorlevel 1 (
     echo ОШИБКА при создании коммита! Возможно, нет изменений для коммита.
     pause

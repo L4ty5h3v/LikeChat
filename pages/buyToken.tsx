@@ -461,6 +461,11 @@ export default function BuyToken() {
                   );
                   if (!linkPublished) {
                     setCanPublishLink(true);
+                    // Автоматически редиректим на /submit через 2 секунды
+                    console.log('✅ [BUYTOKEN] All tasks completed, redirecting to /submit in 2 seconds...');
+                    setTimeout(() => {
+                      router.push('/submit');
+                    }, 2000);
                   }
                 }
               }
@@ -879,7 +884,6 @@ export default function BuyToken() {
                 <p className="text-xs text-gray-600 mb-1">Transaction hash:</p>
                 <a
                   href={`https://basescan.org/tx/${txHash}`}
-                  target="_blank"
                   rel="noopener noreferrer"
                   className="font-mono text-sm break-all text-primary hover:text-primary-dark underline"
                 >
@@ -890,9 +894,15 @@ export default function BuyToken() {
                 </p>
               </div>
 
-              <p className="text-center text-success font-semibold mt-4">
-                Redirecting to link publishing...
-              </p>
+              {canPublishLink ? (
+                <p className="text-center text-success font-semibold mt-4">
+                  Redirecting to link publishing...
+                </p>
+              ) : (
+                <p className="text-center text-gray-600 font-semibold mt-4">
+                  Complete all tasks to publish your link
+                </p>
+              )}
             </div>
           )}
 

@@ -83,7 +83,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
                   ? 'bg-red-500 text-white hover:bg-red-600 hover:shadow-lg animate-pulse'
                   : task.verifying
                   ? 'bg-yellow-500 text-white cursor-wait hover:bg-yellow-600'
-                  : task.opened
+                  : task.opened && !task.error
                   ? 'bg-blue-500 text-white hover:bg-blue-600 hover:shadow-lg'
                   : 'bg-gray-500 text-white hover:bg-gray-600 hover:shadow-lg'
               }
