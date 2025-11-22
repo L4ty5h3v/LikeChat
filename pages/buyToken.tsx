@@ -188,24 +188,42 @@ export default function BuyToken() {
     checkProgress(user.fid);
     loadWalletInfo();
   }, [router, user, isInitialized]);
+  
+  // Перепроверяем статус покупки при изменении баланса
+  useEffect(() => {
+    if (user?.fid && mctBalance) {
+      checkProgress(user.fid);
+    }
+  }, [tokenBalance, mctBalance, user?.fid]);
 
   const checkProgress = async (userFid: number) => {
     const progress = await getUserProgress(userFid);
     
-    // Проверяем только, куплен ли уже токен
+    // Проверяем, куплен ли уже токен в базе данных
     if (progress?.token_purchased) {
-      setPurchased(true);
+      // Дополнительно проверяем баланс токена (если баланс загружен)
+      const currentBalance = parseFloat(tokenBalance);
+      const hasBalance = currentBalance > 0;
       
-      // Проверяем, выполнены ли все задачи (10 задач)
-      const completedCount = progress.completed_links?.length || 0;
-      if (completedCount >= 10) {
-        // Проверяем, не опубликована ли уже ссылка
+      // Токен считается купленным только если он куплен в БД И есть баланс (или баланс еще не загружен)
+      if (hasBalance || !mctBalance) {
+        setPurchased(true);
+        // После покупки токена всегда можно опубликовать ссылку (если еще не опубликована)
         const linkPublished = sessionStorage.getItem('link_published') === 'true' || 
                              localStorage.getItem('link_published') === 'true';
         if (!linkPublished) {
           setCanPublishLink(true);
         }
+      } else {
+        // Если токен в БД помечен как купленный, но баланс 0 - возможно транзакция не прошла
+        // Показываем кнопку покупки
+        setPurchased(false);
+        setCanPublishLink(false);
       }
+    } else {
+      // Если токен не куплен в БД, всегда показываем кнопку покупки
+      setPurchased(false);
+      setCanPublishLink(false);
     }
   };
 
@@ -940,7 +958,7 @@ export default function BuyToken() {
                   : `❤️ BUY MRS. CRYPTO TOKEN${displayUsdPrice ? ` FOR ${displayUsdPrice}` : ' (FREE)'}`
               }
             </button>
-          ) : canPublishLink ? (
+          ) : (
             <button
               onClick={() => router.push('/submit')}
               className="w-full text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold rounded-2xl shadow-2xl 
@@ -950,17 +968,6 @@ export default function BuyToken() {
                 opacity-100 cursor-pointer hover:scale-105 active:scale-95"
             >
               PUBLISH LINK →
-            </button>
-          ) : (
-            <button
-              onClick={() => router.push('/tasks')}
-              className="w-full text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold rounded-2xl shadow-2xl 
-                transform transition-all duration-300 relative z-10
-                bg-gradient-to-r from-green-500 via-green-600 to-green-700 text-white
-                hover:from-green-400 hover:via-green-500 hover:to-green-600
-                opacity-100 cursor-pointer hover:scale-105 active:scale-95"
-            >
-              GO TO TASKS →
             </button>
           )}
           
