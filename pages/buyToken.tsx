@@ -188,7 +188,7 @@ export default function BuyToken() {
     checkProgress(user.fid);
     loadWalletInfo();
   }, [router, user, isInitialized]);
-  
+
   // Перепроверяем статус покупки при изменении баланса
   useEffect(() => {
     if (user?.fid && mctBalance) {
@@ -204,11 +204,11 @@ export default function BuyToken() {
       // Если токен куплен в БД, всегда считаем его купленным (не показываем кнопку покупки)
       setPurchased(true);
       // После покупки токена всегда можно опубликовать ссылку (если еще не опубликована)
-      const linkPublished = sessionStorage.getItem('link_published') === 'true' || 
-                           localStorage.getItem('link_published') === 'true';
-      if (!linkPublished) {
-        setCanPublishLink(true);
-      }
+        const linkPublished = sessionStorage.getItem('link_published') === 'true' || 
+                             localStorage.getItem('link_published') === 'true';
+        if (!linkPublished) {
+          setCanPublishLink(true);
+        }
     } else {
       // Если токен не куплен в БД, показываем кнопку покупки
       setPurchased(false);
@@ -457,18 +457,27 @@ export default function BuyToken() {
             console.log('✅ [DB] Token purchase marked in database' + (txHash ? ` with txHash: ${txHash}` : ''));
             
             // После покупки токена всегда можно опубликовать ссылку (если еще не опубликована)
-            const linkPublished = typeof window !== 'undefined' && (
-              sessionStorage.getItem('link_published') === 'true' || 
-              localStorage.getItem('link_published') === 'true'
-            );
-            if (!linkPublished) {
-              setCanPublishLink(true);
+                  const linkPublished = typeof window !== 'undefined' && (
+                    sessionStorage.getItem('link_published') === 'true' || 
+                    localStorage.getItem('link_published') === 'true'
+                  );
+                  if (!linkPublished) {
+                    setCanPublishLink(true);
               // Автоматически редиректим на /submit через 2 секунды
+              // Используем window.location.href для навигации внутри Farcaster Mini App iframe
               console.log('✅ [BUYTOKEN] Token purchased, redirecting to /submit in 2 seconds...');
               setTimeout(() => {
-                router.push('/submit');
+                // Проверяем, что мы в Farcaster Mini App iframe
+                const isInFarcasterFrame = typeof window !== 'undefined' && window.self !== window.top;
+                if (isInFarcasterFrame) {
+                  // Внутри iframe используем window.location.href для навигации
+                  window.location.href = '/submit';
+                } else {
+                  // Вне iframe используем router.push
+                  router.push('/submit');
+                }
               }, 2000);
-            }
+                  }
             
             // Отправляем уведомление через MiniKit SDK для вирусного распространения
             sendTokenPurchaseNotification(
@@ -486,20 +495,9 @@ export default function BuyToken() {
               console.error('❌ [NOTIFICATION] Error sending purchase notification:', notifError);
             });
             
-            // Публикуем cast в Warpcast с tx hash для social proof (если txHash доступен)
-            if (txHash) {
-              publishSwapCastWithTxHash(txHash, mctReceived, PURCHASE_AMOUNT_USDC, user.username).then((result) => {
-                if (result.success) {
-                  console.log('✅ [CAST] Swap cast published to Warpcast with tx hash for social proof');
-                } else {
-                  console.warn('⚠️ [CAST] Failed to publish swap cast:', result.error);
-                }
-              }).catch((castError) => {
-                console.error('❌ [CAST] Error publishing swap cast:', castError);
-              });
-            } else {
-              console.log('ℹ️ [CAST] No txHash available, skipping cast publication');
-            }
+            // Публикация cast отключена, чтобы не открывать новую вкладку после покупки
+            // Пользователь остается в Farcaster Mini App
+            console.log('ℹ️ [CAST] Cast publication skipped to keep user in Farcaster Mini App');
           }).catch((dbError) => {
             console.error('❌ [DB] Error marking token purchase in DB:', dbError);
           });
@@ -892,9 +890,9 @@ export default function BuyToken() {
               </div>
 
               {canPublishLink ? (
-                <p className="text-center text-success font-semibold mt-4">
-                  Redirecting to link publishing...
-                </p>
+              <p className="text-center text-success font-semibold mt-4">
+                Redirecting to link publishing...
+              </p>
               ) : (
                 <p className="text-center text-gray-600 font-semibold mt-4">
                   Complete all tasks to publish your link
@@ -939,7 +937,17 @@ export default function BuyToken() {
             </button>
           ) : (
             <button
-              onClick={() => router.push('/submit')}
+              onClick={() => {
+                // Проверяем, что мы в Farcaster Mini App iframe
+                const isInFarcasterFrame = typeof window !== 'undefined' && window.self !== window.top;
+                if (isInFarcasterFrame) {
+                  // Внутри iframe используем window.location.href для навигации
+                  window.location.href = '/submit';
+                } else {
+                  // Вне iframe используем router.push
+                  router.push('/submit');
+                }
+              }}
               className="w-full text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold rounded-2xl shadow-2xl 
                 transform transition-all duration-300 relative z-10
                 bg-gradient-to-r from-purple-500 via-pink-500 to-red-500 text-white

@@ -183,7 +183,7 @@ export default function Submit() {
   const [activity, setActivity] = useState<ActivityType | null>(null);
   const [castUrl, setCastUrl] = useState('');
   const [error, setError] = useState('');
-  const [canSubmit, setCanSubmit] = useState(false);
+  const [canSubmit, setCanSubmit] = useState(true); // Публикация разрешена всегда
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [publishedLinkId, setPublishedLinkId] = useState<string | null>(null);
 
@@ -438,21 +438,6 @@ export default function Submit() {
         return;
       }
     }
-    
-    const progress = await getUserProgress(userFid);
-    
-    if (!progress) {
-      router.replace('/');
-      return;
-    }
-
-    // Проверка: токен куплен
-    if (!progress.token_purchased) {
-      router.replace('/buyToken');
-      return;
-    }
-
-    // После покупки токена можно публиковать ссылку (не требуется выполнение всех задач и не требуется 10 ссылок от других пользователей)
 
     // Проверка: ссылка уже опубликована
     const linkAlreadyPublished = await checkIfLinkAlreadyPublished(userFid);
@@ -466,6 +451,7 @@ export default function Submit() {
       return;
     }
 
+    // Публикация ссылки разрешена всегда (все задания уже проверены)
     setCanSubmit(true);
   };
 
