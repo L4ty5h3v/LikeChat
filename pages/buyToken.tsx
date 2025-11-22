@@ -196,7 +196,7 @@ export default function BuyToken() {
     if (progress?.token_purchased) {
       setPurchased(true);
       
-      // Проверяем, можно ли опубликовать ссылку (все задачи выполнены)
+      // Проверяем, выполнены ли все задачи (10 задач)
       const completedCount = progress.completed_links?.length || 0;
       if (completedCount >= 10) {
         // Проверяем, не опубликована ли уже ссылка
@@ -449,7 +449,7 @@ export default function BuyToken() {
           markTokenPurchased(user.fid, txHash || undefined).then(() => {
             console.log('✅ [DB] Token purchase marked in database' + (txHash ? ` with txHash: ${txHash}` : ''));
             
-            // Проверяем, можно ли опубликовать ссылку (все задачи выполнены)
+            // Проверяем, выполнены ли все задачи (10 задач)
             getUserProgress(user.fid).then((progress) => {
               if (progress) {
                 const completedCount = progress.completed_links?.length || 0;

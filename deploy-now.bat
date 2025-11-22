@@ -17,7 +17,7 @@ if errorlevel 1 (
 )
 
 echo [2/3] Создание коммита...
-git commit -m "FIX: Auto-redirect to submit page after token purchase and fix button colors for error tasks"
+git commit -m "FIX: Redirect to submit page only after all tasks are completed and token is purchased"
 if errorlevel 1 (
     echo ОШИБКА при создании коммита! Возможно, нет изменений для коммита.
     pause
