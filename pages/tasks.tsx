@@ -289,10 +289,12 @@ export default function Tasks() {
   // Это позволяет открывать ссылки снова при следующей загрузке страницы
   const markOpened = (linkId: string) => {
     setOpenedTasks(prev => ({ ...prev, [linkId]: true }));
+    // ⚠️ КРИТИЧНО: Убираем ошибку при открытии задачи, чтобы кнопка стала синей
+    delete taskErrorsRef.current[linkId];
     // Также обновляем в tasks для немедленного отображения
     setTasks(prevTasks => 
       prevTasks.map(task => 
-        task.link_id === linkId ? { ...task, opened: true } : task
+        task.link_id === linkId ? { ...task, opened: true, error: false } : task
       )
     );
   };
@@ -509,7 +511,7 @@ export default function Tasks() {
       // success: true - проверка прошла успешно, но completed может быть false (активность не найдена)
       return { 
         completed: data.completed || false,
-        userMessage: data.completed ? undefined : 'Activity not found on the network. Make sure you performed the action through the official Farcaster client. Please try again in 1-2 minutes.',
+        userMessage: data.completed ? undefined : 'Error: Action not found.',
         isError: false, // Это не ошибка, просто активность не найдена
       };
     } catch (error: any) {

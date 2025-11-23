@@ -109,7 +109,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
         <div className="mt-3 p-2 bg-red-100 border border-red-300 rounded-lg">
           <p className="text-sm text-red-800 flex items-center gap-2 font-semibold">
             <span>❌</span>
-            <span>Error: Activity not found. Make sure you performed the action through the official Farcaster client.</span>
+            <span>Error: Action not found.</span>
           </p>
         </div>
       )}
