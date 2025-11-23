@@ -25,30 +25,30 @@ const Button: React.FC<ButtonProps> = ({
   const baseStyles = 'px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 text-sm sm:text-base';
   
   const variantStyles = {
-    primary: 'text-white hover:shadow-xl hover:shadow-yellow-500/50 transition-all duration-300 relative overflow-hidden',
-    success: 'text-white hover:shadow-xl hover:shadow-yellow-500/50 transition-all duration-300',
-    warning: 'text-white hover:shadow-xl hover:shadow-yellow-500/50 transition-all duration-300',
-    secondary: 'text-amber-900 border-2 border-yellow-400 hover:border-yellow-500',
+    primary: 'text-white hover:shadow-xl hover:shadow-purple-500/50 transition-all duration-300 relative overflow-hidden',
+    success: 'text-white hover:shadow-xl hover:shadow-purple-500/50 transition-all duration-300',
+    warning: 'text-white hover:shadow-xl hover:shadow-purple-500/50 transition-all duration-300',
+    secondary: 'text-purple-900 border-2 border-purple-400 hover:border-purple-500',
   };
 
   const widthStyles = fullWidth ? 'w-full' : '';
 
   const getBackgroundStyle = () => {
     if (disabled || loading) {
-      return { background: 'linear-gradient(to right, #C0A030, #9A7308)' }; // Приглушенный золотой для disabled
+      return { background: 'linear-gradient(to right, #9B2D30, #6B1F3D)' }; // Приглушенный красно-фиолетовый для disabled
     }
     
     switch (variant) {
       case 'primary':
-        return { background: 'linear-gradient(to right, #FFD700, #B8860B)' };
+        return { background: 'linear-gradient(to right, #EF4444, #A855F7, #EC4899)' }; // Красно-фиолетовый градиент
       case 'success':
-        return { background: 'linear-gradient(to right, #FFD700, #B8860B)' };
+        return { background: 'linear-gradient(to right, #EF4444, #A855F7, #EC4899)' };
       case 'warning':
-        return { background: 'linear-gradient(to right, #FFD700, #B8860B)' };
+        return { background: 'linear-gradient(to right, #EF4444, #A855F7, #EC4899)' };
       case 'secondary':
-        return { background: 'linear-gradient(to right, #FFF9DC, #FFE5B4)' };
+        return { background: 'linear-gradient(to right, #FEE2E2, #F3E8FF)' };
       default:
-        return { background: 'linear-gradient(to right, #FFD700, #B8860B)' };
+        return { background: 'linear-gradient(to right, #EF4444, #A855F7, #EC4899)' };
     }
   };
 

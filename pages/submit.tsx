@@ -1070,9 +1070,10 @@ export default function Submit() {
                 disabled={loading || !castUrl}
                 className={`
                   w-full text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold rounded-2xl shadow-2xl 
-                  transform transition-all duration-300 relative z-10
-                  bg-gradient-to-r from-green-500 via-green-600 to-green-700 text-white
-                  hover:from-green-400 hover:via-green-500 hover:to-green-600
+                  transform transition-all duration-300 relative z-10 text-white
+                  bg-gradient-to-r from-red-500 via-purple-600 to-pink-500
+                  hover:from-red-400 hover:via-purple-500 hover:to-pink-400
+                  hover:shadow-xl hover:shadow-purple-500/50
                   ${loading || !castUrl
                     ? 'opacity-50 cursor-not-allowed' 
                     : 'opacity-100 cursor-pointer hover:scale-105 active:scale-95'

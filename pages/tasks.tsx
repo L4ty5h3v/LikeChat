@@ -954,8 +954,9 @@ export default function Tasks() {
               className={`
                 relative group w-full px-12 py-8 rounded-2xl text-white font-black text-2xl md:text-3xl
                 transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100
-                backdrop-blur-sm border border-white border-opacity-20
-                shadow-2xl shadow-primary/50 bg-gradient-to-r from-primary/80 via-red-600/80 to-accent/80 hover:from-red-500/90 hover:via-purple-500/90 hover:to-accent/90
+                bg-gradient-to-r from-red-500 via-purple-600 to-pink-500
+                hover:from-red-400 hover:via-purple-500 hover:to-pink-400
+                hover:shadow-xl hover:shadow-purple-500/50
               `}
             >
               <div className="flex items-center justify-center gap-4">
