@@ -199,18 +199,22 @@ export default function BuyToken() {
   const checkProgress = async (userFid: number) => {
     const progress = await getUserProgress(userFid);
     
+    // Проверяем баланс MCT токенов
+    const currentBalance = mctBalance ? parseFloat(formatUnits(mctBalance.value, mctBalance.decimals)) : 0;
+    const hasMCTBalance = currentBalance > 0;
+    
     // Проверяем, куплен ли уже токен в базе данных
-    if (progress?.token_purchased) {
-      // Если токен куплен в БД, всегда считаем его купленным (не показываем кнопку покупки)
+    if (progress?.token_purchased || hasMCTBalance) {
+      // Если токен куплен в БД ИЛИ есть баланс MCT, считаем его купленным
       setPurchased(true);
       // После покупки токена всегда можно опубликовать ссылку (если еще не опубликована)
-        const linkPublished = sessionStorage.getItem('link_published') === 'true' || 
-                             localStorage.getItem('link_published') === 'true';
-        if (!linkPublished) {
-          setCanPublishLink(true);
-        }
+      const linkPublished = sessionStorage.getItem('link_published') === 'true' || 
+                           localStorage.getItem('link_published') === 'true';
+      if (!linkPublished) {
+        setCanPublishLink(true);
+      }
     } else {
-      // Если токен не куплен в БД, показываем кнопку покупки
+      // Если токен не куплен в БД И нет баланса MCT, показываем кнопку покупки
       setPurchased(false);
       setCanPublishLink(false);
     }
