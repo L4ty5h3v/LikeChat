@@ -640,15 +640,6 @@ export default function Home() {
                     'CONNECT FARCASTER'
                   )}
                 </button>
-
-                <div className="mt-6 p-3 sm:p-4 bg-gradient-to-r from-accent to-secondary rounded-xl">
-                  <p className="text-base sm:text-xl text-white font-bold">
-                    Connect Farcaster wallet to authorize
-                  </p>
-                  <p className="text-sm text-white text-opacity-90 mt-2">
-                    We'll find your Farcaster account by wallet address and load your real FID, username and avatar
-                  </p>
-                </div>
               </div>
           ) : (
             <div>
