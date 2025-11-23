@@ -193,7 +193,9 @@ export default function BuyToken() {
   useEffect(() => {
     if (user?.fid && mctBalance !== undefined) {
       // Ждем, пока баланс загрузится (может быть null или объект)
-      checkProgress(user.fid);
+      // НЕ вызываем checkProgress здесь, чтобы не перезаписывать состояние purchased
+      // checkProgress уже вызывается в основном useEffect при загрузке страницы
+      console.log('🔍 [BUYTOKEN] Balance changed, but not rechecking progress to avoid overwriting purchased state');
     }
   }, [tokenBalance, mctBalance, user?.fid]);
 
@@ -220,12 +222,14 @@ export default function BuyToken() {
         tokenPurchasedInDB: progress?.token_purchased,
         currentBalance,
         willShowBuyButton: !progress?.token_purchased,
+        currentPurchasedState: purchased, // Логируем текущее состояние
       });
       
       // Проверяем, куплен ли уже токен в базе данных (только БД, не баланс)
       // Баланс может быть от других источников, поэтому проверяем только флаг в БД
-      if (progress?.token_purchased) {
+      if (progress?.token_purchased === true) {
         // Если токен куплен в БД, считаем его купленным
+        console.log('✅ [BUYTOKEN] Token purchased in DB, setting purchased=true');
         setPurchased(true);
         // После покупки токена всегда можно опубликовать ссылку (если еще не опубликована)
         const linkPublished = sessionStorage.getItem('link_published') === 'true' || 
@@ -234,7 +238,8 @@ export default function BuyToken() {
           setCanPublishLink(true);
         }
       } else {
-        // Если токен не куплен в БД И нет баланса MCT, показываем кнопку покупки
+        // Если токен не куплен в БД, показываем кнопку покупки
+        console.log('🛒 [BUYTOKEN] Token NOT purchased in DB, setting purchased=false, showing buy button');
         setPurchased(false);
         setCanPublishLink(false);
       }
@@ -522,28 +527,8 @@ export default function BuyToken() {
       }
   }, [mctBalance, isSwapping, oldBalanceBeforeSwap, user, router, txHash]);
   
-  // Проверяем, куплен ли токен при загрузке страницы
-  useEffect(() => {
-    const checkTokenPurchase = async () => {
-      if (!user?.fid) return;
-      
-      try {
-        const progressResponse = await fetch(`/api/user-progress?userFid=${user.fid}&t=${Date.now()}`);
-        const progressData = await progressResponse.json();
-        const progress = progressData.progress;
-        
-        if (progress?.token_purchased && !purchased) {
-          console.log('✅ [BUYTOKEN] Token already purchased, staying on buy token page');
-          setPurchased(true);
-          // Не редиректим на /submit - остаемся на странице покупки
-        }
-      } catch (error) {
-        console.error('❌ [BUYTOKEN] Error checking token purchase status:', error);
-      }
-    };
-    
-    checkTokenPurchase();
-  }, [user, purchased, router]);
+  // Убрали дублирующую проверку - checkProgress уже вызывается в основном useEffect
+  // Это предотвращает конфликты в установке purchased
 
   const confirmBuyToken = async (isRetry: boolean = false) => {
     if (!user) {
@@ -936,7 +921,10 @@ export default function BuyToken() {
           )}
 
           {/* Кнопка покупки */}
-          {!purchased ? (
+          {(() => {
+            console.log('🔍 [BUYTOKEN] Render check - purchased:', purchased, 'walletAddress:', !!walletAddress);
+            return !purchased;
+          })() ? (
             <button
               onClick={handleBuyToken}
               disabled={loading || isSwapping || !walletAddress}
