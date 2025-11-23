@@ -33,17 +33,17 @@ export async function publishCastToFarcaster(
 
     const castText = `${activityEmoji[activityType]} Need ${activityLabel[activityType]}!\n\n${castUrl}\n\n#MultiLike #Farcaster`;
 
-    console.log('🔄 Opening Warpcast to publish cast:', castText);
+    console.log('🔄 Opening Farcaster to publish cast:', castText);
 
-    // Пробуем использовать SDK для открытия Warpcast
+    // Пробуем использовать SDK для открытия Farcaster
     try {
       const { sdk } = await import('@farcaster/miniapp-sdk');
       
       if (sdk && sdk.actions && sdk.actions.openUrl) {
-        // Используем openUrl для открытия Warpcast с предзаполненным текстом
-        const warpcastUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(castText)}`;
-        await sdk.actions.openUrl({ url: warpcastUrl });
-        console.log('✅ Opened Warpcast via SDK');
+        // Используем openUrl для открытия Farcaster с предзаполненным текстом
+        const farcasterUrl = `https://farcaster.xyz/~/compose?text=${encodeURIComponent(castText)}`;
+        await sdk.actions.openUrl({ url: farcasterUrl });
+        console.log('✅ Opened Farcaster via SDK');
         return {
           success: true,
         };
@@ -52,32 +52,32 @@ export async function publishCastToFarcaster(
       console.warn('⚠️ SDK not available, using direct URL:', sdkError);
     }
 
-    // Fallback: открываем Warpcast напрямую
-    const warpcastUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(castText)}`;
+    // Fallback: открываем Farcaster напрямую
+    const farcasterUrl = `https://farcaster.xyz/~/compose?text=${encodeURIComponent(castText)}`;
     
     // Проверяем, мобильное ли устройство
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     
     if (isMobile) {
       // На мобильных пробуем deep link
-      const warpcastDeepLink = `warpcast://~/compose?text=${encodeURIComponent(castText)}`;
-      window.location.href = warpcastDeepLink;
+      const farcasterDeepLink = `farcaster://~/compose?text=${encodeURIComponent(castText)}`;
+      window.location.href = farcasterDeepLink;
       
       // Fallback на веб-версию через секунду
       setTimeout(() => {
-        window.open(warpcastUrl, '_blank');
+        window.open(farcasterUrl, '_blank');
       }, 1000);
     } else {
       // На десктопе открываем в новой вкладке
-      window.open(warpcastUrl, '_blank');
+      window.open(farcasterUrl, '_blank');
     }
 
-    console.log('✅ Opened Warpcast for cast publishing');
+    console.log('✅ Opened Farcaster for cast publishing');
     return {
       success: true,
     };
   } catch (error: any) {
-    console.error('❌ Error opening Warpcast:', error);
+    console.error('❌ Error opening Farcaster:', error);
     return {
       success: false,
       error: error?.message || 'Ошибка при открытии Farcaster',

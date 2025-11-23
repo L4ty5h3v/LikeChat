@@ -110,9 +110,9 @@ export async function getFullCastHash(shortUrl: string): Promise<string | null> 
     return hashInUrl[0].toLowerCase();
   }
 
-  // 3. Если это URL (farcaster.xyz, warpcast.com и т.д.) - используем resolveCastUrl
+  // 3. Если это URL (farcaster.xyz и т.д.) - используем resolveCastUrl
   // Это правильный метод через GET /v2/farcaster/cast?identifier={url}&type=url
-  const isUrl = shortUrl.includes('farcaster.xyz') || shortUrl.includes('warpcast.com') || shortUrl.includes('http');
+  const isUrl = shortUrl.includes('farcaster.xyz') || shortUrl.includes('http');
   if (isUrl) {
     if (!cleanApiKey) {
       console.error("[neynar] getFullCastHash: NEYNAR_API_KEY not configured - cannot resolve URL");
