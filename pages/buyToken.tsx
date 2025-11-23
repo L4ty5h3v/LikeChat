@@ -464,36 +464,19 @@ export default function BuyToken() {
                   if (!linkPublished) {
                     setCanPublishLink(true);
               // Автоматически редиректим на /submit через 2 секунды
-              // Используем window.location.href для навигации внутри Farcaster Mini App iframe
+              // Используем router.replace для навигации внутри Farcaster Mini App iframe
+              // router.replace не создает новую запись в истории и не открывает новую вкладку
               console.log('✅ [BUYTOKEN] Token purchased, redirecting to /submit in 2 seconds...');
               setTimeout(() => {
-                // Проверяем, что мы в Farcaster Mini App iframe
-                const isInFarcasterFrame = typeof window !== 'undefined' && window.self !== window.top;
-                if (isInFarcasterFrame) {
-                  // Внутри iframe используем window.location.href для навигации
-                  window.location.href = '/submit';
-                } else {
-                  // Вне iframe используем router.push
-                  router.push('/submit');
-                }
+                // Используем router.replace для навигации внутри iframe
+                // Это гарантирует, что мы остаемся в Farcaster Mini App
+                router.replace('/submit');
               }, 2000);
                   }
             
-            // Отправляем уведомление через MiniKit SDK для вирусного распространения
-            sendTokenPurchaseNotification(
-              mctReceived, // Количество полученных MCT
-              PURCHASE_AMOUNT_USDC, // Потрачено USDC
-              txHash || undefined, // txHash если доступен
-              user.username
-            ).then((result) => {
-              if (result.success) {
-                console.log('✅ [NOTIFICATION] Purchase notification sent successfully');
-              } else {
-                console.warn('⚠️ [NOTIFICATION] Failed to send purchase notification:', result.error);
-              }
-            }).catch((notifError) => {
-              console.error('❌ [NOTIFICATION] Error sending purchase notification:', notifError);
-            });
+            // Уведомление отключено, чтобы не открывать внешние ссылки и не выводить из Farcaster Mini App
+            // sdk.actions.openUrl с внешним URL (BaseScan) выводит пользователя из iframe
+            console.log('ℹ️ [NOTIFICATION] Purchase notification skipped to keep user in Farcaster Mini App');
             
             // Публикация cast отключена, чтобы не открывать новую вкладку после покупки
             // Пользователь остается в Farcaster Mini App
@@ -880,6 +863,12 @@ export default function BuyToken() {
                 <a
                   href={`https://basescan.org/tx/${txHash}`}
                   rel="noopener noreferrer"
+                  target="_blank"
+                  onClick={(e) => {
+                    // Открываем BaseScan в новой вкладке только при явном клике
+                    // Это не влияет на автоматический редирект после покупки
+                    e.stopPropagation();
+                  }}
                   className="font-mono text-sm break-all text-primary hover:text-primary-dark underline"
                 >
                   {txHash}
@@ -938,15 +927,9 @@ export default function BuyToken() {
           ) : (
             <button
               onClick={() => {
-                // Проверяем, что мы в Farcaster Mini App iframe
-                const isInFarcasterFrame = typeof window !== 'undefined' && window.self !== window.top;
-                if (isInFarcasterFrame) {
-                  // Внутри iframe используем window.location.href для навигации
-                  window.location.href = '/submit';
-                } else {
-                  // Вне iframe используем router.push
-                  router.push('/submit');
-                }
+                // Используем router.replace для навигации внутри Farcaster Mini App iframe
+                // Это гарантирует, что мы остаемся в iframe и не открываем новую вкладку
+                router.replace('/submit');
               }}
               className="w-full text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold rounded-2xl shadow-2xl 
                 transform transition-all duration-300 relative z-10

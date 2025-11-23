@@ -233,9 +233,9 @@ export default function Tasks() {
             
             // Если все задания завершены → редирект на /buyToken (независимо от статуса токена)
             console.log(`🚀 Redirecting to /buyToken (all tasks completed)`);
-            setTimeout(() => {
-              router.replace('/buyToken'); // Используем replace для предотвращения возврата назад
-            }, 2000);
+              setTimeout(() => {
+                router.replace('/buyToken'); // Используем replace для предотвращения возврата назад
+              }, 2000);
           }
         }).catch((error) => {
           console.error('❌ [TASKS] Error checking user progress for auto-redirect:', error);
