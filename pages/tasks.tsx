@@ -145,6 +145,9 @@ export default function Tasks() {
       // НЕ сбрасываем openedTasks в рамках одной сессии - сохраняем состояние открытых ссылок
       // setOpenedTasks({});
       
+      // ⚠️ КРИТИЧНО: Сохраняем текущие состояния задач для сохранения verifying и error
+      const currentTasksMap = new Map(tasks.map(t => [t.link_id, t]));
+      
       const taskList: TaskProgress[] = filteredLinks.map((link: LinkSubmission, index: number) => {
         const castHash = extractCastHash(link.cast_url) || '';
         const isCompleted = completedLinks.includes(link.id);
@@ -153,6 +156,11 @@ export default function Tasks() {
         // Если задание не открыто и не выполнено, и была ошибка - сохраняем её
         const hasStoredError = taskErrorsRef.current[link.id] === true;
         const shouldHaveError = hasStoredError && !isOpened && !isCompleted;
+        
+        // ⚠️ КРИТИЧНО: Сохраняем verifying и error из текущего состояния, если задача уже существует
+        const currentTask = currentTasksMap.get(link.id);
+        const preservingVerifying = currentTask?.verifying === true && !isCompleted; // Сохраняем verifying только если задача не выполнена
+        const preservingError = currentTask?.error === true || shouldHaveError; // Сохраняем error если была ошибка или должна быть
         
         return {
           link_id: link.id,
@@ -165,7 +173,8 @@ export default function Tasks() {
           completed: isCompleted,
           verified: isCompleted,
           opened: isOpened,
-          error: shouldHaveError, // Сохраняем ошибку, если задание не открыто и не выполнено
+          error: preservingError, // Сохраняем ошибку из текущего состояния или из taskErrorsRef
+          verifying: preservingVerifying, // Сохраняем verifying если идет проверка
           _originalIndex: index, // Сохраняем оригинальный индекс для стабильной сортировки
         };
       }).sort((a: TaskProgress, b: TaskProgress) => {
@@ -529,9 +538,19 @@ export default function Tasks() {
       console.log(`🔍 [VERIFY] Processing ALL ${tasks.length} tasks in parallel...`);
 
       // ✅ Сначала помечаем все задачи как проверяемые
-      // НЕ сбрасываем ошибки - они должны сохраняться до выполнения задания
+      // ⚠️ КРИТИЧНО: Сохраняем error состояние и устанавливаем его для неоткрытых задач
       setTasks(prevTasks => 
-        prevTasks.map(task => ({ ...task, verifying: true }))
+        prevTasks.map(task => {
+          const isOpened = task.opened || openedTasks[task.link_id] === true;
+          // Если задача не открыта и не выполнена - это ошибка
+          const shouldHaveError = !isOpened && !task.completed;
+          return {
+            ...task, 
+            verifying: true,
+            // Сохраняем существующую ошибку ИЛИ устанавливаем для неоткрытых задач
+            error: task.error || shouldHaveError || taskErrorsRef.current[task.link_id] === true
+          };
+        })
       );
 
       // ✅ Параллельная проверка всех задач через Promise.all
