@@ -187,11 +187,7 @@ export default function Tasks() {
       
       // Проверяем: если все задания завершены, проверяем прогресс и делаем автоматический редирект
       // ⚠️ ВАЖНО: Проверяем, не опубликована ли уже ссылка пользователем, чтобы избежать бесконечного редиректа
-      // ⚠️ КРИТИЧНО: Проверяем, что все задания действительно выполнены (completed: true) и нет ошибок
-      const allTasksCompleted = taskList.length > 0 && taskList.every((task) => task.completed && !task.error);
-      const allTasksInCompletedLinks = completedLinks.length >= taskList.length;
-      
-      if (allTasksCompleted && allTasksInCompletedLinks && taskList.length > 0 && user) {
+      if (completedLinks.length >= taskList.length && taskList.length > 0 && user) {
         // ⚠️ КРИТИЧЕСКАЯ ПРОВЕРКА: Сначала проверяем флаг link_published из хранилища
         // Это предотвращает редирект на /submit, если ссылка уже опубликована (даже если БД еще не обновилась)
         const linkPublishedSession = sessionStorage.getItem('link_published');
@@ -685,20 +681,13 @@ export default function Tasks() {
       console.log(`📊 [VERIFY] Verification complete: ${newCompletedCount}/${updatedTasks.length} completed`);
 
       // ✅ Если все выполнены - редирект на покупку токена (НЕ перезагружаем задачи, чтобы кнопки остались зелеными)
-      // ⚠️ КРИТИЧНО: Проверяем, что все задания действительно выполнены и нет ошибок
-      const allCompleted = updatedTasks.every((t) => t.completed && !t.error);
-      const hasErrors = updatedTasks.some((t) => t.error);
-      const hasUnopened = updatedTasks.some((t) => !t.opened && !t.completed);
-      
-      if (allCompleted && !hasErrors && !hasUnopened && updatedTasks.length > 0) {
+      const allCompleted = updatedTasks.every((t) => t.completed);
+      if (allCompleted && updatedTasks.length > 0) {
         console.log(`✅ All tasks completed! (${newCompletedCount}/${updatedTasks.length})`);
         // НЕ перезагружаем задачи, чтобы кнопки остались зелеными
         setTimeout(() => {
           router.replace('/buyToken'); // Используем replace вместо push
         }, 2000);
-      } else if (hasErrors || hasUnopened) {
-        console.log(`⚠️ Cannot redirect: hasErrors=${hasErrors}, hasUnopened=${hasUnopened}`);
-        // Не делаем редирект, если есть ошибки или неоткрытые задания
       } else if (newCompletedCount > 0 && newCompletedCount < updatedTasks.length) {
         // Перезагружаем задачи только если не все выполнены
         setTimeout(() => {
