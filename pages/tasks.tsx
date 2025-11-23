@@ -676,20 +676,19 @@ export default function Tasks() {
 
       console.log(`📊 [VERIFY] Verification complete: ${newCompletedCount}/${updatedTasks.length} completed`);
 
-      // ✅ Перезагружаем задачи из API для получения актуальных данных
-      if (newCompletedCount > 0) {
-        setTimeout(() => {
-          loadTasks(user.fid, false);
-        }, 1000);
-      }
-
-      // ✅ Если все выполнены - редирект на покупку токена
+      // ✅ Если все выполнены - редирект на покупку токена (НЕ перезагружаем задачи, чтобы кнопки остались зелеными)
       const allCompleted = updatedTasks.every((t) => t.completed);
       if (allCompleted && updatedTasks.length > 0) {
         console.log(`✅ All tasks completed! (${newCompletedCount}/${updatedTasks.length})`);
+        // НЕ перезагружаем задачи, чтобы кнопки остались зелеными
         setTimeout(() => {
-          router.push('/buyToken');
-        }, 1500);
+          router.replace('/buyToken'); // Используем replace вместо push
+        }, 2000);
+      } else if (newCompletedCount > 0 && newCompletedCount < updatedTasks.length) {
+        // Перезагружаем задачи только если не все выполнены
+        setTimeout(() => {
+          loadTasks(user.fid, false);
+        }, 1000);
       } else if (newCompletedCount < updatedTasks.length) {
         // Показываем предупреждение с детальными сообщениями
         const incompleteCount = updatedTasks.length - newCompletedCount;
