@@ -512,8 +512,9 @@ export default function Tasks() {
       console.log(`🔍 [VERIFY] Processing ALL ${tasks.length} tasks in parallel...`);
 
       // ✅ Сначала помечаем все задачи как проверяемые
+      // НЕ сбрасываем ошибки - они должны сохраняться до выполнения задания
       setTasks(prevTasks => 
-        prevTasks.map(task => ({ ...task, verifying: true, error: false }))
+        prevTasks.map(task => ({ ...task, verifying: true }))
       );
 
       // ✅ Параллельная проверка всех задач через Promise.all
