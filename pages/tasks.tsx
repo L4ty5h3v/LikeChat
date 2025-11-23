@@ -23,8 +23,8 @@ export default function Tasks() {
   // Состояние openedTasks только в памяти (не сохраняется в localStorage)
   // Сбрасывается при каждой загрузке страницы, чтобы можно было открывать ссылки снова
   const [openedTasks, setOpenedTasks] = useState<Record<string, boolean>>({});
-  // Храним состояние ошибок для заданий (сохраняется между перезагрузками)
-  const [taskErrors, setTaskErrors] = useState<Record<string, boolean>>({});
+  // Храним состояние ошибок для заданий (используем useRef для сохранения между рендерами)
+  const taskErrorsRef = useRef<Record<string, boolean>>({});
   // Храним активные polling интервалы для очистки
   const pollingIntervalsRef = useRef<Record<string, NodeJS.Timeout>>({});
 
@@ -151,7 +151,7 @@ export default function Tasks() {
         const isOpened = openedTasks[link.id] === true;
         // Сохраняем состояние ошибки из предыдущих проверок
         // Если задание не открыто и не выполнено, и была ошибка - сохраняем её
-        const hasStoredError = taskErrors[link.id] === true;
+        const hasStoredError = taskErrorsRef.current[link.id] === true;
         const shouldHaveError = hasStoredError && !isOpened && !isCompleted;
         
         return {
@@ -319,8 +319,11 @@ export default function Tasks() {
             viewerFid: user.fid,
           });
           
-          if (result.completed) {
-            console.log(`✅ [POLLING] Activity found for link ${linkId}!`);
+          // ⚠️ КРИТИЧНО: Проверяем, что задача была открыта перед тем, как помечать её как выполненную
+          const isOpened = openedTasks[linkId] === true;
+          
+          if (result.completed && isOpened) {
+            console.log(`✅ [POLLING] Activity found for link ${linkId} and task is opened!`);
             
             // Обновляем задачу как выполненную (НЕ останавливаем polling сразу)
             setTasks(prevTasks =>
@@ -348,10 +351,24 @@ export default function Tasks() {
               console.error('[POLLING] Error marking link as completed', e);
             }
             
+            // Убираем ошибку, если она была
+            delete taskErrorsRef.current[linkId];
+            
             // Останавливаем polling только после успешного сохранения
             clearInterval(pollIntervalId);
             delete pollingIntervalsRef.current[linkId];
             return; // Выходим из интервала
+          } else if (result.completed && !isOpened) {
+            // Если активность найдена, но задача не открыта - это ошибка
+            console.log(`⚠️ [POLLING] Activity found for link ${linkId}, but task is not opened!`);
+            taskErrorsRef.current[linkId] = true;
+            setTasks(prevTasks =>
+              prevTasks.map(task =>
+                task.link_id === linkId
+                  ? { ...task, error: true, verifying: false }
+                  : task
+              )
+            );
           } else if (pollCount >= maxPolls) {
             console.log(`⏰ [POLLING] Max polls reached for link ${linkId}, stopping`);
             clearInterval(pollIntervalId);
@@ -593,14 +610,28 @@ export default function Tasks() {
               castHash: result.hashWarning
             });
 
+            // ⚠️ КРИТИЧНО: Если задача не была открыта, она НЕ может быть выполнена, даже если активность найдена
+            const isOpened = task.opened || openedTasks[task.link_id] === true;
+            
             // Определяем, была ли ошибка (cast не найден или активность не найдена)
             // Если активность не найдена (completed: false), это тоже ошибка для визуального отображения
-            // Также если задача не была открыта и не выполнена, это ошибка
+            // Если задача не была открыта, это всегда ошибка (даже если активность найдена)
             // Для комментариев: если completed: false, это ошибка (комментарий не найден)
             const hasError = result.isError || 
                             (!result.completed && result.userMessage) || 
-                            (!task.opened && !result.completed) ||
+                            !isOpened || // ⚠️ Если задача не открыта - это ошибка
                             (!result.completed && !result.isError); // Если проверка прошла, но активность не найдена - это ошибка
+            
+            // ⚠️ КРИТИЧНО: Задача может быть выполнена ТОЛЬКО если она была открыта И активность найдена
+            const finalCompleted = isOpened && result.completed;
+            
+            console.log(`🔍 [VERIFY] Task ${task.link_id} verification:`, {
+              isOpened,
+              resultCompleted: result.completed,
+              finalCompleted,
+              hasError,
+              resultIsError: result.isError
+            });
             
             // Если каст не найден (error: true), удаляем ссылку из базы данных
             if (result.isError) {
@@ -630,12 +661,19 @@ export default function Tasks() {
             }
 
             // Собираем сообщения об ошибках для пользователя
-            if (!result.completed && result.userMessage) {
-              messages.push({
-                linkId: task.link_id,
-                message: result.userMessage,
-                neynarUrl: result.neynarExplorerUrl,
-              });
+            if (!finalCompleted) {
+              if (!isOpened) {
+                messages.push({
+                  linkId: task.link_id,
+                  message: 'Task not opened. Please open the task first.',
+                });
+              } else if (!result.completed && result.userMessage) {
+                messages.push({
+                  linkId: task.link_id,
+                  message: result.userMessage,
+                  neynarUrl: result.neynarExplorerUrl,
+                });
+              }
             }
 
             // Логируем предупреждения о hash
@@ -643,8 +681,8 @@ export default function Tasks() {
               console.warn(`⚠️ [VERIFY] Hash warning for task ${task.link_id}:`, result.hashWarning);
             }
 
-            // Если задача выполнена - сохраняем в БД
-            if (result.completed) {
+            // Если задача выполнена (открыта И активность найдена) - сохраняем в БД
+            if (finalCompleted) {
               try {
                 const markResponse = await fetch('/api/mark-completed', {
                   method: 'POST',
@@ -669,25 +707,23 @@ export default function Tasks() {
               }
             }
 
-            // Сохраняем состояние ошибки в taskErrors для сохранения между перезагрузками
+            // Сохраняем состояние ошибки в taskErrorsRef для сохранения между перезагрузками
             if (hasError) {
-              setTaskErrors(prev => ({ ...prev, [task.link_id]: true }));
+              taskErrorsRef.current[task.link_id] = true;
+              console.log(`🔴 [VERIFY] Stored error for task ${task.link_id}`, taskErrorsRef.current);
             } else {
-              // Убираем ошибку, если задание выполнено или открыто
-              setTaskErrors(prev => {
-                const newErrors = { ...prev };
-                delete newErrors[task.link_id];
-                return newErrors;
-              });
+              // Убираем ошибку, если задание выполнено
+              delete taskErrorsRef.current[task.link_id];
+              console.log(`✅ [VERIFY] Removed error for task ${task.link_id}`, taskErrorsRef.current);
             }
             
             return {
               ...task,
-              completed: result.completed,
+              completed: finalCompleted, // ⚠️ Используем finalCompleted, а не result.completed
               verified: true,
               verifying: false,
               error: hasError,
-              opened: task.opened || openedTasks[task.link_id] === true, // Сохраняем состояние opened
+              opened: isOpened, // Сохраняем состояние opened
             } as TaskProgress;
           } catch (err: any) {
             console.error('❌ Neynar API error for task:', task.link_id, err);
@@ -695,8 +731,9 @@ export default function Tasks() {
               linkId: task.link_id,
               message: 'Error checking activity. Please try again in 1-2 minutes.',
             });
-            // Сохраняем состояние ошибки в taskErrors
-            setTaskErrors(prev => ({ ...prev, [task.link_id]: true }));
+            // Сохраняем состояние ошибки в taskErrorsRef
+            taskErrorsRef.current[task.link_id] = true;
+            console.log(`🔴 [VERIFY] Stored error for task ${task.link_id} (exception)`, taskErrorsRef.current);
             
             return {
               ...task,
