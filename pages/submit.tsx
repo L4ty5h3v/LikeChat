@@ -896,13 +896,11 @@ export default function Submit() {
                 <Button
                   onClick={() => {
                     console.log('🔍 [SUBMIT] Button "Close" clicked - redirecting to /tasks');
-                    // Закрываем поздравление и редиректим на /tasks
-                    setShowSuccessModal(false);
+                    // Закрываем поздравление и сразу редиректим на /tasks
+                    // НЕ устанавливаем setShowSuccessModal(false) перед редиректом, чтобы useEffect не сработал
                     setLoading(false);
-                    // Редиректим на /tasks вместо главной страницы
-                    setTimeout(() => {
-                      router.replace('/tasks');
-                    }, 100);
+                    // Редиректим на /tasks сразу, без задержки
+                    router.replace('/tasks');
                   }}
                   variant="primary"
                   fullWidth
