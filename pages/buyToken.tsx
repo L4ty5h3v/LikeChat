@@ -199,11 +199,25 @@ export default function BuyToken() {
 
   const checkProgress = async (userFid: number) => {
     try {
+      // Проверяем, что код выполняется на клиенте
+      if (typeof window === 'undefined') return;
+      
       const progress = await getUserProgress(userFid);
       
-      // Проверяем баланс MCT токенов (только если баланс загружен)
-      const currentBalance = mctBalance ? parseFloat(formatUnits(mctBalance.value, mctBalance.decimals)) : 0;
-      const hasMCTBalance = currentBalance > 0;
+      // Проверяем баланс MCT токенов (только если баланс загружен и на клиенте)
+      let currentBalance = 0;
+      let hasMCTBalance = false;
+      
+      if (mctBalance && mctBalance.value && mctBalance.decimals) {
+        try {
+          currentBalance = parseFloat(formatUnits(mctBalance.value, mctBalance.decimals));
+          hasMCTBalance = currentBalance > 0;
+        } catch (balanceError) {
+          console.warn('⚠️ [BUYTOKEN] Error parsing balance:', balanceError);
+          currentBalance = 0;
+          hasMCTBalance = false;
+        }
+      }
       
       console.log('🔍 [BUYTOKEN] checkProgress:', {
         userFid,
@@ -608,8 +622,6 @@ export default function BuyToken() {
           sellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`, // USDC на Base
           buyToken: `eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`, // MCT Token на Base
           sellAmount: usdcAmountStr, // 0.10 USDC = 100000 wei (parseUnits(0.10, 6))
-          value: usdcAmountStr, // Предзаполнение суммы в форме swap
-          amount: PURCHASE_AMOUNT_USDC.toString(), // Предзаполнение суммы в человекочитаемом формате
         });
         
         // Очищаем таймаут при успешном запуске
