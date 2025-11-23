@@ -704,10 +704,20 @@ export default function Tasks() {
       // ✅ Если все выполнены - редирект на покупку токена (НЕ перезагружаем задачи, чтобы кнопки остались зелеными)
       // ⚠️ КРИТИЧНО: Проверяем, что все задания выполнены И открыты И нет ошибок
       const allCompleted = updatedTasks.every((t) => t.completed);
-      const allOpened = updatedTasks.every((t) => t.opened || t.completed); // Открыты или выполнены
+      // ВАЖНО: Проверяем, что ВСЕ задания открыты (независимо от выполнения)
+      const allOpened = updatedTasks.every((t) => t.opened === true);
       const hasErrors = updatedTasks.some((t) => t.error);
       
-      // НЕ делаем редирект, если есть ошибки (неоткрытые задания)
+      console.log('🔍 [VERIFY] Redirect check after verification:', {
+        allCompleted,
+        allOpened,
+        hasErrors,
+        tasksCount: updatedTasks.length,
+        openedCount: updatedTasks.filter(t => t.opened).length,
+        taskStates: updatedTasks.map(t => ({ id: t.link_id, opened: t.opened, completed: t.completed, error: t.error }))
+      });
+      
+      // НЕ делаем редирект, если есть ошибки или не все задания открыты
       if (allCompleted && allOpened && !hasErrors && updatedTasks.length > 0) {
         console.log(`✅ All tasks completed! (${newCompletedCount}/${updatedTasks.length})`);
         // НЕ перезагружаем задачи, чтобы кнопки остались зелеными
