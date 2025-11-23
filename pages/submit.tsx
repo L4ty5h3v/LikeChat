@@ -879,11 +879,6 @@ export default function Submit() {
             {/* Модная карточка поздравления */}
             <div className="bg-white bg-opacity-95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 sm:p-12 mb-12 border border-white border-opacity-20 mt-6 sm:mt-12">
               <div className="text-center">
-                <div className="flex justify-center gap-2 text-7xl mb-6 animate-bounce">
-                  <span>🎉</span>
-                  <span>✨</span>
-                  <span>🎊</span>
-                </div>
                 <h2 className="text-4xl sm:text-5xl font-black bg-gradient-to-r from-red-500 via-purple-600 to-pink-500 bg-clip-text text-transparent mb-4">
                   Congratulations!
                 </h2>
