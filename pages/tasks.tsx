@@ -195,7 +195,18 @@ export default function Tasks() {
       // ⚠️ ВАЖНО: Проверяем, не опубликована ли уже ссылка пользователем, чтобы избежать бесконечного редиректа
       // ⚠️ КРИТИЧНО: Проверяем, что все задания действительно выполнены И открыты
       const allTasksCompleted = completedLinks.length >= taskList.length;
-      const allTasksOpened = taskList.length > 0 && taskList.every((task) => task.opened || task.completed);
+      // ВАЖНО: Проверяем, что ВСЕ задания открыты (независимо от выполнения)
+      // Если задание не открыто, редирект не должен происходить
+      const allTasksOpened = taskList.length > 0 && taskList.every((task) => task.opened === true);
+      
+      console.log('🔍 [TASKS] Redirect check:', {
+        allTasksCompleted,
+        allTasksOpened,
+        tasksCount: taskList.length,
+        completedCount: completedLinks.length,
+        openedTasks: taskList.filter(t => t.opened).length,
+        taskStates: taskList.map(t => ({ id: t.link_id, opened: t.opened, completed: t.completed }))
+      });
       
       if (allTasksCompleted && allTasksOpened && taskList.length > 0 && user) {
         // ⚠️ КРИТИЧЕСКАЯ ПРОВЕРКА: Сначала проверяем флаг link_published из хранилища
