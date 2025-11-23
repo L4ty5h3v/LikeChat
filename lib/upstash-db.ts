@@ -646,3 +646,32 @@ export function subscribeToLinks(callback: (payload: unknown) => void): { unsubs
   };
 }
 
+// Получить всех пользователей с их прогрессом
+export async function getAllUsersProgress(): Promise<UserProgress[]> {
+  if (!redis) return [];
+  
+  try {
+    const allUsers = await redis.hgetall(KEYS.USER_PROGRESS);
+    if (!allUsers || Object.keys(allUsers).length === 0) return [];
+    
+    const users: UserProgress[] = [];
+    for (const [fid, progressStr] of Object.entries(allUsers)) {
+      try {
+        const progress = typeof progressStr === 'string' ? JSON.parse(progressStr as string) : progressStr;
+        users.push({
+          ...progress,
+          created_at: progress.created_at || new Date().toISOString(),
+          updated_at: progress.updated_at || new Date().toISOString(),
+        });
+      } catch (error) {
+        console.error(`Error parsing user progress for FID ${fid}:`, error);
+      }
+    }
+    
+    return users;
+  } catch (error) {
+    console.error('Error getting all users progress from Upstash:', error);
+    return [];
+  }
+}
+

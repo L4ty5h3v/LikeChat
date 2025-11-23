@@ -28,6 +28,11 @@ export interface UserProgress {
   token_purchase_tx_hash?: string; // Hash транзакции покупки токена (для dexscreener)
   selected_activity?: ActivityType;
   current_link_id?: string; // ID опубликованной ссылки
+  // Fortune cookie streak data
+  current_streak?: number; // Текущий стрик предсказаний
+  longest_streak?: number; // Рекордный стрик
+  last_fortune_claim_date?: string; // Дата последнего клейма (YYYY-MM-DD)
+  total_fortune_claims?: number; // Общее количество клеймов
   created_at: string;
   updated_at: string;
 }
