@@ -71,7 +71,7 @@ export default function Chat() {
   const userLink = links.find((link) => link.id === userLinkId);
 
   const validateUrl = (url: string): boolean => {
-    const urlPattern = /^https?:\/\/(warpcast\.com|farcaster\.xyz)\/.+/i;
+    const urlPattern = /^https?:\/\/(farcaster\.xyz)\/.+/i;
     return urlPattern.test(url);
   };
 
@@ -84,7 +84,7 @@ export default function Chat() {
       return;
     }
     if (!validateUrl(castUrl)) {
-      setSubmitError('Введите корректную ссылку на каст Farcaster/Warpcast');
+      setSubmitError('Введите корректную ссылку на каст Farcaster');
       return;
     }
     setSubmitError('');
@@ -180,7 +180,7 @@ export default function Chat() {
                 type="url"
                 value={castUrl}
                 onChange={(e) => setCastUrl(e.target.value)}
-                placeholder="https://warpcast.com/username/0x123abc..."
+                placeholder="https://farcaster.xyz/username/0x123abc..."
                 className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-primary focus:outline-none"
                 required
               />
@@ -191,7 +191,7 @@ export default function Chat() {
             {submitError && (
               <p className="text-red-600 text-sm mt-2">{submitError}</p>
             )}
-            <p className="text-xs text-gray-500 mt-2">Ссылка на ваш каст Farcaster/Warpcast</p>
+            <p className="text-xs text-gray-500 mt-2">Ссылка на ваш каст Farcaster</p>
           </div>
         )}
 

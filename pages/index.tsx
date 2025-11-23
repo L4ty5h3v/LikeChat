@@ -279,7 +279,7 @@ export default function Home() {
             console.error('❌ Farcaster wallet not detected and no user from SDK context');
             setErrorModal({
               show: true,
-              message: '❌ Farcaster wallet not detected.\n\nPlease make sure:\n1. You are using Farcaster Mini App (e.g., through Warpcast)\n2. Wallet is connected and unlocked\n3. Connection requests are allowed\n\nTry refreshing the page and connecting the wallet again.'
+              message: '❌ Farcaster wallet not detected.\n\nPlease make sure:\n1. You are using Farcaster Mini App\n2. Wallet is connected and unlocked\n3. Connection requests are allowed\n\nTry refreshing the page and connecting the wallet again.'
             });
             setLoading(false);
             return;
@@ -415,7 +415,7 @@ export default function Home() {
           console.error('❌ Farcaster wallet not detected');
           setErrorModal({
             show: true,
-            message: 'Farcaster wallet not detected. Please use Farcaster wallet (e.g., through Warpcast) for authorization.'
+            message: 'Farcaster wallet not detected. Please use Farcaster wallet for authorization.'
           });
           setLoading(false);
           return;

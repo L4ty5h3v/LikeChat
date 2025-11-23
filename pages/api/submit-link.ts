@@ -41,12 +41,12 @@ export default async function handler(
       console.log('✅ [SUBMIT-LINK] Farcaster.xyz link detected, will verify by username');
       // Просто сохраняем ссылку как есть, проверка будет по username
     } else {
-      // Для других форматов (warpcast.com и т.д.) проверяем наличие hash
+      // Для других форматов (farcaster.xyz и т.д.) проверяем наличие hash
       const castHash = extractCastHash(castUrl);
       if (!castHash || castHash.length < 6) {
         return res.status(400).json({
           success: false,
-          error: 'Failed to extract valid hash from link. Make sure the link contains a hash (e.g., https://warpcast.com/username/0x...)',
+          error: 'Failed to extract valid hash from link. Make sure the link contains a hash (e.g., https://farcaster.xyz/username/0x...)',
           hint: 'For farcaster.xyz links, verification happens automatically by username.'
         });
       }

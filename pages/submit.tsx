@@ -91,7 +91,7 @@ async function publishCastByActivityType(
       // Пробуем разные варианты указания канала
       // Вариант 1: через parentUrl (если поддерживается)
       try {
-        composeParams.parentUrl = `https://warpcast.com/~/channel${config.channel}`;
+        composeParams.parentUrl = `https://farcaster.xyz/~/channel${config.channel}`;
       } catch (e) {
         // Игнорируем ошибку
       }
@@ -109,17 +109,17 @@ async function publishCastByActivityType(
     } else if (sdk.actions.openUrl) {
       // Fallback: открываем Compose с предзаполненным текстом и каналом
       // Пробуем указать канал через URL параметр
-      let warpcastUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(castTextWithHashtag)}`;
+      let farcasterUrl = `https://farcaster.xyz/~/compose?text=${encodeURIComponent(castTextWithHashtag)}`;
       
-      // Добавляем канал в URL (если поддерживается Warpcast)
+      // Добавляем канал в URL (если поддерживается Farcaster)
       // Пробуем несколько вариантов формата
       const channelParam = config.channel.replace('/', '');
-      warpcastUrl += `&channel=${encodeURIComponent(channelParam)}`;
+      farcasterUrl += `&channel=${encodeURIComponent(channelParam)}`;
       
       // Альтернативный вариант: через parentUrl в URL
-      // warpcastUrl += `&parentUrl=${encodeURIComponent(`https://warpcast.com/~/channel${config.channel}`)}`;
+      // farcasterUrl += `&parentUrl=${encodeURIComponent(`https://farcaster.xyz/~/channel${config.channel}`)}`;
 
-      await sdk.actions.openUrl({ url: warpcastUrl });
+      await sdk.actions.openUrl({ url: farcasterUrl });
       console.log(`✅ [PUBLISH-CAST] Cast compose opened via openUrl for ${activityType} activity in channel ${config.channel}`);
       return { success: true };
     }
@@ -487,8 +487,8 @@ export default function Submit() {
   };
 
   const validateUrl = (url: string): boolean => {
-    // Проверка формата URL Farcaster/Warpcast
-    const urlPattern = /^https?:\/\/(warpcast\.com|farcaster\.xyz)\/.+/i;
+    // Проверка формата URL Farcaster
+    const urlPattern = /^https?:\/\/(farcaster\.xyz)\/.+/i;
     return urlPattern.test(url);
   };
 
@@ -541,7 +541,7 @@ export default function Submit() {
 
     // Валидация URL
     if (!validateUrl(castUrl)) {
-      setError('Please enter a valid Farcaster/Warpcast cast link');
+      setError('Please enter a valid Farcaster cast link');
       return;
     }
 
@@ -996,7 +996,7 @@ export default function Submit() {
                 PUBLISH YOUR LINK
               </h2>
               <p className="text-lg text-gray-700 text-center">
-                Insert your cast link from Farcaster/Warpcast
+                Insert your cast link from Farcaster
               </p>
             </div>
 
@@ -1043,12 +1043,12 @@ export default function Submit() {
                   id="castUrl"
                   value={castUrl}
                   onChange={(e) => setCastUrl(e.target.value)}
-                  placeholder="https://warpcast.com/username/0x123abc..."
+                  placeholder="https://farcaster.xyz/username/0x123abc..."
                   className="w-full px-6 py-4 border-2 border-gray-300 rounded-xl focus:border-primary focus:outline-none transition-colors text-lg"
                   required
                 />
                 <p className="text-sm text-gray-500 mt-2">
-                  Пример: https://warpcast.com/username/0x123abc
+                  Example: https://farcaster.xyz/username/0x123abc
                 </p>
               </div>
 

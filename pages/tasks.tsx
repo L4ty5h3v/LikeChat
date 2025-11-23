@@ -377,19 +377,19 @@ export default function Tasks() {
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     
     if (isMobile) {
-      // На мобильных устройствах пытаемся открыть в приложении Warpcast
-      // Формат: warpcast://cast?url=...
-      const warpcastUrl = `warpcast://cast?url=${encodeURIComponent(castUrl)}`;
+      // На мобильных устройствах пытаемся открыть в приложении Farcaster
+      // Формат: farcaster://cast?url=...
+      const farcasterUrl = `farcaster://cast?url=${encodeURIComponent(castUrl)}`;
       
       // Пытаемся открыть в приложении
-      window.location.href = warpcastUrl;
+      window.location.href = farcasterUrl;
       
       // Если приложение не установлено, через 2 секунды открываем веб-версию
       setTimeout(() => {
         window.open(castUrl, '_blank');
       }, 2000);
     } else {
-      // На компьютере открываем веб-версию Warpcast
+      // На компьютере открываем веб-версию Farcaster
       window.open(castUrl, '_blank');
     }
   };

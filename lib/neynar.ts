@@ -90,7 +90,7 @@ export async function resolveCastUrl(url: string): Promise<string | null> {
 
 // ----------------------------
 // ГЛАВНАЯ УНИВЕРСАЛЬНАЯ ФУНКЦИЯ
-// Принимает ВСЁ: warpcast, farcaster, miniapps, embed
+// Принимает ВСЁ: farcaster, miniapps, embed
 // Короткие и длинные hash
 // ----------------------------
 export async function getFullCastHash(shortUrl: string): Promise<string | null> {

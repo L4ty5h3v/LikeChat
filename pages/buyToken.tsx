@@ -18,7 +18,7 @@ const PURCHASE_AMOUNT_USDC = 0.10; // Покупаем MCT на 0.10 USDC
 const USDC_CONTRACT_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // USDC на Base (6 decimals) - правильный адрес
 const MCT_CONTRACT_ADDRESS = '0x04d388da70c32fc5876981097c536c51c8d3d236'; // MCT Token
 
-// Публиковать cast в Warpcast с tx hash после успешного swap для social proof
+// Публиковать cast в Farcaster с tx hash после успешного swap для social proof
 async function publishSwapCastWithTxHash(
   txHash: string,
   mctReceived: number,
@@ -69,8 +69,8 @@ async function publishSwapCastWithTxHash(
       return { success: true };
     } else if (sdk.actions.openUrl) {
       // Fallback: открываем Compose с предзаполненным текстом
-      const warpcastUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(castText)}`;
-      await sdk.actions.openUrl({ url: warpcastUrl });
+      const farcasterUrl = `https://farcaster.xyz/~/compose?text=${encodeURIComponent(castText)}`;
+      await sdk.actions.openUrl({ url: farcasterUrl });
       console.log('✅ [CAST] Swap cast compose opened via openUrl with tx hash');
       return { success: true };
     }

@@ -1,7 +1,7 @@
 // Функции для публикации кастов в Farcaster через SDK
 import type { ActivityType } from '@/types';
 
-// Публиковать каст в Farcaster через SDK (открывает Warpcast с предзаполненным текстом)
+// Публиковать каст в Farcaster через SDK (открывает Farcaster с предзаполненным текстом)
 export async function publishCastToFarcaster(
   castUrl: string,
   activityType: ActivityType
@@ -80,7 +80,7 @@ export async function publishCastToFarcaster(
     console.error('❌ Error opening Warpcast:', error);
     return {
       success: false,
-      error: error?.message || 'Ошибка при открытии Warpcast',
+      error: error?.message || 'Ошибка при открытии Farcaster',
     };
   }
 }
