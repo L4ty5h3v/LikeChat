@@ -190,6 +190,12 @@ export default function Submit() {
 
   // ⚠️ БЛОКИРОВКА НАВИГАЦИИ: Проверяем флаг при монтировании и блокируем навигацию назад
   useEffect(() => {
+    // Если показывается поздравление, не делаем редирект - пользователь должен остаться на странице
+    if (showSuccessModal) {
+      console.log('✅ [SUBMIT] Success modal is showing, skipping redirect check');
+      return;
+    }
+    
     // Проверяем флаг при монтировании компонента
     if (typeof window !== 'undefined') {
       const sessionFlag = sessionStorage.getItem('link_published');
@@ -235,10 +241,16 @@ export default function Submit() {
       // Очищаем обработчик при размонтировании
       router.beforePopState(() => true);
     };
-  }, [router]);
+  }, [router, showSuccessModal]); // Добавляем showSuccessModal в зависимости
 
   // ⚠️ СЛУШАТЕЛЬ STORAGE: Отслеживаем изменения в localStorage/sessionStorage из других вкладок/сессий
   useEffect(() => {
+    // Если показывается поздравление, не делаем редирект - пользователь должен остаться на странице
+    if (showSuccessModal) {
+      console.log('✅ [SUBMIT] Success modal is showing, skipping storage event checks');
+      return;
+    }
+    
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'link_published' && e.newValue === 'true') {
         console.log('🔔 [SUBMIT] Storage event detected - link_published changed to true:', {
@@ -266,6 +278,12 @@ export default function Submit() {
     // Также проверяем изменения в sessionStorage (хотя storage event не срабатывает для sessionStorage)
     // Но мы можем проверить периодически
     const checkStorageInterval = setInterval(() => {
+      // Если показывается поздравление, не делаем редирект
+      if (showSuccessModal) {
+        clearInterval(checkStorageInterval);
+        return;
+      }
+      
       const sessionFlag = sessionStorage.getItem('link_published');
       const localFlag = localStorage.getItem('link_published');
       
@@ -286,9 +304,15 @@ export default function Submit() {
       window.removeEventListener('storage', handleStorageChange);
       clearInterval(checkStorageInterval);
     };
-  }, [router]);
+  }, [router, showSuccessModal]); // Добавляем showSuccessModal в зависимости
 
   useEffect(() => {
+    // Если показывается поздравление, не делаем редирект - пользователь должен остаться на странице
+    if (showSuccessModal) {
+      console.log('✅ [SUBMIT] Success modal is showing, skipping auth and redirect checks');
+      return;
+    }
+    
     console.log('🔍 [SUBMIT] Component mounted, checking auth...', {
       hasUser: !!user,
       userFid: user?.fid,
@@ -412,7 +436,7 @@ export default function Submit() {
         checkProgress(user.fid);
       });
     }
-  }, [router, user, authLoading, isInitialized]);
+  }, [router, user, authLoading, isInitialized, showSuccessModal]); // Добавляем showSuccessModal в зависимости
   
   // Функция для проверки, опубликована ли уже ссылка пользователем
   const checkIfLinkAlreadyPublished = async (userFid: number): Promise<boolean> => {
@@ -428,6 +452,12 @@ export default function Submit() {
   };
 
   const checkProgress = async (userFid: number) => {
+    // Если показывается поздравление, не делаем редирект - пользователь должен остаться на странице
+    if (showSuccessModal) {
+      console.log('✅ [SUBMIT] Success modal is showing, skipping checkProgress redirect');
+      return;
+    }
+    
     // Упрощенная проверка: только проверяем, не опубликована ли уже ссылка
     if (typeof window !== 'undefined') {
       const sessionFlag = sessionStorage.getItem('link_published');
