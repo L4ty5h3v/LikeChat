@@ -94,13 +94,13 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
               : task.error
               ? task.opened
                 ? 'Opened ❌'
-                : 'Не найдено'
+                : 'Not Found'
               : task.completed && !task.verified
-              ? 'В процессе...'
+              ? 'In Progress...'
               : task.verifying && !task.opened && !task.completed
-              ? 'Не открыто ❌'
+              ? 'Not Opened ❌'
               : task.verifying
-              ? 'В процессе...'
+              ? 'In Progress...'
               : task.opened 
               ? 'Opened' 
               : 'Open Post'}
@@ -113,7 +113,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
         <div className="mt-3 p-2 bg-red-100 border border-red-300 rounded-lg">
           <p className="text-sm text-red-800 flex items-center gap-2 font-semibold">
             <span>❌</span>
-            <span>Ошибка: Активность не найдена. Убедитесь, что вы выполнили действие через официальный клиент Farcaster.</span>
+            <span>Error: Activity not found. Make sure you performed the action through the official Farcaster client.</span>
           </p>
         </div>
       )}
@@ -121,7 +121,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
         <div className="mt-3 p-2 bg-warning bg-opacity-20 rounded-lg">
           <p className="text-sm text-yellow-800 flex items-center gap-2">
             <span>⚠️</span>
-            <span>Ожидается подтверждение активности</span>
+            <span>Waiting for activity confirmation</span>
           </p>
         </div>
       )}

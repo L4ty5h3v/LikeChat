@@ -264,13 +264,13 @@ export default function BuyToken() {
   const handleBuyToken = async () => {
     // Проверяем, что пользователь авторизован
     if (!user) {
-      setError('Пожалуйста, авторизуйтесь через Farcaster');
+      setError('Please authorize through Farcaster');
       return;
     }
 
     // Проверяем подключение кошелька
     if (!walletAddress || !isConnected) {
-      setError('Пожалуйста, подключите кошелек для покупки токена');
+      setError('Please connect wallet to purchase token');
       return;
     }
 
@@ -278,7 +278,7 @@ export default function BuyToken() {
     if (useUSDC && usdcBalance) {
       const usdcAmount = parseUnits(PURCHASE_AMOUNT_USDC.toString(), 6); // USDC имеет 6 decimals
       if (usdcBalance.value < usdcAmount) {
-        setError(`Недостаточно USDC. Требуется: ${PURCHASE_AMOUNT_USDC} USDC`);
+        setError(`Insufficient USDC. Required: ${PURCHASE_AMOUNT_USDC} USDC`);
         return;
       }
     }
@@ -297,7 +297,7 @@ export default function BuyToken() {
       setSwapTimeoutId(null);
     }
     
-    let errorMessage = err?.message || err?.reason || 'Неожиданная ошибка при покупке токена';
+    let errorMessage = err?.message || err?.reason || 'Unexpected error purchasing token';
     let errorType: 'user_rejection' | 'network' | 'insufficient_balance' | 'insufficient_funds' | 'slippage' | 'timeout' | 'unknown' | 'retryable' = 'unknown';
     let helpfulMessage = '';
     
@@ -309,27 +309,27 @@ export default function BuyToken() {
         errorLower.includes('denied') ||
         errorLower.includes('rejected')) {
       errorType = 'user_rejection';
-      errorMessage = 'Транзакция отменена пользователем';
+      errorMessage = 'Transaction cancelled by user';
       helpfulMessage = '';
     } else if (errorLower.includes('insufficient funds') || 
                errorLower.includes('insufficient balance') ||
                (errorLower.includes('insufficient') && errorLower.includes('usdc'))) {
       errorType = 'insufficient_funds';
-      errorMessage = `Недостаточно USDC для покупки`;
-      helpfulMessage = `💡 Добавьте больше USDC в кошелек. Требуется минимум ${PURCHASE_AMOUNT_USDC} USDC + ETH для gas`;
+      errorMessage = `Insufficient USDC for purchase`;
+      helpfulMessage = `💡 Add more USDC to wallet. Minimum ${PURCHASE_AMOUNT_USDC} USDC + ETH for gas required`;
     } else if (errorLower.includes('insufficient') || 
                errorLower.includes('balance') ||
                (errorLower.includes('amount') && !errorLower.includes('slippage'))) {
       errorType = 'insufficient_balance';
-      errorMessage = 'Недостаточно средств для выполнения swap';
-      helpfulMessage = `💡 Проверьте баланс USDC в кошельке. Доступно: ${usdcBalance ? formatUnits(usdcBalance.value, usdcBalance.decimals) : '0'} USDC`;
+      errorMessage = 'Insufficient funds to execute swap';
+      helpfulMessage = `💡 Check USDC balance in wallet. Available: ${usdcBalance ? formatUnits(usdcBalance.value, usdcBalance.decimals) : '0'} USDC`;
     } else if (errorLower.includes('slippage') || 
                errorLower.includes('price impact') ||
                errorLower.includes('execution reverted: dsr') ||
                errorLower.includes('execution reverted: spc')) {
       errorType = 'slippage';
-      errorMessage = 'Slippage tolerance превышен';
-      helpfulMessage = '💡 Увеличьте slippage tolerance в настройках swap или попробуйте позже, когда ликвидность улучшится';
+      errorMessage = 'Slippage tolerance exceeded';
+      helpfulMessage = '💡 Increase slippage tolerance in swap settings or try later when liquidity improves';
     } else if (errorLower.includes('timeout') || 
                errorLower.includes('network') || 
                errorLower.includes('connection') ||
@@ -337,20 +337,20 @@ export default function BuyToken() {
                isTimeout) {
       errorType = 'timeout';
       errorMessage = isTimeout 
-        ? 'Timeout: swap не завершился за 30 секунд' 
-        : 'Ошибка сети';
-      helpfulMessage = '💡 Проверьте подключение к интернету и попробуйте снова';
+        ? 'Timeout: swap did not complete in 30 seconds' 
+        : 'Network error';
+      helpfulMessage = '💡 Check internet connection and try again';
     } else if (errorLower.includes('gas') || 
                errorLower.includes('fee') ||
                (errorLower.includes('execution') && !errorLower.includes('slippage')) ||
                (errorLower.includes('revert') && !errorLower.includes('slippage'))) {
       errorType = 'retryable';
       if (retryCount < MAX_RETRIES) {
-        errorMessage = `Ошибка выполнения: ${errorMessage}`;
-        helpfulMessage = '💡 Попробуйте еще раз - это может быть временная проблема с сетью';
+        errorMessage = `Execution error: ${errorMessage}`;
+        helpfulMessage = '💡 Try again - this may be a temporary network issue';
       } else {
-        errorMessage = `Ошибка выполнения после ${MAX_RETRIES} попыток: ${errorMessage}`;
-        helpfulMessage = '💡 Обновите страницу и попробуйте снова';
+        errorMessage = `Execution error after ${MAX_RETRIES} attempts: ${errorMessage}`;
+        helpfulMessage = '💡 Refresh the page and try again';
       }
     }
     
@@ -372,7 +372,7 @@ export default function BuyToken() {
       setRetryCount(0);
     } else if (errorType === 'timeout' || errorType === 'retryable') {
       if (retryCount < MAX_RETRIES) {
-        setError(`${finalMessage}\n\n(Попытка ${retryCount + 1}/${MAX_RETRIES})`);
+        setError(`${finalMessage}\n\n(Attempt ${retryCount + 1}/${MAX_RETRIES})`);
       } else {
         setError(finalMessage);
       }
@@ -385,7 +385,7 @@ export default function BuyToken() {
   // Функция для retry с exponential backoff
   const handleRetry = () => {
     if (retryCount >= MAX_RETRIES) {
-      setError('Превышено максимальное количество попыток. Пожалуйста, обновите страницу и попробуйте снова.');
+      setError('Maximum number of attempts exceeded. Please refresh the page and try again.');
       setRetryCount(0);
       return;
     }
@@ -532,7 +532,7 @@ export default function BuyToken() {
     if (useUSDC && usdcBalance) {
       const usdcAmount = parseUnits(PURCHASE_AMOUNT_USDC.toString(), 6);
       if (usdcBalance.value < usdcAmount) {
-        const errorMsg = `Недостаточно USDC. Требуется: ${PURCHASE_AMOUNT_USDC} USDC, доступно: ${formatUnits(usdcBalance.value, usdcBalance.decimals)}`;
+        const errorMsg = `Insufficient USDC. Required: ${PURCHASE_AMOUNT_USDC} USDC, available: ${formatUnits(usdcBalance.value, usdcBalance.decimals)}`;
         setError(errorMsg);
         setLastError(errorMsg);
         return;
@@ -812,7 +812,7 @@ export default function BuyToken() {
                         disabled={loading || isSwapping}
                         className="mr-3"
                       >
-                        🔄 Попробовать снова ({retryCount + 1}/{MAX_RETRIES})
+                        🔄 Try Again ({retryCount + 1}/{MAX_RETRIES})
                       </Button>
                       <Button
                         onClick={() => {
@@ -823,20 +823,20 @@ export default function BuyToken() {
                         variant="secondary"
                         className="bg-gray-200"
                       >
-                        ✖️ Закрыть
+                        ✖️ Close
                       </Button>
                     </div>
                   )}
                   {retryCount >= MAX_RETRIES && (
                     <div className="mt-4">
                       <p className="text-red-600 text-sm mb-2">
-                        Превышено максимальное количество попыток. Обновите страницу и попробуйте снова.
+                        Maximum number of attempts exceeded. Refresh the page and try again.
                       </p>
                       <Button
                         onClick={() => window.location.reload()}
                         variant="secondary"
                       >
-                        🔄 Обновить страницу
+                        🔄 Refresh Page
                       </Button>
                     </div>
                   )}
@@ -948,28 +948,28 @@ export default function BuyToken() {
                 <div className="flex items-center justify-center gap-3 mb-3">
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                   <p className="text-blue-800 text-lg font-semibold">
-                    Ожидание завершения транзакции...
+                    Waiting for transaction completion...
                   </p>
                 </div>
                 <p className="text-blue-600 text-sm mb-2">
-                  Подтвердите транзакцию в вашем Farcaster кошельке. Баланс обновится автоматически.
+                  Confirm the transaction in your Farcaster wallet. Balance will update automatically.
                 </p>
                 {swapWaitTime > 0 && (
                   <p className="text-blue-500 text-xs mb-4">
-                    Ожидание: {swapWaitTime} сек. / 60 сек.
+                    Waiting: {swapWaitTime} sec. / 60 sec.
                   </p>
                 )}
                 {swapWaitTime > 30 && (
                   <div className="mt-4 pt-4 border-t border-blue-300">
                     <p className="text-orange-600 text-sm mb-3">
-                      ⚠️ Транзакция занимает больше времени, чем обычно.
+                      ⚠️ Transaction is taking longer than usual.
                     </p>
                     <Button
                       onClick={resetSwapState}
                       variant="secondary"
                       className="text-sm"
                     >
-                      Сбросить состояние и попробовать снова
+                      Reset state and try again
                     </Button>
                   </div>
                 )}

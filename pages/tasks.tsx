@@ -435,7 +435,7 @@ export default function Tasks() {
       if (!response.ok) {
         return { 
           completed: false,
-          userMessage: data.error || data.message || 'Ошибка при проверке активности. Попробуйте ещё раз.',
+          userMessage: data.error || data.message || 'Error checking activity. Please try again.',
           isError: true,
         };
       }
@@ -444,7 +444,7 @@ export default function Tasks() {
       if (!data.success) {
         return { 
           completed: false,
-          userMessage: data.error || data.hint || 'Ошибка при проверке активности. Попробуйте ещё раз.',
+          userMessage: data.error || data.hint || 'Error checking activity. Please try again.',
           isError: true,
         };
       }
@@ -452,14 +452,14 @@ export default function Tasks() {
       // success: true - проверка прошла успешно, но completed может быть false (активность не найдена)
       return { 
         completed: data.completed || false,
-        userMessage: data.completed ? undefined : 'Активность не найдена в сети. Убедитесь, что вы выполнили действие через официальный клиент Farcaster. Попробуйте ещё раз через 1-2 минуты.',
+        userMessage: data.completed ? undefined : 'Activity not found on the network. Make sure you performed the action through the official Farcaster client. Please try again in 1-2 minutes.',
         isError: false, // Это не ошибка, просто активность не найдена
       };
     } catch (error: any) {
       console.error('❌ Neynar API error:', error);
       return { 
         completed: false,
-        userMessage: 'Ошибка при проверке активности. Попробуйте ещё раз через 1-2 минуты.',
+        userMessage: 'Error checking activity. Please try again in 1-2 minutes.',
       };
     }
   };
@@ -471,7 +471,7 @@ export default function Tasks() {
     // Проверяем наличие user из контекста
     if (!user || !user.fid) {
       console.error('❌ [VERIFY] User is null or missing FID!');
-      alert('Ошибка: данные пользователя не найдены. Пожалуйста, авторизуйтесь заново.');
+      alert('Error: user data not found. Please authorize again.');
       router.push('/');
       return;
     }
@@ -650,7 +650,7 @@ export default function Tasks() {
             console.error('❌ Neynar API error for task:', task.link_id, err);
             messages.push({
               linkId: task.link_id,
-              message: 'Ошибка при проверке активности. Попробуйте ещё раз через 1-2 минуты.',
+              message: 'Error checking activity. Please try again in 1-2 minutes.',
             });
             return {
               ...task,
@@ -709,7 +709,7 @@ export default function Tasks() {
       }
     } catch (error: any) {
       console.error('❌ Error verifying tasks:', error);
-      alert(`Ошибка при проверке заданий: ${error.message || 'Unknown error'}\n\nПроверьте консоль браузера для деталей.`);
+      alert(`Error verifying tasks: ${error.message || 'Unknown error'}\n\nCheck browser console for details.`);
     } finally {
       setVerifying(false);
     }
@@ -805,7 +805,7 @@ export default function Tasks() {
             <div className="bg-gradient-to-r from-red-500/20 to-orange-500/20 backdrop-blur-sm border-2 border-red-500 rounded-2xl p-8 mb-8 shadow-xl">
               <h3 className="font-black text-red-800 mb-4 flex items-center gap-3 text-2xl md:text-3xl">
                 <span className="text-3xl md:text-4xl">ℹ️</span>
-                ИНФОРМАЦИЯ О ПРОВЕРКЕ ({verificationMessages.length})
+                VERIFICATION INFO ({verificationMessages.length})
               </h3>
               <div className="space-y-4">
                 {verificationMessages.map((msg, index) => {
@@ -813,7 +813,7 @@ export default function Tasks() {
                   return (
                     <div key={index} className="bg-white bg-opacity-70 rounded-lg p-4">
                       <p className="text-red-900 font-bold text-base md:text-lg mb-2">
-                        {task ? `Ссылка: ${task.cast_url.substring(0, 50)}...` : `Задача #${index + 1}`}
+                        {task ? `Link: ${task.cast_url.substring(0, 50)}...` : `Task #${index + 1}`}
                       </p>
                       <p className="text-red-800 text-sm md:text-base mb-2">
                         {msg.message}
@@ -825,7 +825,7 @@ export default function Tasks() {
                           rel="noopener noreferrer"
                           className="text-blue-600 hover:underline text-sm md:text-base font-semibold"
                         >
-                          🔍 Проверить в Neynar Explorer →
+                          🔍 Check in Neynar Explorer →
                         </a>
                       )}
                     </div>

@@ -279,7 +279,7 @@ export default function Home() {
             console.error('❌ Farcaster wallet not detected and no user from SDK context');
             setErrorModal({
               show: true,
-              message: '❌ Farcaster кошелек не обнаружен.\n\nПожалуйста, убедитесь, что:\n1. Вы используете Farcaster Mini App (например, через Warpcast)\n2. Кошелек подключен и разблокирован\n3. Разрешены запросы на подключение\n\nПопробуйте обновить страницу и подключить кошелек снова.'
+              message: '❌ Farcaster wallet not detected.\n\nPlease make sure:\n1. You are using Farcaster Mini App (e.g., through Warpcast)\n2. Wallet is connected and unlocked\n3. Connection requests are allowed\n\nTry refreshing the page and connecting the wallet again.'
             });
             setLoading(false);
             return;
@@ -293,7 +293,7 @@ export default function Home() {
         });
         setErrorModal({
           show: true,
-          message: `❌ Ошибка подключения кошелька:\n\n${walletError.message}\n\nПроверьте консоль браузера для деталей.`
+          message: `❌ Wallet connection error:\n\n${walletError.message}\n\nCheck browser console for details.`
         });
         setLoading(false);
         return;
@@ -372,7 +372,7 @@ export default function Home() {
               console.warn('⚠️ API warning:', data.warning);
               setErrorModal({
                 show: true,
-                message: `⚠️ Предупреждение: ${data.warning}\n\nПроверьте, что Neynar API ключ настроен в переменных окружения.`
+                message: `⚠️ Warning: ${data.warning}\n\nMake sure Neynar API key is configured in environment variables.`
               });
             }
             
@@ -381,7 +381,7 @@ export default function Home() {
               console.error('❌ API error:', data.error);
               setErrorModal({
                 show: true,
-                message: `❌ Ошибка API: ${data.error}`
+                message: `❌ API error: ${data.error}`
               });
             }
           }
@@ -396,7 +396,7 @@ export default function Home() {
           // Показываем пользователю детальную ошибку
           setErrorModal({
             show: true,
-            message: `❌ Ошибка при получении данных пользователя Farcaster:\n\n${error.message}\n\nПроверьте консоль браузера для деталей.`
+            message: `❌ Error fetching Farcaster user data:\n\n${error.message}\n\nCheck browser console for details.`
           });
         }
       }
@@ -407,7 +407,7 @@ export default function Home() {
           console.error('❌ Farcaster user not found for wallet:', walletAddress);
           setErrorModal({
             show: true,
-            message: `Пользователь Farcaster не найден для адреса ${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}.\n\nВозможные причины:\n1. Кошелек не связан с Farcaster аккаунтом\n2. Neynar API ключ не настроен\n3. API не может найти пользователя по этому адресу\n\nПроверьте консоль браузера для деталей.`
+            message: `Farcaster user not found for address ${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}.\n\nPossible reasons:\n1. Wallet is not linked to Farcaster account\n2. Neynar API key is not configured\n3. API cannot find user by this address\n\nCheck browser console for details.`
           });
           setLoading(false);
           return;
@@ -415,7 +415,7 @@ export default function Home() {
           console.error('❌ Farcaster wallet not detected');
           setErrorModal({
             show: true,
-            message: 'Farcaster кошелек не обнаружен. Пожалуйста, используйте кошелек Farcaster (например, через Warpcast) для авторизации.'
+            message: 'Farcaster wallet not detected. Please use Farcaster wallet (e.g., through Warpcast) for authorization.'
           });
           setLoading(false);
           return;
@@ -427,7 +427,7 @@ export default function Home() {
         console.error('❌ Invalid Farcaster user data:', farcasterUser);
         setErrorModal({
           show: true,
-          message: 'Получены невалидные данные пользователя Farcaster. Попробуйте снова.'
+          message: 'Invalid Farcaster user data received. Please try again.'
         });
         setLoading(false);
         return;
@@ -438,7 +438,7 @@ export default function Home() {
         console.error('❌ [INDEX] Invalid FID:', farcasterUser.fid);
         setErrorModal({
           show: true,
-          message: `Невалидный FID пользователя: ${farcasterUser.fid}. Попробуйте перезагрузить страницу.`
+          message: `Invalid user FID: ${farcasterUser.fid}. Please reload the page.`
         });
         setLoading(false);
         return;
@@ -815,11 +815,11 @@ export default function Home() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 max-w-md w-full mx-4 border-2 border-red-200">
             <div className="flex items-start justify-between mb-4">
-              <h3 className="text-xl sm:text-2xl font-bold text-red-600">Ошибка</h3>
+              <h3 className="text-xl sm:text-2xl font-bold text-red-600">Error</h3>
               <button
                 onClick={() => setErrorModal({ show: false, message: '' })}
                 className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
-                aria-label="Закрыть"
+                aria-label="Close"
               >
                 ×
               </button>
@@ -833,7 +833,7 @@ export default function Home() {
               onClick={() => setErrorModal({ show: false, message: '' })}
               className="w-full px-6 py-3 bg-gradient-to-r from-primary to-accent text-white font-bold rounded-xl hover:opacity-90 transition-opacity"
             >
-              Понятно
+              Got it
             </button>
           </div>
         </div>

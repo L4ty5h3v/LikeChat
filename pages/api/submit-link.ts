@@ -46,8 +46,8 @@ export default async function handler(
       if (!castHash || castHash.length < 6) {
         return res.status(400).json({
           success: false,
-          error: 'Не удалось извлечь валидный hash из ссылки. Убедитесь, что ссылка содержит hash (например, https://warpcast.com/username/0x...)',
-          hint: 'Для ссылок farcaster.xyz проверка происходит автоматически по username.'
+          error: 'Failed to extract valid hash from link. Make sure the link contains a hash (e.g., https://warpcast.com/username/0x...)',
+          hint: 'For farcaster.xyz links, verification happens automatically by username.'
         });
       }
     }

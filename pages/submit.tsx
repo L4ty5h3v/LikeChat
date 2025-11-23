@@ -828,7 +828,7 @@ export default function Submit() {
   // Если показывается поздравление, показываем полноэкранную страницу с поздравлением
   if (showSuccessModal) {
     return (
-      <Layout title="Поздравляем!">
+      <Layout title="Congratulations!">
         <div className="relative min-h-screen overflow-hidden">
           {/* Анимированный градиент фон */}
           <div className="absolute inset-0 bg-gradient-to-br from-success via-green-400 to-emerald-500 animate-gradient bg-300%"></div>
@@ -846,22 +846,22 @@ export default function Submit() {
                   <span>🎊</span>
                 </div>
                 <h2 className="text-4xl sm:text-5xl font-black text-success mb-4">
-                  Поздравляем!
+                  Congratulations!
                 </h2>
                 <p className="text-2xl sm:text-3xl text-gray-800 font-bold mb-6">
-                  Ваше задание опубликовано!
+                  Your task has been published!
                 </p>
                 <p className="text-lg text-gray-600 mb-8">
-                  Ваша ссылка теперь доступна в списке заданий для других пользователей.
+                  Your link is now available in the task list for other users.
                 </p>
                 <div className="bg-success bg-opacity-10 rounded-2xl p-6 mb-8">
                   <p className="text-base text-gray-700">
-                    <strong>Следующие 10 пользователей</strong> пройдут вашу ссылку и выполнят выбранную активность.
+                    <strong>The next 10 users</strong> will go through your link and perform the selected activity.
                   </p>
                 </div>
                 <Button
                   onClick={() => {
-                    console.log('🔍 [SUBMIT] Button "Закрыть" clicked - staying on submit page');
+                    console.log('🔍 [SUBMIT] Button "Close" clicked - staying on submit page');
                     // Закрываем поздравление, но остаемся на странице /submit
                     setShowSuccessModal(false);
                     setLoading(false);
@@ -870,7 +870,7 @@ export default function Submit() {
                   fullWidth
                   className="text-lg py-4"
                 >
-                  Закрыть
+                  Close
                 </Button>
               </div>
             </div>
@@ -965,7 +965,7 @@ export default function Submit() {
                   htmlFor="castUrl"
                   className="block text-lg font-bold text-gray-900 mb-3"
                 >
-                  Ссылка на ваш каст:
+                  Link to your cast:
                 </label>
                 <input
                   type="url"
