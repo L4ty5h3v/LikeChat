@@ -570,7 +570,11 @@ export default function Tasks() {
             // Определяем, была ли ошибка (cast не найден или активность не найдена)
             // Если активность не найдена (completed: false), это тоже ошибка для визуального отображения
             // Также если задача не была открыта и не выполнена, это ошибка
-            const hasError = result.isError || (!result.completed && result.userMessage) || (!task.opened && !result.completed);
+            // Для комментариев: если completed: false, это ошибка (комментарий не найден)
+            const hasError = result.isError || 
+                            (!result.completed && result.userMessage) || 
+                            (!task.opened && !result.completed) ||
+                            (!result.completed && !result.isError); // Если проверка прошла, но активность не найдена - это ошибка
             
             // Если каст не найден (error: true), удаляем ссылку из базы данных
             if (result.isError) {

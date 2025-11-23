@@ -243,6 +243,67 @@ export async function checkUserReactionsByCast(
         recastsArrayLength: recasts.length
       });
       return false;
+    } else if (activityType === "comment") {
+      // Для комментариев проверяем через replies или parent_hash
+      // Метод 1: Проверяем replies в cast (если доступны)
+      const replies = cast.replies?.casts || cast.replies || [];
+      if (replies.length > 0) {
+        const hasComment = replies.some((reply: any) => {
+          const replyFid = reply.author?.fid || reply.fid;
+          return replyFid === userFid;
+        });
+        if (hasComment) {
+          console.log("[neynar] checkUserReactionsByCast: ✅ found comment in replies", { castHash, userFid });
+          return true;
+        }
+      }
+      
+      // Метод 2: Проверяем через отдельный запрос к replies endpoint
+      try {
+        const repliesUrl = `https://api.neynar.com/v2/farcaster/cast/replies?identifier=${castHash}&type=hash`;
+        const repliesRes = await fetch(repliesUrl, { 
+          headers: { "api-key": cleanApiKey, "api_key": cleanApiKey } 
+        });
+        const repliesData = await repliesRes.json();
+        const allReplies = repliesData?.result?.replies || repliesData?.replies || [];
+        const hasComment = allReplies.some((reply: any) => {
+          const replyFid = reply.author?.fid || reply.fid;
+          return replyFid === userFid;
+        });
+        if (hasComment) {
+          console.log("[neynar] checkUserReactionsByCast: ✅ found comment via replies endpoint", { castHash, userFid });
+          return true;
+        }
+      } catch (e) {
+        console.warn("[neynar] checkUserReactionsByCast: replies endpoint error", e);
+      }
+      
+      // Метод 3: Проверяем через user/casts (все касты пользователя, ищем комментарии к этому cast)
+      try {
+        const userCastsUrl = `https://api.neynar.com/v2/farcaster/user/casts?fid=${userFid}&limit=100`;
+        const userCastsRes = await fetch(userCastsUrl, { 
+          headers: { "api-key": cleanApiKey, "api_key": cleanApiKey } 
+        });
+        const userCastsData = await userCastsRes.json();
+        const userCasts = userCastsData?.result?.casts || userCastsData?.casts || [];
+        const hasComment = userCasts.some((c: any) => {
+          const parentHash = c.parent_hash || c.parent?.hash || c.parent_author?.hash;
+          return parentHash?.toLowerCase() === castHash.toLowerCase();
+        });
+        if (hasComment) {
+          console.log("[neynar] checkUserReactionsByCast: ✅ found comment via user/casts", { castHash, userFid });
+          return true;
+        }
+      } catch (e) {
+        console.warn("[neynar] checkUserReactionsByCast: user/casts method error", e);
+      }
+      
+      console.log("[neynar] checkUserReactionsByCast: ❌ comment not found", { 
+        castHash, 
+        userFid,
+        repliesCount: replies.length
+      });
+      return false;
     }
     
     return false;
