@@ -160,8 +160,9 @@ export default function Tasks() {
         // ⚠️ КРИТИЧНО: Сохраняем verifying и error из текущего состояния, если задача уже существует
         const currentTask = currentTasksMap.get(link.id);
         const preservingVerifying = currentTask?.verifying === true && !isCompleted; // Сохраняем verifying только если задача не выполнена
-        // ⚠️ КРИТИЧНО: Для открытых задач НЕ сохраняем error, чтобы кнопка оставалась синей
-        const preservingError = (currentTask?.error === true || shouldHaveError) && !isOpened; // Сохраняем error только если задача НЕ открыта
+        // ⚠️ КРИТИЧНО: Для открытых задач ВСЕГДА error: false, чтобы кнопка оставалась синей
+        // НЕ восстанавливаем ошибку из currentTask или taskErrorsRef для открытых задач
+        const preservingError = isOpened ? false : (shouldHaveError); // Сохраняем error только если задача НЕ открыта И есть ошибка в taskErrorsRef
         
         return {
           link_id: link.id,
@@ -393,6 +394,21 @@ export default function Tasks() {
           }
         } catch (error) {
           console.error(`❌ [POLLING] Error during poll for link ${linkId}`, error);
+          // ⚠️ КРИТИЧНО: Если задача открыта, НЕ устанавливаем ошибку при исключении
+          const isOpened = openedTasks[linkId] === true;
+          if (!isOpened) {
+            // Устанавливаем ошибку только если задача НЕ открыта
+            taskErrorsRef.current[linkId] = true;
+            setTasks(prevTasks =>
+              prevTasks.map(task =>
+                task.link_id === linkId
+                  ? { ...task, error: true, verifying: false }
+                  : task
+              )
+            );
+          } else {
+            console.log(`⏳ [POLLING] Task ${linkId} is opened, skipping error on exception`);
+          }
           if (pollCount >= maxPolls) {
             clearInterval(pollIntervalId);
             delete pollingIntervalsRef.current[linkId];
