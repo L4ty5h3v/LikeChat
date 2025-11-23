@@ -924,40 +924,6 @@ export default function Tasks() {
           </div>
 
 
-          {/* Сообщения о проблемах с верификацией */}
-          {verificationMessages.length > 0 && (
-            <div className="bg-gradient-to-r from-red-500/20 to-orange-500/20 backdrop-blur-sm border-2 border-red-500 rounded-2xl p-8 mb-8 shadow-xl">
-              <h3 className="font-black text-red-800 mb-4 flex items-center gap-3 text-2xl md:text-3xl">
-                <span className="text-3xl md:text-4xl">ℹ️</span>
-                VERIFICATION INFO ({verificationMessages.length})
-              </h3>
-              <div className="space-y-4">
-                {verificationMessages.map((msg, index) => {
-                  const task = tasks.find(t => t.link_id === msg.linkId);
-                  return (
-                    <div key={index} className="bg-white bg-opacity-70 rounded-lg p-4">
-                      <p className="text-red-900 font-bold text-base md:text-lg mb-2">
-                        {task ? `Link: ${task.cast_url.substring(0, 50)}...` : `Task #${index + 1}`}
-                      </p>
-                      <p className="text-red-800 text-sm md:text-base mb-2">
-                        {msg.message}
-                      </p>
-                      {msg.neynarUrl && (
-                        <a
-                          href={msg.neynarUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:underline text-sm md:text-base font-semibold"
-                        >
-                          🔍 Check in Neynar Explorer →
-                        </a>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
 
           {/* Список заданий */}
           <div className="space-y-6 mb-12">
