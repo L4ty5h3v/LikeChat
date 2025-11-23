@@ -147,8 +147,8 @@ export default function Tasks() {
         const castHash = extractCastHash(link.cast_url) || '';
         const isCompleted = completedLinks.includes(link.id);
         const isOpened = openedTasks[link.id] === true;
-        // Если задание не открыто и не выполнено - это ошибка (должно быть красным)
-        const hasError = !isOpened && !isCompleted;
+        // НЕ устанавливаем error при загрузке - кнопки должны быть серыми при первом заходе
+        // error будет установлен только после проверки, если задание не открыто и не выполнено
         
         return {
           link_id: link.id,
@@ -161,7 +161,7 @@ export default function Tasks() {
           completed: isCompleted,
           verified: isCompleted,
           opened: isOpened,
-          error: hasError, // Устанавливаем error для неоткрытых и невыполненных заданий
+          error: false, // При загрузке ошибок нет - кнопки серые
           _originalIndex: index, // Сохраняем оригинальный индекс для стабильной сортировки
         };
       }).sort((a: TaskProgress, b: TaskProgress) => {
@@ -193,13 +193,11 @@ export default function Tasks() {
       
       // Проверяем: если все задания завершены, проверяем прогресс и делаем автоматический редирект
       // ⚠️ ВАЖНО: Проверяем, не опубликована ли уже ссылка пользователем, чтобы избежать бесконечного редиректа
-      // ⚠️ КРИТИЧНО: Проверяем, что все задания действительно выполнены И открыты И нет ошибок
+      // ⚠️ КРИТИЧНО: Проверяем, что все задания действительно выполнены И открыты
       const allTasksCompleted = completedLinks.length >= taskList.length;
       const allTasksOpened = taskList.length > 0 && taskList.every((task) => task.opened || task.completed);
-      const hasErrors = taskList.some((task) => task.error);
       
-      // НЕ делаем редирект, если есть ошибки (неоткрытые задания)
-      if (allTasksCompleted && allTasksOpened && !hasErrors && taskList.length > 0 && user) {
+      if (allTasksCompleted && allTasksOpened && taskList.length > 0 && user) {
         // ⚠️ КРИТИЧЕСКАЯ ПРОВЕРКА: Сначала проверяем флаг link_published из хранилища
         // Это предотвращает редирект на /submit, если ссылка уже опубликована (даже если БД еще не обновилась)
         const linkPublishedSession = sessionStorage.getItem('link_published');
