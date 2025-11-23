@@ -884,7 +884,7 @@ export default function Submit() {
                   <span>✨</span>
                   <span>🎊</span>
                 </div>
-                <h2 className="text-4xl sm:text-5xl font-black text-primary mb-4">
+                <h2 className="text-4xl sm:text-5xl font-black bg-gradient-to-r from-red-500 via-purple-600 to-pink-500 bg-clip-text text-transparent mb-4">
                   Congratulations!
                 </h2>
                 <p className="text-2xl sm:text-3xl text-gray-800 font-bold mb-6">
@@ -893,7 +893,7 @@ export default function Submit() {
                 <p className="text-lg text-gray-600 mb-8">
                   Your link is now available in the task list for other users.
                 </p>
-                <div className="bg-gradient-to-r from-primary/10 via-secondary/10 to-accent/10 rounded-2xl p-6 mb-8 border border-primary/20">
+                <div className="bg-gradient-to-r from-red-500/10 via-purple-600/10 to-pink-500/10 rounded-2xl p-6 mb-8 border border-red-500/20">
                   <p className="text-base text-gray-700">
                     <strong>The next 10 users</strong> will go through your link and perform the selected activity.
                   </p>
