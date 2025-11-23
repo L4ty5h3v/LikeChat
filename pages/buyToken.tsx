@@ -204,32 +204,28 @@ export default function BuyToken() {
       
       const progress = await getUserProgress(userFid);
       
-      // Проверяем баланс MCT токенов (только если баланс загружен и на клиенте)
+      // Проверяем баланс MCT токенов только для логирования
       let currentBalance = 0;
-      let hasMCTBalance = false;
-      
       if (mctBalance && mctBalance.value && mctBalance.decimals) {
         try {
           currentBalance = parseFloat(formatUnits(mctBalance.value, mctBalance.decimals));
-          hasMCTBalance = currentBalance > 0;
         } catch (balanceError) {
           console.warn('⚠️ [BUYTOKEN] Error parsing balance:', balanceError);
           currentBalance = 0;
-          hasMCTBalance = false;
         }
       }
       
       console.log('🔍 [BUYTOKEN] checkProgress:', {
         userFid,
         tokenPurchasedInDB: progress?.token_purchased,
-        hasMCTBalance,
         currentBalance,
-        willShowBuyButton: !progress?.token_purchased && !hasMCTBalance,
+        willShowBuyButton: !progress?.token_purchased,
       });
       
-      // Проверяем, куплен ли уже токен в базе данных ИЛИ есть баланс MCT
-      if (progress?.token_purchased || hasMCTBalance) {
-        // Если токен куплен в БД ИЛИ есть баланс MCT, считаем его купленным
+      // Проверяем, куплен ли уже токен в базе данных (только БД, не баланс)
+      // Баланс может быть от других источников, поэтому проверяем только флаг в БД
+      if (progress?.token_purchased) {
+        // Если токен куплен в БД, считаем его купленным
         setPurchased(true);
         // После покупки токена всегда можно опубликовать ссылку (если еще не опубликована)
         const linkPublished = sessionStorage.getItem('link_published') === 'true' || 
