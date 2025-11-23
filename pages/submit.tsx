@@ -226,8 +226,8 @@ export default function Submit() {
             localFlag,
             timestamp: new Date().toISOString(),
           });
-          // Редиректим на главную страницу
-          router.replace('/');
+          // Редиректим на страницу задач
+          router.replace('/tasks');
           return false; // Блокируем навигацию назад
         }
       }
@@ -270,7 +270,7 @@ export default function Submit() {
             timestamp: new Date().toISOString(),
           });
           if (finalCheck === 'true') {
-            router.replace('/');
+            router.replace('/tasks');
           }
         }, 100);
       }
@@ -295,7 +295,7 @@ export default function Submit() {
           timestamp: new Date().toISOString(),
         });
         clearInterval(checkStorageInterval);
-        setTimeout(() => router.replace('/'), 100);
+        setTimeout(() => router.replace('/tasks'), 100);
       }
     }, 500); // Проверяем каждые 500ms
 
@@ -900,10 +900,14 @@ export default function Submit() {
                 </div>
                 <Button
                   onClick={() => {
-                    console.log('🔍 [SUBMIT] Button "Close" clicked - staying on submit page');
-                    // Закрываем поздравление, но остаемся на странице /submit
+                    console.log('🔍 [SUBMIT] Button "Close" clicked - redirecting to /tasks');
+                    // Закрываем поздравление и редиректим на /tasks
                     setShowSuccessModal(false);
                     setLoading(false);
+                    // Редиректим на /tasks вместо главной страницы
+                    setTimeout(() => {
+                      router.replace('/tasks');
+                    }, 100);
                   }}
                   variant="primary"
                   fullWidth
