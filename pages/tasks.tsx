@@ -967,12 +967,11 @@ export default function Tasks() {
             <button
               onClick={handleVerifyAll}
               disabled={verifying}
+              style={{ background: verifying ? 'linear-gradient(to right, #C0A030, #9A7308)' : 'linear-gradient(to right, #FFD700, #B8860B)' }}
               className={`
                 relative group w-full px-12 py-8 rounded-2xl text-white font-black text-2xl md:text-3xl
                 transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100
-                bg-gradient-to-r from-red-500 via-purple-600 to-pink-500
-                hover:from-red-400 hover:via-purple-500 hover:to-pink-400
-                hover:shadow-xl hover:shadow-purple-500/50
+                hover:shadow-xl hover:shadow-yellow-500/50
               `}
             >
               <div className="flex items-center justify-center gap-4">
