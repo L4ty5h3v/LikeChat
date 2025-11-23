@@ -160,7 +160,8 @@ export default function Tasks() {
         // ⚠️ КРИТИЧНО: Сохраняем verifying и error из текущего состояния, если задача уже существует
         const currentTask = currentTasksMap.get(link.id);
         const preservingVerifying = currentTask?.verifying === true && !isCompleted; // Сохраняем verifying только если задача не выполнена
-        const preservingError = currentTask?.error === true || shouldHaveError; // Сохраняем error если была ошибка или должна быть
+        // ⚠️ КРИТИЧНО: Для открытых задач НЕ сохраняем error, чтобы кнопка оставалась синей
+        const preservingError = (currentTask?.error === true || shouldHaveError) && !isOpened; // Сохраняем error только если задача НЕ открыта
         
         return {
           link_id: link.id,
@@ -378,6 +379,11 @@ export default function Tasks() {
                   : task
               )
             );
+          } else if (!result.completed && isOpened) {
+            // ⚠️ КРИТИЧНО: Если задача открыта, но активность еще не найдена - НЕ устанавливаем error
+            // Просто продолжаем polling, не меняя цвет кнопки с синего на красный
+            console.log(`⏳ [POLLING] Task ${linkId} is opened, but activity not found yet. Continuing polling...`);
+            // НЕ устанавливаем error, оставляем кнопку синей
           } else if (pollCount >= maxPolls) {
             console.log(`⏰ [POLLING] Max polls reached for link ${linkId}, stopping`);
             clearInterval(pollIntervalId);
@@ -538,17 +544,19 @@ export default function Tasks() {
       console.log(`🔍 [VERIFY] Processing ALL ${tasks.length} tasks in parallel...`);
 
       // ✅ Сначала помечаем все задачи как проверяемые
-      // ⚠️ КРИТИЧНО: Сохраняем error состояние и устанавливаем его для неоткрытых задач
+      // ⚠️ КРИТИЧНО: Сохраняем error состояние и устанавливаем его ТОЛЬКО для неоткрытых задач
       setTasks(prevTasks => 
         prevTasks.map(task => {
           const isOpened = task.opened || openedTasks[task.link_id] === true;
           // Если задача не открыта и не выполнена - это ошибка
           const shouldHaveError = !isOpened && !task.completed;
+          // ⚠️ КРИТИЧНО: Для открытых задач НЕ устанавливаем error, чтобы кнопка оставалась синей
+          const finalError = isOpened ? false : (task.error || shouldHaveError || taskErrorsRef.current[task.link_id] === true);
           return {
             ...task, 
             verifying: true,
-            // Сохраняем существующую ошибку ИЛИ устанавливаем для неоткрытых задач
-            error: task.error || shouldHaveError || taskErrorsRef.current[task.link_id] === true
+            // Устанавливаем error ТОЛЬКО для неоткрытых задач
+            error: finalError
           };
         })
       );
