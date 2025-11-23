@@ -11,26 +11,26 @@ interface TaskCardProps {
 const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
   return (
     <div
-      className={`
-        p-4 rounded-xl border-2 transition-all duration-300
-        ${
-          task.error
-            ? 'bg-red-50 border-red-500 shadow-lg shadow-red-200'
-            : task.completed && task.verified
-            ? 'bg-green-50 border-success'
-            : task.completed && !task.verified
-            ? 'bg-yellow-50 border-warning'
-            : 'bg-white border-gray-300 hover:border-primary'
-        }
-      `}
+        className={`
+          p-4 rounded-xl border-2 transition-all duration-300
+          ${
+            task.error || (!task.opened && !task.completed)
+              ? 'bg-red-50 border-red-500 shadow-lg shadow-red-200'
+              : task.completed && task.verified
+              ? 'bg-green-50 border-success'
+              : task.completed && !task.verified
+              ? 'bg-yellow-50 border-warning'
+              : 'bg-white border-gray-300 hover:border-primary'
+          }
+        `}
     >
       <div className="flex items-center gap-4">
         {/* Номер задания / Индикатор статуса (НЕ интерактивный, только визуальный) */}
         <div
-          className={`
+            className={`
             flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg
             ${
-              task.error
+              task.error || (!task.opened && !task.completed)
                 ? 'bg-red-500 text-white'
                 : task.completed && task.verified
                 ? 'bg-success text-white'
@@ -42,7 +42,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
           style={{ cursor: 'default', pointerEvents: 'none' }}
           aria-label={task.completed && task.verified ? 'Task completed' : task.error ? 'Task error' : `Task ${index + 1}`}
         >
-          {task.error ? '❌' : task.completed && task.verified ? '✓' : index + 1}
+          {(task.error || (!task.opened && !task.completed)) ? '❌' : task.completed && task.verified ? '✓' : index + 1}
         </div>
 
         {/* Информация о пользователе */}
@@ -75,7 +75,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
               ${
                 task.completed && task.verified
                   ? 'bg-green-500 text-white cursor-not-allowed hover:bg-green-600'
-                  : task.error
+                  : task.error || (!task.opened && !task.completed)
                   ? 'bg-red-500 text-white hover:bg-red-600 hover:shadow-lg animate-pulse'
                   : task.completed && !task.verified
                   ? 'bg-yellow-500 text-white cursor-wait hover:bg-yellow-600'
@@ -91,10 +91,10 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
           >
             {task.completed && task.verified 
               ? 'Completed ✓' 
-              : task.error
+              : task.error || (!task.opened && !task.completed)
               ? task.opened
                 ? 'Opened ❌'
-                : 'Not Found'
+                : 'Not Opened ❌'
               : task.completed && !task.verified
               ? 'In Progress...'
               : task.verifying && !task.opened && !task.completed
@@ -109,11 +109,15 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
       </div>
 
       {/* Статус */}
-      {task.error && (
+      {(task.error || (!task.opened && !task.completed)) && (
         <div className="mt-3 p-2 bg-red-100 border border-red-300 rounded-lg">
           <p className="text-sm text-red-800 flex items-center gap-2 font-semibold">
             <span>❌</span>
-            <span>Error: Activity not found. Make sure you performed the action through the official Farcaster client.</span>
+            <span>
+              {!task.opened && !task.completed 
+                ? 'Task not opened. Please open the link first.' 
+                : 'Error: Activity not found. Make sure you performed the action through the official Farcaster client.'}
+            </span>
           </p>
         </div>
       )}

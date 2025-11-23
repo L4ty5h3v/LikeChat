@@ -145,6 +145,11 @@ export default function Tasks() {
       
       const taskList: TaskProgress[] = filteredLinks.map((link: LinkSubmission, index: number) => {
         const castHash = extractCastHash(link.cast_url) || '';
+        const isCompleted = completedLinks.includes(link.id);
+        const isOpened = openedTasks[link.id] === true;
+        // Если задание не открыто и не выполнено - это ошибка (должно быть красным)
+        const hasError = !isOpened && !isCompleted;
+        
         return {
           link_id: link.id,
           cast_url: link.cast_url,
@@ -153,9 +158,10 @@ export default function Tasks() {
           user_fid_required: userFid, // FID текущего пользователя
           username: link.username,
           pfp_url: link.pfp_url,
-          completed: completedLinks.includes(link.id),
-          verified: completedLinks.includes(link.id),
-          opened: openedTasks[link.id] === true, // Сохраняем состояние opened из openedTasks
+          completed: isCompleted,
+          verified: isCompleted,
+          opened: isOpened,
+          error: hasError, // Устанавливаем error для неоткрытых и невыполненных заданий
           _originalIndex: index, // Сохраняем оригинальный индекс для стабильной сортировки
         };
       }).sort((a: TaskProgress, b: TaskProgress) => {
@@ -187,11 +193,13 @@ export default function Tasks() {
       
       // Проверяем: если все задания завершены, проверяем прогресс и делаем автоматический редирект
       // ⚠️ ВАЖНО: Проверяем, не опубликована ли уже ссылка пользователем, чтобы избежать бесконечного редиректа
-      // ⚠️ КРИТИЧНО: Проверяем, что все задания действительно выполнены И открыты
+      // ⚠️ КРИТИЧНО: Проверяем, что все задания действительно выполнены И открыты И нет ошибок
       const allTasksCompleted = completedLinks.length >= taskList.length;
       const allTasksOpened = taskList.length > 0 && taskList.every((task) => task.opened || task.completed);
+      const hasErrors = taskList.some((task) => task.error);
       
-      if (allTasksCompleted && allTasksOpened && taskList.length > 0 && user) {
+      // НЕ делаем редирект, если есть ошибки (неоткрытые задания)
+      if (allTasksCompleted && allTasksOpened && !hasErrors && taskList.length > 0 && user) {
         // ⚠️ КРИТИЧЕСКАЯ ПРОВЕРКА: Сначала проверяем флаг link_published из хранилища
         // Это предотвращает редирект на /submit, если ссылка уже опубликована (даже если БД еще не обновилась)
         const linkPublishedSession = sessionStorage.getItem('link_published');
@@ -685,11 +693,13 @@ export default function Tasks() {
       console.log(`📊 [VERIFY] Verification complete: ${newCompletedCount}/${updatedTasks.length} completed`);
 
       // ✅ Если все выполнены - редирект на покупку токена (НЕ перезагружаем задачи, чтобы кнопки остались зелеными)
-      // ⚠️ КРИТИЧНО: Проверяем, что все задания выполнены И открыты
+      // ⚠️ КРИТИЧНО: Проверяем, что все задания выполнены И открыты И нет ошибок
       const allCompleted = updatedTasks.every((t) => t.completed);
       const allOpened = updatedTasks.every((t) => t.opened || t.completed); // Открыты или выполнены
+      const hasErrors = updatedTasks.some((t) => t.error);
       
-      if (allCompleted && allOpened && updatedTasks.length > 0) {
+      // НЕ делаем редирект, если есть ошибки (неоткрытые задания)
+      if (allCompleted && allOpened && !hasErrors && updatedTasks.length > 0) {
         console.log(`✅ All tasks completed! (${newCompletedCount}/${updatedTasks.length})`);
         // НЕ перезагружаем задачи, чтобы кнопки остались зелеными
         setTimeout(() => {
