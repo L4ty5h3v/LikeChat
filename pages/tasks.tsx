@@ -23,6 +23,8 @@ export default function Tasks() {
   // Состояние openedTasks только в памяти (не сохраняется в localStorage)
   // Сбрасывается при каждой загрузке страницы, чтобы можно было открывать ссылки снова
   const [openedTasks, setOpenedTasks] = useState<Record<string, boolean>>({});
+  // Храним состояние ошибок для заданий (сохраняется между перезагрузками)
+  const [taskErrors, setTaskErrors] = useState<Record<string, boolean>>({});
   // Храним активные polling интервалы для очистки
   const pollingIntervalsRef = useRef<Record<string, NodeJS.Timeout>>({});
 
@@ -147,8 +149,10 @@ export default function Tasks() {
         const castHash = extractCastHash(link.cast_url) || '';
         const isCompleted = completedLinks.includes(link.id);
         const isOpened = openedTasks[link.id] === true;
-        // НЕ устанавливаем error при загрузке - кнопки должны быть серыми при первом заходе
-        // error будет установлен только после проверки, если задание не открыто и не выполнено
+        // Сохраняем состояние ошибки из предыдущих проверок
+        // Если задание не открыто и не выполнено, и была ошибка - сохраняем её
+        const hasStoredError = taskErrors[link.id] === true;
+        const shouldHaveError = hasStoredError && !isOpened && !isCompleted;
         
         return {
           link_id: link.id,
@@ -161,7 +165,7 @@ export default function Tasks() {
           completed: isCompleted,
           verified: isCompleted,
           opened: isOpened,
-          error: false, // При загрузке ошибок нет - кнопки серые
+          error: shouldHaveError, // Сохраняем ошибку, если задание не открыто и не выполнено
           _originalIndex: index, // Сохраняем оригинальный индекс для стабильной сортировки
         };
       }).sort((a: TaskProgress, b: TaskProgress) => {
@@ -664,6 +668,18 @@ export default function Tasks() {
               }
             }
 
+            // Сохраняем состояние ошибки в taskErrors для сохранения между перезагрузками
+            if (hasError) {
+              setTaskErrors(prev => ({ ...prev, [task.link_id]: true }));
+            } else {
+              // Убираем ошибку, если задание выполнено или открыто
+              setTaskErrors(prev => {
+                const newErrors = { ...prev };
+                delete newErrors[task.link_id];
+                return newErrors;
+              });
+            }
+            
             return {
               ...task,
               completed: result.completed,
@@ -678,6 +694,9 @@ export default function Tasks() {
               linkId: task.link_id,
               message: 'Error checking activity. Please try again in 1-2 minutes.',
             });
+            // Сохраняем состояние ошибки в taskErrors
+            setTaskErrors(prev => ({ ...prev, [task.link_id]: true }));
+            
             return {
               ...task,
               completed: false,
