@@ -585,7 +585,7 @@ export default function Home() {
               <span className="text-white">♡</span> MUTUAL LOVE FROM MRS. CRYPTO <span className="text-white">♡</span>
             </p>
             <p className="text-lg text-white text-opacity-90 max-w-2xl mx-auto">
-              Complete tasks to get mutual support
+              Complete tasks to get collective support
             </p>
           </div>
 
