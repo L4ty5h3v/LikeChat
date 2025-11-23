@@ -776,15 +776,30 @@ export default function BuyToken() {
           {!walletAddress && (
             <div className="mb-6">
               <div className="text-center">
-                <Button
+                <button
                   onClick={() => connect({ connector: farcasterMiniApp() })}
-                  loading={isConnecting}
-                  variant="primary"
-                  fullWidth
-                  className="text-lg py-4"
+                  disabled={isConnecting}
+                  className={`
+                    w-full text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold rounded-2xl shadow-2xl 
+                    transform transition-all duration-300 relative z-10
+                    bg-gradient-to-r from-primary via-red-600 to-accent text-white
+                    hover:from-red-500 hover:via-purple-500 hover:to-accent
+                    ${isConnecting
+                      ? 'opacity-50 cursor-wait' 
+                      : 'opacity-100 cursor-pointer hover:scale-105 active:scale-95'
+                    }
+                    disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:transform-none
+                  `}
                 >
-                  {isConnecting ? 'Connecting...' : 'Connect Wallet'}
-                </Button>
+                  {isConnecting ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>CONNECTING...</span>
+                    </div>
+                  ) : (
+                    '🔗 CONNECT WALLET'
+                  )}
+                </button>
               </div>
             </div>
           )}
