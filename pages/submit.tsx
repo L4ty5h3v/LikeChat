@@ -1,6 +1,7 @@
 // Страница публикации ссылки
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import Image from 'next/image';
 import Layout from '@/components/Layout';
 import Button from '@/components/Button';
 import { getUserProgress, getAllLinks } from '@/lib/db-config';
@@ -829,23 +830,61 @@ export default function Submit() {
   if (showSuccessModal) {
     return (
       <Layout title="Congratulations!">
+        {/* Hero Section с градиентом */}
         <div className="relative min-h-screen overflow-hidden">
           {/* Анимированный градиент фон */}
-          <div className="absolute inset-0 bg-gradient-to-br from-success via-green-400 to-emerald-500 animate-gradient bg-300%"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient bg-300%"></div>
           
           {/* Геометрические фигуры */}
-          <div className="absolute top-20 right-20 w-32 h-32 bg-white bg-opacity-20 rounded-full animate-float"></div>
-          <div className="absolute bottom-32 left-20 w-24 h-24 bg-white bg-opacity-25 rounded-full animate-float" style={{animationDelay: '2s'}}></div>
+          <div className="absolute top-20 right-20 w-32 h-32 bg-white bg-opacity-10 rounded-full animate-float"></div>
+          <div className="absolute bottom-32 left-20 w-24 h-24 bg-white bg-opacity-15 rounded-full animate-float" style={{animationDelay: '2s'}}></div>
           
-          <div className="relative z-10 flex items-center justify-center min-h-screen px-6 py-20">
-            <div className="bg-white rounded-3xl shadow-2xl p-8 sm:p-12 max-w-2xl w-full border-4 border-success">
+          <div className="relative z-10 max-w-7xl mx-auto px-6 py-8">
+            {/* Заголовок в стиле модного сайта */}
+            <div className="text-center mb-16">
+              <div className="relative -mt-2 sm:mt-0">
+                <h1 className="text-white mb-12 sm:mb-24 leading-none flex items-center justify-center gap-4 sm:gap-8 px-4 sm:px-16">
+                  <span className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-white">
+                    SUCCESS
+                  </span>
+                </h1>
+              </div>
+
+              <div className="flex items-center justify-center gap-3 sm:gap-6 mt-12 sm:mt-24 mb-8 sm:mb-16">
+                <div className="w-10 sm:w-20 h-1 bg-white"></div>
+                <div className="flex items-center gap-4">
+                  {/* Увеличенное фото Миссис Крипто */}
+                  <div className="w-28 h-28 sm:w-40 sm:h-40 rounded-full overflow-hidden border-4 border-white shadow-2xl">
+                    <Image
+                      src="/images/mrs-crypto.jpg"
+                      alt="Mrs. Crypto"
+                      width={160}
+                      height={160}
+                      className="w-full h-full object-cover"
+                      priority
+                      unoptimized
+                    />
+                  </div>
+                </div>
+                <div className="w-10 sm:w-20 h-1 bg-white"></div>
+              </div>
+              <p className="text-xl sm:text-3xl md:text-4xl text-white font-bold mb-4 tracking-wide px-4">
+                <span className="text-white">🎉</span> CONGRATULATIONS <span className="text-white">🎉</span>
+              </p>
+              <p className="text-lg text-white text-opacity-90 max-w-2xl mx-auto">
+                Your task has been published successfully!
+              </p>
+            </div>
+
+            {/* Модная карточка поздравления */}
+            <div className="bg-white bg-opacity-95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 sm:p-12 mb-12 border border-white border-opacity-20 mt-6 sm:mt-12">
               <div className="text-center">
                 <div className="flex justify-center gap-2 text-7xl mb-6 animate-bounce">
                   <span>🎉</span>
                   <span>✨</span>
                   <span>🎊</span>
                 </div>
-                <h2 className="text-4xl sm:text-5xl font-black text-success mb-4">
+                <h2 className="text-4xl sm:text-5xl font-black text-primary mb-4">
                   Congratulations!
                 </h2>
                 <p className="text-2xl sm:text-3xl text-gray-800 font-bold mb-6">
@@ -854,7 +893,7 @@ export default function Submit() {
                 <p className="text-lg text-gray-600 mb-8">
                   Your link is now available in the task list for other users.
                 </p>
-                <div className="bg-success bg-opacity-10 rounded-2xl p-6 mb-8">
+                <div className="bg-gradient-to-r from-primary/10 via-secondary/10 to-accent/10 rounded-2xl p-6 mb-8 border border-primary/20">
                   <p className="text-base text-gray-700">
                     <strong>The next 10 users</strong> will go through your link and perform the selected activity.
                   </p>
@@ -866,7 +905,7 @@ export default function Submit() {
                     setShowSuccessModal(false);
                     setLoading(false);
                   }}
-                  variant="success"
+                  variant="primary"
                   fullWidth
                   className="text-lg py-4"
                 >
@@ -882,11 +921,14 @@ export default function Submit() {
 
   if (!canSubmit) {
     return (
-      <Layout title="Проверка доступа...">
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-center">
-            <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-            <p className="text-gray-600">Проверка прогресса...</p>
+      <Layout title="Checking Access...">
+        <div className="relative min-h-screen overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient bg-300%"></div>
+          <div className="relative z-10 flex items-center justify-center min-h-screen">
+            <div className="text-center">
+              <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+              <p className="text-white text-xl font-bold">Checking progress...</p>
+            </div>
           </div>
         </div>
       </Layout>
@@ -908,11 +950,40 @@ export default function Submit() {
         <div className="relative z-10 max-w-7xl mx-auto px-6 py-8">
           {/* Заголовок в стиле модного сайта */}
           <div className="text-center mb-16">
-            <h1 className="text-7xl md:text-9xl font-black text-white mb-8 font-display leading-none tracking-tight">
-              PUBLISH
-            </h1>
-            <p className="text-2xl md:text-3xl text-white text-opacity-90 max-w-2xl mx-auto mb-6">
-              Опубликуйте свою ссылку для взаимной поддержки
+            <div className="relative -mt-2 sm:mt-0">
+              <h1 className="text-white mb-12 sm:mb-24 leading-none flex items-center justify-center gap-4 sm:gap-8 px-4 sm:px-16">
+                <span className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-white">
+                  PUBLISH
+                </span>
+                <span className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-white">
+                  LINK
+                </span>
+              </h1>
+            </div>
+
+            <div className="flex items-center justify-center gap-3 sm:gap-6 mt-12 sm:mt-24 mb-8 sm:mb-16">
+              <div className="w-10 sm:w-20 h-1 bg-white"></div>
+              <div className="flex items-center gap-4">
+                {/* Увеличенное фото Миссис Крипто */}
+                <div className="w-28 h-28 sm:w-40 sm:h-40 rounded-full overflow-hidden border-4 border-white shadow-2xl">
+                  <Image
+                    src="/images/mrs-crypto.jpg"
+                    alt="Mrs. Crypto"
+                    width={160}
+                    height={160}
+                    className="w-full h-full object-cover"
+                    priority
+                    unoptimized
+                  />
+                </div>
+              </div>
+              <div className="w-10 sm:w-20 h-1 bg-white"></div>
+            </div>
+            <p className="text-xl sm:text-3xl md:text-4xl text-white font-bold mb-4 tracking-wide px-4">
+              <span className="text-white">🚀</span> PUBLISH YOUR LINK <span className="text-white">🚀</span>
+            </p>
+            <p className="text-lg text-white text-opacity-90 max-w-2xl mx-auto">
+              Share your link for mutual support
             </p>
           </div>
 
@@ -925,14 +996,14 @@ export default function Submit() {
                 PUBLISH YOUR LINK
               </h2>
               <p className="text-lg text-gray-700 text-center">
-                Вставьте ссылку на ваш каст в Farcaster/Warpcast
+                Insert your cast link from Farcaster/Warpcast
               </p>
             </div>
 
             {/* Информация о выбранной активности */}
             <div className="bg-gradient-to-r from-primary/10 via-secondary/10 to-accent/10 rounded-xl p-6 mb-6 border border-primary/20">
               <p className="text-sm text-gray-700 mb-3 font-semibold">
-                Выбранная активность:
+                Selected activity:
               </p>
               <div className="flex items-center gap-3 text-primary font-bold text-xl">
                 {activity === 'like' && (
@@ -955,7 +1026,7 @@ export default function Submit() {
                 )}
               </div>
               <p className="text-sm text-gray-600 mt-3">
-                Другие пользователи будут выполнять эту активность на вашей ссылке
+                Other users will perform this activity on your link
               </p>
             </div>
 
