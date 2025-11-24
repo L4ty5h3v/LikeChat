@@ -100,11 +100,18 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  // Объявляем streakData вне try-catch, чтобы она была доступна в catch блоке
+  let streakData: {
+    current_streak: number;
+    longest_streak: number;
+    last_fortune_claim_date: string;
+    total_fortune_claims: number;
+  } | null = null;
+
   try {
     const { prompt, userFid } = req.body;
     
     // Обновляем стрик, если передан userFid
-    let streakData = null;
     if (userFid && typeof userFid === 'number') {
       try {
         streakData = await updateFortuneStreak(userFid);
