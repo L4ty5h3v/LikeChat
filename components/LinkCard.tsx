@@ -51,9 +51,9 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
         </div>
         
         {/* Иконка активности */}
-        <div className="flex items-center gap-2 px-3 py-1 bg-primary bg-opacity-10 rounded-full">
+        <div className="flex items-center gap-2 px-3 py-1 bg-gradient-to-r from-red-500/10 to-purple-600/10 rounded-full border border-red-500/20">
           <span className="text-xl">{activityIcons[link.activity_type]}</span>
-          <span className="text-sm font-medium text-primary">
+          <span className="text-sm font-medium bg-gradient-to-r from-red-500 to-purple-600 bg-clip-text text-transparent">
             {activityLabels[link.activity_type]}
           </span>
         </div>
@@ -80,7 +80,7 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
         
         <button
           onClick={() => window.open(link.cast_url, '_blank')}
-          className="px-4 py-1 bg-gradient-to-r from-yellow-400 via-amber-600 to-amber-800 text-white rounded-lg hover:shadow-xl hover:shadow-amber-500/50 hover:from-yellow-500 hover:via-amber-700 hover:to-amber-900 transition-all duration-300"
+          className="px-4 py-1 bg-gradient-to-r from-red-500 to-purple-600 text-white rounded-lg hover:shadow-xl hover:shadow-red-500/50 transition-all duration-300"
         >
           Open
         </button>

@@ -2,10 +2,71 @@ import '@/styles/globals.css';
 import type { AppProps } from 'next/app';
 import Head from 'next/head';
 import { useEffect } from 'react';
+import { useRouter } from 'next/router';
 import { base } from 'wagmi/chains';
 import { OnchainKitProvider } from '@coinbase/onchainkit';
 import { FarcasterAuthProvider } from '@/contexts/FarcasterAuthContext';
 import { AuthSync } from '@/components/AuthSync';
+
+// Компонент для обработки возврата в приложение после закрытия уведомления
+function NotificationRedirectHandler() {
+  const router = useRouter();
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    // Проверяем, что мы в iframe Farcaster Mini App
+    const isInFarcasterFrame = window.self !== window.top;
+    if (!isInFarcasterFrame) {
+      return;
+    }
+
+    let wasHidden = false;
+    let hideTimestamp = 0;
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Окно стало скрытым (пользователь ушел из приложения, возможно, открыл уведомление)
+        wasHidden = true;
+        hideTimestamp = Date.now();
+        console.log('🔔 [NOTIFICATION] App hidden - user may have opened notification');
+      } else if (wasHidden && !document.hidden) {
+        // Окно снова видимо (пользователь вернулся в приложение)
+        const timeHidden = Date.now() - hideTimestamp;
+        console.log('🔔 [NOTIFICATION] App visible again after', timeHidden, 'ms');
+        
+        // Если пользователь вернулся в приложение и не на главной странице, перенаправляем на главную
+        if (router.pathname !== '/') {
+          console.log('🏠 [NOTIFICATION] Redirecting to home page after notification close');
+          router.replace('/');
+        }
+        
+        wasHidden = false;
+      }
+    };
+
+    const handleFocus = () => {
+      // Когда окно получает фокус (пользователь вернулся в приложение)
+      if (wasHidden && router.pathname !== '/') {
+        console.log('🏠 [NOTIFICATION] Redirecting to home page after focus (notification closed)');
+        router.replace('/');
+        wasHidden = false;
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [router]);
+
+  return null;
+}
 
 export default function App({ Component, pageProps }: AppProps) {
   // Глобальный обработчик ошибок для отлова неперехваченных ошибок
@@ -101,6 +162,7 @@ export default function App({ Component, pageProps }: AppProps) {
       >
         <FarcasterAuthProvider>
           <AuthSync />
+          <NotificationRedirectHandler />
           <Component {...pageProps} />
         </FarcasterAuthProvider>
       </OnchainKitProvider>

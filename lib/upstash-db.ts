@@ -231,6 +231,11 @@ export async function upsertUserProgress(
       token_purchased: updates.token_purchased ?? existing?.token_purchased ?? false,
       selected_activity: updates.selected_activity || existing?.selected_activity,
       current_link_id: updates.current_link_id || existing?.current_link_id,
+      // Fortune cookie streak fields
+      current_streak: updates.current_streak !== undefined ? updates.current_streak : (existing?.current_streak ?? 0),
+      longest_streak: updates.longest_streak !== undefined ? updates.longest_streak : (existing?.longest_streak ?? 0),
+      last_fortune_claim_date: updates.last_fortune_claim_date || existing?.last_fortune_claim_date,
+      total_fortune_claims: updates.total_fortune_claims !== undefined ? updates.total_fortune_claims : (existing?.total_fortune_claims ?? 0),
       created_at: existing?.created_at || new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };

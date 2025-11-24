@@ -1,5 +1,86 @@
 // API endpoint для генерации предсказаний от Mrs. Crypto (Fortune Cookie)
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { getUserProgress, upsertUserProgress } from '@/lib/db-config';
+
+// Функции для работы с датами
+function toDateOnlyUTC(date: Date): string {
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(date.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function getYesterdayUTC(now: Date): string {
+  const yesterday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 1));
+  return toDateOnlyUTC(yesterday);
+}
+
+// Функция для обновления стрика
+async function updateFortuneStreak(userFid: number): Promise<{
+  current_streak: number;
+  longest_streak: number;
+  last_fortune_claim_date: string;
+  total_fortune_claims: number;
+}> {
+  const now = new Date();
+  const todayUTC = toDateOnlyUTC(now);
+  const yesterdayUTC = getYesterdayUTC(now);
+  
+  // Получаем текущий прогресс пользователя
+  const existing = await getUserProgress(userFid);
+  
+  const lastClaimDate = existing?.last_fortune_claim_date || null;
+  const currentStreak = existing?.current_streak || 0;
+  const longestStreak = existing?.longest_streak || 0;
+  const totalClaims = existing?.total_fortune_claims || 0;
+  
+  // Если уже клеймили сегодня, не обновляем
+  if (lastClaimDate === todayUTC) {
+    return {
+      current_streak: currentStreak,
+      longest_streak: longestStreak,
+      last_fortune_claim_date: todayUTC,
+      total_fortune_claims: totalClaims,
+    };
+  }
+  
+  // Проверяем, последовательный ли клейм
+  const isConsecutive = lastClaimDate === yesterdayUTC;
+  
+  // Обновляем стрик
+  let newCurrentStreak: number;
+  if (lastClaimDate === null) {
+    // Первый клейм
+    newCurrentStreak = 1;
+  } else if (isConsecutive) {
+    // Последовательный клейм
+    newCurrentStreak = currentStreak + 1;
+  } else {
+    // Пропущен день - сброс стрика
+    newCurrentStreak = 1;
+  }
+  
+  // Обновляем рекорд
+  const newLongestStreak = Math.max(longestStreak, newCurrentStreak);
+  
+  // Обновляем общее количество клеймов
+  const newTotalClaims = totalClaims + 1;
+  
+  // Сохраняем в базу данных
+  await upsertUserProgress(userFid, {
+    current_streak: newCurrentStreak,
+    longest_streak: newLongestStreak,
+    last_fortune_claim_date: todayUTC,
+    total_fortune_claims: newTotalClaims,
+  });
+  
+  return {
+    current_streak: newCurrentStreak,
+    longest_streak: newLongestStreak,
+    last_fortune_claim_date: todayUTC,
+    total_fortune_claims: newTotalClaims,
+  };
+}
 
 export default async function handler(
   req: NextApiRequest,
@@ -20,7 +101,19 @@ export default async function handler(
   }
 
   try {
-    const { prompt } = req.body;
+    const { prompt, userFid } = req.body;
+    
+    // Обновляем стрик, если передан userFid
+    let streakData = null;
+    if (userFid && typeof userFid === 'number') {
+      try {
+        streakData = await updateFortuneStreak(userFid);
+        console.log(`✅ [FORTUNE] Streak updated for user ${userFid}:`, streakData);
+      } catch (streakError: any) {
+        console.error('⚠️ [FORTUNE] Error updating streak:', streakError.message);
+        // Продолжаем генерацию предсказания даже если стрик не обновился
+      }
+    }
 
     // Используем официальный OpenAI API
     const apiKey = process.env.OPENAI_API_KEY;
@@ -91,7 +184,16 @@ export default async function handler(
     
     console.log('✅ OpenAI API response received');
 
-    res.status(200).json({ fortune, source: 'openai' });
+    res.status(200).json({ 
+      fortune, 
+      source: 'openai',
+      streak: streakData ? {
+        current: streakData.current_streak,
+        longest: streakData.longest_streak,
+        last_claim: streakData.last_fortune_claim_date,
+        total: streakData.total_fortune_claims,
+      } : null,
+    });
   } catch (error: any) {
     console.error('❌ Fortune generation error:', error.message);
     
@@ -113,10 +215,17 @@ export default async function handler(
     res.status(200).json({ 
       fortune: randomFortune, 
       source: 'fallback', 
-      error: error.message 
+      error: error.message,
+      streak: streakData ? {
+        current: streakData.current_streak,
+        longest: streakData.longest_streak,
+        last_claim: streakData.last_fortune_claim_date,
+        total: streakData.total_fortune_claims,
+      } : null,
     });
   }
 }
+
 
 
 
