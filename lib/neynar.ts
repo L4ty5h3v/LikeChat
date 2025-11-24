@@ -337,8 +337,8 @@ export async function checkUserRecasted(fullHash: string, userFid: number): Prom
     const res = await fetch(url, { headers: { "api-key": cleanApiKey, "api_key": cleanApiKey } });
     const data = await res.json();
     return Array.isArray(data?.reactions) && data.reactions.some((r: any) => r.reactor_fid === userFid);
-  } catch (e) {
-    console.error("[neynar] checkUserRecasted error", e);
+  } catch (e: any) {
+    console.error("[neynar] checkUserRecasted error", e?.message || e);
     return false;
   }
 }
@@ -430,8 +430,8 @@ export async function checkUserCommented(fullHash: string, userFid: number): Pro
     } else {
       console.warn("[neynar] checkUserCommented: Method 2 - API error", res.status, res.statusText);
     }
-  } catch (e) {
-    console.warn("[neynar] checkUserCommented: Method 2 - replies endpoint failed", e);
+  } catch (e: any) {
+    console.warn("[neynar] checkUserCommented: Method 2 - replies endpoint failed", e?.message || e);
   }
   
   // Метод 3: Проверка через parent_hash (поиск всех кастов с этим parent_hash)
@@ -467,8 +467,8 @@ export async function checkUserCommented(fullHash: string, userFid: number): Pro
     } else {
       console.warn("[neynar] checkUserCommented: Method 3 - API error", res.status, res.statusText);
     }
-  } catch (e) {
-    console.warn("[neynar] checkUserCommented: Method 3 - parent_hash method failed", e);
+  } catch (e: any) {
+    console.warn("[neynar] checkUserCommented: Method 3 - parent_hash method failed", e?.message || e);
   }
   
   // Метод 4: Проверка через user/casts (все касты пользователя, ищем комментарии к этому cast)
@@ -502,8 +502,8 @@ export async function checkUserCommented(fullHash: string, userFid: number): Pro
     } else {
       console.warn("[neynar] checkUserCommented: Method 4 - API error", res.status, res.statusText);
     }
-  } catch (e) {
-    console.warn("[neynar] checkUserCommented: Method 4 - user/casts method failed", e);
+  } catch (e: any) {
+    console.warn("[neynar] checkUserCommented: Method 4 - user/casts method failed", e?.message || e);
   }
   
   console.log("[neynar] checkUserCommented: ❌ comment not found after all methods", { fullHash, userFid });
