@@ -21,28 +21,25 @@ const ActivityButton: React.FC<ActivityButtonProps> = ({
     <button
       onClick={onClick}
       className={`
-        relative w-full px-6 sm:px-8 py-4 sm:py-5 rounded-2xl text-white font-bold text-base sm:text-lg
-        transition-all duration-300 transform hover:scale-[1.02] hover:shadow-xl
-        bg-gradient-to-r from-red-500 to-purple-600
+        relative px-4 sm:px-8 py-4 sm:py-6 rounded-2xl text-sm sm:text-lg font-semibold
+        transition-all duration-300 transform hover:scale-105 hover:shadow-xl
         ${
           selected
-            ? 'shadow-2xl shadow-red-500/50 ring-2 ring-green-500'
-            : 'hover:shadow-lg'
+            ? 'bg-gradient-to-r from-yellow-400 via-amber-600 to-amber-800 text-white shadow-xl shadow-amber-500/50 ring-4 ring-amber-500 ring-opacity-50'
+            : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-amber-500'
         }
       `}
     >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3 sm:gap-4">
-          <span className="text-2xl sm:text-3xl">{icon}</span>
-          <span>{label}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          {selected && (
-            <span className="text-green-500 text-xl">✓</span>
-          )}
-          <span className="text-xl sm:text-2xl">💫</span>
-        </div>
+      <div className="flex flex-col items-center gap-1 sm:gap-2">
+        <span className="text-3xl sm:text-4xl">{icon}</span>
+        <span className="text-xs sm:text-base">{label}</span>
       </div>
+      
+      {selected && (
+        <div className="absolute -top-2 -right-2 w-6 h-6 bg-success rounded-full flex items-center justify-center">
+          <span className="text-white text-xs">✓</span>
+        </div>
+      )}
     </button>
   );
 };

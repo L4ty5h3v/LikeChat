@@ -622,8 +622,8 @@ export default function Home() {
                   className={`
                     text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold rounded-2xl shadow-2xl 
                     transform transition-all duration-300 relative z-10
-                    bg-gradient-to-r from-red-500 to-purple-600 text-white
-                    hover:shadow-red-500/50
+                    bg-gradient-to-r from-primary via-red-600 to-accent text-white
+                    hover:from-red-500 hover:via-purple-500 hover:to-accent
                     ${loading 
                       ? 'opacity-50 cursor-wait' 
                       : 'opacity-100 cursor-pointer hover:scale-105 active:scale-95'
@@ -660,95 +660,104 @@ export default function Home() {
               </div>
 
               {/* Выбор активности */}
-              <div className="bg-white rounded-3xl shadow-2xl p-6 sm:p-8 md:p-12 mb-8 sm:mb-12">
-                <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-3 text-center font-display">
+              <div>
+                <h2 className="text-4xl md:text-5xl font-black text-gray-900 mb-4 text-center font-display">
                   SELECT ACTIVITY TYPE
                 </h2>
-                <p className="text-base sm:text-lg md:text-xl text-gray-600 mb-6 sm:mb-8 text-center px-4">
+                <p className="text-base sm:text-xl md:text-2xl text-gray-700 mb-6 sm:mb-8 text-center font-bold px-4">
                   You will perform this activity on all 10 links
                 </p>
 
-                {/* Кнопки активности с градиентом */}
-                <div className="space-y-4">
+                {/* Стеклянные кнопки активности в стиле glassmorphism */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-8 sm:mb-12">
                   {/* Кнопка Лайк */}
                   <button
                     onClick={() => handleActivitySelect('like')}
                     className={`
-                      relative w-full px-6 sm:px-8 py-4 sm:py-5 rounded-2xl text-white font-bold text-base sm:text-lg
-                      transition-all duration-300 transform hover:scale-[1.02] hover:shadow-xl
-                      bg-gradient-to-r from-red-500 to-purple-600
+                      relative group px-4 sm:px-8 py-4 sm:py-6 rounded-2xl text-white font-bold text-base sm:text-lg
+                      transition-all duration-300 transform hover:scale-105
+                      backdrop-blur-sm border border-white border-opacity-20
                       ${selectedActivity === 'like' 
-                        ? 'shadow-2xl shadow-red-500/50 ring-2 ring-green-500' 
-                        : 'hover:shadow-lg'
+                        ? 'shadow-2xl shadow-primary/50' 
+                        : 'hover:shadow-xl hover:shadow-primary/30'
                       }
+                      bg-gradient-to-r from-primary/80 via-red-600/80 to-accent/80
+                      hover:from-red-500/90 hover:via-purple-500/90 hover:to-accent/90
                     `}
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3 sm:gap-4">
+                      <div className="flex items-center gap-2 sm:gap-3">
                         <span className="text-2xl sm:text-3xl">❤️</span>
                         <span>LIKE NOW</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {selectedActivity === 'like' && (
-                          <span className="text-green-500 text-xl">✓</span>
-                        )}
-                        <span className="text-xl sm:text-2xl">💫</span>
-                      </div>
+                      <div className="text-xl sm:text-2xl">💫</div>
                     </div>
+                    {selectedActivity === 'like' && (
+                      <div className="absolute -top-2 -right-2 w-6 h-6 bg-white rounded-full flex items-center justify-center">
+                        <span className="text-green-500 text-sm">✓</span>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-primary/20 to-accent/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                   </button>
 
                   {/* Кнопка Рекаст */}
                   <button
                     onClick={() => handleActivitySelect('recast')}
                     className={`
-                      relative w-full px-6 sm:px-8 py-4 sm:py-5 rounded-2xl text-white font-bold text-base sm:text-lg
-                      transition-all duration-300 transform hover:scale-[1.02] hover:shadow-xl
-                      bg-gradient-to-r from-red-500 to-purple-600
+                      relative group px-4 sm:px-8 py-4 sm:py-6 rounded-2xl text-white font-bold text-base sm:text-lg
+                      transition-all duration-300 transform hover:scale-105
+                      backdrop-blur-sm border border-white border-opacity-20
                       ${selectedActivity === 'recast' 
-                        ? 'shadow-2xl shadow-red-500/50 ring-2 ring-green-500' 
-                        : 'hover:shadow-lg'
+                        ? 'shadow-2xl shadow-secondary/50' 
+                        : 'hover:shadow-xl hover:shadow-secondary/30'
                       }
+                      bg-gradient-to-r from-primary/80 via-red-600/80 to-accent/80
+                      hover:from-red-500/90 hover:via-purple-500/90 hover:to-accent/90
                     `}
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3 sm:gap-4">
+                      <div className="flex items-center gap-2 sm:gap-3">
                         <span className="text-2xl sm:text-3xl">🔄</span>
                         <span>RECAST NOW</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {selectedActivity === 'recast' && (
-                          <span className="text-green-500 text-xl">✓</span>
-                        )}
-                        <span className="text-xl sm:text-2xl">⚡</span>
-                      </div>
+                      <div className="text-xl sm:text-2xl">⚡</div>
                     </div>
+                    {selectedActivity === 'recast' && (
+                      <div className="absolute -top-2 -right-2 w-6 h-6 bg-white rounded-full flex items-center justify-center">
+                        <span className="text-green-500 text-sm">✓</span>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-primary/20 to-accent/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                   </button>
 
                   {/* Кнопка Комментарий */}
                   <button
                     onClick={() => handleActivitySelect('comment')}
                     className={`
-                      relative w-full px-6 sm:px-8 py-4 sm:py-5 rounded-2xl text-white font-bold text-base sm:text-lg
-                      transition-all duration-300 transform hover:scale-[1.02] hover:shadow-xl
-                      bg-gradient-to-r from-red-500 to-purple-600
+                      relative group px-4 sm:px-8 py-4 sm:py-6 rounded-2xl text-white font-bold text-base sm:text-lg
+                      transition-all duration-300 transform hover:scale-105
+                      backdrop-blur-sm border border-white border-opacity-20
                       ${selectedActivity === 'comment' 
-                        ? 'shadow-2xl shadow-red-500/50 ring-2 ring-green-500' 
-                        : 'hover:shadow-lg'
+                        ? 'shadow-2xl shadow-accent/50' 
+                        : 'hover:shadow-xl hover:shadow-accent/30'
                       }
+                      bg-gradient-to-r from-primary/80 via-red-600/80 to-accent/80
+                      hover:from-red-500/90 hover:via-purple-500/90 hover:to-accent/90
                     `}
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3 sm:gap-4">
+                      <div className="flex items-center gap-2 sm:gap-3">
                         <span className="text-2xl sm:text-3xl">💬</span>
                         <span>COMMENT NOW</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {selectedActivity === 'comment' && (
-                          <span className="text-green-500 text-xl">✓</span>
-                        )}
-                        <span className="text-xl sm:text-2xl">✨</span>
-                      </div>
+                      <div className="text-xl sm:text-2xl">✨</div>
                     </div>
+                    {selectedActivity === 'comment' && (
+                      <div className="absolute -top-2 -right-2 w-6 h-6 bg-white rounded-full flex items-center justify-center">
+                        <span className="text-green-500 text-sm">✓</span>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-primary/20 to-accent/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                   </button>
                 </div>
               </div>
@@ -813,7 +822,7 @@ export default function Home() {
             </div>
             <button
               onClick={() => setErrorModal({ show: false, message: '' })}
-              className="w-full px-6 py-3 bg-gradient-to-r from-red-500 to-purple-600 text-white font-bold rounded-xl hover:shadow-lg hover:shadow-red-500/50 transition-all"
+              className="w-full px-6 py-3 bg-gradient-to-r from-primary to-accent text-white font-bold rounded-xl hover:opacity-90 transition-opacity"
             >
               Got it
             </button>

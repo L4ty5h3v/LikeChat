@@ -203,7 +203,7 @@ export default function Chat() {
               onClick={() => setFilter('all')}
               className={`px-4 py-2 rounded-lg font-medium transition-all ${
                 filter === 'all'
-                  ? 'bg-gradient-to-r from-red-500 to-purple-600 text-white shadow-lg'
+                  ? 'bg-primary text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
@@ -213,7 +213,7 @@ export default function Chat() {
               onClick={() => setFilter('like')}
               className={`px-4 py-2 rounded-lg font-medium transition-all ${
                 filter === 'like'
-                  ? 'bg-gradient-to-r from-red-500 to-purple-600 text-white shadow-lg'
+                  ? 'bg-primary text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
@@ -223,7 +223,7 @@ export default function Chat() {
               onClick={() => setFilter('recast')}
               className={`px-4 py-2 rounded-lg font-medium transition-all ${
                 filter === 'recast'
-                  ? 'bg-gradient-to-r from-red-500 to-purple-600 text-white shadow-lg'
+                  ? 'bg-primary text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
@@ -233,7 +233,7 @@ export default function Chat() {
               onClick={() => setFilter('comment')}
               className={`px-4 py-2 rounded-lg font-medium transition-all ${
                 filter === 'comment'
-                  ? 'bg-gradient-to-r from-red-500 to-purple-600 text-white shadow-lg'
+                  ? 'bg-primary text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >

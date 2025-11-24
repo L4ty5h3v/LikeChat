@@ -1061,11 +1061,11 @@ export default function Submit() {
               <button
                 type="submit"
                 disabled={loading || !castUrl}
-                style={{ background: (loading || !castUrl) ? 'linear-gradient(to right, #EF4444, #9333EA)' : 'linear-gradient(to right, #EF4444, #9333EA)' }}
+                style={{ background: (loading || !castUrl) ? 'linear-gradient(to right, #C0A030, #9A7308)' : 'linear-gradient(to right, #FFD700, #B8860B)' }}
                 className={`
                   w-full text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold rounded-2xl shadow-2xl 
                   transform transition-all duration-300 relative z-10 text-white
-                  hover:shadow-xl hover:shadow-red-500/50
+                  hover:shadow-xl hover:shadow-yellow-500/50
                   ${loading || !castUrl
                     ? 'opacity-50 cursor-not-allowed' 
                     : 'opacity-100 cursor-pointer hover:scale-105 active:scale-95'
