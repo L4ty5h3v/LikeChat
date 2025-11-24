@@ -346,7 +346,17 @@ export async function checkUserRecasted(fullHash: string, userFid: number): Prom
 export async function checkUserCommented(fullHash: string, userFid: number): Promise<boolean> {
   if (!cleanApiKey) return false;
   
-  console.log("[neynar] checkUserCommented: starting verification", { fullHash, userFid, hashLength: fullHash.length });
+  // Нормализуем hash (убираем 0x если есть, для единообразия)
+  const normalizedHash = fullHash.startsWith('0x') ? fullHash.slice(2) : fullHash;
+  const hashWith0x = fullHash.startsWith('0x') ? fullHash : `0x${fullHash}`;
+  
+  console.log("[neynar] checkUserCommented: starting verification", { 
+    fullHash, 
+    normalizedHash, 
+    hashWith0x,
+    userFid, 
+    hashLength: fullHash.length 
+  });
   
   // Метод 1: Проверка через cast endpoint с replies (самый надежный метод)
   try {
@@ -359,17 +369,33 @@ export async function checkUserCommented(fullHash: string, userFid: number): Pro
       const cast = data?.cast || data?.result?.cast;
       
       if (cast) {
+        console.log("[neynar] checkUserCommented: Method 1 - cast object keys", Object.keys(cast));
+        
         // Проверяем replies в разных местах cast объекта
-        const replies = cast.replies?.casts || cast.replies || cast.direct_replies || [];
+        const replies = cast.replies?.casts || cast.replies || cast.direct_replies || cast.thread?.casts || [];
         console.log("[neynar] checkUserCommented: Method 1 - found replies in cast", {
           repliesCount: replies.length,
           repliesKeys: Object.keys(cast.replies || {}),
-          hasDirectReplies: !!cast.direct_replies
+          hasDirectReplies: !!cast.direct_replies,
+          hasThread: !!cast.thread,
+          threadCasts: cast.thread?.casts?.length || 0,
+          castKeys: Object.keys(cast).filter(k => k.toLowerCase().includes('reply') || k.toLowerCase().includes('thread') || k.toLowerCase().includes('comment'))
         });
         
         // Также проверяем thread_hash для тредов
-        const threadReplies = cast.thread?.casts || [];
+        const threadReplies = cast.thread?.casts || cast.thread?.replies || [];
         const allReplies = [...replies, ...threadReplies];
+        
+        console.log("[neynar] checkUserCommented: Method 1 - total replies to check", allReplies.length);
+        
+        // Логируем первые несколько replies для отладки
+        if (allReplies.length > 0) {
+          console.log("[neynar] checkUserCommented: Method 1 - sample replies", allReplies.slice(0, 3).map((r: any) => ({
+            hash: r.hash,
+            authorFid: r.author?.fid || r.fid || r.author_fid,
+            text: r.text?.substring(0, 30)
+          })));
+        }
         
         const hasReply = allReplies.some((r: any) => {
           const authorFid = r.author?.fid || r.fid || r.author_fid;
@@ -379,7 +405,8 @@ export async function checkUserCommented(fullHash: string, userFid: number): Pro
               replyHash: r.hash, 
               authorFid, 
               userFid,
-              replyText: r.text?.substring(0, 50)
+              replyText: r.text?.substring(0, 50),
+              parentHash: r.parent_hash
             });
           }
           return match;
@@ -389,6 +416,8 @@ export async function checkUserCommented(fullHash: string, userFid: number): Pro
           console.log("[neynar] checkUserCommented: ✅ found via cast.replies", { fullHash, userFid });
           return true;
         }
+      } else {
+        console.warn("[neynar] checkUserCommented: Method 1 - cast not found in response", { dataKeys: Object.keys(data || {}) });
       }
     } else {
       const errorText = await res.text().catch(() => '');
@@ -406,8 +435,22 @@ export async function checkUserCommented(fullHash: string, userFid: number): Pro
     
     if (res.ok) {
       const data = await res.json();
-      const replies = data?.result?.replies || data?.replies || data?.result?.casts || data?.casts || [];
-      console.log("[neynar] checkUserCommented: Method 2 - found replies", replies.length);
+      console.log("[neynar] checkUserCommented: Method 2 - response keys", Object.keys(data || {}));
+      
+      const replies = data?.result?.replies || data?.replies || data?.result?.casts || data?.casts || data?.result?.result?.replies || [];
+      console.log("[neynar] checkUserCommented: Method 2 - found replies", replies.length, {
+        dataStructure: JSON.stringify(Object.keys(data || {})).substring(0, 200)
+      });
+      
+      // Логируем первые несколько replies для отладки
+      if (replies.length > 0) {
+        console.log("[neynar] checkUserCommented: Method 2 - sample replies", replies.slice(0, 3).map((r: any) => ({
+          hash: r.hash,
+          authorFid: r.author?.fid || r.fid || r.author_fid,
+          parentHash: r.parent_hash,
+          text: r.text?.substring(0, 30)
+        })));
+      }
       
       const hasReply = replies.some((r: any) => {
         const authorFid = r.author?.fid || r.fid || r.author_fid;
@@ -417,6 +460,7 @@ export async function checkUserCommented(fullHash: string, userFid: number): Pro
             replyHash: r.hash, 
             authorFid, 
             userFid,
+            parentHash: r.parent_hash,
             replyText: r.text?.substring(0, 50)
           });
         }
@@ -428,47 +472,66 @@ export async function checkUserCommented(fullHash: string, userFid: number): Pro
         return true;
       }
     } else {
-      console.warn("[neynar] checkUserCommented: Method 2 - API error", res.status, res.statusText);
+      const errorText = await res.text().catch(() => '');
+      console.warn("[neynar] checkUserCommented: Method 2 - API error", res.status, res.statusText, errorText.substring(0, 200));
     }
   } catch (e: any) {
     console.warn("[neynar] checkUserCommented: Method 2 - replies endpoint failed", e?.message || e);
   }
   
   // Метод 3: Проверка через parent_hash (поиск всех кастов с этим parent_hash)
-  try {
-    const url = `https://api.neynar.com/v2/farcaster/casts?parent_hash=${fullHash}&limit=100`;
-    console.log("[neynar] checkUserCommented: Method 3 - checking parent_hash", url);
-    const res = await fetch(url, { headers: { "api_key": cleanApiKey } });
-    
-    if (res.ok) {
-      const data = await res.json();
-      const casts = data?.result?.casts || data?.casts || [];
-      console.log("[neynar] checkUserCommented: Method 3 - found casts with parent_hash", casts.length);
+  // Пробуем оба формата hash (с 0x и без)
+  const hashVariants = [fullHash, normalizedHash, hashWith0x].filter((h, i, arr) => arr.indexOf(h) === i);
+  
+  for (const hashVariant of hashVariants) {
+    try {
+      const url = `https://api.neynar.com/v2/farcaster/casts?parent_hash=${hashVariant}&limit=100`;
+      console.log("[neynar] checkUserCommented: Method 3 - checking parent_hash", url, { hashVariant });
+      const res = await fetch(url, { headers: { "api_key": cleanApiKey } });
       
-      const hasComment = casts.some((c: any) => {
-        const authorFid = c.author?.fid || c.fid || c.author_fid;
-        const match = Number(authorFid) === Number(userFid);
-        if (match) {
-          console.log("[neynar] checkUserCommented: ✅ found comment via parent_hash", { 
-            commentHash: c.hash, 
-            authorFid, 
-            userFid,
+      if (res.ok) {
+        const data = await res.json();
+        const casts = data?.result?.casts || data?.casts || data?.result?.result?.casts || [];
+        console.log("[neynar] checkUserCommented: Method 3 - found casts with parent_hash", casts.length, { hashVariant });
+        
+        // Логируем первые несколько кастов для отладки
+        if (casts.length > 0) {
+          console.log("[neynar] checkUserCommented: Method 3 - sample casts", casts.slice(0, 3).map((c: any) => ({
+            hash: c.hash,
+            authorFid: c.author?.fid || c.fid || c.author_fid,
             parentHash: c.parent_hash,
-            commentText: c.text?.substring(0, 50)
-          });
+            text: c.text?.substring(0, 30)
+          })));
         }
-        return match;
-      });
-      
-      if (hasComment) {
-        console.log("[neynar] checkUserCommented: ✅ found via parent_hash", { fullHash, userFid });
-        return true;
+        
+        const hasComment = casts.some((c: any) => {
+          const authorFid = c.author?.fid || c.fid || c.author_fid;
+          const match = Number(authorFid) === Number(userFid);
+          if (match) {
+            console.log("[neynar] checkUserCommented: ✅ found comment via parent_hash", { 
+              commentHash: c.hash, 
+              authorFid, 
+              userFid,
+              parentHash: c.parent_hash,
+              targetHash: fullHash,
+              hashVariant,
+              commentText: c.text?.substring(0, 50)
+            });
+          }
+          return match;
+        });
+        
+        if (hasComment) {
+          console.log("[neynar] checkUserCommented: ✅ found via parent_hash", { fullHash, userFid, hashVariant });
+          return true;
+        }
+      } else {
+        const errorText = await res.text().catch(() => '');
+        console.warn("[neynar] checkUserCommented: Method 3 - API error", res.status, res.statusText, errorText.substring(0, 200), { hashVariant });
       }
-    } else {
-      console.warn("[neynar] checkUserCommented: Method 3 - API error", res.status, res.statusText);
+    } catch (e: any) {
+      console.warn("[neynar] checkUserCommented: Method 3 - parent_hash method failed", e?.message || e, { hashVariant });
     }
-  } catch (e: any) {
-    console.warn("[neynar] checkUserCommented: Method 3 - parent_hash method failed", e?.message || e);
   }
   
   // Метод 4: Проверка через user/casts (все касты пользователя, ищем комментарии к этому cast)
@@ -482,14 +545,34 @@ export async function checkUserCommented(fullHash: string, userFid: number): Pro
       const casts = data?.result?.casts || data?.casts || [];
       console.log("[neynar] checkUserCommented: Method 4 - found user casts", casts.length);
       
+      // Проверяем все варианты parent_hash
       const hasComment = casts.some((c: any) => {
         const parentHash = c.parent_hash || c.parent?.hash || c.parent_author?.hash;
-        const match = parentHash && parentHash.toLowerCase() === fullHash.toLowerCase();
+        if (!parentHash) return false;
+        
+        // Нормализуем parentHash для сравнения
+        const normalizedParentHash = parentHash.startsWith('0x') ? parentHash.slice(2) : parentHash;
+        const parentHashWith0x = parentHash.startsWith('0x') ? parentHash : `0x${parentHash}`;
+        
+        // Сравниваем с разными вариантами target hash
+        const match = 
+          parentHash.toLowerCase() === fullHash.toLowerCase() ||
+          parentHash.toLowerCase() === normalizedHash.toLowerCase() ||
+          parentHash.toLowerCase() === hashWith0x.toLowerCase() ||
+          normalizedParentHash.toLowerCase() === fullHash.toLowerCase() ||
+          normalizedParentHash.toLowerCase() === normalizedHash.toLowerCase() ||
+          parentHashWith0x.toLowerCase() === fullHash.toLowerCase() ||
+          parentHashWith0x.toLowerCase() === hashWith0x.toLowerCase();
+        
         if (match) {
           console.log("[neynar] checkUserCommented: ✅ found comment via user/casts", { 
             commentHash: c.hash, 
             parentHash, 
-            fullHash 
+            normalizedParentHash,
+            fullHash,
+            normalizedHash,
+            hashWith0x,
+            commentText: c.text?.substring(0, 50)
           });
         }
         return match;
@@ -500,13 +583,35 @@ export async function checkUserCommented(fullHash: string, userFid: number): Pro
         return true;
       }
     } else {
-      console.warn("[neynar] checkUserCommented: Method 4 - API error", res.status, res.statusText);
+      const errorText = await res.text().catch(() => '');
+      console.warn("[neynar] checkUserCommented: Method 4 - API error", res.status, res.statusText, errorText.substring(0, 200));
     }
   } catch (e: any) {
     console.warn("[neynar] checkUserCommented: Method 4 - user/casts method failed", e?.message || e);
   }
   
-  console.log("[neynar] checkUserCommented: ❌ comment not found after all methods", { fullHash, userFid });
+  // Метод 5: Проверка через feed endpoint (альтернативный способ)
+  try {
+    const feedUrl = `https://api.neynar.com/v2/farcaster/feed/cast_likes?cast_hashes=${fullHash}&limit=100`;
+    console.log("[neynar] checkUserCommented: Method 5 - checking feed endpoint (alternative)", feedUrl);
+    // Этот метод может не работать для комментариев, но попробуем
+    const res = await fetch(feedUrl, { headers: { "api_key": cleanApiKey } });
+    
+    if (res.ok) {
+      const data = await res.json();
+      console.log("[neynar] checkUserCommented: Method 5 - feed response", Object.keys(data || {}));
+    }
+  } catch (e: any) {
+    // Игнорируем ошибки этого метода, он экспериментальный
+    console.log("[neynar] checkUserCommented: Method 5 - feed endpoint not available for comments");
+  }
+  
+  console.log("[neynar] checkUserCommented: ❌ comment not found after all methods", { 
+    fullHash, 
+    normalizedHash,
+    hashWith0x,
+    userFid 
+  });
   return false;
 }
 
