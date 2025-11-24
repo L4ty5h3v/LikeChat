@@ -37,8 +37,11 @@ function NotificationRedirectHandler() {
         const timeHidden = Date.now() - hideTimestamp;
         console.log('🔔 [NOTIFICATION] App visible again after', timeHidden, 'ms');
         
-        // Если пользователь вернулся в приложение и не на главной странице, перенаправляем на главную
-        if (router.pathname !== '/') {
+        // Редиректим только если:
+        // 1. Пользователь не на главной странице
+        // 2. Пользователь не на странице задач (чтобы не мешать открытию заданий)
+        // 3. Прошло достаточно времени (больше 1 секунды) - это указывает на закрытие уведомления, а не простое переключение вкладок
+        if (router.pathname !== '/' && router.pathname !== '/tasks' && timeHidden > 1000) {
           console.log('🏠 [NOTIFICATION] Redirecting to home page after notification close');
           router.replace('/');
         }
@@ -49,9 +52,13 @@ function NotificationRedirectHandler() {
 
     const handleFocus = () => {
       // Когда окно получает фокус (пользователь вернулся в приложение)
-      if (wasHidden && router.pathname !== '/') {
-        console.log('🏠 [NOTIFICATION] Redirecting to home page after focus (notification closed)');
-        router.replace('/');
+      // Редиректим только если прошло достаточно времени и не на странице задач
+      if (wasHidden && router.pathname !== '/' && router.pathname !== '/tasks') {
+        const timeHidden = Date.now() - hideTimestamp;
+        if (timeHidden > 1000) {
+          console.log('🏠 [NOTIFICATION] Redirecting to home page after focus (notification closed)');
+          router.replace('/');
+        }
         wasHidden = false;
       }
     };
