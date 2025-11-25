@@ -97,8 +97,8 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
                 : task.verifying
                 ? { background: 'linear-gradient(135deg, rgba(251, 146, 60, 0.4), rgba(249, 115, 22, 0.4))' }
                 : task.opened && !task.error
-                ? { background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.4), rgba(37, 99, 235, 0.4))' }
-                : { background: 'linear-gradient(135deg, rgba(147, 51, 234, 0.4), rgba(168, 85, 247, 0.4))' }
+                ? { background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(251, 146, 60, 0.5), rgba(236, 72, 153, 0.5), rgba(147, 51, 234, 0.5))' }
+                : { background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(251, 146, 60, 0.5), rgba(236, 72, 153, 0.5), rgba(147, 51, 234, 0.5))' }
             }
           >
             {/* Переливающийся эффект */}

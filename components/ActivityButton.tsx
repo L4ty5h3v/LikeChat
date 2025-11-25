@@ -30,10 +30,9 @@ const ActivityButton: React.FC<ActivityButtonProps> = ({
             : 'text-white hover:shadow-2xl hover:shadow-purple-500/30'
         }
       `}
-      style={selected 
-        ? { background: 'linear-gradient(135deg, rgba(255, 215, 0, 0.4), rgba(251, 146, 60, 0.4), rgba(184, 134, 11, 0.4))' }
-        : { background: 'linear-gradient(135deg, rgba(147, 51, 234, 0.3), rgba(168, 85, 247, 0.3), rgba(192, 132, 252, 0.3))' }
-      }
+      style={{ 
+        background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(251, 146, 60, 0.5), rgba(236, 72, 153, 0.5), rgba(147, 51, 234, 0.5))'
+      }}
     >
       {/* Переливающийся эффект */}
       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>

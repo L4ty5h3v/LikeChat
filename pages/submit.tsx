@@ -1062,8 +1062,8 @@ export default function Submit() {
                 type="submit"
                 disabled={loading || !castUrl}
                 style={(loading || !castUrl)
-                  ? { background: 'linear-gradient(135deg, rgba(192, 160, 48, 0.4), rgba(154, 115, 8, 0.4))' }
-                  : { background: 'linear-gradient(135deg, rgba(255, 215, 0, 0.5), rgba(184, 134, 11, 0.5), rgba(255, 20, 147, 0.5))' }
+                  ? { background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.3), rgba(147, 51, 234, 0.3))' }
+                  : { background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(251, 146, 60, 0.5), rgba(236, 72, 153, 0.5), rgba(147, 51, 234, 0.5))' }
                 }
                 className={`
                   w-full text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold rounded-2xl 

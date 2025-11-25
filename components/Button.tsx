@@ -36,32 +36,14 @@ const Button: React.FC<ButtonProps> = ({
   const getBackgroundStyle = () => {
     if (disabled || loading) {
       return { 
-        background: 'linear-gradient(135deg, rgba(192, 160, 48, 0.3), rgba(154, 115, 8, 0.3))',
+        background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.3), rgba(147, 51, 234, 0.3))',
       };
     }
     
-    switch (variant) {
-      case 'primary':
-        return { 
-          background: 'linear-gradient(135deg, rgba(255, 215, 0, 0.4), rgba(184, 134, 11, 0.4), rgba(255, 20, 147, 0.4))',
-        };
-      case 'success':
-        return { 
-          background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.4), rgba(22, 163, 74, 0.4), rgba(16, 185, 129, 0.4))',
-        };
-      case 'warning':
-        return { 
-          background: 'linear-gradient(135deg, rgba(251, 146, 60, 0.4), rgba(249, 115, 22, 0.4), rgba(234, 88, 12, 0.4))',
-        };
-      case 'secondary':
-        return { 
-          background: 'linear-gradient(135deg, rgba(147, 51, 234, 0.4), rgba(168, 85, 247, 0.4), rgba(192, 132, 252, 0.4))',
-        };
-      default:
-        return { 
-          background: 'linear-gradient(135deg, rgba(255, 215, 0, 0.4), rgba(184, 134, 11, 0.4), rgba(255, 20, 147, 0.4))',
-        };
-    }
+    // Единый градиент для всех вариантов: красно-оранжевый → фиолетовый
+    return { 
+      background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(251, 146, 60, 0.5), rgba(236, 72, 153, 0.5), rgba(147, 51, 234, 0.5))',
+    };
   };
 
   return (
