@@ -128,9 +128,9 @@ export default function Tasks() {
         progressFromAPI: progress,
       });
 
-      // ⚠️ ДОПОЛНИТЕЛЬНАЯ ФИЛЬТРАЦИЯ: Фильтруем по taskType на фронтенде (на случай если backend не отфильтровал)
+      // ⚠️ ФИЛЬТРАЦИЯ: Фильтруем по taskType на фронтенде (на случай если backend не отфильтровал)
       let filteredLinks = links;
-      if (currentActivity) {
+      if (currentActivity && links.length > 0) {
         filteredLinks = links.filter((link: LinkSubmission) => {
           // Поддержка как task_type (новое), так и activity_type (старое) для обратной совместимости
           const linkTaskType = link.task_type || (link as any).activity_type;
@@ -141,16 +141,18 @@ export default function Tasks() {
           return matches;
         });
         console.log(`🔍 [TASKS] Frontend filtering: ${links.length} links → ${filteredLinks.length} links (activity: ${currentActivity})`);
+        
+        // ⚠️ КРИТИЧНО: Если после фильтрации нет ссылок, но есть ссылки без фильтра - показываем их все
+        if (filteredLinks.length === 0 && links.length > 0) {
+          console.warn(`⚠️ [TASKS] No links found for activity "${currentActivity}", showing all ${links.length} links instead`);
+          filteredLinks = links;
+        }
       } else {
         // Если activity не выбрана, показываем все ссылки
         console.log(`📋 [TASKS] No activity filter - showing all ${links.length} links`);
       }
       
-      // Если после фильтрации нет ссылок, но есть ссылки без фильтра - показываем их все
-      if (filteredLinks.length === 0 && links.length > 0 && currentActivity) {
-        console.warn(`⚠️ [TASKS] No links found for activity "${currentActivity}", showing all links instead`);
-        filteredLinks = links;
-      }
+      console.log(`✅ [TASKS] Final filtered links count: ${filteredLinks.length}`);
 
       // Сбрасываем состояние opened при загрузке задач, чтобы можно было открывать ссылки снова
       // НЕ сбрасываем openedTasks в рамках одной сессии - сохраняем состояние открытых ссылок
