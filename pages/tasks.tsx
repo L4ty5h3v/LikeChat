@@ -965,21 +965,45 @@ export default function Tasks() {
 
           {/* Список заданий */}
           <div className="space-y-6 mb-12">
-            {tasks.map((task, index) => {
-              // Объединяем opened из состояния tasks и openedTasks
-              const taskWithOpened = {
-                ...task,
-                opened: task.opened || openedTasks[task.link_id] === true,
-              };
-              return (
-                <TaskCard
-                  key={task.link_id}
-                  task={taskWithOpened}
-                  index={index}
-                  onOpen={() => handleOpenLink(task.cast_url, task.link_id)}
-                />
-              );
-            })}
+            {tasks.length === 0 ? (
+              <div className="text-center py-12 bg-white bg-opacity-10 backdrop-blur-md rounded-2xl border border-white/30 shadow-2xl">
+                <div className="text-6xl mb-4">📋</div>
+                <h3 className="text-2xl font-bold text-white mb-2">No tasks available</h3>
+                <p className="text-white text-opacity-80 mb-6">
+                  {activity 
+                    ? `No ${activity} tasks found. Please check back later.`
+                    : 'No tasks found. Please select an activity type first.'}
+                </p>
+                {!activity && (
+                  <button
+                    onClick={() => router.push('/')}
+                    className="px-6 py-3 rounded-2xl font-bold text-white
+                      backdrop-blur-md border border-white/30 shadow-2xl
+                      hover:shadow-2xl hover:shadow-purple-500/50
+                      transition-all duration-300 transform hover:scale-105"
+                    style={{ background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(251, 146, 60, 0.5), rgba(236, 72, 153, 0.5), rgba(147, 51, 234, 0.5))' }}
+                  >
+                    Go to Home Page
+                  </button>
+                )}
+              </div>
+            ) : (
+              tasks.map((task, index) => {
+                // Объединяем opened из состояния tasks и openedTasks
+                const taskWithOpened = {
+                  ...task,
+                  opened: task.opened || openedTasks[task.link_id] === true,
+                };
+                return (
+                  <TaskCard
+                    key={task.link_id}
+                    task={taskWithOpened}
+                    index={index}
+                    onOpen={() => handleOpenLink(task.cast_url, task.link_id)}
+                  />
+                );
+              })
+            )}
           </div>
 
           {/* Модная кнопка проверки */}
