@@ -619,7 +619,7 @@ export default function Submit() {
         console.log('✅ [SUBMIT] Link saved to database via API:', data.link.id);
         console.log('📊 [SUBMIT] Saved link data:', {
           id: data.link.id,
-          activity_type: data.link.activity_type,
+          task_type: data.link.task_type,
           user_fid: data.link.user_fid,
           cast_url: data.link.cast_url?.substring(0, 50) + '...',
         });

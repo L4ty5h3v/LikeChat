@@ -132,9 +132,9 @@ export default function Tasks() {
       let filteredLinks = links;
       if (currentActivity) {
         filteredLinks = links.filter((link: LinkSubmission) => {
-          const matches = link.activity_type === currentActivity;
+          const matches = link.task_type === currentActivity;
           if (!matches) {
-            console.warn(`⚠️ [TASKS] Link ${link.id} filtered out - activity_type: ${link.activity_type}, expected: ${currentActivity}`);
+            console.warn(`⚠️ [TASKS] Link ${link.id} filtered out - task_type: ${link.task_type}, expected: ${currentActivity}`);
           }
           return matches;
         });
@@ -168,7 +168,7 @@ export default function Tasks() {
           link_id: link.id,
           cast_url: link.cast_url,
           cast_hash: castHash,
-          activity_type: link.activity_type,
+          task_type: link.task_type,
           user_fid_required: userFid, // FID текущего пользователя
           username: link.username,
           pfp_url: link.pfp_url,
@@ -204,7 +204,7 @@ export default function Tasks() {
         completed: t.completed,
       })));
       console.log(`🔍 [TASKS] Activity filter: ${currentActivity || 'NONE'}, Raw links from API: ${links.length}, Filtered links: ${filteredLinks.length}, Final tasks: ${taskList.length}`);
-      console.log(`📊 [TASKS] Activity types in loaded links:`, links.map((l: LinkSubmission) => l.activity_type));
+      console.log(`📊 [TASKS] Task types in loaded links:`, links.map((l: LinkSubmission) => l.task_type));
       
       // Проверяем: если все задания завершены, проверяем прогресс и делаем автоматический редирект
       // ⚠️ ВАЖНО: Проверяем, не опубликована ли уже ссылка пользователем, чтобы избежать бесконечного редиректа
@@ -644,7 +644,7 @@ export default function Tasks() {
 
             console.log(`[CLIENT] handleVerifyAll: Verifying task ${task.link_id}`, {
               castUrl: task.cast_url,
-              activityType: task.activity_type || activity,
+              activityType: task.task_type || activity,
               userFid: user.fid,
               userFidType: typeof user.fid,
               userObject: { fid: user.fid, username: user.username }
@@ -658,7 +658,7 @@ export default function Tasks() {
             const result = await verifyActivity({
               castHash: '', // Не используется, передаем castUrl
               castUrl: task.cast_url, // ВАЖНО: передаем весь URL для разрешения
-              activityType: task.activity_type || activity,
+              activityType: task.task_type || activity,
               viewerFid: user.fid, // ✅ используем текущего пользователя
             });
             

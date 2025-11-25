@@ -65,7 +65,7 @@ export default function Chat() {
 
   const filteredLinks = links.filter((link) => {
     if (filter === 'all') return true;
-    return link.activity_type === filter;
+    return link.task_type === filter;
   });
 
   const userLink = links.find((link) => link.id === userLinkId);
@@ -217,7 +217,7 @@ export default function Chat() {
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
-              ❤️ Likes ({links.filter((l) => l.activity_type === 'like').length})
+              ❤️ Likes ({links.filter((l) => l.task_type === 'like').length})
             </button>
             <button
               onClick={() => setFilter('recast')}
@@ -227,7 +227,7 @@ export default function Chat() {
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
-              🔄 Recasts ({links.filter((l) => l.activity_type === 'recast').length})
+              🔄 Recasts ({links.filter((l) => l.task_type === 'recast').length})
             </button>
             <button
               onClick={() => setFilter('comment')}
@@ -237,7 +237,7 @@ export default function Chat() {
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
-              💬 Comments ({links.filter((l) => l.activity_type === 'comment').length})
+              💬 Comments ({links.filter((l) => l.task_type === 'comment').length})
             </button>
           </div>
         </div>
@@ -289,19 +289,19 @@ export default function Chat() {
               </div>
               <div className="text-center">
                 <div className="text-3xl font-bold text-primary mb-1">
-                  {links.filter((l) => l.activity_type === 'like').length}
+                  {links.filter((l) => l.task_type === 'like').length}
                 </div>
                 <div className="text-sm text-gray-600">❤️ Likes</div>
               </div>
               <div className="text-center">
                 <div className="text-3xl font-bold text-primary mb-1">
-                  {links.filter((l) => l.activity_type === 'recast').length}
+                  {links.filter((l) => l.task_type === 'recast').length}
                 </div>
                 <div className="text-sm text-gray-600">🔄 Recasts</div>
               </div>
               <div className="text-center">
                 <div className="text-3xl font-bold text-primary mb-1">
-                  {links.filter((l) => l.activity_type === 'comment').length}
+                  {links.filter((l) => l.task_type === 'comment').length}
                 </div>
                 <div className="text-sm text-gray-600">💬 Comments</div>
               </div>
