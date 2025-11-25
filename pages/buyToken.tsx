@@ -131,11 +131,7 @@ export default function BuyToken() {
       enabled: !!walletAddress,
     },
   });
-  const { swapTokenAsync } = useSwapToken({
-    defaultSellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`,
-    defaultBuyToken: `eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`,
-    defaultSellAmount: parseUnits(PURCHASE_AMOUNT_USDC.toString(), 6).toString(),
-  });
+  const { swapTokenAsync } = useSwapToken();
 
   const [loading, setLoading] = useState(false);
   const { user, isLoading: authLoading, isInitialized } = useFarcasterAuth(); // Используем контекст вместо localStorage
