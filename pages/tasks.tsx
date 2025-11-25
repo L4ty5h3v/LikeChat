@@ -8,14 +8,14 @@ import Button from '@/components/Button';
 import { getAllLinks } from '@/lib/db-config';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
 import { extractCastHash } from '@/lib/neynar';
-import type { LinkSubmission, ActivityType, TaskProgress } from '@/types';
+import type { LinkSubmission, TaskType, TaskProgress } from '@/types';
 
 export default function Tasks() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [verifying, setVerifying] = useState(false);
   const { user, isLoading: authLoading, isInitialized } = useFarcasterAuth();
-  const [activity, setActivity] = useState<ActivityType | null>(null);
+  const [activity, setActivity] = useState<TaskType | null>(null);
   const [tasks, setTasks] = useState<TaskProgress[]>([]);
   const [completedCount, setCompletedCount] = useState(0);
   const [showPublishedSuccess, setShowPublishedSuccess] = useState(false);
@@ -59,7 +59,7 @@ export default function Tasks() {
         return;
       }
 
-      setActivity(savedActivity as ActivityType);
+      setActivity(savedActivity as TaskType);
       
       console.log('✅ [TASKS] User and activity loaded:', {
         fid: user.fid,
@@ -301,7 +301,7 @@ export default function Tasks() {
   };
 
   // Polling для автоматической проверки активности после открытия ссылки
-  const startPollingForActivity = (castUrl: string, linkId: string, activityType: ActivityType) => {
+  const startPollingForActivity = (castUrl: string, linkId: string, activityType: TaskType) => {
     if (!user?.fid) return;
 
     // Если уже есть активный polling для этой ссылки, не создаем новый
@@ -480,7 +480,7 @@ export default function Tasks() {
   }: {
     castHash: string;
     castUrl?: string;
-    activityType: ActivityType;
+    activityType: TaskType;
     viewerFid: number;
   }): Promise<{ completed: boolean; userMessage?: string; hashWarning?: string; isError?: boolean; neynarExplorerUrl?: string }> => {
     try {

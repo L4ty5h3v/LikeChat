@@ -8,6 +8,8 @@ export interface FarcasterUser {
 }
 
 export type TaskType = 'like' | 'recast' | 'comment';
+// Обратная совместимость: ActivityType теперь является алиасом для TaskType
+export type ActivityType = TaskType;
 
 export interface LinkSubmission {
   id: string;
