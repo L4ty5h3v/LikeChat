@@ -7,7 +7,7 @@ export interface FarcasterUser {
   display_name?: string;
 }
 
-export type ActivityType = 'like' | 'recast' | 'comment';
+export type TaskType = 'like' | 'recast' | 'comment';
 
 export interface LinkSubmission {
   id: string;
@@ -15,7 +15,7 @@ export interface LinkSubmission {
   username: string;
   pfp_url: string;
   cast_url: string;
-  activity_type: ActivityType;
+  task_type: TaskType;
   created_at: string;
   completed_by?: number[]; // массив FID пользователей, которые завершили задание
 }
@@ -26,7 +26,7 @@ export interface UserProgress {
   completed_links: string[]; // ID завершенных ссылок
   token_purchased: boolean;
   token_purchase_tx_hash?: string; // Hash транзакции покупки токена (для dexscreener)
-  selected_activity?: ActivityType;
+  selected_task?: TaskType;
   current_link_id?: string; // ID опубликованной ссылки
   // Fortune cookie streak data
   current_streak?: number; // Текущий стрик предсказаний
@@ -41,7 +41,7 @@ export interface TaskProgress {
   link_id: string;
   cast_url: string;
   cast_hash: string; // ✅ Hash каста для проверки через Neynar API
-  activity_type: ActivityType;
+  task_type: TaskType;
   user_fid_required: number;
   completed: boolean;
   verified: boolean;

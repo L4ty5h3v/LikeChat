@@ -6,7 +6,7 @@ import Layout from '@/components/Layout';
 import Button from '@/components/Button';
 import { useAccount, useBalance, useConnect, useBlockNumber } from 'wagmi';
 import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector';
-import { useSwapToken } from '@coinbase/onchainkit/minikit';
+import { useSwapToken, Swap } from '@coinbase/onchainkit/minikit';
 import { getTokenInfo, getTokenSalePriceEth, getMCTAmountForPurchase } from '@/lib/web3';
 import { markTokenPurchased, getUserProgress } from '@/lib/db-config';
 import { formatUnits, parseUnits } from 'viem';
@@ -131,7 +131,11 @@ export default function BuyToken() {
       enabled: !!walletAddress,
     },
   });
-  const { swapTokenAsync } = useSwapToken();
+  const { swapTokenAsync } = useSwapToken({
+    defaultSellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`,
+    defaultBuyToken: `eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`,
+    defaultSellAmount: parseUnits(PURCHASE_AMOUNT_USDC.toString(), 6).toString(),
+  });
 
   const [loading, setLoading] = useState(false);
   const { user, isLoading: authLoading, isInitialized } = useFarcasterAuth(); // Используем контекст вместо localStorage
@@ -372,7 +376,7 @@ export default function BuyToken() {
                isTimeout) {
       errorType = 'timeout';
       errorMessage = isTimeout 
-        ? 'Timeout: swap did not complete in 30 seconds' 
+        ? `Timeout: swap did not complete in ${SWAP_TIMEOUT_MS / 1000} seconds` 
         : 'Network error';
       helpfulMessage = '💡 Check internet connection and try again';
     } else if (errorLower.includes('gas') || 
@@ -522,7 +526,7 @@ export default function BuyToken() {
         }
         
         // Не переходим на /submit автоматически - остаемся на странице покупки
-        // Пользователь может нажать кнопку "PUBLISH LINK" если все задачи выполнены
+        // Пользователь может нажать кнопку "ADD YOUR LINK" если все задачи выполнены
         console.log('✅ [BUYTOKEN] Token purchase completed, staying on buy token page');
       }
   }, [mctBalance, isSwapping, oldBalanceBeforeSwap, user, router, txHash]);
@@ -603,6 +607,8 @@ export default function BuyToken() {
           sellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`, // USDC на Base
           buyToken: `eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`, // MCT Token на Base
           sellAmount: usdcAmountStr, // 0.10 USDC = 100000 wei (parseUnits(0.10, 6))
+          slippageTolerance: 1, // 1% slippage tolerance
+          defaultSellAmount: usdcAmountStr, // Предустановленное значение для формы
         });
         
         // Очищаем таймаут при успешном запуске
@@ -764,7 +770,7 @@ export default function BuyToken() {
               <span className="text-white">❤️</span> MRS. CRYPTO TOKEN <span className="text-white">❤️</span>
             </p>
             <p className="text-lg text-white text-opacity-90 max-w-2xl mx-auto">
-              Purchase token to unlock link publishing
+              Buy a token to enable adding your link
             </p>
           </div>
 
@@ -910,13 +916,22 @@ export default function BuyToken() {
 
               {canPublishLink ? (
               <p className="text-center text-success font-semibold mt-4">
-                Redirecting to link publishing...
+                Redirecting to add your link...
               </p>
               ) : (
                 <p className="text-center text-gray-600 font-semibold mt-4">
-                  Complete all tasks to publish your link
+                  Complete all tasks to add your link
                 </p>
               )}
+            </div>
+          )}
+
+          {/* Информация о сумме покупки */}
+          {walletAddress && !purchased && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+              <p className="text-sm text-blue-800 text-center">
+                <span className="font-semibold">💡 Tip:</span> When the swap form opens, enter <span className="font-bold">0.10 USDC</span> as the amount to swap
+              </p>
             </div>
           )}
 
@@ -970,7 +985,7 @@ export default function BuyToken() {
                 hover:from-purple-400 hover:via-pink-400 hover:to-red-400
                 opacity-100 cursor-pointer hover:scale-105 active:scale-95"
             >
-              PUBLISH LINK →
+              ADD YOUR LINK →
             </button>
           )}
           
@@ -1042,7 +1057,7 @@ export default function BuyToken() {
               </div>
               <div className="flex items-center justify-center gap-3 p-3 bg-gradient-to-r from-accent to-secondary rounded-xl col-span-1 md:col-span-2 text-center">
                 <span className="text-3xl">🚀</span>
-                <span className="font-bold text-xl">After purchase you can publish your link!</span>
+                <span className="font-bold text-xl">After purchase you can add your link!</span>
               </div>
             </div>
           </div>

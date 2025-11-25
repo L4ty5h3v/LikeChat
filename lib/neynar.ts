@@ -1,7 +1,7 @@
 // lib/neynar.ts — Универсальная, полностью рабочая версия
 // Принимает любые ссылки и короткие hash как Inflynce
 
-import type { ActivityType } from "@/types";
+import type { TaskType } from "@/types";
 
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY || "";
 const cleanApiKey = NEYNAR_API_KEY ? NEYNAR_API_KEY.trim().replace(/[\r\n\t]/g, "") : "";
@@ -148,13 +148,13 @@ export async function getFullCastHash(shortUrl: string): Promise<string | null> 
 export async function checkUserReactionsByCast(
   castHash: string,
   userFid: number,
-  activityType: ActivityType
+  taskType: TaskType
 ): Promise<boolean> {
   if (!cleanApiKey) return false;
   
   // Для комментариев используем специальную проверку через checkUserCommented
   // Это более надежный метод для комментариев, чем проверка через /cast endpoint
-  if (activityType === "comment") {
+  if (taskType === "comment") {
     console.log("[neynar] checkUserReactionsByCast: using checkUserCommented for comment verification", { castHash, userFid });
     return await checkUserCommented(castHash, userFid);
   }
@@ -162,7 +162,7 @@ export async function checkUserReactionsByCast(
   // ВАЖНО: Neynar API возвращает пустой массив likes/recasts по умолчанию
   // Нужно использовать параметр viewer_fid, чтобы получить информацию о реакции конкретного пользователя
   try {
-    console.log("[neynar] checkUserReactionsByCast: checking via /cast endpoint with viewer_fid", { castHash, userFid, activityType });
+    console.log("[neynar] checkUserReactionsByCast: checking via /cast endpoint with viewer_fid", { castHash, userFid, taskType });
     
     // Добавляем viewer_fid к запросу - это вернет информацию о реакции этого пользователя
     const castUrl = `https://api.neynar.com/v2/farcaster/cast?identifier=${castHash}&type=hash&viewer_fid=${userFid}`;
@@ -187,7 +187,7 @@ export async function checkUserReactionsByCast(
     const viewerContext = cast.viewer_context;
     console.log("[neynar] checkUserReactionsByCast: viewer_context", viewerContext);
     
-    if (activityType === "like") {
+    if (taskType === "like") {
       // viewer_context.liked указывает, поставил ли viewer лайк
       const hasLike = viewerContext?.liked === true;
       if (hasLike) {
@@ -216,7 +216,7 @@ export async function checkUserReactionsByCast(
         likesArrayLength: likes.length
       });
       return false;
-    } else if (activityType === "recast") {
+    } else if (taskType === "recast") {
       // viewer_context.recasted указывает, сделал ли viewer рекаст
       const hasRecast = viewerContext?.recasted === true;
       if (hasRecast) {
@@ -615,13 +615,13 @@ export async function checkUserCommented(fullHash: string, userFid: number): Pro
   return false;
 }
 
-/** Универсальная проверка активности по типу (like, recast, comment) */
-export async function checkUserActivityByHash(
+/** Универсальная проверка задачи по типу (like, recast, comment) */
+export async function checkUserTaskByHash(
   fullHash: string,
   userFid: number,
-  activityType: ActivityType
+  taskType: TaskType
 ): Promise<boolean> {
-  switch (activityType) {
+  switch (taskType) {
     case "like":
       return await checkUserLiked(fullHash, userFid);
     case "recast":
@@ -629,7 +629,7 @@ export async function checkUserActivityByHash(
     case "comment":
       return await checkUserCommented(fullHash, userFid);
     default:
-      console.error("[neynar] Unknown activity type:", activityType);
+      console.error("[neynar] Unknown task type:", taskType);
       return false;
   }
 }

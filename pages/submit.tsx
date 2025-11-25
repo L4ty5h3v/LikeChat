@@ -872,7 +872,7 @@ export default function Submit() {
                 <span className="text-white">🎉</span> CONGRATULATIONS <span className="text-white">🎉</span>
               </p>
               <p className="text-lg text-white text-opacity-90 max-w-2xl mx-auto">
-                Your task has been published successfully!
+                Your link has been added successfully!
               </p>
             </div>
 
@@ -883,7 +883,7 @@ export default function Submit() {
                   Congratulations!
                 </h2>
                 <p className="text-2xl sm:text-3xl text-gray-800 font-bold mb-6">
-                  Your task has been published!
+                  Your link has been added!
                 </p>
                 <p className="text-lg text-gray-600 mb-8">
                   Your link is now available in the task list for other users.
@@ -934,7 +934,7 @@ export default function Submit() {
 
 
   return (
-    <Layout title="Multi Like - Publish Link">
+    <Layout title="Multi Like - Add Your Link">
       {/* Hero Section с градиентом */}
       <div className="relative min-h-screen overflow-hidden">
         {/* Анимированный градиент фон */}
@@ -977,7 +977,7 @@ export default function Submit() {
               <div className="w-10 sm:w-20 h-1 bg-white"></div>
             </div>
             <p className="text-xl sm:text-3xl md:text-4xl text-white font-bold mb-4 tracking-wide px-4">
-              <span className="text-white">🚀</span> PUBLISH YOUR LINK <span className="text-white">🚀</span>
+              <span className="text-white">🚀</span> ADD YOUR LINK <span className="text-white">🚀</span>
             </p>
             <p className="text-lg text-white text-opacity-90 max-w-2xl mx-auto">
               Share your link for mutual support
@@ -990,7 +990,7 @@ export default function Submit() {
 
             <div className="mb-8">
               <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-3 text-center">
-                PUBLISH YOUR LINK
+                ADD YOUR LINK
               </h2>
               <p className="text-lg text-gray-700 text-center">
                 Insert your cast link from Farcaster
@@ -1079,7 +1079,7 @@ export default function Submit() {
                     <span>PUBLISHING...</span>
                   </div>
                 ) : (
-                  '🚀 PUBLISH LINK'
+                  '🚀 ADD YOUR LINK'
                 )}
               </button>
             </form>

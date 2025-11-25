@@ -484,17 +484,23 @@ export default function Tasks() {
     viewerFid: number;
   }): Promise<{ completed: boolean; userMessage?: string; hashWarning?: string; isError?: boolean; neynarExplorerUrl?: string }> => {
     try {
+      // Добавляем небольшую задержку для обновления данных в Neynar API после unlike+like
+      // Это особенно важно для лайков, так как API может обновляться с задержкой
+      if (activityType === 'like') {
+        await new Promise(resolve => setTimeout(resolve, 3000)); // 3 секунды задержки для обновления API
+      }
+      
       const requestBody = {
         castUrl: castUrl || castHash, // Передаем весь URL
         userFid: viewerFid,
-        activityType,
+        taskType: activityType, // Используем taskType для API
       };
       
       console.log('[CLIENT] verifyActivity: Sending request:', requestBody);
       console.log('[CLIENT] verifyActivity: viewerFid type:', typeof viewerFid, 'value:', viewerFid);
       
       // Отправляем castUrl (весь URL, даже с "...")
-      const response = await fetch('/api/verify-activity', {
+      const response = await fetch('/api/verify-task', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -562,10 +568,18 @@ export default function Tasks() {
       console.log(`🔍 [VERIFY] Processing ALL ${tasks.length} tasks in parallel...`);
 
       // ✅ Сначала помечаем все задачи как проверяемые
-      // ⚠️ КРИТИЧНО: Сохраняем error состояние и устанавливаем его ТОЛЬКО для неоткрытых задач
+      // ⚠️ КРИТИЧНО: Сохраняем error состояние и устанавливаем его ТОЛЬКО для неоткрытых и невыполненных задач
       setTasks(prevTasks => 
         prevTasks.map(task => {
           const isOpened = task.opened || openedTasks[task.link_id] === true;
+          // Если задача выполнена, ошибки быть не должно
+          if (task.completed && task.verified) {
+            return {
+              ...task, 
+              verifying: true,
+              error: false // Выполненные задачи не должны показывать ошибку
+            };
+          }
           // Если задача не открыта и не выполнена - это ошибка
           const shouldHaveError = !isOpened && !task.completed;
           // ⚠️ КРИТИЧНО: Для открытых задач НЕ устанавливаем error, чтобы кнопка оставалась синей
@@ -658,17 +672,20 @@ export default function Tasks() {
             // ⚠️ КРИТИЧНО: Если задача не была открыта, она НЕ может быть выполнена, даже если активность найдена
             const isOpened = task.opened || openedTasks[task.link_id] === true;
             
-            // Определяем, была ли ошибка (cast не найден или активность не найдена)
-            // Если активность не найдена (completed: false), это тоже ошибка для визуального отображения
-            // Если задача не была открыта, это всегда ошибка (даже если активность найдена)
-            // Для комментариев: если completed: false, это ошибка (комментарий не найден)
-            const hasError = result.isError || 
-                            (!result.completed && result.userMessage) || 
-                            !isOpened || // ⚠️ Если задача не открыта - это ошибка
-                            (!result.completed && !result.isError); // Если проверка прошла, но активность не найдена - это ошибка
-            
             // ⚠️ КРИТИЧНО: Задача может быть выполнена ТОЛЬКО если она была открыта И активность найдена
             const finalCompleted = isOpened && result.completed;
+            
+            // Определяем, была ли ошибка (cast не найден или активность не найдена)
+            // ВАЖНО: Если задача выполнена (finalCompleted === true), ошибки быть не должно
+            // Ошибка только если:
+            // 1. Реальная ошибка API (result.isError === true)
+            // 2. Задача не выполнена И не открыта
+            // 3. Задача не выполнена И проверка прошла успешно, но активность не найдена
+            const hasError = finalCompleted ? false : (
+              result.isError || 
+              (!isOpened) || // ⚠️ Если задача не открыта - это ошибка
+              (!result.completed && !result.isError) // Если проверка прошла, но активность не найдена - это ошибка
+            );
             
             console.log(`🔍 [VERIFY] Task ${task.link_id} verification:`, {
               isOpened,
@@ -796,37 +813,43 @@ export default function Tasks() {
       setVerificationMessages(messages);
 
       // Обновляем состояние
-      const newCompletedCount = updatedTasks.filter(t => t.completed).length;
+      // ВАЖНО: Убеждаемся, что выполненные задачи не имеют ошибок
+      const finalUpdatedTasks = updatedTasks.map(task => ({
+        ...task,
+        error: task.completed ? false : task.error // Выполненные задачи не должны показывать ошибку
+      }));
       
-      setTasks(updatedTasks);
+      const newCompletedCount = finalUpdatedTasks.filter(t => t.completed).length;
+      
+      setTasks(finalUpdatedTasks);
       setCompletedCount(newCompletedCount);
 
       console.log(`📊 [VERIFY] Verification complete: ${newCompletedCount}/${updatedTasks.length} completed`);
 
       // ✅ Если все выполнены - редирект на покупку токена (НЕ перезагружаем задачи, чтобы кнопки остались зелеными)
       // ⚠️ КРИТИЧНО: Проверяем, что все задания выполнены И открыты И нет ошибок
-      const allCompleted = updatedTasks.every((t) => t.completed);
+      const allCompleted = finalUpdatedTasks.every((t) => t.completed);
       // ВАЖНО: Проверяем, что ВСЕ задания открыты (независимо от выполнения)
-      const allOpened = updatedTasks.every((t) => t.opened === true);
-      const hasErrors = updatedTasks.some((t) => t.error);
+      const allOpened = finalUpdatedTasks.every((t) => t.opened === true);
+      const hasErrors = finalUpdatedTasks.some((t) => t.error);
       
       console.log('🔍 [VERIFY] Redirect check after verification:', {
         allCompleted,
         allOpened,
         hasErrors,
-        tasksCount: updatedTasks.length,
-        openedCount: updatedTasks.filter(t => t.opened).length,
-        taskStates: updatedTasks.map(t => ({ id: t.link_id, opened: t.opened, completed: t.completed, error: t.error }))
+        tasksCount: finalUpdatedTasks.length,
+        openedCount: finalUpdatedTasks.filter(t => t.opened).length,
+        taskStates: finalUpdatedTasks.map(t => ({ id: t.link_id, opened: t.opened, completed: t.completed, error: t.error }))
       });
       
       // НЕ делаем редирект, если есть ошибки или не все задания открыты
-      if (allCompleted && allOpened && !hasErrors && updatedTasks.length > 0) {
-        console.log(`✅ All tasks completed! (${newCompletedCount}/${updatedTasks.length})`);
+      if (allCompleted && allOpened && !hasErrors && finalUpdatedTasks.length > 0) {
+        console.log(`✅ All tasks completed! (${newCompletedCount}/${finalUpdatedTasks.length})`);
         // НЕ перезагружаем задачи, чтобы кнопки остались зелеными
         setTimeout(() => {
           router.replace('/buyToken'); // Используем replace вместо push
         }, 2000);
-      } else if (newCompletedCount > 0 && newCompletedCount < updatedTasks.length) {
+      } else if (newCompletedCount > 0 && newCompletedCount < finalUpdatedTasks.length) {
         // Перезагружаем задачи только если не все выполнены
         setTimeout(() => {
           loadTasks(user.fid, false);
@@ -927,13 +950,10 @@ export default function Tasks() {
               </div>
               <div className="w-24 h-1 bg-white"></div>
             </div>
-            <p className="text-2xl md:text-4xl text-white font-bold mb-6 tracking-wide">
-              COMPLETE YOUR ACTIVITY TASKS
-            </p>
-            <p className="text-2xl md:text-3xl text-white text-opacity-90 max-w-2xl mx-auto">
-              <span className="whitespace-nowrap">Open each link and perform activity:</span>
+            <p className="text-lg md:text-xl text-white text-opacity-90 max-w-2xl mx-auto">
+              <span>Open each link and perform the task:</span>
               {' '}
-              <span className="font-bold text-yellow-300 text-3xl md:text-4xl whitespace-nowrap">
+              <span className="font-bold text-yellow-300 text-xl md:text-2xl">
                 {activity === 'like' && '❤️ LIKE'}
                 {activity === 'recast' && '🔄 RECAST'}
                 {activity === 'comment' && '💬 COMMENT'}

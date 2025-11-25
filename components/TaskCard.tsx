@@ -105,7 +105,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
       </div>
 
       {/* Статус */}
-      {task.error && (
+      {task.error && !task.completed && (
         <div className="mt-3 p-2 bg-red-100 border border-red-300 rounded-lg">
           <p className="text-sm text-red-800 flex items-center gap-2 font-semibold">
             <span>❌</span>

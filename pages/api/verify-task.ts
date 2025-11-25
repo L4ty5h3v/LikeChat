@@ -1,12 +1,12 @@
 // ------------------------------------------------------
-// /api/verify-activity.ts — Полностью рабочая версия
+// /api/verify-task.ts — Полностью рабочая версия
 // ------------------------------------------------------
 
 import type { NextApiRequest, NextApiResponse } from "next";
 
 import {
   getFullCastHash,
-  checkUserActivityByHash,
+  checkUserTaskByHash,
   checkUserReactionsByCast,
 } from "@/lib/neynar";
 
@@ -30,9 +30,9 @@ export default async function handler(
   }
 
   try {
-    const { castUrl, userFid, activityType } = req.body;
+    const { castUrl, userFid, taskType } = req.body;
 
-    if (!castUrl || !userFid || !activityType) {
+    if (!castUrl || !userFid || !taskType) {
       return res.status(400).json({
         success: false,
         completed: false,
@@ -40,7 +40,7 @@ export default async function handler(
       });
     }
 
-    console.log("[VERIFY] Starting verification for:", { castUrl, userFid, activityType });
+    console.log("[VERIFY] Starting verification for:", { castUrl, userFid, taskType });
 
     // -----------------------
     // 1. Получение universal hash
@@ -62,16 +62,16 @@ export default async function handler(
     console.log("[VERIFY] Successfully resolved hash:", fullHash);
 
     // -----------------------
-    // 2. Проверка активности (пробуем оба метода)
+    // 2. Проверка задачи (пробуем оба метода)
     // -----------------------
-    console.log("[VERIFY] Checking activity:", { fullHash, userFid: Number(userFid), activityType, hashLength: fullHash.length });
+    console.log("[VERIFY] Checking task:", { fullHash, userFid: Number(userFid), taskType, hashLength: fullHash.length });
     
     // Метод 1: Стандартная проверка через cast_hash
-    console.log("[VERIFY] Method 1: checkUserActivityByHash");
-    let completed = await checkUserActivityByHash(
+    console.log("[VERIFY] Method 1: checkUserTaskByHash");
+    let completed = await checkUserTaskByHash(
       fullHash,
       Number(userFid),
-      activityType
+      taskType
     );
     console.log("[VERIFY] Method 1 result:", completed);
 
@@ -81,7 +81,7 @@ export default async function handler(
       completed = await checkUserReactionsByCast(
         fullHash,
         Number(userFid),
-        activityType
+        taskType
       );
       console.log("[VERIFY] Method 2 result:", completed);
     }

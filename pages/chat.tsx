@@ -124,7 +124,7 @@ export default function Chat() {
             <span className="text-5xl animate-pulse-slow">💌</span>
           </h1>
           <p className="text-gray-600">
-            All published links from community members
+            All added links from community members
           </p>
         </div>
 
@@ -141,8 +141,8 @@ export default function Chat() {
                 <h2 className="text-xl font-bold mb-1">@{user.username}</h2>
                 <p className="text-white text-opacity-90">
                   {userLink
-                    ? '✅ Your link is published'
-                    : 'Complete tasks to publish your link'}
+                    ? '✅ Your link is added'
+                    : 'Complete tasks to add your link'}
                 </p>
               </div>
               {!userLink && (
@@ -163,7 +163,7 @@ export default function Chat() {
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center gap-2">
               <span>⭐</span>
-              Your Published Link
+              Your Added Link
             </h2>
             <div className="border-4 border-primary border-opacity-30 rounded-2xl p-2">
               <LinkCard link={userLink} />
@@ -257,7 +257,7 @@ export default function Chat() {
               No links yet
             </h3>
             <p className="text-gray-600 mb-6">
-              Be the first to publish a link!
+              Be the first to add a link!
             </p>
             <Button
               onClick={() => router.push('/')}
