@@ -67,7 +67,7 @@ async function publishCastByActivityType(
       },
     };
 
-    const config = activityConfig[activityType];
+    const config = activityConfig[taskType];
     if (!config) {
       // Неизвестный тип активности - не публикуем
       console.log(`ℹ️ [PUBLISH-CAST] Unknown task type: ${taskType}, skipping cast publication`);
