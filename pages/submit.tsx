@@ -1061,11 +1061,15 @@ export default function Submit() {
               <button
                 type="submit"
                 disabled={loading || !castUrl}
-                style={{ background: (loading || !castUrl) ? 'linear-gradient(to right, #C0A030, #9A7308)' : 'linear-gradient(to right, #FFD700, #B8860B)' }}
+                style={(loading || !castUrl)
+                  ? { background: 'linear-gradient(135deg, rgba(192, 160, 48, 0.4), rgba(154, 115, 8, 0.4))' }
+                  : { background: 'linear-gradient(135deg, rgba(255, 215, 0, 0.5), rgba(184, 134, 11, 0.5), rgba(255, 20, 147, 0.5))' }
+                }
                 className={`
-                  w-full text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold rounded-2xl shadow-2xl 
-                  transform transition-all duration-300 relative z-10 text-white
-                  hover:shadow-xl hover:shadow-yellow-500/50
+                  w-full text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold rounded-2xl 
+                  transform transition-all duration-300 relative text-white overflow-hidden
+                  backdrop-blur-md border border-white/30 shadow-2xl group
+                  hover:shadow-2xl hover:shadow-yellow-500/50
                   ${loading || !castUrl
                     ? 'opacity-50 cursor-not-allowed' 
                     : 'opacity-100 cursor-pointer hover:scale-105 active:scale-95'
@@ -1073,6 +1077,15 @@ export default function Submit() {
                   disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:transform-none
                 `}
               >
+                {/* Переливающийся эффект */}
+                {!loading && castUrl && (
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+                )}
+                {/* Внутреннее свечение */}
+                {!loading && castUrl && (
+                  <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
+                )}
+                <span className="relative z-10 drop-shadow-lg">
                 {loading ? (
                   <div className="flex items-center justify-center gap-2">
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -1081,6 +1094,7 @@ export default function Submit() {
                 ) : (
                   '🚀 ADD YOUR LINK'
                 )}
+                </span>
               </button>
             </form>
           </div>

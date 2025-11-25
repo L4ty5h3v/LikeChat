@@ -82,9 +82,17 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
         
         <button
           onClick={() => window.open(link.cast_url, '_blank')}
-          className="px-4 py-1 bg-gradient-to-r from-yellow-400 via-amber-600 to-amber-800 text-white rounded-lg hover:shadow-xl hover:shadow-amber-500/50 hover:from-yellow-500 hover:via-amber-700 hover:to-amber-900 transition-all duration-300"
+          className="relative group px-4 py-2 rounded-2xl text-white font-bold text-sm
+            transition-all duration-300 transform hover:scale-105 overflow-hidden
+            backdrop-blur-md border border-white/30 shadow-2xl
+            hover:shadow-2xl hover:shadow-amber-500/50"
+          style={{ background: 'linear-gradient(135deg, rgba(255, 215, 0, 0.5), rgba(251, 146, 60, 0.5), rgba(184, 134, 11, 0.5))' }}
         >
-          Open
+          {/* Переливающийся эффект */}
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+          {/* Внутреннее свечение */}
+          <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
+          <span className="relative z-10 drop-shadow-lg">Open</span>
         </button>
       </div>
     </div>

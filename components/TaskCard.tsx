@@ -71,22 +71,45 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
             onClick={onOpen}
             disabled={task.completed && task.verified}
             className={`
-              px-4 py-1.5 rounded-lg font-medium text-sm transition-all duration-300
+              relative px-4 py-1.5 rounded-2xl font-bold text-sm transition-all duration-300
+              transform hover:scale-105 overflow-hidden backdrop-blur-md border border-white/30 shadow-2xl group
               ${
                 task.completed && task.verified
-                  ? 'bg-green-500 text-white cursor-not-allowed hover:bg-green-600'
+                  ? 'cursor-not-allowed opacity-60'
                   : task.error
-                  ? 'bg-red-500 text-white hover:bg-red-600 hover:shadow-lg animate-pulse'
+                  ? 'hover:shadow-red-500/50 animate-pulse'
                   : task.verifying && !task.opened && !task.completed
-                  ? 'bg-red-500 text-white hover:bg-red-600 hover:shadow-lg animate-pulse'
+                  ? 'hover:shadow-red-500/50 animate-pulse'
                   : task.verifying
-                  ? 'bg-yellow-500 text-white cursor-wait hover:bg-yellow-600'
+                  ? 'cursor-wait hover:shadow-yellow-500/50'
                   : task.opened && !task.error
-                  ? 'bg-blue-500 text-white hover:bg-blue-600 hover:shadow-lg'
-                  : 'bg-gray-500 text-white hover:bg-gray-600 hover:shadow-lg'
+                  ? 'hover:shadow-blue-500/50'
+                  : 'hover:shadow-purple-500/50'
               }
             `}
+            style={
+              task.completed && task.verified
+                ? { background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.4), rgba(22, 163, 74, 0.4))' }
+                : task.error
+                ? { background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.4), rgba(220, 38, 38, 0.4))' }
+                : task.verifying && !task.opened && !task.completed
+                ? { background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.4), rgba(220, 38, 38, 0.4))' }
+                : task.verifying
+                ? { background: 'linear-gradient(135deg, rgba(251, 146, 60, 0.4), rgba(249, 115, 22, 0.4))' }
+                : task.opened && !task.error
+                ? { background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.4), rgba(37, 99, 235, 0.4))' }
+                : { background: 'linear-gradient(135deg, rgba(147, 51, 234, 0.4), rgba(168, 85, 247, 0.4))' }
+            }
           >
+            {/* Переливающийся эффект */}
+            {!task.completed && !task.verified && (
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+            )}
+            {/* Внутреннее свечение */}
+            {!task.completed && !task.verified && (
+              <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
+            )}
+            <span className="relative z-10 text-white drop-shadow-lg">
             {task.completed && task.verified 
               ? 'Completed ✓' 
               : task.error

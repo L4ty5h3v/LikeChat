@@ -21,22 +21,32 @@ const ActivityButton: React.FC<ActivityButtonProps> = ({
     <button
       onClick={onClick}
       className={`
-        relative px-4 sm:px-8 py-4 sm:py-6 rounded-2xl text-sm sm:text-lg font-semibold
-        transition-all duration-300 transform hover:scale-105 hover:shadow-xl
+        relative px-4 sm:px-8 py-4 sm:py-6 rounded-2xl text-sm sm:text-lg font-bold
+        transition-all duration-300 transform hover:scale-105 overflow-hidden
+        backdrop-blur-md border border-white/30 shadow-2xl group
         ${
           selected
-            ? 'bg-gradient-to-r from-yellow-400 via-amber-600 to-amber-800 text-white shadow-xl shadow-amber-500/50 ring-4 ring-amber-500 ring-opacity-50'
-            : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-amber-500'
+            ? 'text-white shadow-2xl shadow-amber-500/50 ring-4 ring-amber-500/50'
+            : 'text-white hover:shadow-2xl hover:shadow-purple-500/30'
         }
       `}
+      style={selected 
+        ? { background: 'linear-gradient(135deg, rgba(255, 215, 0, 0.4), rgba(251, 146, 60, 0.4), rgba(184, 134, 11, 0.4))' }
+        : { background: 'linear-gradient(135deg, rgba(147, 51, 234, 0.3), rgba(168, 85, 247, 0.3), rgba(192, 132, 252, 0.3))' }
+      }
     >
-      <div className="flex flex-col items-center gap-1 sm:gap-2">
-        <span className="text-3xl sm:text-4xl">{icon}</span>
-        <span className="text-xs sm:text-base">{label}</span>
+      {/* Переливающийся эффект */}
+      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+      {/* Внутреннее свечение */}
+      <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
+      
+      <div className="flex flex-col items-center gap-1 sm:gap-2 relative z-10">
+        <span className="text-3xl sm:text-4xl drop-shadow-lg">{icon}</span>
+        <span className="text-xs sm:text-base drop-shadow-md">{label}</span>
       </div>
       
       {selected && (
-        <div className="absolute -top-2 -right-2 w-6 h-6 bg-success rounded-full flex items-center justify-center">
+        <div className="absolute -top-2 -right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center shadow-lg z-20">
           <span className="text-white text-xs">✓</span>
         </div>
       )}

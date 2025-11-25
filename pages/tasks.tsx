@@ -990,13 +990,22 @@ export default function Tasks() {
               className={`
                 relative group w-full px-12 py-8 rounded-2xl text-white font-black text-2xl md:text-3xl
                 transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100
-                hover:shadow-xl hover:shadow-red-500/50
-                ${verifying 
-                  ? 'bg-gradient-to-r from-red-500/50 to-purple-600/50' 
-                  : 'bg-gradient-to-r from-red-500 to-purple-600'
-                }
+                overflow-hidden backdrop-blur-md border border-white/30 shadow-2xl
+                hover:shadow-2xl hover:shadow-red-500/50
               `}
+              style={verifying 
+                ? { background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.4), rgba(147, 51, 234, 0.4))' }
+                : { background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(147, 51, 234, 0.5), rgba(168, 85, 247, 0.5))' }
+              }
             >
+              {/* Переливающийся эффект */}
+              {!verifying && (
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+              )}
+              {/* Внутреннее свечение */}
+              {!verifying && (
+                <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
+              )}
               <div className="flex items-center justify-center gap-4">
                 {verifying ? (
                   <>
