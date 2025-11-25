@@ -6,13 +6,15 @@ interface LinkCardProps {
   link: LinkSubmission;
 }
 
-const activityIcons = {
+import type { TaskType } from '@/types';
+
+const activityIcons: Record<TaskType, string> = {
   like: '❤️',
   recast: '🔄',
   comment: '💬',
 };
 
-const activityLabels = {
+const activityLabels: Record<TaskType, string> = {
   like: 'Like',
   recast: 'Recast',
   comment: 'Comment',
@@ -52,9 +54,9 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
         
         {/* Иконка активности */}
         <div className="flex items-center gap-2 px-3 py-1 bg-primary bg-opacity-10 rounded-full">
-          <span className="text-xl">{activityIcons[link.activity_type]}</span>
+          <span className="text-xl">{activityIcons[link.task_type]}</span>
           <span className="text-sm font-medium text-primary">
-            {activityLabels[link.activity_type]}
+            {activityLabels[link.task_type]}
           </span>
         </div>
       </div>
