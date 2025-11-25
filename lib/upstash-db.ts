@@ -1,5 +1,5 @@
 import { Redis } from '@upstash/redis';
-import type { LinkSubmission, UserProgress, ActivityType } from '@/types';
+import type { LinkSubmission, UserProgress, TaskType } from '@/types';
 import { getCastAuthor, getUserByUsername } from '@/lib/neynar';
 
 // Инициализация Redis клиента
@@ -26,7 +26,7 @@ const KEYS = {
 };
 
 // Функции для работы с ссылками
-export async function getLastTenLinks(activityType?: ActivityType): Promise<LinkSubmission[]> {
+export async function getLastTenLinks(taskType?: TaskType): Promise<LinkSubmission[]> {
   if (!redis) return [];
   
   try {
@@ -53,11 +53,11 @@ export async function getLastTenLinks(activityType?: ActivityType): Promise<Link
       return dateB - dateA;
     });
     
-    // Фильтруем по activityType, если указан
+    // Фильтруем по taskType, если указан
     let filteredLinks = parsedLinks;
-    if (activityType) {
-      filteredLinks = parsedLinks.filter((link: LinkSubmission) => link.task_type === activityType);
-      console.log(`🔍 Filtering links by activity type: ${activityType}`);
+    if (taskType) {
+      filteredLinks = parsedLinks.filter((link: LinkSubmission) => link.task_type === taskType);
+      console.log(`🔍 Filtering links by task type: ${taskType}`);
       console.log(`📊 Total links: ${parsedLinks.length}, Filtered: ${filteredLinks.length}`);
     }
     
@@ -65,7 +65,7 @@ export async function getLastTenLinks(activityType?: ActivityType): Promise<Link
     const result = filteredLinks.slice(0, 10);
     
     // Логируем данные для диагностики
-    console.log(`📖 Loaded ${result.length} links from Redis${activityType ? ` (filtered by ${activityType})` : ' (all activities)'}:`, 
+    console.log(`📖 Loaded ${result.length} links from Redis${taskType ? ` (filtered by ${taskType})` : ' (all tasks)'}:`, 
       result.map((link, index) => ({
         index: index + 1,
         id: link.id,
@@ -143,7 +143,7 @@ export async function submitLink(
   username: string,
   pfpUrl: string,
   castUrl: string,
-  activityType: ActivityType
+  taskType: TaskType
 ): Promise<LinkSubmission | null> {
   if (!redis) return null;
   
@@ -154,7 +154,7 @@ export async function submitLink(
       username,
       pfp_url: pfpUrl,
       cast_url: castUrl,
-      task_type: activityType,
+      task_type: taskType,
       completed_by: [],
       created_at: new Date().toISOString(),
     };
@@ -288,7 +288,7 @@ export async function markTokenPurchased(userFid: number, txHash?: string): Prom
   }
 }
 
-export async function setUserActivity(userFid: number, activity: ActivityType): Promise<void> {
+export async function setUserActivity(userFid: number, activity: TaskType): Promise<void> {
   if (!redis) return;
   
   try {
@@ -347,20 +347,20 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
     ];
 
     // Получаем реальные данные авторов кастов через Neynar API
-    const activityTypes: ActivityType[] = ['like', 'recast', 'comment'];
+    const taskTypes: TaskType[] = ['like', 'recast', 'comment'];
     const baseTimestamp = Date.now();
     const linksToAdd: LinkSubmission[] = [];
     const userCache = new Map<string, { fid: number; username: string; pfp_url: string }>();
 
     // Создаем по 10 ссылок для каждого типа активности (всего 30 ссылок)
-    for (let activityIndex = 0; activityIndex < activityTypes.length; activityIndex++) {
-      const activityType = activityTypes[activityIndex];
+    for (let taskIndex = 0; taskIndex < taskTypes.length; taskIndex++) {
+      const taskType = taskTypes[taskIndex];
       
       for (let linkIndex = 0; linkIndex < baseLinks.length; linkIndex++) {
         const castUrl = baseLinks[linkIndex];
-        const index = activityIndex * baseLinks.length + linkIndex;
+        const index = taskIndex * baseLinks.length + linkIndex;
         
-        console.log(`🔍 Fetching cast author data for: ${castUrl} [${activityType}]`);
+        console.log(`🔍 Fetching cast author data for: ${castUrl} [${taskType}]`);
         
         try {
         // Получаем реальные данные автора каста
@@ -378,14 +378,14 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
             username: authorData.username,
             pfp_url: authorData.pfp_url,
             cast_url: castUrl,
-            task_type: activityType,
+            task_type: taskType,
             completed_by: [],
             created_at: new Date().toISOString(),
           });
-          console.log(`✅ [${index + 1}/${baseLinks.length * activityTypes.length}] Loaded real data for @${authorData.username} (FID: ${authorData.fid}) [${activityType}]`);
+          console.log(`✅ [${index + 1}/${baseLinks.length * taskTypes.length}] Loaded real data for @${authorData.username} (FID: ${authorData.fid}) [${taskType}]`);
         } else {
           // Если не удалось получить данные из каста, пытаемся получить данные пользователя по username из URL
-          console.warn(`⚠️ [${index + 1}/${baseLinks.length * activityTypes.length}] Failed to get author data from cast for ${castUrl}`);
+          console.warn(`⚠️ [${index + 1}/${baseLinks.length * taskTypes.length}] Failed to get author data from cast for ${castUrl}`);
           console.warn(`⚠️ Author data received:`, authorData);
           console.warn(`⚠️ Cast may not exist in Neynar API, trying to get user by username from URL...`);
           
@@ -406,10 +406,10 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
 
           if (usernameFromUrl && !cachedUser) {
             try {
-              console.log(`🔍 [${index + 1}/${baseLinks.length * activityTypes.length}] Trying to get user data by username: ${usernameFromUrl}`);
+              console.log(`🔍 [${index + 1}/${baseLinks.length * taskTypes.length}] Trying to get user data by username: ${usernameFromUrl}`);
               userData = await getUserByUsername(usernameFromUrl);
               
-              console.log(`🔍 [${index + 1}/${baseLinks.length * activityTypes.length}] getUserByUsername returned:`, {
+              console.log(`🔍 [${index + 1}/${baseLinks.length * taskTypes.length}] getUserByUsername returned:`, {
                 hasData: !!userData,
                 fid: userData?.fid,
                 username: userData?.username,
@@ -420,10 +420,10 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
               });
               
               if (userData && userData.fid) {
-                console.log(`✅ [${index + 1}/${baseLinks.length * activityTypes.length}] Got user data by username: @${userData.username || userData.display_name} (FID: ${userData.fid})`);
+                console.log(`✅ [${index + 1}/${baseLinks.length * taskTypes.length}] Got user data by username: @${userData.username || userData.display_name} (FID: ${userData.fid})`);
               } else {
-                console.warn(`⚠️ [${index + 1}/${baseLinks.length * activityTypes.length}] User data not found or invalid for username: ${usernameFromUrl}`);
-                console.warn(`⚠️ [${index + 1}/${baseLinks.length * activityTypes.length}] UserData received:`, userData);
+                console.warn(`⚠️ [${index + 1}/${baseLinks.length * taskTypes.length}] User data not found or invalid for username: ${usernameFromUrl}`);
+                console.warn(`⚠️ [${index + 1}/${baseLinks.length * taskTypes.length}] UserData received:`, userData);
               }
 
               if (userData && userData.fid && userData.username) {
@@ -434,7 +434,7 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
                 });
               }
             } catch (userError: any) {
-              console.error(`❌ [${index + 1}/${baseLinks.length * activityTypes.length}] Failed to get user by username:`, {
+              console.error(`❌ [${index + 1}/${baseLinks.length * taskTypes.length}] Failed to get user by username:`, {
                 message: userError?.message,
                 stack: userError?.stack,
                 response: userError?.response?.data,
@@ -442,7 +442,7 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
               });
             }
           } else {
-            console.warn(`⚠️ [${index + 1}/${baseLinks.length * activityTypes.length}] No username extracted from URL: ${castUrl}`);
+            console.warn(`⚠️ [${index + 1}/${baseLinks.length * taskTypes.length}] No username extracted from URL: ${castUrl}`);
           }
           
           // Если username из URL не найден, но это может быть реальный пользователь,
@@ -489,11 +489,11 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
               username: userData.username || (userDataAny.display_name) || usernameFromUrl || `user_${index + 1}`,
               pfp_url: pfpUrl,
               cast_url: castUrl,
-              task_type: activityType,
+              task_type: taskType,
               completed_by: [],
               created_at: new Date().toISOString(),
             });
-            console.log(`✅ [${index + 1}/${baseLinks.length * activityTypes.length}] Loaded real user data by username: @${userData.username || (userDataAny.display_name)} (FID: ${userData.fid}, pfp: ${pfpUrl}) [${activityType}]`);
+            console.log(`✅ [${index + 1}/${baseLinks.length * taskTypes.length}] Loaded real user data by username: @${userData.username || (userDataAny.display_name)} (FID: ${userData.fid}, pfp: ${pfpUrl}) [${taskType}]`);
           } else {
             // Если не удалось получить данные пользователя, используем fallback
             linksToAdd.push({
@@ -502,15 +502,15 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
               username: usernameFromUrl || `user_${index + 1}`, // Используем username из URL если есть
               pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${castHash}`,
               cast_url: castUrl,
-              task_type: activityType,
+              task_type: taskType,
               completed_by: [],
               created_at: new Date().toISOString(),
             });
-            console.log(`⚠️ [${index + 1}/${baseLinks.length * activityTypes.length}] Using fallback data for ${castUrl} (username: ${usernameFromUrl || `user_${index + 1}`}) [${activityType}]`);
+            console.log(`⚠️ [${index + 1}/${baseLinks.length * taskTypes.length}] Using fallback data for ${castUrl} (username: ${usernameFromUrl || `user_${index + 1}`}) [${taskType}]`);
           }
         }
       } catch (error: any) {
-        console.error(`❌ [${index + 1}/${baseLinks.length * activityTypes.length}] Error fetching author data for ${castUrl}:`, error);
+        console.error(`❌ [${index + 1}/${baseLinks.length * taskTypes.length}] Error fetching author data for ${castUrl}:`, error);
         console.error(`❌ Error details:`, {
           message: error.message,
           stack: error.stack,
@@ -582,11 +582,11 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
             username: userData.username || (userDataAny.display_name) || usernameFromUrl || `user_${index + 1}`,
             pfp_url: pfpUrl,
             cast_url: castUrl,
-            task_type: activityType,
+            task_type: taskType,
             completed_by: [],
             created_at: new Date().toISOString(),
           });
-          console.log(`✅ [${index + 1}/${baseLinks.length * activityTypes.length}] Loaded real user data after error: @${userData.username || (userDataAny.display_name)} (FID: ${userData.fid}, pfp: ${pfpUrl}) [${activityType}]`);
+          console.log(`✅ [${index + 1}/${baseLinks.length * taskTypes.length}] Loaded real user data after error: @${userData.username || (userDataAny.display_name)} (FID: ${userData.fid}, pfp: ${pfpUrl}) [${taskType}]`);
         } else {
           // Если не удалось получить данные пользователя, используем fallback
           linksToAdd.push({
@@ -595,17 +595,17 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
             username: usernameFromUrl || `user_${index + 1}`, // Используем username из URL если есть
             pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${castHash}`,
             cast_url: castUrl,
-            task_type: activityType,
+            task_type: taskType,
             completed_by: [],
             created_at: new Date().toISOString(),
           });
-          console.log(`⚠️ [${index + 1}/${baseLinks.length * activityTypes.length}] Using fallback data due to error for ${castUrl} (username: ${usernameFromUrl || `user_${index + 1}`}) [${activityType}]`);
+          console.log(`⚠️ [${index + 1}/${baseLinks.length * taskTypes.length}] Using fallback data due to error for ${castUrl} (username: ${usernameFromUrl || `user_${index + 1}`}) [${taskType}]`);
         }
       }
       
       // Задержка между запросами, чтобы не перегружать API и избежать rate limiting
       const delay = 500;
-      if (index < baseLinks.length * activityTypes.length - 1) {
+      if (index < baseLinks.length * taskTypes.length - 1) {
         await new Promise(resolve => setTimeout(resolve, delay));
       }
       }
@@ -626,7 +626,7 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
     }
 
     // Устанавливаем счетчик (всего должно быть 30 ссылок: 10 like + 10 recast + 10 comment)
-    await redis.set(KEYS.TOTAL_LINKS_COUNT, baseLinks.length * activityTypes.length);
+    await redis.set(KEYS.TOTAL_LINKS_COUNT, baseLinks.length * taskTypes.length);
 
     console.log(`✅ Successfully initialized ${linksToAdd.length} links`);
     return { success: true, count: linksToAdd.length };

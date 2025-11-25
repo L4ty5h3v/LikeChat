@@ -1,7 +1,7 @@
 // Простая база данных в памяти для быстрого тестирования
 // Позже заменим на Upstash Redis
 
-import type { LinkSubmission, UserProgress, ActivityType } from '@/types';
+import type { LinkSubmission, UserProgress, TaskType } from '@/types';
 
 // In-memory storage
 const linkSubmissions: LinkSubmission[] = [];
@@ -28,14 +28,14 @@ function generateTestData() {
 }
 
 // Получить последние 10 ссылок
-export async function getLastTenLinks(activityType?: ActivityType): Promise<LinkSubmission[]> {
+export async function getLastTenLinks(taskType?: TaskType): Promise<LinkSubmission[]> {
   generateTestData();
   
-  // Фильтруем по activityType, если указан
+  // Фильтруем по taskType, если указан
   let filteredLinks = linkSubmissions;
-  if (activityType) {
-    filteredLinks = linkSubmissions.filter(link => link.task_type === activityType);
-    console.log(`🔍 [MEMORY-DB] Filtering links by activity type: ${activityType}`);
+  if (taskType) {
+    filteredLinks = linkSubmissions.filter(link => link.task_type === taskType);
+    console.log(`🔍 [MEMORY-DB] Filtering links by task type: ${taskType}`);
     console.log(`📊 [MEMORY-DB] Total links: ${linkSubmissions.length}, Filtered: ${filteredLinks.length}`);
   }
   
@@ -139,7 +139,7 @@ export async function markTokenPurchased(userFid: number, txHash?: string): Prom
 }
 
 // Установить выбранную активность
-export async function setUserActivity(userFid: number, activity: ActivityType): Promise<void> {
+export async function setUserActivity(userFid: number, activity: TaskType): Promise<void> {
   await upsertUserProgress(userFid, {
     selected_task: activity,
   });
@@ -151,7 +151,7 @@ export async function submitLink(
   username: string,
   pfpUrl: string,
   castUrl: string,
-  activityType: ActivityType
+  taskType: TaskType
 ): Promise<LinkSubmission | null> {
   const newLink: LinkSubmission = {
     id: `link-${Date.now()}-${Math.random().toString(16).substr(2, 8)}`,
@@ -159,7 +159,7 @@ export async function submitLink(
     username,
     pfp_url: pfpUrl,
     cast_url: castUrl,
-    task_type: activityType,
+    task_type: taskType,
     completed_by: [],
     created_at: new Date().toISOString()
   };
