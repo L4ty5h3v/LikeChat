@@ -7,24 +7,45 @@ import type { LinkSubmission, UserProgress, TaskType } from '@/types';
 const linkSubmissions: LinkSubmission[] = [];
 const userProgress: Map<number, UserProgress> = new Map();
 
-// Генерируем тестовые данные (отключено для продакшена)
+// Генерируем тестовые данные для демонстрации
 function generateTestData() {
-  // Начинаем с пустой системы - первые пользователи добавят свои ссылки
-  // if (linkSubmissions.length === 0) {
-  //   // Добавляем 10 тестовых ссылок
-  //   for (let i = 1; i <= 10; i++) {
-  //     linkSubmissions.push({
-  //       id: `test-link-${i}`,
-  //       user_fid: 1000 + i,
-  //       username: `testuser${i}`,
-  //       pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=test${i}`,
-  //       cast_url: `https://warpcast.com/testuser${i}/0x${Math.random().toString(16).substr(2, 8)}`,
-  //       activity_type: ['like', 'recast', 'comment'][i % 3] as ActivityType,
-  //       completed_by: [],
-  //       created_at: new Date(Date.now() - i * 3600000).toISOString()
-  //     });
-  //   }
-  // }
+  // Если база пустая, добавляем тестовые ссылки для демонстрации
+  if (linkSubmissions.length === 0) {
+    console.log('📝 [MEMORY-DB] Generating test data...');
+    const baseLinks = [
+      'https://farcaster.xyz/gladness/0xaa4214bf',
+      'https://farcaster.xyz/svs-smm/0xf17842cb',
+      'https://farcaster.xyz/svs-smm/0x4fce02cd',
+      'https://farcaster.xyz/svs-smm/0xd976e9a8',
+      'https://farcaster.xyz/svs-smm/0x4349a0e0',
+      'https://farcaster.xyz/svs-smm/0x3bfa3788',
+      'https://farcaster.xyz/svs-smm/0xef39e991',
+      'https://farcaster.xyz/svs-smm/0xea43ddbf',
+      'https://farcaster.xyz/svs-smm/0x31157f15',
+      'https://farcaster.xyz/svs-smm/0xd4a09fb3',
+    ];
+    
+    const taskTypes: TaskType[] = ['like', 'recast', 'comment'];
+    
+    // Создаем по 10 ссылок для каждого типа задачи (всего 30)
+    taskTypes.forEach((taskType, typeIndex) => {
+      baseLinks.forEach((castUrl, linkIndex) => {
+        const index = typeIndex * baseLinks.length + linkIndex;
+        linkSubmissions.push({
+          id: `test-link-${taskType}-${linkIndex + 1}`,
+          user_fid: 1000 + index,
+          username: `user${index + 1}`,
+          pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=user${index + 1}`,
+          cast_url: castUrl,
+          task_type: taskType,
+          completed_by: [],
+          created_at: new Date(Date.now() - index * 60000).toISOString(),
+        });
+      });
+    });
+    
+    console.log(`✅ [MEMORY-DB] Generated ${linkSubmissions.length} test links`);
+  }
 }
 
 // Получить последние 10 ссылок
