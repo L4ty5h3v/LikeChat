@@ -56,7 +56,7 @@ export async function getLastTenLinks(activityType?: ActivityType): Promise<Link
     // Фильтруем по activityType, если указан
     let filteredLinks = parsedLinks;
     if (activityType) {
-      filteredLinks = parsedLinks.filter((link: LinkSubmission) => link.activity_type === activityType);
+      filteredLinks = parsedLinks.filter((link: LinkSubmission) => link.task_type === activityType);
       console.log(`🔍 Filtering links by activity type: ${activityType}`);
       console.log(`📊 Total links: ${parsedLinks.length}, Filtered: ${filteredLinks.length}`);
     }
@@ -71,7 +71,7 @@ export async function getLastTenLinks(activityType?: ActivityType): Promise<Link
         id: link.id,
         username: link.username,
         user_fid: link.user_fid,
-        activity_type: link.activity_type,
+        task_type: link.task_type,
         created_at: link.created_at,
         cast_url: link.cast_url?.substring(0, 50) + '...',
       }))
@@ -154,7 +154,7 @@ export async function submitLink(
       username,
       pfp_url: pfpUrl,
       cast_url: castUrl,
-      activity_type: activityType,
+      task_type: activityType,
       completed_by: [],
       created_at: new Date().toISOString(),
     };
@@ -170,7 +170,7 @@ export async function submitLink(
       username: newLink.username,
       user_fid: newLink.user_fid,
       cast_url: newLink.cast_url,
-      activity_type: newLink.activity_type,
+      task_type: newLink.task_type,
       created_at: newLink.created_at,
     });
 
@@ -229,7 +229,7 @@ export async function upsertUserProgress(
       user_fid: userFid,
       completed_links: updates.completed_links || existing?.completed_links || [],
       token_purchased: updates.token_purchased ?? existing?.token_purchased ?? false,
-      selected_activity: updates.selected_activity || existing?.selected_activity,
+      selected_task: updates.selected_task || existing?.selected_task,
       current_link_id: updates.current_link_id || existing?.current_link_id,
       // Fortune cookie streak fields
       current_streak: updates.current_streak !== undefined ? updates.current_streak : (existing?.current_streak ?? 0),
@@ -293,7 +293,7 @@ export async function setUserActivity(userFid: number, activity: ActivityType): 
   
   try {
     await upsertUserProgress(userFid, {
-      selected_activity: activity,
+      selected_task: activity,
     });
   } catch (error) {
     console.error('Error setting user activity in Upstash:', error);
@@ -378,7 +378,7 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
             username: authorData.username,
             pfp_url: authorData.pfp_url,
             cast_url: castUrl,
-            activity_type: activityType,
+            task_type: activityType,
             completed_by: [],
             created_at: new Date().toISOString(),
           });
@@ -489,7 +489,7 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
               username: userData.username || (userDataAny.display_name) || usernameFromUrl || `user_${index + 1}`,
               pfp_url: pfpUrl,
               cast_url: castUrl,
-              activity_type: activityType,
+              task_type: activityType,
               completed_by: [],
               created_at: new Date().toISOString(),
             });
@@ -502,7 +502,7 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
               username: usernameFromUrl || `user_${index + 1}`, // Используем username из URL если есть
               pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${castHash}`,
               cast_url: castUrl,
-              activity_type: activityType,
+              task_type: activityType,
               completed_by: [],
               created_at: new Date().toISOString(),
             });
@@ -582,7 +582,7 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
             username: userData.username || (userDataAny.display_name) || usernameFromUrl || `user_${index + 1}`,
             pfp_url: pfpUrl,
             cast_url: castUrl,
-            activity_type: activityType,
+            task_type: activityType,
             completed_by: [],
             created_at: new Date().toISOString(),
           });
@@ -595,7 +595,7 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
             username: usernameFromUrl || `user_${index + 1}`, // Используем username из URL если есть
             pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${castHash}`,
             cast_url: castUrl,
-            activity_type: activityType,
+            task_type: activityType,
             completed_by: [],
             created_at: new Date().toISOString(),
           });

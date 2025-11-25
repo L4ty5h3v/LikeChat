@@ -34,7 +34,7 @@ export async function getLastTenLinks(activityType?: ActivityType): Promise<Link
   // Фильтруем по activityType, если указан
   let filteredLinks = linkSubmissions;
   if (activityType) {
-    filteredLinks = linkSubmissions.filter(link => link.activity_type === activityType);
+    filteredLinks = linkSubmissions.filter(link => link.task_type === activityType);
     console.log(`🔍 [MEMORY-DB] Filtering links by activity type: ${activityType}`);
     console.log(`📊 [MEMORY-DB] Total links: ${linkSubmissions.length}, Filtered: ${filteredLinks.length}`);
   }
@@ -58,7 +58,7 @@ export async function getUserProgress(userFid: number): Promise<UserProgress | n
     user_fid: userFid,
     completed_links: [],
     token_purchased: false,
-    selected_activity: undefined,
+    selected_task: undefined,
     current_link_id: undefined,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
@@ -94,7 +94,7 @@ export async function upsertUserProgress(
       user_fid: userFid,
       completed_links: updates.completed_links || [],
       token_purchased: updates.token_purchased ?? false,
-      selected_activity: updates.selected_activity,
+      selected_task: updates.selected_task,
       current_link_id: updates.current_link_id,
       // Fortune cookie streak fields
       current_streak: updates.current_streak ?? 0,
@@ -141,7 +141,7 @@ export async function markTokenPurchased(userFid: number, txHash?: string): Prom
 // Установить выбранную активность
 export async function setUserActivity(userFid: number, activity: ActivityType): Promise<void> {
   await upsertUserProgress(userFid, {
-    selected_activity: activity,
+    selected_task: activity,
   });
 }
 
@@ -159,7 +159,7 @@ export async function submitLink(
     username,
     pfp_url: pfpUrl,
     cast_url: castUrl,
-    activity_type: activityType,
+    task_type: activityType,
     completed_by: [],
     created_at: new Date().toISOString()
   };
@@ -172,7 +172,7 @@ export async function submitLink(
     username: newLink.username,
     user_fid: newLink.user_fid,
     cast_url: newLink.cast_url,
-    activity_type: newLink.activity_type,
+    task_type: newLink.task_type,
     created_at: newLink.created_at,
     total_links: linkSubmissions.length,
   });
