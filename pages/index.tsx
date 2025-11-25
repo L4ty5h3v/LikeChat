@@ -678,8 +678,8 @@ export default function Home() {
                       transition-all duration-300 transform hover:scale-105 overflow-hidden
                       backdrop-blur-md border border-white/30 shadow-2xl
                       ${selectedActivity === 'like' 
-                        ? 'shadow-2xl shadow-red-500/50 ring-4 ring-red-500/30' 
-                        : 'hover:shadow-2xl hover:shadow-red-500/30'
+                        ? 'shadow-2xl shadow-purple-500/50 ring-4 ring-purple-500/30' 
+                        : 'hover:shadow-2xl hover:shadow-purple-500/30'
                       }
                     `}
                     style={{ background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(147, 51, 234, 0.5))' }}
@@ -711,8 +711,8 @@ export default function Home() {
                       transition-all duration-300 transform hover:scale-105 overflow-hidden
                       backdrop-blur-md border border-white/30 shadow-2xl
                       ${selectedActivity === 'recast' 
-                        ? 'shadow-2xl shadow-orange-500/50 ring-4 ring-orange-500/30' 
-                        : 'hover:shadow-2xl hover:shadow-orange-500/30'
+                        ? 'shadow-2xl shadow-purple-500/50 ring-4 ring-purple-500/30' 
+                        : 'hover:shadow-2xl hover:shadow-purple-500/30'
                       }
                     `}
                     style={{ background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(147, 51, 234, 0.5))' }}
@@ -744,8 +744,8 @@ export default function Home() {
                       transition-all duration-300 transform hover:scale-105 overflow-hidden
                       backdrop-blur-md border border-white/30 shadow-2xl
                       ${selectedActivity === 'comment' 
-                        ? 'shadow-2xl shadow-blue-500/50 ring-4 ring-blue-500/30' 
-                        : 'hover:shadow-2xl hover:shadow-blue-500/30'
+                        ? 'shadow-2xl shadow-purple-500/50 ring-4 ring-purple-500/30' 
+                        : 'hover:shadow-2xl hover:shadow-purple-500/30'
                       }
                     `}
                     style={{ background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(147, 51, 234, 0.5))' }}
