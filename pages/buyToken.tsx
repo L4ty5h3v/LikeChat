@@ -976,22 +976,23 @@ export default function BuyToken() {
                 <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
               )}
               <span className="relative z-10 drop-shadow-lg">
-              {isSwapping 
-                ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>WAITING FOR SWAP...</span>
-                  </div>
-                )
-                : loading 
+                {isSwapping 
                   ? (
                     <div className="flex items-center justify-center gap-2">
                       <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>PROCESSING...</span>
+                      <span>WAITING FOR SWAP...</span>
                     </div>
                   )
-                  : `❤️ BUY MRS. CRYPTO TOKEN${displayUsdPrice ? ` FOR ${displayUsdPrice}` : ' (FREE)'}`
-              }
+                  : loading 
+                    ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>PROCESSING...</span>
+                      </div>
+                    )
+                    : `❤️ BUY MRS. CRYPTO TOKEN${displayUsdPrice ? ` FOR ${displayUsdPrice}` : ' (FREE)'}`
+                }
+              </span>
             </button>
           ) : (
             <button
