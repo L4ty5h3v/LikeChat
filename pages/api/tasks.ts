@@ -29,7 +29,13 @@ export default async function handler(
       });
     }
 
-    const links = await getLastTenLinks(taskType);
+    let links = await getLastTenLinks(taskType);
+    
+    // Если фильтрация не дала результатов, попробуем получить все ссылки
+    if (links.length === 0 && taskType) {
+      console.log(`⚠️ API /tasks: No links found for taskType "${taskType}", trying to get all links`);
+      links = await getLastTenLinks(undefined);
+    }
     
     console.log(`📋 API /tasks: returning ${links.length} links${taskType ? ` (filtered by task: ${taskType})` : ' (all tasks)'}`);
     

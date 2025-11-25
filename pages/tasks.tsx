@@ -128,17 +128,28 @@ export default function Tasks() {
         progressFromAPI: progress,
       });
 
-      // ⚠️ ДОПОЛНИТЕЛЬНАЯ ФИЛЬТРАЦИЯ: Фильтруем по activityType на фронтенде (на случай если backend не отфильтровал)
+      // ⚠️ ДОПОЛНИТЕЛЬНАЯ ФИЛЬТРАЦИЯ: Фильтруем по taskType на фронтенде (на случай если backend не отфильтровал)
       let filteredLinks = links;
       if (currentActivity) {
         filteredLinks = links.filter((link: LinkSubmission) => {
-          const matches = link.task_type === currentActivity;
+          // Поддержка как task_type (новое), так и activity_type (старое) для обратной совместимости
+          const linkTaskType = link.task_type || (link as any).activity_type;
+          const matches = linkTaskType === currentActivity;
           if (!matches) {
-            console.warn(`⚠️ [TASKS] Link ${link.id} filtered out - task_type: ${link.task_type}, expected: ${currentActivity}`);
+            console.warn(`⚠️ [TASKS] Link ${link.id} filtered out - task_type: ${linkTaskType}, expected: ${currentActivity}`);
           }
           return matches;
         });
         console.log(`🔍 [TASKS] Frontend filtering: ${links.length} links → ${filteredLinks.length} links (activity: ${currentActivity})`);
+      } else {
+        // Если activity не выбрана, показываем все ссылки
+        console.log(`📋 [TASKS] No activity filter - showing all ${links.length} links`);
+      }
+      
+      // Если после фильтрации нет ссылок, но есть ссылки без фильтра - показываем их все
+      if (filteredLinks.length === 0 && links.length > 0 && currentActivity) {
+        console.warn(`⚠️ [TASKS] No links found for activity "${currentActivity}", showing all links instead`);
+        filteredLinks = links;
       }
 
       // Сбрасываем состояние opened при загрузке задач, чтобы можно было открывать ссылки снова
