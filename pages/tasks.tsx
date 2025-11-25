@@ -108,9 +108,9 @@ export default function Tasks() {
       // Получаем выбранную активность для фильтрации
       const currentActivity = activity || (typeof window !== 'undefined' ? localStorage.getItem('selected_activity') : null);
       
-      // Fetch links from API endpoint (server-side) с фильтрацией по activityType
-      const activityParam = currentActivity ? `&activityType=${currentActivity}` : '';
-      const linksResponse = await fetch(`/api/tasks?t=${Date.now()}${activityParam}`);
+      // Fetch links from API endpoint (server-side) с фильтрацией по taskType
+      const taskTypeParam = currentActivity ? `&taskType=${currentActivity}` : '';
+      const linksResponse = await fetch(`/api/tasks?t=${Date.now()}${taskTypeParam}`);
       const linksData = await linksResponse.json();
       const links = linksData.links || [];
       
