@@ -6,14 +6,14 @@ import Layout from '@/components/Layout';
 import Button from '@/components/Button';
 import { getUserProgress, getAllLinks } from '@/lib/db-config';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
-import type { ActivityType } from '@/types';
+import type { TaskType } from '@/types';
 
 /**
  * Публикует cast в Farcaster через MiniKit SDK только для соответствующего типа активности
  * Это предотвращает спам и делает публикацию более targeted
  */
 async function publishCastByActivityType(
-  activityType: ActivityType,
+  taskType: TaskType,
   castUrl: string
 ): Promise<{
   success: boolean;
@@ -70,10 +70,10 @@ async function publishCastByActivityType(
     const config = activityConfig[activityType];
     if (!config) {
       // Неизвестный тип активности - не публикуем
-      console.log(`ℹ️ [PUBLISH-CAST] Unknown activity type: ${activityType}, skipping cast publication`);
+      console.log(`ℹ️ [PUBLISH-CAST] Unknown task type: ${taskType}, skipping cast publication`);
       return {
         success: false,
-        error: `Unknown activity type: ${activityType}`,
+        error: `Unknown task type: ${taskType}`,
       };
     }
 
@@ -104,7 +104,7 @@ async function publishCastByActivityType(
       }
 
       await (sdk.actions as any).composeCast(composeParams);
-      console.log(`✅ [PUBLISH-CAST] Cast published via composeCast for ${activityType} activity in channel ${config.channel}`);
+      console.log(`✅ [PUBLISH-CAST] Cast published via composeCast for ${taskType} task in channel ${config.channel}`);
       return { success: true };
     } else if (sdk.actions.openUrl) {
       // Fallback: открываем Compose с предзаполненным текстом и каналом
@@ -120,7 +120,7 @@ async function publishCastByActivityType(
       // farcasterUrl += `&parentUrl=${encodeURIComponent(`https://farcaster.xyz/~/channel${config.channel}`)}`;
 
       await sdk.actions.openUrl({ url: farcasterUrl });
-      console.log(`✅ [PUBLISH-CAST] Cast compose opened via openUrl for ${activityType} activity in channel ${config.channel}`);
+      console.log(`✅ [PUBLISH-CAST] Cast compose opened via openUrl for ${taskType} task in channel ${config.channel}`);
       return { success: true };
     }
 
@@ -181,7 +181,7 @@ export default function Submit() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const { user, isLoading: authLoading, isInitialized } = useFarcasterAuth();
-  const [activity, setActivity] = useState<ActivityType | null>(null);
+  const [activity, setActivity] = useState<TaskType | null>(null);
   const [castUrl, setCastUrl] = useState('');
   const [error, setError] = useState('');
   const [canSubmit, setCanSubmit] = useState(true); // Публикация разрешена всегда
@@ -368,7 +368,7 @@ export default function Submit() {
         return;
       }
 
-    setActivity(savedActivity as ActivityType);
+    setActivity(savedActivity as TaskType);
     
       console.log('✅ [SUBMIT] User and activity loaded:', {
         fid: user.fid,

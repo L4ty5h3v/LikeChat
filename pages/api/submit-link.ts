@@ -17,12 +17,15 @@ export default async function handler(
   res.setHeader('Expires', '0');
 
   try {
-    let { userFid, username, pfpUrl, castUrl, activityType } = req.body;
+    let { userFid, username, pfpUrl, castUrl, activityType, taskType } = req.body;
+    
+    // Поддержка как activityType (старое), так и taskType (новое)
+    const finalTaskType = taskType || activityType;
 
-    if (!userFid || !username || !castUrl || !activityType) {
+    if (!userFid || !username || !castUrl || !finalTaskType) {
       return res.status(400).json({ 
         success: false,
-        error: 'Missing required fields: userFid, username, castUrl, activityType' 
+        error: 'Missing required fields: userFid, username, castUrl, taskType (or activityType)' 
       });
     }
 
@@ -32,7 +35,7 @@ export default async function handler(
       userFid,
       username,
       castUrl: castUrl.substring(0, 50) + '...',
-      activityType,
+      taskType: finalTaskType,
     });
 
     // ✅ Упрощенная логика: для farcaster.xyz ссылок проверка будет по username
@@ -57,7 +60,7 @@ export default async function handler(
       username,
       pfpUrl || '',
       castUrl,
-      activityType
+      finalTaskType
     );
 
     if (!result) {
