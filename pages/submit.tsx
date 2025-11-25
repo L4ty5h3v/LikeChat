@@ -1063,7 +1063,7 @@ export default function Submit() {
                 disabled={loading || !castUrl}
                 style={(loading || !castUrl)
                   ? { background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.3), rgba(147, 51, 234, 0.3))' }
-                  : { background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(251, 146, 60, 0.5), rgba(236, 72, 153, 0.5), rgba(147, 51, 234, 0.5))' }
+                  : { background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(147, 51, 234, 0.5))' }
                 }
                 className={`
                   w-full text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold rounded-2xl 

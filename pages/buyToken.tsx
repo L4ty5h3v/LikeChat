@@ -796,7 +796,7 @@ export default function BuyToken() {
                   disabled={isConnecting}
                   style={isConnecting 
                     ? { background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.3), rgba(147, 51, 234, 0.3))' }
-                    : { background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(251, 146, 60, 0.5), rgba(236, 72, 153, 0.5), rgba(147, 51, 234, 0.5))' }
+                    : { background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(147, 51, 234, 0.5))' }
                   }
                   className={`
                     w-full text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold rounded-2xl 
@@ -1006,7 +1006,7 @@ export default function BuyToken() {
                 backdrop-blur-md border border-white/30 shadow-2xl group
                 hover:shadow-2xl hover:shadow-purple-500/50
                 opacity-100 cursor-pointer hover:scale-105 active:scale-95"
-              style={{ background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(251, 146, 60, 0.5), rgba(236, 72, 153, 0.5), rgba(147, 51, 234, 0.5))' }}
+              style={{ background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(147, 51, 234, 0.5))' }}
             >
               {/* Переливающийся эффект */}
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>

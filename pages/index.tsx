@@ -682,7 +682,7 @@ export default function Home() {
                         : 'hover:shadow-2xl hover:shadow-red-500/30'
                       }
                     `}
-                    style={{ background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(251, 146, 60, 0.5), rgba(236, 72, 153, 0.5), rgba(147, 51, 234, 0.5))' }}
+                    style={{ background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(147, 51, 234, 0.5))' }}
                   >
                     {/* Переливающийся эффект */}
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
@@ -715,7 +715,7 @@ export default function Home() {
                         : 'hover:shadow-2xl hover:shadow-orange-500/30'
                       }
                     `}
-                    style={{ background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(251, 146, 60, 0.5), rgba(236, 72, 153, 0.5), rgba(147, 51, 234, 0.5))' }}
+                    style={{ background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(147, 51, 234, 0.5))' }}
                   >
                     {/* Переливающийся эффект */}
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
@@ -748,7 +748,7 @@ export default function Home() {
                         : 'hover:shadow-2xl hover:shadow-blue-500/30'
                       }
                     `}
-                    style={{ background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(251, 146, 60, 0.5), rgba(236, 72, 153, 0.5), rgba(147, 51, 234, 0.5))' }}
+                    style={{ background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(147, 51, 234, 0.5))' }}
                   >
                     {/* Переливающийся эффект */}
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
