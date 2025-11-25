@@ -110,19 +110,20 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
               <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
             )}
             <span className="relative z-10 text-white drop-shadow-lg">
-            {task.completed && task.verified 
-              ? 'Completed ✓' 
-              : task.error
-              ? task.opened
-                ? 'Opened ❌'
-                : 'Not Found'
-              : task.verifying && !task.opened && !task.completed
-              ? 'Not Opened ❌'
-              : task.verifying
-              ? 'In Progress...'
-              : task.opened 
-              ? 'Opened' 
-              : 'Open'}
+              {task.completed && task.verified 
+                ? 'Completed ✓' 
+                : task.error
+                ? task.opened
+                  ? 'Opened ❌'
+                  : 'Not Found'
+                : task.verifying && !task.opened && !task.completed
+                ? 'Not Opened ❌'
+                : task.verifying
+                ? 'In Progress...'
+                : task.opened 
+                ? 'Opened' 
+                : 'Open'}
+            </span>
           </button>
         </div>
       </div>
