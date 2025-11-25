@@ -205,8 +205,19 @@ export default function Tasks() {
       // Считаем количество завершенных заданий ТОЛЬКО для текущего типа активности
       const completedCountForActivity = taskList.filter(task => task.completed).length;
 
+      console.log(`✅ [TASKS] Setting tasks to state: ${taskList.length} tasks`);
       setTasks(taskList);
       setCompletedCount(completedCountForActivity);
+      
+      // Логируем для отладки
+      if (taskList.length === 0) {
+        console.warn(`⚠️ [TASKS] No tasks to display!`, {
+          linksFromAPI: links.length,
+          filteredLinks: filteredLinks.length,
+          currentActivity,
+          taskTypes: links.map((l: LinkSubmission) => l.task_type || (l as any).activity_type),
+        });
+      }
       
       console.log(`✅ Loaded ${taskList.length} tasks, ${completedCountForActivity} completed for activity ${currentActivity}`);
       console.log(`📋 Task links:`, taskList.map((t, i) => ({
