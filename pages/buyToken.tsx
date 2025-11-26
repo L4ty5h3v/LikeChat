@@ -700,21 +700,27 @@ export default function BuyToken() {
         });
         
         // КРИТИЧНО: OnchainKit useSwapToken может ожидать sellAmount в форматированном виде (0.10), а не в wei
-        // Пробуем оба варианта: сначала форматированную строку, если не сработает - wei
         // Согласно документации OnchainKit, sellAmount должен быть строкой в человекочитаемом формате
+        const formattedAmount = PURCHASE_AMOUNT_USDC.toString(); // "0.10"
         const swapCallParams = {
           sellToken: swapParams.sellToken,
           buyToken: swapParams.buyToken,
-          sellAmount: PURCHASE_AMOUNT_USDC.toString(), // Пробуем форматированную строку "0.10" вместо wei
+          sellAmount: formattedAmount, // Используем форматированную строку "0.10"
         };
         
         console.log(`🚀 [SWAP] About to call swapTokenAsync with FORMATTED amount:`, {
           ...swapCallParams,
           sellAmountFormatted: swapCallParams.sellAmount,
           sellAmountWei: swapParams.sellAmount,
+          originalAmount: PURCHASE_AMOUNT_USDC,
           note: 'Using formatted string (0.10) instead of wei (100000)',
           timestamp: new Date().toISOString(),
         });
+        
+        // ВАЖНО: Проверяем, что сумма не равна нулю перед вызовом
+        if (!formattedAmount || formattedAmount === '0' || formattedAmount === '0.0' || formattedAmount === '0.00') {
+          throw new Error(`Invalid formatted amount: ${formattedAmount}. Expected non-zero value like "0.10"`);
+        }
         
         result = await swapTokenAsync(swapCallParams);
         
@@ -723,8 +729,14 @@ export default function BuyToken() {
           resultType: typeof result,
           resultKeys: result ? Object.keys(result) : [],
           hasTxHash: result && (typeof result === 'string' || (typeof result === 'object' && 'transactionHash' in result)),
+          amountPassed: formattedAmount,
           timestamp: new Date().toISOString(),
         });
+        
+        // Дополнительная проверка: если результат undefined или null, это может означать, что форма открылась
+        if (!result) {
+          console.log(`ℹ️ [SWAP] swapTokenAsync returned undefined/null - swap form should be open in wallet with amount: ${formattedAmount}`);
+        }
         
         // Очищаем таймаут при успешном запуске
         if (timeoutId) {
