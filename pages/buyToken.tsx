@@ -215,29 +215,41 @@ export default function BuyToken() {
         swapHookKeys: Object.keys(swapHook || {}),
       });
       
-      // Пробуем установить fromAmount через хук, если доступно
+      // КРИТИЧНО: Порядок установки важен! Сначала from token, потом amount
+      // ШАГ 1: Устанавливаем from token (USDC) ПЕРВЫМ
+      const usdcTokenId = `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`;
+      if (typeof (swapHook as any)?.setTokenFrom === 'function') {
+        (swapHook as any).setTokenFrom(usdcTokenId);
+        console.log('✅ [SWAP-SETUP] STEP 1: setTokenFrom called with USDC');
+      } else if ((swapHook as any).tokenFrom !== undefined) {
+        (swapHook as any).tokenFrom = usdcTokenId;
+        console.log('✅ [SWAP-SETUP] STEP 1: tokenFrom property set');
+      }
+      
+      // ШАГ 2: Устанавливаем to token (MCT)
+      const mctTokenId = `eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`;
+      if (typeof (swapHook as any)?.setTokenTo === 'function') {
+        (swapHook as any).setTokenTo(mctTokenId);
+        console.log('✅ [SWAP-SETUP] STEP 2: setTokenTo called with MCT');
+      } else if ((swapHook as any).tokenTo !== undefined) {
+        (swapHook as any).tokenTo = mctTokenId;
+        console.log('✅ [SWAP-SETUP] STEP 2: tokenTo property set');
+      }
+      
+      // ШАГ 3: Теперь устанавливаем amount (0.10) ПОСЛЕ токенов
       if (typeof (swapHook as any)?.setFromAmount === 'function') {
         (swapHook as any).setFromAmount(manualAmount);
-        console.log('✅ [SWAP-SETUP] setFromAmount called with:', manualAmount);
+        console.log('✅ [SWAP-SETUP] STEP 3: setFromAmount called with:', manualAmount);
+      } else if ((swapHook as any).fromAmount !== undefined) {
+        (swapHook as any).fromAmount = manualAmount;
+        console.log('✅ [SWAP-SETUP] STEP 3: fromAmount property set');
       }
       
-      // Пробуем установить tokenFrom, если доступно
-      if (typeof (swapHook as any)?.setTokenFrom === 'function') {
-        (swapHook as any).setTokenFrom(`eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`);
-        console.log('✅ [SWAP-SETUP] setTokenFrom called with USDC');
-      }
-      
-      // Пробуем установить tokenTo, если доступно
-      if (typeof (swapHook as any)?.setTokenTo === 'function') {
-        (swapHook as any).setTokenTo(`eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`);
-        console.log('✅ [SWAP-SETUP] setTokenTo called with MCT');
-      }
-      
-      // Пробуем вызвать refreshQuote, если доступно
+      // ШАГ 4: Обновляем quote после установки всех параметров
       if (typeof (swapHook as any)?.refreshQuote === 'function') {
         setTimeout(() => {
           (swapHook as any).refreshQuote();
-          console.log('✅ [SWAP-SETUP] refreshQuote called');
+          console.log('✅ [SWAP-SETUP] STEP 4: refreshQuote called');
         }, 500);
       }
     }
