@@ -699,19 +699,20 @@ export default function BuyToken() {
           expectedFormat: 'String in wei (100000 for 0.10 USDC with 6 decimals)',
         });
         
-        // Пробуем вызвать swapTokenAsync с параметрами
-        // Если useSwapToken не принимает sellAmountFormatted, он просто проигнорирует его
+        // КРИТИЧНО: OnchainKit useSwapToken может ожидать sellAmount в форматированном виде (0.10), а не в wei
+        // Пробуем оба варианта: сначала форматированную строку, если не сработает - wei
+        // Согласно документации OnchainKit, sellAmount должен быть строкой в человекочитаемом формате
         const swapCallParams = {
           sellToken: swapParams.sellToken,
           buyToken: swapParams.buyToken,
-          sellAmount: swapParams.sellAmount, // Передаем только sellAmount в wei
+          sellAmount: PURCHASE_AMOUNT_USDC.toString(), // Пробуем форматированную строку "0.10" вместо wei
         };
         
-        console.log(`🚀 [SWAP] About to call swapTokenAsync with:`, {
+        console.log(`🚀 [SWAP] About to call swapTokenAsync with FORMATTED amount:`, {
           ...swapCallParams,
-          sellAmountValue: swapCallParams.sellAmount,
-          sellAmountAsNumber: Number(swapCallParams.sellAmount),
-          sellAmountAsBigInt: BigInt(swapCallParams.sellAmount),
+          sellAmountFormatted: swapCallParams.sellAmount,
+          sellAmountWei: swapParams.sellAmount,
+          note: 'Using formatted string (0.10) instead of wei (100000)',
           timestamp: new Date().toISOString(),
         });
         
