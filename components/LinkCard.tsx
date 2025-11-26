@@ -86,7 +86,13 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
             transition-all duration-300 transform hover:scale-105 overflow-hidden
             backdrop-blur-md border border-white/30 shadow-2xl
             hover:shadow-2xl hover:shadow-amber-500/50"
-          style={{ background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(147, 51, 234, 0.5))' }}
+          style={{ 
+            background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(147, 51, 234, 0.5))',
+            border: '1px solid rgba(255, 255, 255, 0.3)',
+            borderRadius: '12px',
+            backdropFilter: 'blur(10px)',
+            boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
+          }}
         >
           {/* Переливающийся эффект */}
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>

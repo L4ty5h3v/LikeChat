@@ -88,8 +88,8 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
             onClick={onOpen}
             disabled={task.completed && task.verified}
             className={`
-              relative px-4 py-1.5 rounded-2xl font-bold text-sm transition-all duration-300
-              transform hover:scale-105 overflow-hidden backdrop-blur-md border border-white/30 shadow-2xl group
+              relative px-4 py-1.5 rounded-xl font-bold text-sm transition-all duration-300
+              transform hover:scale-105 overflow-hidden group
               ${
                 task.completed && task.verified
                   ? 'cursor-not-allowed opacity-60'
@@ -100,22 +100,51 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
                   : task.verifying
                   ? 'cursor-wait hover:shadow-yellow-500/50'
                   : task.opened && !task.error
-                  ? 'hover:shadow-blue-500/50'
+                  ? 'hover:shadow-purple-500/50'
                   : 'hover:shadow-purple-500/50'
               }
             `}
             style={
               task.completed && task.verified
-                ? { background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.4), rgba(22, 163, 74, 0.4))' }
+                ? { 
+                    background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.4), rgba(22, 163, 74, 0.4))',
+                    border: '1px solid rgba(255, 255, 255, 0.3)',
+                    borderRadius: '12px',
+                    backdropFilter: 'blur(10px)',
+                    boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
+                  }
                 : task.error
-                ? { background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.4), rgba(220, 38, 38, 0.4))' }
+                ? { 
+                    background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.4), rgba(220, 38, 38, 0.4))',
+                    border: '1px solid rgba(255, 255, 255, 0.3)',
+                    borderRadius: '12px',
+                    backdropFilter: 'blur(10px)',
+                    boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
+                  }
                 : task.verifying && !task.opened && !task.completed
-                ? { background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.4), rgba(220, 38, 38, 0.4))' }
+                ? { 
+                    background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.4), rgba(220, 38, 38, 0.4))',
+                    border: '1px solid rgba(255, 255, 255, 0.3)',
+                    borderRadius: '12px',
+                    backdropFilter: 'blur(10px)',
+                    boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
+                  }
                 : task.verifying
-                ? { background: 'linear-gradient(135deg, rgba(251, 146, 60, 0.4), rgba(249, 115, 22, 0.4))' }
-                : task.opened && !task.error
-                ? { background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(147, 51, 234, 0.5))' }
-                : { background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(147, 51, 234, 0.5))' }
+                ? { 
+                    background: 'linear-gradient(135deg, rgba(251, 146, 60, 0.4), rgba(249, 115, 22, 0.4))',
+                    border: '1px solid rgba(255, 255, 255, 0.3)',
+                    borderRadius: '12px',
+                    backdropFilter: 'blur(10px)',
+                    boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
+                  }
+                : { 
+                    background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(147, 51, 234, 0.5))',
+                    border: '1px solid rgba(255, 255, 255, 0.3)',
+                    borderRadius: '12px',
+                    backdropFilter: 'blur(10px)',
+                    boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
+                    color: 'white',
+                  }
             }
           >
             {/* Переливающийся эффект */}

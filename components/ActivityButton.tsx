@@ -31,7 +31,11 @@ const ActivityButton: React.FC<ActivityButtonProps> = ({
         }
       `}
       style={{ 
-        background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(147, 51, 234, 0.5))'
+        background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(147, 51, 234, 0.5))',
+        border: '1px solid rgba(255, 255, 255, 0.3)',
+        borderRadius: '12px',
+        backdropFilter: 'blur(10px)',
+        boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
       }}
     >
       {/* Переливающийся эффект */}
