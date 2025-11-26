@@ -131,7 +131,12 @@ export default function BuyToken() {
       enabled: !!walletAddress,
     },
   });
-  const { swapTokenAsync } = useSwapToken();
+  // useSwapToken hook - может возвращать больше, чем только swapTokenAsync
+  const swapHook = useSwapToken();
+  const swapTokenAsync = swapHook?.swapTokenAsync || (swapHook as any);
+  
+  // Состояние для manual amount - устанавливаем 0.10 USDC
+  const [manualAmount, setManualAmount] = useState<string>(PURCHASE_AMOUNT_USDC.toString());
 
   const [loading, setLoading] = useState(false);
   const { user, isLoading: authLoading, isInitialized } = useFarcasterAuth(); // Используем контекст вместо localStorage
@@ -700,9 +705,15 @@ export default function BuyToken() {
         });
         
         // КРИТИЧНО: Тестируем выставление суммы 0.10 USDC
-        // Проверяем все возможные форматы для OnchainKit useSwapToken
-        const formattedAmount = PURCHASE_AMOUNT_USDC.toString(); // "0.10"
+        // Используем manualAmount, который установлен в useState
+        const formattedAmount = manualAmount || PURCHASE_AMOUNT_USDC.toString(); // "0.10"
         const weiAmount = usdcAmountStr; // "100000" для 0.10 USDC с 6 decimals
+        
+        // КРИТИЧНО: Перед вызовом swapTokenAsync, убеждаемся, что fromAmount установлен
+        if (swapHook && typeof (swapHook as any)?.setFromAmount === 'function') {
+          (swapHook as any).setFromAmount(formattedAmount);
+          console.log('🔧 [SWAP] setFromAmount called before swapTokenAsync:', formattedAmount);
+        }
         
         // ВАЖНО: Проверяем значения перед использованием
         console.log(`🧪 [TEST] Testing amount formats:`, {
