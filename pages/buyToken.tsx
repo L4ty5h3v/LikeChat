@@ -864,7 +864,15 @@ export default function BuyToken() {
             <div className="mb-6">
               <div className="text-center">
                 <button
-                  onClick={() => connect({ connector: farcasterMiniApp() })}
+                  onClick={async () => {
+                    try {
+                      await connect({ connector: farcasterMiniApp() });
+                    } catch (connectError: any) {
+                      console.error('❌ [CONNECT] Error connecting wallet:', connectError);
+                      setError(connectError?.message || 'Failed to connect wallet. Please try again.');
+                      setLastError(connectError?.message || 'Failed to connect wallet. Please try again.');
+                    }
+                  }}
                   disabled={isConnecting}
                   className={`btn-gold-glow w-full text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold text-white group ${
                     isConnecting ? 'disabled' : ''

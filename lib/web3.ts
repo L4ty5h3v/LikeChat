@@ -101,7 +101,7 @@ export async function switchToBaseNetwork(): Promise<boolean> {
     await ensureMiniAppProvider();
 
     if (typeof window === 'undefined' || !(window as any).ethereum) {
-      throw new Error('MetaMask не установлен');
+      throw new Error('MetaMask is not installed');
     }
 
     const ethereum = (window as any).ethereum;
@@ -124,14 +124,14 @@ export async function switchToBaseNetwork(): Promise<boolean> {
           return true;
         } catch (addError) {
           console.error('Error adding Base network:', addError);
-          throw new Error('Не удалось добавить сеть Base. Пожалуйста, добавьте её вручную в MetaMask.');
+          throw new Error('Failed to add Base network. Please add it manually in MetaMask.');
         }
       }
       throw switchError;
     }
   } catch (error: any) {
     console.error('Error switching to Base network:', error);
-    throw new Error(error.message || 'Ошибка при переключении на сеть Base');
+    throw new Error(error.message || 'Error switching to Base network');
   }
 }
 
@@ -160,10 +160,10 @@ export async function connectWallet(): Promise<string | null> {
 
     if (!provider) {
       if ((window as any).web3) {
-        throw new Error('Обнаружен старый Web3 провайдер. Пожалуйста, используйте Farcaster Wallet.');
+        throw new Error('Old Web3 provider detected. Please use Farcaster Wallet.');
       }
 
-      throw new Error('Farcaster Wallet недоступен. Откройте приложение через Farcaster Mini App.');
+      throw new Error('Farcaster Wallet is not available. Please open the app through Farcaster Mini App.');
     }
 
     console.log('🔄 Requesting Farcaster wallet connection...');
@@ -181,9 +181,9 @@ export async function connectWallet(): Promise<string | null> {
       if (requestError.code === 4001) {
         throw new Error('Пользователь отменил подключение кошелька');
       } else if (requestError.code === -32002) {
-        throw new Error('Запрос на подключение уже обрабатывается. Проверьте Farcaster Wallet.');
+        throw new Error('Connection request is already being processed. Please check Farcaster Wallet.');
       } else {
-        throw new Error(requestError.message || 'Ошибка при запросе подключения кошелька');
+        throw new Error(requestError.message || 'Error requesting wallet connection');
       }
     }
   } catch (error: any) {
