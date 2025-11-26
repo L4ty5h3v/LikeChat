@@ -647,7 +647,21 @@ export default function BuyToken() {
       setSwapWaitTime(0);
 
       // Проверяем, что swapTokenAsync готов перед вызовом
+      console.log('🔍 [SWAP] Checking swapTokenAsync before call:', {
+        swapTokenAsyncExists: !!swapTokenAsync,
+        swapTokenAsyncType: typeof swapTokenAsync,
+        swapTokenAsyncValue: swapTokenAsync,
+        isFunction: typeof swapTokenAsync === 'function',
+        swapHookType: typeof swapHook,
+        swapHookKeys: swapHook ? Object.keys(swapHook) : [],
+      });
+      
       if (!swapTokenAsync || typeof swapTokenAsync !== 'function') {
+        console.error('❌ [SWAP] swapTokenAsync is not ready:', {
+          swapTokenAsync,
+          type: typeof swapTokenAsync,
+          swapHook,
+        });
         throw new Error('Swap function not ready. Please try again.');
       }
 
