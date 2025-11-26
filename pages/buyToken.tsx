@@ -856,6 +856,9 @@ export default function BuyToken() {
       }
 
       let result;
+      // Объявляем swapCallParams вне try блока для использования в catch
+      let savedSwapCallParams: any = null;
+      
       try {
         // Проверяем, что FID доступен для логирования
         console.log(`🔍 [SWAP] User FID: ${user.fid}, Wallet context should be set by onchainkit`);
@@ -1066,6 +1069,9 @@ export default function BuyToken() {
           chainId: 8453, // Base chain ID
         };
         
+        // Сохраняем swapCallParams для использования в catch блоке
+        savedSwapCallParams = { ...swapCallParams };
+        
         // КРИТИЧНО: Проверяем текущие параметры из swapHookResult перед вызовом
         const currentTokenFrom = (swapHookResult as any)?.tokenFrom;
         const currentTokenTo = (swapHookResult as any)?.tokenTo;
@@ -1118,7 +1124,27 @@ export default function BuyToken() {
             paramsStringified: JSON.stringify(swapCallParams),
           });
           
-          result = await swapTokenAsync(swapCallParams);
+          // КРИТИЧНО: Добавляем обработку ошибок прямо при вызове
+          try {
+            result = await swapTokenAsync(swapCallParams);
+          } catch (callError: any) {
+            console.error('❌ [SWAP] Error during swapTokenAsync call:', {
+              error: callError,
+              message: callError?.message,
+              code: callError?.code,
+              name: callError?.name,
+              stack: callError?.stack,
+            });
+            
+            // Если это ошибка unsupported method, пробуем альтернативный подход
+            const errorMessage = callError?.message?.toLowerCase() || '';
+            if (errorMessage.includes('unsupported method') || errorMessage.includes('eth_call')) {
+              console.warn('⚠️ [SWAP] Unsupported method error - Farcaster wallet limitation');
+              throw new Error('Farcaster wallet does not support eth_call. Please try using a different wallet or contact support.');
+            }
+            
+            throw callError;
+          }
           
           console.log(`✅ [SWAP] swapTokenAsync returned successfully:`, {
             result,
@@ -1132,6 +1158,18 @@ export default function BuyToken() {
           // КРИТИЧНО: Если результат undefined/null, это может означать, что форма открылась
           if (result === undefined || result === null) {
             console.log(`ℹ️ [SWAP] swapTokenAsync returned ${result} - this usually means swap form opened in wallet`);
+            console.log(`ℹ️ [SWAP] Expected amount in form: ${formattedAmount} USDC`);
+            console.log(`ℹ️ [SWAP] If amount is not set, check swapHookResult state and parameters`);
+            
+            // КРИТИЧНО: Проверяем, что параметры действительно установлены
+            const checkParams = (swapHookResult as any);
+            console.log(`🔍 [SWAP] Final parameter check after swapTokenAsync call:`, {
+              tokenFrom: checkParams?.tokenFrom,
+              tokenTo: checkParams?.tokenTo,
+              fromAmount: checkParams?.fromAmount,
+              amount: checkParams?.amount,
+              sellAmount: swapCallParams.sellAmount,
+            });
           }
         } catch (formatError: any) {
           const errorMessage = formatError?.message?.toLowerCase() || '';
@@ -1210,6 +1248,7 @@ export default function BuyToken() {
         const errorMessage = swapError?.message?.toLowerCase() || '';
         const errorCode = swapError?.code;
         
+        // КРИТИЧНО: Детальное логирование всех ошибок для диагностики
         console.error('❌ [SWAP] Swap error caught:', {
           message: swapError?.message,
           code: swapError?.code,
@@ -1217,6 +1256,18 @@ export default function BuyToken() {
           stack: swapError?.stack,
           error: swapError,
           errorStringified: JSON.stringify(swapError, Object.getOwnPropertyNames(swapError)),
+          swapCallParams: savedSwapCallParams ? {
+            sellToken: savedSwapCallParams.sellToken,
+            buyToken: savedSwapCallParams.buyToken,
+            sellAmount: savedSwapCallParams.sellAmount,
+          } : 'not set',
+          swapHookResultState: swapHookResult ? {
+            tokenFrom: (swapHookResult as any)?.tokenFrom,
+            tokenTo: (swapHookResult as any)?.tokenTo,
+            fromAmount: (swapHookResult as any)?.fromAmount,
+          } : 'not available',
+          walletAddress,
+          isConnected,
         });
         
         // КРИТИЧНО: Детальная обработка различных типов ошибок
