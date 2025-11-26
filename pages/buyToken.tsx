@@ -136,7 +136,8 @@ export default function BuyToken() {
   const swapTokenAsync = swapHook?.swapTokenAsync || (swapHook as any);
   
   // Состояние для manual amount - устанавливаем 0.10 USDC
-  const [manualAmount, setManualAmount] = useState<string>(PURCHASE_AMOUNT_USDC.toString());
+  // КРИТИЧНО: Явно устанавливаем "0.10" для синхронизации с useSwapToken
+  const [manualAmount, setManualAmount] = useState<string>('0.10');
 
   const [loading, setLoading] = useState(false);
   const { user, isLoading: authLoading, isInitialized } = useFarcasterAuth(); // Используем контекст вместо localStorage
