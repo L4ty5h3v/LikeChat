@@ -587,6 +587,14 @@ export default function BuyToken() {
       // Запускаем таймер ожидания для UI
       setSwapWaitTime(0);
 
+      // Проверяем, что swapTokenAsync готов перед вызовом
+      if (!swapTokenAsync) {
+        throw new Error('Swap function not ready. Please try again.');
+      }
+
+      // Небольшая задержка для инициализации swap функции (особенно при первом вызове)
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       let result;
       try {
         // Проверяем, что FID доступен для логирования
@@ -599,11 +607,15 @@ export default function BuyToken() {
           slippageTolerance: 1, // 1% для MCT/WETH пары (больше волатильности)
         });
 
-        result = await swapTokenAsync({
+        // Убеждаемся, что все параметры готовы перед вызовом
+        const swapParams = {
           sellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`, // USDC на Base
           buyToken: `eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`, // MCT Token на Base
           sellAmount: usdcAmountStr, // 0.10 USDC = 100000 wei (parseUnits(0.10, 6))
-        });
+        };
+
+        console.log(`🔍 [SWAP] Calling swapTokenAsync with params:`, swapParams);
+        result = await swapTokenAsync(swapParams);
         
         // Очищаем таймаут при успешном запуске
         if (timeoutId) {
