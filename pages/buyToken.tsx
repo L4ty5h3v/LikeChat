@@ -633,10 +633,19 @@ export default function BuyToken() {
 
         // Убеждаемся, что все параметры готовы перед вызовом
         // Формируем параметры с явной проверкой типов
-        const swapParams = {
+        // КРИТИЧНО: useSwapToken может ожидать sellAmount в разных форматах
+        // Проверяем оба варианта: строку в wei и форматированную строку
+        const swapParams: {
+          sellToken: string;
+          buyToken: string;
+          sellAmount: string;
+          sellAmountFormatted?: string;
+        } = {
           sellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`, // USDC на Base
           buyToken: `eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`, // MCT Token на Base
           sellAmount: usdcAmountStr, // 0.10 USDC = 100000 wei (parseUnits(0.10, 6))
+          // Также передаем форматированную сумму на случай, если useSwapToken ожидает её
+          sellAmountFormatted: PURCHASE_AMOUNT_USDC.toString(), // "0.10"
         };
 
         // Дополнительная проверка перед вызовом
@@ -644,8 +653,16 @@ export default function BuyToken() {
           sellToken: swapParams.sellToken,
           buyToken: swapParams.buyToken,
           sellAmount: swapParams.sellAmount,
+          sellAmountFormatted: swapParams.sellAmountFormatted,
           sellAmountType: typeof swapParams.sellAmount,
           sellAmountLength: swapParams.sellAmount?.length,
+          usdcDecimals: 6,
+          mctDecimals: 18,
+          chainId: 8453,
+          usdcAddress: USDC_CONTRACT_ADDRESS,
+          mctAddress: MCT_CONTRACT_ADDRESS,
+          parsedAmount: parseUnits(PURCHASE_AMOUNT_USDC.toString(), 6).toString(),
+          formattedAmount: formatUnits(parseUnits(PURCHASE_AMOUNT_USDC.toString(), 6), 6),
         });
 
         // Убеждаемся, что sellAmount не пустой и не равен нулю
