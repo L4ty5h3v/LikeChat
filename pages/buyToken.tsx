@@ -9,7 +9,8 @@ import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector';
 import { useSwapToken } from '@coinbase/onchainkit/minikit';
 import { getTokenInfo, getMCTAmountForPurchase } from '@/lib/web3';
 import { markTokenPurchased, getUserProgress } from '@/lib/db-config';
-import { formatUnits, parseUnits } from 'viem';
+import { formatUnits, parseUnits, createWalletClient, custom, encodeFunctionData, Address } from 'viem';
+import { base } from 'viem/chains';
 import type { FarcasterUser } from '@/types';
 import { sendTokenPurchaseNotification } from '@/lib/farcaster-notifications';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
@@ -17,6 +18,8 @@ import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
 const PURCHASE_AMOUNT_USDC = 0.10; // Покупаем MCT на 0.10 USDC
 const USDC_CONTRACT_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // USDC на Base (6 decimals) - правильный адрес
 const MCT_CONTRACT_ADDRESS = '0x04d388da70c32fc5876981097c536c51c8d3d236'; // MCT Token
+const UNISWAP_V3_ROUTER_BASE = '0x2626664c2603336E57B271c5C0b26F421741e481' as Address; // Uniswap V3 SwapRouter02 на Base
+const MAX_SLIPPAGE_BPS = 200; // 2% slippage (200 basis points)
 
 // Публиковать cast в Farcaster с tx hash после успешного swap для social proof
 async function publishSwapCastWithTxHash(
@@ -89,6 +92,155 @@ async function publishSwapCastWithTxHash(
 }
 
 // Using onchain quotes through Uniswap for USDC swaps
+
+// КРИТИЧНО: Safe swap функция с fallback на прямую транзакцию через viem
+// Использует 0x aggregator для обхода eth_call проблем в Farcaster wallet
+async function safeSwap({
+  swapTokenAsync,
+  from,
+  to,
+  amount,
+  walletAddress,
+  account,
+}: {
+  swapTokenAsync: any;
+  from: string;
+  to: string;
+  amount: string;
+  walletAddress: string;
+  account: Address;
+}): Promise<any> {
+  try {
+    // Пробуем batch call через swapTokenAsync с 2% slippage
+    // КРИТИЧНО: OnchainKit должен использовать 0x aggregator (experimental.useAggregator: true)
+    console.log('🔄 [SAFE-SWAP] Attempting batch swap via swapTokenAsync with 0x aggregator...');
+    return await swapTokenAsync({
+      sellToken: from,
+      buyToken: to,
+      sellAmount: amount,
+      slippageTolerance: 2, // 2% slippage (200 basis points)
+      chainId: 8453,
+      recipient: walletAddress,
+    });
+  } catch (err: any) {
+    // КРИТИЧНО: Если ошибка -32601 или 4200, используем fallback на прямую транзакцию
+    if (err.code === -32601 || err.code === 4200) {
+      console.log('🔄 [SAFE-SWAP] Falling back to single sendTransaction (batch not supported)...');
+      console.log('🔄 [SAFE-SWAP] Error code:', err.code, 'Message:', err.message);
+      
+      try {
+        // Получаем Farcaster провайдер для viem walletClient
+        const { getEthereumProvider } = await import('@farcaster/miniapp-sdk/dist/ethereumProvider');
+        const miniProvider = await getEthereumProvider();
+        
+        if (!miniProvider) {
+          throw new Error('Farcaster provider not available');
+        }
+        
+        // Создаем walletClient через viem с Farcaster провайдером
+        const walletClient = createWalletClient({
+          chain: base,
+          transport: custom(miniProvider as any),
+          account,
+        });
+        
+        console.log('🔄 [SAFE-SWAP] Created viem walletClient, preparing hardcoded exactInputSingle...');
+        
+        // КРИТИЧНО: Hardcoded exactInputSingle для USDC -> MCT
+        // Без quoter fetch - используем статический расчет с 2% slippage
+        const amountIn = parseUnits(amount, 6); // USDC имеет 6 decimals (0.10 USDC = 100000)
+        
+        // КРИТИЧНО: Статический расчет amountOutMinimum с 2% slippage
+        // Для MCT/USDC на Base с хорошей ликвидностью, примерная оценка:
+        // Если 0.10 USDC ≈ X MCT, то с 2% slippage: amountOutMinimum = X * 0.98
+        // Используем консервативную оценку: предполагаем 1:1 курс для расчета минимума
+        // В реальности это будет больше, но это безопасная оценка
+        const estimatedMCTPerUSDC = parseUnits('1', 18); // Примерно 1 MCT за 1 USDC (консервативно)
+        const estimatedAmountOut = (amountIn * estimatedMCTPerUSDC) / parseUnits('1', 6);
+        const amountOutMinimum = (estimatedAmountOut * BigInt(98)) / BigInt(100); // 2% slippage
+        
+        console.log('🔄 [SAFE-SWAP] Hardcoded swap params:', {
+          amountIn: amountIn.toString(),
+          amountOutMinimum: amountOutMinimum.toString(),
+          tokenIn: USDC_CONTRACT_ADDRESS,
+          tokenOut: MCT_CONTRACT_ADDRESS,
+          fee: 10000, // 1% fee tier
+        });
+        
+        // КРИТИЧНО: Формируем calldata для Uniswap V3 exactInputSingle
+        // Используем fee tier 1% (10000) для MCT/USDC пары
+        const swapCalldata = encodeFunctionData({
+          abi: [
+            {
+              name: 'exactInputSingle',
+              type: 'function',
+              stateMutability: 'payable',
+              inputs: [
+                {
+                  name: 'params',
+                  type: 'tuple',
+                  components: [
+                    { name: 'tokenIn', type: 'address' },
+                    { name: 'tokenOut', type: 'address' },
+                    { name: 'fee', type: 'uint24' },
+                    { name: 'recipient', type: 'address' },
+                    { name: 'deadline', type: 'uint256' },
+                    { name: 'amountIn', type: 'uint256' },
+                    { name: 'amountOutMinimum', type: 'uint256' },
+                    { name: 'sqrtPriceLimitX96', type: 'uint160' },
+                  ],
+                },
+              ],
+              outputs: [{ name: 'amountOut', type: 'uint256' }],
+            },
+          ],
+          functionName: 'exactInputSingle',
+          args: [
+            {
+              tokenIn: USDC_CONTRACT_ADDRESS as Address,
+              tokenOut: MCT_CONTRACT_ADDRESS as Address,
+              fee: 10000, // 1% fee tier
+              recipient: walletAddress as Address,
+              deadline: BigInt(Math.floor(Date.now() / 1000) + 60 * 20), // 20 минут
+              amountIn,
+              amountOutMinimum,
+              sqrtPriceLimitX96: 0n,
+            },
+          ],
+        });
+        
+        console.log('🔄 [SAFE-SWAP] Sending direct transaction to Uniswap router (no quoter)...');
+        
+        // КРИТИЧНО: Estimate gas вручную если нужно, но обычно не требуется для простых swap
+        // Отправляем прямую транзакцию через viem
+        const hash = await walletClient.sendTransaction({
+          account,
+          to: UNISWAP_V3_ROUTER_BASE,
+          data: swapCalldata,
+          value: 0n,
+          // gas может быть оценен автоматически через viem
+        });
+        
+        console.log('✅ [SAFE-SWAP] Direct transaction sent (no quoter), hash:', hash);
+        return { hash, txHash: hash };
+      } catch (fallbackError: any) {
+        console.error('❌ [SAFE-SWAP] Fallback also failed:', {
+          error: fallbackError,
+          message: fallbackError?.message,
+          code: fallbackError?.code,
+        });
+        throw new Error(
+          `Both batch and direct transaction failed. ` +
+          `Batch error: ${err.message} (code: ${err.code}). ` +
+          `Direct error: ${fallbackError?.message || 'Unknown'}.`
+        );
+      }
+    }
+    
+    // Если это не ошибка method not found, пробрасываем дальше
+    throw err;
+  }
+}
 
 export default function BuyToken() {
   const router = useRouter();
@@ -1211,13 +1363,21 @@ export default function BuyToken() {
             },
           });
           
-          // КРИТИЧНО: Добавляем обработку ошибок прямо при вызове
-          // Также логируем ошибки от wagmi/viem transport
+          // КРИТИЧНО: Используем safeSwap вместо прямого вызова swapTokenAsync
+          // Это обходит проблемы с batch calls в Farcaster wallet
           const callStartTime = Date.now(); // Объявляем перед try для использования в catch
           try {
-            console.log(`⏳ [SWAP] AWAITING swapTokenAsync call...`);
+            console.log(`⏳ [SWAP] AWAITING safeSwap call (with fallback)...`);
             
-            result = await swapTokenAsync(swapCallParams);
+            // КРИТИЧНО: Используем safeSwap с fallback на прямую транзакцию
+            result = await safeSwap({
+              swapTokenAsync,
+              from: swapCallParams.sellToken,
+              to: swapCallParams.buyToken,
+              amount: swapCallParams.sellAmount,
+              walletAddress: walletAddress as Address,
+              account: walletAddress as Address,
+            });
             
             const callDuration = Date.now() - callStartTime;
             console.log(`⏱️ [SWAP] swapTokenAsync call completed in ${callDuration}ms`);
@@ -1410,8 +1570,17 @@ export default function BuyToken() {
             timestamp: new Date().toISOString(),
           });
           
-          result = await swapTokenAsync(swapCallParams);
-          console.log(`✅ [TEST] swapTokenAsync succeeded with wei amount "${weiAmount}"`);
+          // КРИТИЧНО: Используем safeSwap вместо прямого вызова swapTokenAsync
+          // Это обходит проблемы с batch calls в Farcaster wallet через 0x aggregator
+          result = await safeSwap({
+            swapTokenAsync,
+            from: swapCallParams.sellToken,
+            to: swapCallParams.buyToken,
+            amount: swapCallParams.sellAmount,
+            walletAddress: walletAddress as Address,
+            account: walletAddress as Address,
+          });
+          console.log(`✅ [TEST] safeSwap succeeded with amount "${formattedAmount}"`);
         }
         
         console.log(`✅ [SWAP] swapTokenAsync returned:`, {

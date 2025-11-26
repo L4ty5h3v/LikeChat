@@ -98,6 +98,9 @@ export default function App({ Component, pageProps }: AppProps) {
         miniKit={{
           enabled: true,
         }}
+        experimental={{
+          useAggregator: true, // КРИТИЧНО: Используем 0x aggregator вместо Uniswap quoter для обхода eth_call проблем
+        }}
       >
         <FarcasterAuthProvider>
           <AuthSync />
