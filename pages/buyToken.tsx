@@ -701,10 +701,28 @@ export default function BuyToken() {
         
         // Пробуем вызвать swapTokenAsync с параметрами
         // Если useSwapToken не принимает sellAmountFormatted, он просто проигнорирует его
-        result = await swapTokenAsync({
+        const swapCallParams = {
           sellToken: swapParams.sellToken,
           buyToken: swapParams.buyToken,
           sellAmount: swapParams.sellAmount, // Передаем только sellAmount в wei
+        };
+        
+        console.log(`🚀 [SWAP] About to call swapTokenAsync with:`, {
+          ...swapCallParams,
+          sellAmountValue: swapCallParams.sellAmount,
+          sellAmountAsNumber: Number(swapCallParams.sellAmount),
+          sellAmountAsBigInt: BigInt(swapCallParams.sellAmount),
+          timestamp: new Date().toISOString(),
+        });
+        
+        result = await swapTokenAsync(swapCallParams);
+        
+        console.log(`✅ [SWAP] swapTokenAsync returned:`, {
+          result,
+          resultType: typeof result,
+          resultKeys: result ? Object.keys(result) : [],
+          hasTxHash: result && (typeof result === 'string' || (typeof result === 'object' && 'transactionHash' in result)),
+          timestamp: new Date().toISOString(),
         });
         
         // Очищаем таймаут при успешном запуске
