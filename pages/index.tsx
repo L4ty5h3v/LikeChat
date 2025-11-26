@@ -673,28 +673,16 @@ export default function Home() {
                   {/* Кнопка Лайк */}
                   <button
                     onClick={() => handleActivitySelect('like')}
-                    className={`
-                      relative group px-4 sm:px-8 py-4 sm:py-6 rounded-xl text-white font-bold text-base sm:text-lg
-                      transition-all duration-300 transform hover:scale-105 overflow-hidden
-                      ${selectedActivity === 'like' 
+                    className={`btn-gold-glow px-4 sm:px-8 py-4 sm:py-6 text-white font-bold text-base sm:text-lg group ${
+                      selectedActivity === 'like' 
                         ? 'shadow-2xl shadow-purple-500/50 ring-4 ring-purple-500/30' 
-                        : 'hover:shadow-2xl hover:shadow-purple-500/30'
-                      }
-                    `}
-                    style={{ 
-                      background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(147, 51, 234, 0.5))',
-                      border: '1px solid rgba(255, 255, 255, 0.3)',
-                      borderRadius: '12px',
-                      backdropFilter: 'blur(10px)',
-                      boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
-                    }}
+                        : ''
+                    }`}
                   >
                     {/* Переливающийся эффект */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-                    {/* Внутреннее свечение */}
-                    <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 z-10"></div>
                     
-                    <div className="flex items-center justify-between relative z-10">
+                    <div className="flex items-center justify-between relative z-20">
                       <div className="flex items-center gap-2 sm:gap-3">
                         <span className="text-2xl sm:text-3xl drop-shadow-lg">❤️</span>
                         <span className="drop-shadow-lg">LIKE NOW</span>
@@ -711,28 +699,16 @@ export default function Home() {
                   {/* Кнопка Рекаст */}
                   <button
                     onClick={() => handleActivitySelect('recast')}
-                    className={`
-                      relative group px-4 sm:px-8 py-4 sm:py-6 rounded-xl text-white font-bold text-base sm:text-lg
-                      transition-all duration-300 transform hover:scale-105 overflow-hidden
-                      ${selectedActivity === 'recast' 
+                    className={`btn-gold-glow px-4 sm:px-8 py-4 sm:py-6 text-white font-bold text-base sm:text-lg group ${
+                      selectedActivity === 'recast' 
                         ? 'shadow-2xl shadow-purple-500/50 ring-4 ring-purple-500/30' 
-                        : 'hover:shadow-2xl hover:shadow-purple-500/30'
-                      }
-                    `}
-                    style={{ 
-                      background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(147, 51, 234, 0.5))',
-                      border: '1px solid rgba(255, 255, 255, 0.3)',
-                      borderRadius: '12px',
-                      backdropFilter: 'blur(10px)',
-                      boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
-                    }}
+                        : ''
+                    }`}
                   >
                     {/* Переливающийся эффект */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-                    {/* Внутреннее свечение */}
-                    <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 z-10"></div>
                     
-                    <div className="flex items-center justify-between relative z-10">
+                    <div className="flex items-center justify-between relative z-20">
                       <div className="flex items-center gap-2 sm:gap-3">
                         <span className="text-2xl sm:text-3xl drop-shadow-lg">🔄</span>
                         <span className="drop-shadow-lg">RECAST NOW</span>
@@ -749,28 +725,16 @@ export default function Home() {
                   {/* Кнопка Комментарий */}
                   <button
                     onClick={() => handleActivitySelect('comment')}
-                    className={`
-                      relative group px-4 sm:px-8 py-4 sm:py-6 rounded-xl text-white font-bold text-base sm:text-lg
-                      transition-all duration-300 transform hover:scale-105 overflow-hidden
-                      ${selectedActivity === 'comment' 
+                    className={`btn-gold-glow px-4 sm:px-8 py-4 sm:py-6 text-white font-bold text-base sm:text-lg group ${
+                      selectedActivity === 'comment' 
                         ? 'shadow-2xl shadow-purple-500/50 ring-4 ring-purple-500/30' 
-                        : 'hover:shadow-2xl hover:shadow-purple-500/30'
-                      }
-                    `}
-                    style={{ 
-                      background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(147, 51, 234, 0.5))',
-                      border: '1px solid rgba(255, 255, 255, 0.3)',
-                      borderRadius: '12px',
-                      backdropFilter: 'blur(10px)',
-                      boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
-                    }}
+                        : ''
+                    }`}
                   >
                     {/* Переливающийся эффект */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-                    {/* Внутреннее свечение */}
-                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 z-10"></div>
                     
-                    <div className="flex items-center justify-between relative z-10">
+                    <div className="flex items-center justify-between relative z-20">
                       <div className="flex items-center gap-2 sm:gap-3">
                         <span className="text-2xl sm:text-3xl drop-shadow-lg">💬</span>
                         <span className="drop-shadow-lg">COMMENT NOW</span>

@@ -1001,15 +1001,7 @@ export default function Tasks() {
                 {!activity && (
                   <button
                     onClick={() => router.push('/')}
-                    className="px-6 py-3 rounded-xl font-bold text-white
-                      transition-all duration-300 transform hover:scale-105"
-                    style={{ 
-                      background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(147, 51, 234, 0.5))',
-                      border: '1px solid rgba(255, 255, 255, 0.3)',
-                      borderRadius: '12px',
-                      backdropFilter: 'blur(10px)',
-                      boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
-                    }}
+                    className="btn-gold-glow px-6 py-3 font-bold text-white"
                   >
                     Go to Home Page
                   </button>
@@ -1039,47 +1031,13 @@ export default function Tasks() {
             <button
               onClick={handleVerifyAll}
               disabled={verifying}
-              className={`
-                relative group w-full px-12 py-8 rounded-xl text-white font-black text-2xl md:text-3xl
-                transition-all duration-300 transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0
-                overflow-hidden
-              `}
-              style={verifying 
-                ? { 
-                    background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.4), rgba(147, 51, 234, 0.4))',
-                    border: '1px solid rgba(255, 255, 255, 0.3)',
-                    borderRadius: '12px',
-                    backdropFilter: 'blur(10px)',
-                    boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
-                  }
-                : { 
-                    background: 'linear-gradient(135deg, #ffd700, #b8860b)',
-                    border: '1px solid rgba(255, 215, 0, 0.3)',
-                    borderRadius: '12px',
-                    backdropFilter: 'blur(10px)',
-                    boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
-                  }
-              }
-              onMouseEnter={(e) => {
-                if (!verifying) {
-                  e.currentTarget.style.boxShadow = '0 8px 40px rgba(255, 215, 0, 0.2)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!verifying) {
-                  e.currentTarget.style.boxShadow = '0 4px 30px rgba(0, 0, 0, 0.1)';
-                }
-              }}
+              className={`btn-gold-glow w-full px-12 py-8 text-white font-black text-2xl md:text-3xl ${verifying ? 'disabled' : ''}`}
             >
               {/* Переливающийся эффект */}
               {!verifying && (
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 z-10"></div>
               )}
-              {/* Внутреннее свечение */}
-              {!verifying && (
-                <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
-              )}
-              <div className="flex items-center justify-center gap-4 relative z-10">
+              <div className="flex items-center justify-center gap-4 relative z-20">
                 {verifying ? (
                   <>
                     <div className="w-8 h-8 border-3 border-white border-t-transparent rounded-full animate-spin" />

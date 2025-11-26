@@ -87,64 +87,35 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
           <button
             onClick={onOpen}
             disabled={task.completed && task.verified}
-            className={`
-              relative px-4 py-1.5 rounded-xl font-bold text-sm transition-all duration-300
-              transform hover:scale-105 overflow-hidden group
-              ${
-                task.completed && task.verified
-                  ? 'cursor-not-allowed opacity-60'
-                  : task.error
-                  ? 'hover:shadow-red-500/50 animate-pulse'
-                  : task.verifying && !task.opened && !task.completed
-                  ? 'hover:shadow-red-500/50 animate-pulse'
-                  : task.verifying
-                  ? 'cursor-wait hover:shadow-yellow-500/50'
-                  : task.opened && !task.error
-                  ? 'hover:shadow-purple-500/50'
-                  : 'hover:shadow-purple-500/50'
-              }
-            `}
+            className={`btn-gold-glow px-4 py-1.5 font-bold text-sm group ${
+              task.completed && task.verified ? 'disabled cursor-not-allowed' : ''
+            } ${task.verifying ? 'cursor-wait' : ''} ${task.error ? 'animate-pulse' : ''}`}
             style={
               task.completed && task.verified
                 ? { 
                     background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.4), rgba(22, 163, 74, 0.4))',
                     border: '1px solid rgba(255, 255, 255, 0.3)',
-                    borderRadius: '12px',
-                    backdropFilter: 'blur(10px)',
                     boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
                   }
                 : task.error
                 ? { 
                     background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.4), rgba(220, 38, 38, 0.4))',
                     border: '1px solid rgba(255, 255, 255, 0.3)',
-                    borderRadius: '12px',
-                    backdropFilter: 'blur(10px)',
                     boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
                   }
                 : task.verifying && !task.opened && !task.completed
                 ? { 
                     background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.4), rgba(220, 38, 38, 0.4))',
                     border: '1px solid rgba(255, 255, 255, 0.3)',
-                    borderRadius: '12px',
-                    backdropFilter: 'blur(10px)',
                     boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
                   }
                 : task.verifying
                 ? { 
                     background: 'linear-gradient(135deg, rgba(251, 146, 60, 0.4), rgba(249, 115, 22, 0.4))',
                     border: '1px solid rgba(255, 255, 255, 0.3)',
-                    borderRadius: '12px',
-                    backdropFilter: 'blur(10px)',
                     boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
                   }
-                : { 
-                    background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(147, 51, 234, 0.5))',
-                    border: '1px solid rgba(255, 255, 255, 0.3)',
-                    borderRadius: '12px',
-                    backdropFilter: 'blur(10px)',
-                    boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
-                    color: 'white',
-                  }
+                : {}
             }
           >
             {/* Переливающийся эффект */}

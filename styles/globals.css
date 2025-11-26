@@ -94,3 +94,51 @@ a {
   background: #b01741;
 }
 
+/* Стили для кнопок с золотым свечением */
+.btn-gold-glow {
+  background: linear-gradient(135deg, #ff0000, #800080);
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  border-radius: 12px;
+  backdrop-filter: blur(15px);
+  background-clip: padding-box;
+  box-shadow: 0 4px 30px rgba(255, 215, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  color: white;
+  font-weight: bold;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-gold-glow::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(circle at center, rgba(255, 215, 0, 0.2) 0%, transparent 70%);
+  border-radius: 12px;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.btn-gold-glow:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 40px rgba(255, 0, 0, 0.3), 0 0 20px rgba(255, 215, 0, 0.5);
+  background: linear-gradient(135deg, #ff4500, #9932cc);
+}
+
+.btn-gold-glow:disabled,
+.btn-gold-glow.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-gold-glow:disabled:hover,
+.btn-gold-glow.disabled:hover {
+  transform: none;
+  box-shadow: 0 4px 30px rgba(255, 215, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  background: linear-gradient(135deg, #ff0000, #800080);
+}
+

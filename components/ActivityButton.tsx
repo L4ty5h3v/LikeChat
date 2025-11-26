@@ -20,30 +20,18 @@ const ActivityButton: React.FC<ActivityButtonProps> = ({
   return (
     <button
       onClick={onClick}
-      className={`
-        relative px-4 sm:px-8 py-4 sm:py-6 rounded-2xl text-sm sm:text-lg font-bold
-        transition-all duration-300 transform hover:scale-105 overflow-hidden
-        backdrop-blur-md border border-white/30 shadow-2xl group
-        ${
-          selected
-            ? 'text-white shadow-2xl shadow-amber-500/50 ring-4 ring-amber-500/50'
-            : 'text-white hover:shadow-2xl hover:shadow-purple-500/30'
-        }
-      `}
-      style={{ 
-        background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.5), rgba(147, 51, 234, 0.5))',
-        border: '1px solid rgba(255, 255, 255, 0.3)',
-        borderRadius: '12px',
-        backdropFilter: 'blur(10px)',
-        boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
-      }}
+      className={`btn-gold-glow px-4 sm:px-8 py-4 sm:py-6 text-sm sm:text-lg font-bold text-white group ${
+        selected
+          ? 'shadow-2xl shadow-amber-500/50 ring-4 ring-amber-500/50'
+          : ''
+      }`}
     >
       {/* Переливающийся эффект */}
       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
       {/* Внутреннее свечение */}
       <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
       
-      <div className="flex flex-col items-center gap-1 sm:gap-2 relative z-10">
+      <div className="flex flex-col items-center gap-1 sm:gap-2 relative z-20">
         <span className="text-3xl sm:text-4xl drop-shadow-lg">{icon}</span>
         <span className="text-xs sm:text-base drop-shadow-md">{label}</span>
       </div>
