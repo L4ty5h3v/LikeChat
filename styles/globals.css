@@ -118,9 +118,9 @@ a {
 
 /* Стили для кнопок с золотым свечением */
 .btn-gold-glow {
-  background: linear-gradient(135deg, #ff0000, #800080);
+  background: var(--gradient-main);
   border: 1px solid rgba(255, 215, 0, 0.1); /* тонкий золотой край */
-  border-radius: 12px;
+  border-radius: var(--border-radius);
   padding: 12px 24px;
   backdrop-filter: blur(15px);
   background-clip: padding-box;
