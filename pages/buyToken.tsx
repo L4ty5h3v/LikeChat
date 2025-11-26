@@ -588,12 +588,20 @@ export default function BuyToken() {
       setSwapWaitTime(0);
 
       // Проверяем, что swapTokenAsync готов перед вызовом
-      if (!swapTokenAsync) {
+      if (!swapTokenAsync || typeof swapTokenAsync !== 'function') {
         throw new Error('Swap function not ready. Please try again.');
       }
 
-      // Небольшая задержка для инициализации swap функции (особенно при первом вызове)
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Проверяем, что все параметры правильно сформированы
+      if (!usdcAmountStr || usdcAmountStr === '0' || usdcAmountStr === '') {
+        throw new Error('Invalid swap amount. Please try again.');
+      }
+
+      // Задержка для инициализации swap функции (особенно при первом вызове)
+      // Увеличиваем задержку для первого вызова, чтобы OnchainKit успел инициализироваться
+      const isFirstCall = retryCount === 0;
+      const delay = isFirstCall ? 300 : 100; // 300ms для первого вызова, 100ms для повторов
+      await new Promise(resolve => setTimeout(resolve, delay));
 
       let result;
       try {
