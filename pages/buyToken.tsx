@@ -92,8 +92,46 @@ async function publishSwapCastWithTxHash(
 
 export default function BuyToken() {
   const router = useRouter();
-  const { address: walletAddress, isConnected } = useAccount();
+  const { address: walletAddress, isConnected, chainId } = useAccount();
   const { connect, isPending: isConnecting } = useConnect();
+  
+  // КРИТИЧНО: Синхронизация isConnected с localStorage для сохранения сессии
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    // Сохраняем состояние подключения
+    if (isConnected && walletAddress) {
+      localStorage.setItem('wallet_connected', 'true');
+      localStorage.setItem('wallet_address', walletAddress);
+      console.log('✅ [WALLET] Connection state saved to localStorage');
+    } else {
+      localStorage.removeItem('wallet_connected');
+      localStorage.removeItem('wallet_address');
+    }
+  }, [isConnected, walletAddress]);
+  
+  // Восстанавливаем состояние подключения из localStorage при монтировании
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const wasConnected = localStorage.getItem('wallet_connected') === 'true';
+    const savedAddress = localStorage.getItem('wallet_address');
+    
+    if (wasConnected && savedAddress && !isConnected) {
+      console.log('🔄 [WALLET] Restoring connection from localStorage...');
+      // Попытка переподключения будет выполнена автоматически через wagmi
+    }
+  }, []);
+  
+  // КРИТИЧНО: Проверяем chainId - должен быть строго 8453 (Base)
+  useEffect(() => {
+    if (chainId && chainId !== 8453) {
+      console.warn(`⚠️ [CHAIN] Wrong chain ID: ${chainId}, expected 8453 (Base)`);
+      setError(`Please switch to Base network (chain ID: 8453). Current: ${chainId}`);
+    } else if (chainId === 8453) {
+      console.log('✅ [CHAIN] Correct chain ID: 8453 (Base)');
+    }
+  }, [chainId]);
   const [isSwapping, setIsSwapping] = useState(false);
   const [swapInitiatedAt, setSwapInitiatedAt] = useState<number | null>(null);
   const [oldBalanceBeforeSwap, setOldBalanceBeforeSwap] = useState<number | null>(null);
@@ -133,6 +171,93 @@ export default function BuyToken() {
   });
   // useSwapToken hook - проверяем правильную структуру возвращаемого значения
   const swapHookResult = useSwapToken();
+  
+  // КРИТИЧНО: Обработка ошибок disconnect и retry connect через отдельный useEffect
+  useEffect(() => {
+    // Отслеживаем изменения isConnected для обнаружения disconnect
+    if (typeof window === 'undefined') return;
+    
+    const wasConnected = localStorage.getItem('wallet_connected') === 'true';
+    
+    // Если было подключение, но сейчас отключено - это disconnect
+    if (wasConnected && !isConnected && !isConnecting) {
+      console.log('🔄 [WALLET] Disconnect detected, attempting to reconnect...');
+      
+      // Очищаем localStorage
+      localStorage.removeItem('wallet_connected');
+      localStorage.removeItem('wallet_address');
+      
+      // Пытаемся переподключиться через 1 секунду
+      setTimeout(async () => {
+        if (!isConnected && !isConnecting) {
+          console.log('🔄 [WALLET] Retrying wallet connection...');
+          
+          // КРИТИЧНО: Убеждаемся, что SDK инициализирован перед переподключением
+          try {
+            const isInFarcasterFrame = window.self !== window.top;
+            if (isInFarcasterFrame) {
+              const { sdk } = await import('@farcaster/miniapp-sdk');
+              if (sdk && sdk.actions && typeof sdk.actions.ready === 'function') {
+                await sdk.actions.ready();
+                console.log('✅ [WALLET] SDK ready() called before reconnection');
+              }
+            }
+          } catch (sdkError: any) {
+            console.warn('⚠️ [WALLET] SDK ready() not available during reconnection:', sdkError?.message);
+          }
+          
+          // Небольшая задержка для инициализации
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
+          try {
+            connect({ connector: farcasterMiniApp() });
+          } catch (connectError: any) {
+            console.error('❌ [WALLET] Reconnection failed:', connectError);
+          }
+        }
+      }, 1000);
+    }
+  }, [isConnected, isConnecting, connect]);
+  
+  // КРИТИЧНО: Проверяем инициализацию OnchainKit и Farcaster SDK при монтировании
+  useEffect(() => {
+    const checkInitialization = async () => {
+      if (typeof window === 'undefined') return;
+      
+      const isInFarcasterFrame = window.self !== window.top;
+      if (!isInFarcasterFrame) {
+        console.log('ℹ️ [INIT] Not in Farcaster frame, skipping initialization check');
+        return;
+      }
+      
+      try {
+        // Проверяем Farcaster SDK
+        const { sdk } = await import('@farcaster/miniapp-sdk');
+        console.log('✅ [INIT] Farcaster SDK loaded:', {
+          hasSDK: !!sdk,
+          hasActions: !!sdk?.actions,
+          hasReady: typeof sdk?.actions?.ready === 'function',
+        });
+        
+        // Проверяем OnchainKit (через window)
+        const hasOnchainKit = typeof window !== 'undefined' && (window as any).onchainkit;
+        console.log('✅ [INIT] OnchainKit check:', {
+          hasOnchainKit,
+        });
+        
+        // Проверяем wagmi connector
+        const hasWagmi = typeof window !== 'undefined' && (window as any).wagmi;
+        console.log('✅ [INIT] Wagmi check:', {
+          hasWagmi,
+        });
+        
+      } catch (error: any) {
+        console.error('❌ [INIT] Error checking initialization:', error);
+      }
+    };
+    
+    checkInitialization();
+  }, []);
   
   // КРИТИЧНО: useSwapToken может возвращать либо объект с swapTokenAsync, либо саму функцию
   let swapTokenAsync: any = null;
@@ -931,6 +1056,28 @@ export default function BuyToken() {
             console.log(`ℹ️ [SWAP] swapTokenAsync returned ${result} - this usually means swap form opened in wallet`);
           }
         } catch (formatError: any) {
+          const errorMessage = formatError?.message?.toLowerCase() || '';
+          const errorCode = formatError?.code;
+          
+          // КРИТИЧНО: Проверяем, является ли это ошибкой unsupported method (eth_call)
+          if (
+            errorMessage.includes('unsupported method') ||
+            errorMessage.includes('eth_call') ||
+            errorMessage.includes('method not supported') ||
+            errorCode === -32601 // Method not found
+          ) {
+            console.warn('⚠️ [SWAP] Unsupported method error detected (likely eth_call) - Farcaster wallet limitation');
+            console.log('🔄 [SWAP] Attempting fallback: direct transaction without quoter...');
+            
+            // FALLBACK: Прямая транзакция без quoter (если Farcaster wallet не поддерживает eth_call)
+            // Это требует использования прямого вызова контракта Uniswap через sendTransaction
+            // Пока что логируем ошибку и предлагаем пользователю использовать другой метод
+            throw new Error(
+              'Farcaster wallet does not support eth_call required for swap quotes. ' +
+              'Please try refreshing the page or contact support for alternative payment methods.'
+            );
+          }
+          
           // Если форматированная строка не работает, пробуем wei
           console.warn(`⚠️ [TEST] Formatted amount "${formattedAmount}" failed:`, {
             error: formatError?.message,
@@ -982,6 +1129,9 @@ export default function BuyToken() {
           setSwapTimeoutId(null);
         }
         
+        const errorMessage = swapError?.message?.toLowerCase() || '';
+        const errorCode = swapError?.code;
+        
         console.error('❌ [SWAP] Swap error caught:', {
           message: swapError?.message,
           code: swapError?.code,
@@ -991,9 +1141,25 @@ export default function BuyToken() {
           errorStringified: JSON.stringify(swapError, Object.getOwnPropertyNames(swapError)),
         });
         
-        // КРИТИЧНО: Проверяем, может быть это не ошибка, а просто форма не открылась
+        // КРИТИЧНО: Детальная обработка различных типов ошибок
         if (swapError?.message?.includes('user rejected') || swapError?.code === 4001) {
           console.log('ℹ️ [SWAP] User rejected - this is expected behavior');
+        } else if (
+          errorMessage.includes('unsupported method') ||
+          errorMessage.includes('eth_call') ||
+          errorMessage.includes('method not supported') ||
+          errorCode === -32601
+        ) {
+          console.error('❌ [SWAP] Unsupported method error - Farcaster wallet does not support eth_call');
+          console.error('💡 [SWAP] This is a known limitation of Farcaster smart wallet');
+          // Ошибка уже обработана выше, просто логируем
+        } else if (
+          errorMessage.includes('disconnect') ||
+          errorMessage.includes('not connected') ||
+          errorCode === 4900
+        ) {
+          console.error('❌ [SWAP] Wallet disconnected during swap');
+          // onError в useSwapToken уже обработает это
         } else {
           console.error('❌ [SWAP] Unexpected error - swap form may not have opened');
         }
@@ -1172,11 +1338,61 @@ export default function BuyToken() {
                 <button
                   onClick={async () => {
                     try {
-                      await connect({ connector: farcasterMiniApp() });
+                      console.log('🔗 [CONNECT] Starting wallet connection...');
+                      
+                      // КРИТИЧНО: Проверяем, что мы в Farcaster frame
+                      const isInFarcasterFrame = typeof window !== 'undefined' && window.self !== window.top;
+                      if (!isInFarcasterFrame) {
+                        throw new Error('Please open this app in Farcaster to connect your wallet');
+                      }
+                      
+                      // КРИТИЧНО: Убеждаемся, что SDK инициализирован перед подключением
+                      console.log('⏳ [CONNECT] Waiting for SDK initialization...');
+                      try {
+                        const { sdk } = await import('@farcaster/miniapp-sdk');
+                        if (sdk && sdk.actions && typeof sdk.actions.ready === 'function') {
+                          await sdk.actions.ready();
+                          console.log('✅ [CONNECT] SDK ready() called');
+                        }
+                      } catch (sdkError: any) {
+                        console.warn('⚠️ [CONNECT] SDK ready() not available, continuing anyway:', sdkError?.message);
+                      }
+                      
+                      // КРИТИЧНО: Небольшая задержка для инициализации OnchainKit
+                      await new Promise(resolve => setTimeout(resolve, 300));
+                      
+                      console.log('🔗 [CONNECT] Calling connect with farcasterMiniApp connector...');
+                      connect({ connector: farcasterMiniApp() });
+                      
+                      // Проверяем подключение через 2 секунды
+                      setTimeout(() => {
+                        if (!isConnected && !isConnecting) {
+                          console.warn('⚠️ [CONNECT] Connection may have failed, wallet not connected after 2s');
+                          setError('Wallet connection timeout. Please try again.');
+                        }
+                      }, 2000);
                     } catch (connectError: any) {
-                      console.error('❌ [CONNECT] Error connecting wallet:', connectError);
-                      setError(connectError?.message || 'Failed to connect wallet. Please try again.');
-                      setLastError(connectError?.message || 'Failed to connect wallet. Please try again.');
+                      console.error('❌ [CONNECT] Error connecting wallet:', {
+                        error: connectError,
+                        message: connectError?.message,
+                        code: connectError?.code,
+                        name: connectError?.name,
+                        stack: connectError?.stack,
+                      });
+                      
+                      let errorMessage = connectError?.message || 'Failed to connect wallet. Please try again.';
+                      
+                      // Детальная обработка ошибок подключения
+                      if (connectError?.message?.includes('not in farcaster')) {
+                        errorMessage = 'Please open this app in Farcaster to connect your wallet';
+                      } else if (connectError?.message?.includes('user rejected') || connectError?.code === 4001) {
+                        errorMessage = 'Connection cancelled by user';
+                      } else if (connectError?.message?.includes('timeout')) {
+                        errorMessage = 'Connection timeout. Please try again.';
+                      }
+                      
+                      setError(errorMessage);
+                      setLastError(errorMessage);
                     }
                   }}
                   disabled={isConnecting}
