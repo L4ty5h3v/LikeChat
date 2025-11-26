@@ -699,21 +699,26 @@ export default function BuyToken() {
           expectedFormat: 'String in wei (100000 for 0.10 USDC with 6 decimals)',
         });
         
-        // КРИТИЧНО: OnchainKit useSwapToken может ожидать sellAmount в форматированном виде (0.10), а не в wei
-        // Согласно документации OnchainKit, sellAmount должен быть строкой в человекочитаемом формате
+        // КРИТИЧНО: Пробуем разные форматы sellAmount для OnchainKit useSwapToken
+        // Вариант 1: Форматированная строка "0.10" (человекочитаемый формат)
+        // Вариант 2: Строка в wei "100000" (для USDC с 6 decimals)
+        // Вариант 3: BigInt (может быть ожидается)
         const formattedAmount = PURCHASE_AMOUNT_USDC.toString(); // "0.10"
-        const swapCallParams = {
+        const weiAmount = usdcAmountStr; // "100000"
+        
+        // Пробуем сначала форматированную строку, так как это более вероятный формат для UI
+        let swapCallParams: any = {
           sellToken: swapParams.sellToken,
           buyToken: swapParams.buyToken,
-          sellAmount: formattedAmount, // Используем форматированную строку "0.10"
+          sellAmount: formattedAmount, // "0.10" - человекочитаемый формат
         };
         
-        console.log(`🚀 [SWAP] About to call swapTokenAsync with FORMATTED amount:`, {
+        console.log(`🚀 [SWAP] Attempting swapTokenAsync with FORMATTED amount (0.10):`, {
           ...swapCallParams,
           sellAmountFormatted: swapCallParams.sellAmount,
-          sellAmountWei: swapParams.sellAmount,
+          sellAmountWei: weiAmount,
           originalAmount: PURCHASE_AMOUNT_USDC,
-          note: 'Using formatted string (0.10) instead of wei (100000)',
+          note: 'Trying formatted string first (0.10)',
           timestamp: new Date().toISOString(),
         });
         
@@ -722,7 +727,19 @@ export default function BuyToken() {
           throw new Error(`Invalid formatted amount: ${formattedAmount}. Expected non-zero value like "0.10"`);
         }
         
-        result = await swapTokenAsync(swapCallParams);
+        try {
+          result = await swapTokenAsync(swapCallParams);
+        } catch (formatError: any) {
+          // Если форматированная строка не работает, пробуем wei
+          console.warn(`⚠️ [SWAP] Formatted amount failed, trying wei format:`, formatError?.message);
+          swapCallParams = {
+            sellToken: swapParams.sellToken,
+            buyToken: swapParams.buyToken,
+            sellAmount: weiAmount, // "100000" - wei формат
+          };
+          console.log(`🔄 [SWAP] Retrying with WEI amount (100000):`, swapCallParams);
+          result = await swapTokenAsync(swapCallParams);
+        }
         
         console.log(`✅ [SWAP] swapTokenAsync returned:`, {
           result,
