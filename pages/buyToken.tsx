@@ -204,6 +204,47 @@ export default function BuyToken() {
     }
   }, [tokenBalance, mctBalance, user?.fid]);
 
+  // КРИТИЧНО: Устанавливаем fromAmount явно при монтировании и когда wallet подключен
+  useEffect(() => {
+    if (isConnected && walletAddress && swapHook) {
+      console.log('🔧 [SWAP-SETUP] Setting up swap with initial amount:', {
+        manualAmount,
+        walletAddress,
+        isConnected,
+        chainId: 8453, // Base
+        sellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`,
+        buyToken: `eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`,
+        swapHookKeys: Object.keys(swapHook || {}),
+      });
+      
+      // Пробуем установить fromAmount через хук, если доступно
+      if (typeof (swapHook as any)?.setFromAmount === 'function') {
+        (swapHook as any).setFromAmount(manualAmount);
+        console.log('✅ [SWAP-SETUP] setFromAmount called with:', manualAmount);
+      }
+      
+      // Пробуем установить tokenFrom, если доступно
+      if (typeof (swapHook as any)?.setTokenFrom === 'function') {
+        (swapHook as any).setTokenFrom(`eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`);
+        console.log('✅ [SWAP-SETUP] setTokenFrom called with USDC');
+      }
+      
+      // Пробуем установить tokenTo, если доступно
+      if (typeof (swapHook as any)?.setTokenTo === 'function') {
+        (swapHook as any).setTokenTo(`eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`);
+        console.log('✅ [SWAP-SETUP] setTokenTo called with MCT');
+      }
+      
+      // Пробуем вызвать refreshQuote, если доступно
+      if (typeof (swapHook as any)?.refreshQuote === 'function') {
+        setTimeout(() => {
+          (swapHook as any).refreshQuote();
+          console.log('✅ [SWAP-SETUP] refreshQuote called');
+        }, 500);
+      }
+    }
+  }, [isConnected, walletAddress, manualAmount, swapHook]);
+
   const checkProgress = async (userFid: number) => {
     try {
       // Проверяем, что код выполняется на клиенте
