@@ -751,10 +751,40 @@ export default function BuyToken() {
         const formattedAmount = manualAmount || PURCHASE_AMOUNT_USDC.toString(); // "0.10"
         const weiAmount = usdcAmountStr; // "100000" для 0.10 USDC с 6 decimals
         
-        // КРИТИЧНО: Перед вызовом swapTokenAsync, убеждаемся, что fromAmount установлен
-        if (swapHook && typeof (swapHook as any)?.setFromAmount === 'function') {
-          (swapHook as any).setFromAmount(formattedAmount);
-          console.log('🔧 [SWAP] setFromAmount called before swapTokenAsync:', formattedAmount);
+        // КРИТИЧНО: Перед вызовом swapTokenAsync, пробуем установить сумму разными способами
+        if (swapHook) {
+          // Способ 1: setFromAmount
+          if (typeof (swapHook as any)?.setFromAmount === 'function') {
+            (swapHook as any).setFromAmount(formattedAmount);
+            console.log('🔧 [SWAP] setFromAmount called:', formattedAmount);
+          }
+          
+          // Способ 2: fromAmount (прямое свойство)
+          if ((swapHook as any).fromAmount !== undefined) {
+            (swapHook as any).fromAmount = formattedAmount;
+            console.log('🔧 [SWAP] fromAmount property set:', formattedAmount);
+          }
+          
+          // Способ 3: setAmount
+          if (typeof (swapHook as any)?.setAmount === 'function') {
+            (swapHook as any).setAmount(formattedAmount);
+            console.log('🔧 [SWAP] setAmount called:', formattedAmount);
+          }
+          
+          // Способ 4: amount (прямое свойство)
+          if ((swapHook as any).amount !== undefined) {
+            (swapHook as any).amount = formattedAmount;
+            console.log('🔧 [SWAP] amount property set:', formattedAmount);
+          }
+          
+          // Логируем все доступные методы и свойства
+          console.log('🔍 [SWAP] Available swapHook methods/properties:', {
+            keys: Object.keys(swapHook || {}),
+            hasSetFromAmount: typeof (swapHook as any)?.setFromAmount === 'function',
+            hasFromAmount: (swapHook as any).fromAmount !== undefined,
+            hasSetAmount: typeof (swapHook as any)?.setAmount === 'function',
+            hasAmount: (swapHook as any).amount !== undefined,
+          });
         }
         
         // ВАЖНО: Проверяем значения перед использованием
