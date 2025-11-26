@@ -600,7 +600,7 @@ export default function BuyToken() {
       // Задержка для инициализации swap функции (особенно при первом вызове)
       // Увеличиваем задержку для первого вызова, чтобы OnchainKit и Farcaster SDK успели инициализироваться
       const isFirstCall = retryCount === 0;
-      const delay = isFirstCall ? 1000 : 200; // 1s для первого вызова (дает wallet больше времени на auth и chain state), 200ms для повторов
+      const delay = isFirstCall ? 800 : 200; // 800ms для первого вызова (дает wallet больше времени на auth и chain state), 200ms для повторов
       console.log(`⏳ [SWAP] Waiting ${delay}ms for wallet context initialization (first call: ${isFirstCall})...`);
       await new Promise(resolve => setTimeout(resolve, delay));
 
@@ -651,6 +651,27 @@ export default function BuyToken() {
         // Убеждаемся, что sellAmount не пустой и не равен нулю
         if (!swapParams.sellAmount || swapParams.sellAmount === '0') {
           throw new Error(`Invalid sellAmount: ${swapParams.sellAmount}. Expected non-zero string.`);
+        }
+
+        // КРИТИЧНО: Проверяем wallet address прямо перед вызовом swapTokenAsync
+        // Если wallet не готов, делаем retry через 500ms
+        if (!walletAddress || !walletAddress) {
+          console.log('⚠️ [SWAP] Wallet not ready yet, retrying in 500ms...', {
+            walletAddress,
+            isConnected,
+            retryCount,
+          });
+          // Сбрасываем состояние swap перед retry
+          setIsSwapping(false);
+          setSwapInitiatedAt(null);
+          setOldBalanceBeforeSwap(null);
+          setBlocksSinceSwap(0);
+          setSwapWaitTime(0);
+          // Retry через 500ms
+          setTimeout(() => {
+            confirmBuyToken(true); // Передаем isRetry=true для правильного подсчета
+          }, 500);
+          return; // Выходим из функции, не вызывая swapTokenAsync
         }
 
         console.log(`🔍 [SWAP] Calling swapTokenAsync with params:`, swapParams);
