@@ -341,6 +341,16 @@ export default function BuyToken() {
   };
 
   const handleBuyToken = async () => {
+    console.log('🛒 [BUYTOKEN] handleBuyToken called:', {
+      user: !!user,
+      walletAddress: !!walletAddress,
+      isConnected,
+      loading,
+      isSwapping,
+      swapTokenAsync: !!swapTokenAsync,
+      swapHook: !!swapHook,
+      manualAmount,
+    });
     // Проверяем, что пользователь авторизован
     if (!user) {
       setError('Please authorize through Farcaster');
@@ -895,6 +905,9 @@ export default function BuyToken() {
       // useSwapToken открывает swap форму в Farcaster кошельке
       // Пользователь завершает swap в кошельке
       // После завершения баланс обновится автоматически через wagmi hooks (refetchInterval)
+      
+      console.log('✅ [SWAP] Swap form should be open in wallet now. Waiting for user confirmation...');
+      console.log('📋 [SWAP] Expected amount in form:', formattedAmount, 'USDC');
       
       setLoading(false);
       setRetryCount(0); // Сбрасываем счетчик при успешном запуске swap
