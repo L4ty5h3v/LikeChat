@@ -379,7 +379,7 @@ export default function BuyToken() {
       loading,
       isSwapping,
       swapTokenAsync: !!swapTokenAsync,
-      swapHook: !!swapHook,
+      swapHookResult: !!swapHookResult,
       manualAmount,
     });
     // Проверяем, что пользователь авторизован
