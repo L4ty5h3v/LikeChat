@@ -172,6 +172,21 @@ export default function BuyToken() {
   // useSwapToken hook - проверяем правильную структуру возвращаемого значения
   const swapHookResult = useSwapToken();
   
+  // Логируем версии для диагностики совместимости
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      console.log('📦 [VERSIONS] Package versions:', {
+        viem: '^2.39.0',
+        wagmi: '^2.19.4',
+        onchainkit: '^1.1.2',
+        farcasterSDK: '^0.2.1',
+        // Проверяем доступные методы в провайдере
+        hasEthereum: !!(window as any).ethereum,
+        ethereumMethods: (window as any).ethereum ? Object.keys((window as any).ethereum) : [],
+      });
+    }
+  }, []);
+  
   // КРИТИЧНО: Обработка ошибок disconnect и retry connect через отдельный useEffect
   useEffect(() => {
     // Отслеживаем изменения isConnected для обнаружения disconnect
@@ -1240,18 +1255,78 @@ export default function BuyToken() {
               chainId,
             });
             
-            // Если это ошибка unsupported method, пробуем альтернативный подход
+            // КРИТИЧНО: Обработка ошибок -32601 (method not found) и 4200 (unsupported method)
+            // Это означает, что Farcaster wallet не поддерживает batch calls или метод
             const errorMessage = callError?.message?.toLowerCase() || '';
             const errorCode = callError?.code;
+            const fullErrorMessage = callError?.message || JSON.stringify(callError);
             
+            console.error('🔍 [SWAP] Full error details:', {
+              fullMessage: fullErrorMessage,
+              errorCode,
+              errorName: callError?.name,
+              errorStack: callError?.stack,
+              errorCause: callError?.cause,
+              errorData: callError?.data,
+              errorArgs: callError?.args,
+              // Проверка на специфичные ошибки Farcaster wallet
+              isMethodNotFound: errorCode === -32601,
+              isUnsupportedMethod: errorCode === 4200 || errorMessage.includes('unsupported method'),
+              isEthCallError: errorMessage.includes('eth_call'),
+              isBatchCallError: errorMessage.includes('batch') || errorMessage.includes('sendcalls'),
+            });
+            
+            // КРИТИЧНО: Fallback для EIP-5792 (wallet_sendCalls) если batch calls не поддерживаются
             if (
-              errorMessage.includes('unsupported method') || 
+              errorCode === -32601 || // Method not found
+              errorCode === 4200 || // Unsupported method
+              errorMessage.includes('unsupported method') ||
+              errorMessage.includes('method not found') ||
               errorMessage.includes('eth_call') ||
-              errorCode === -32601 // Method not found
+              errorMessage.includes('batch') ||
+              errorMessage.includes('sendcalls')
             ) {
-              console.warn('⚠️ [SWAP] Unsupported method error - Farcaster wallet limitation');
-              console.warn('⚠️ [SWAP] This usually means Farcaster wallet does not support eth_call for quotes');
-              throw new Error('Farcaster wallet does not support eth_call. Please try using a different wallet or contact support.');
+              console.warn('⚠️ [SWAP] Method not found/unsupported error detected');
+              console.warn('⚠️ [SWAP] Error code:', errorCode, 'Message:', fullErrorMessage);
+              console.log('🔄 [SWAP] Attempting EIP-5792 fallback: individual transactions instead of batch...');
+              
+              // FALLBACK: Пробуем использовать прямые транзакции через sendTransaction
+              // вместо batch calls через swapTokenAsync
+              try {
+                console.log('🔄 [SWAP-FALLBACK] Using direct sendTransaction approach...');
+                
+                // Импортируем функцию для прямого swap
+                const { buyTokenViaDirectSwap } = await import('@/lib/farcaster-direct-swap');
+                
+                if (user?.fid) {
+                  console.log('🔄 [SWAP-FALLBACK] Calling buyTokenViaDirectSwap with USDC...');
+                  const fallbackResult = await buyTokenViaDirectSwap(user.fid, 'USDC');
+                  
+                  if (fallbackResult.success && fallbackResult.txHash) {
+                    console.log('✅ [SWAP-FALLBACK] Direct swap succeeded via fallback method');
+                    result = { txHash: fallbackResult.txHash };
+                    // Продолжаем выполнение с результатом fallback
+                  } else {
+                    throw new Error(fallbackResult.error || 'Fallback swap failed');
+                  }
+                } else {
+                  throw new Error('User FID not available for fallback');
+                }
+              } catch (fallbackError: any) {
+                console.error('❌ [SWAP-FALLBACK] Fallback also failed:', {
+                  error: fallbackError,
+                  message: fallbackError?.message,
+                  code: fallbackError?.code,
+                });
+                
+                // Если fallback тоже не сработал, выбрасываем оригинальную ошибку
+                throw new Error(
+                  `Farcaster wallet does not support the required swap method. ` +
+                  `Original error: ${fullErrorMessage} (code: ${errorCode}). ` +
+                  `Fallback also failed: ${fallbackError?.message || 'Unknown error'}. ` +
+                  `Please try refreshing the page or contact support.`
+                );
+              }
             }
             
             // Логируем другие типы ошибок
