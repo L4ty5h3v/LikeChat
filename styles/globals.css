@@ -4,6 +4,22 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Глобальная тема с CSS переменными */
+:root {
+  --gradient-main: linear-gradient(90deg, #ff0000 0%, #800080 100%);
+  --glow-inner: 0 0 10px rgba(255, 215, 0, 0.5);
+  --glass-bg: rgba(255, 255, 255, 0.1);
+  --border-radius: 12px;
+}
+
+.themed {
+  background: var(--gradient-main);
+  background-clip: padding-box;
+  border: 1px solid transparent;
+  border-radius: var(--border-radius);
+  box-shadow: var(--glow-inner), inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
 * {
   box-sizing: border-box;
   padding: 0;
@@ -22,6 +38,12 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+body,
+.app-container {
+  background: var(--gradient-main);
+  backdrop-filter: blur(10px);
 }
 
 a {
