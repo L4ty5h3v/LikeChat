@@ -306,15 +306,8 @@ export default function BuyToken() {
       setTokenPriceEth(priceEth);
 
       if (priceEth && parseFloat(priceEth) > 0) {
-        // Для USDC цена уже в USD (1 USDC = 1 USD), для ETH конвертируем
-        if (useUSDC) {
-          // Цена уже в USDC, напрямую используем как USD
-          setTokenPriceUsd(parseFloat(priceEth).toFixed(2));
-        } else {
-          // Для ETH: цена уже должна быть в USDC (onchain quote через Uniswap)
-          // Если цена не в USDC, используем как есть или null
-          setTokenPriceUsd(null);
-        }
+        // Для USDC цена уже в USD (1 USDC = 1 USD)
+        setTokenPriceUsd(parseFloat(priceEth).toFixed(2));
       } else {
         // Если цена 0 или не установлена, показываем "Free"
         setTokenPriceUsd('0.00');
@@ -682,7 +675,7 @@ export default function BuyToken() {
           buyToken: `eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`,
           sellAmount: usdcAmountStr,
           sellAmountFormatted: `${PURCHASE_AMOUNT_USDC} USDC (${usdcAmountStr} wei)`,
-          slippageTolerance: 1, // 1% для MCT/WETH пары (больше волатильности)
+          slippageTolerance: 1, // 1% для MCT/USDC пары
         });
 
         // Убеждаемся, что все параметры готовы перед вызовом
