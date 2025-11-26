@@ -598,15 +598,31 @@ export default function BuyToken() {
       }
 
       // Задержка для инициализации swap функции (особенно при первом вызове)
-      // Увеличиваем задержку для первого вызова, чтобы OnchainKit успел инициализироваться
+      // Увеличиваем задержку для первого вызова, чтобы OnchainKit и Farcaster SDK успели инициализироваться
       const isFirstCall = retryCount === 0;
-      const delay = isFirstCall ? 300 : 100; // 300ms для первого вызова, 100ms для повторов
+      const delay = isFirstCall ? 1000 : 200; // 1s для первого вызова (дает wallet больше времени на auth и chain state), 200ms для повторов
+      console.log(`⏳ [SWAP] Waiting ${delay}ms for wallet context initialization (first call: ${isFirstCall})...`);
       await new Promise(resolve => setTimeout(resolve, delay));
+
+      // КРИТИЧНО: Проверяем wallet address перед вызовом swap
+      // Если wallet не готов, это может быть причиной проблемы с суммой
+      console.log('🔍 [SWAP] Wallet state before swap:', {
+        walletAddress,
+        isConnected,
+        userFid: user?.fid,
+        swapTokenAsyncReady: !!swapTokenAsync,
+        swapTokenAsyncType: typeof swapTokenAsync,
+      });
+
+      if (!walletAddress) {
+        throw new Error('Wallet address not ready. Please wait for wallet connection.');
+      }
 
       let result;
       try {
         // Проверяем, что FID доступен для логирования
         console.log(`🔍 [SWAP] User FID: ${user.fid}, Wallet context should be set by onchainkit`);
+        console.log(`🔍 [SWAP] Wallet address confirmed: ${walletAddress}`);
         console.log(`🔍 [SWAP] Swap params:`, {
           sellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`,
           buyToken: `eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`,
