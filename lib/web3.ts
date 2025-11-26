@@ -179,7 +179,7 @@ export async function connectWallet(): Promise<string | null> {
       return accounts[0];
     } catch (requestError: any) {
       if (requestError.code === 4001) {
-        throw new Error('Пользователь отменил подключение кошелька');
+        throw new Error('User cancelled wallet connection');
       } else if (requestError.code === -32002) {
         throw new Error('Connection request is already being processed. Please check Farcaster Wallet.');
       } else {
