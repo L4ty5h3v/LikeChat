@@ -864,8 +864,37 @@ export default function BuyToken() {
         });
         
         try {
+          console.log(`🚀 [SWAP] About to call swapTokenAsync, checking if it's a function:`, {
+            isFunction: typeof swapTokenAsync === 'function',
+            swapTokenAsyncType: typeof swapTokenAsync,
+            swapTokenAsyncValue: swapTokenAsync,
+          });
+          
+          // КРИТИЧНО: Проверяем, что swapTokenAsync действительно функция
+          if (typeof swapTokenAsync !== 'function') {
+            throw new Error(`swapTokenAsync is not a function. Type: ${typeof swapTokenAsync}, Value: ${swapTokenAsync}`);
+          }
+          
+          console.log(`🚀 [SWAP] Calling swapTokenAsync NOW with params:`, {
+            ...swapCallParams,
+            paramsStringified: JSON.stringify(swapCallParams),
+          });
+          
           result = await swapTokenAsync(swapCallParams);
-          console.log(`✅ [TEST] swapTokenAsync succeeded with formatted amount "${formattedAmount}"`);
+          
+          console.log(`✅ [SWAP] swapTokenAsync returned successfully:`, {
+            result,
+            resultType: typeof result,
+            resultIsNull: result === null,
+            resultIsUndefined: result === undefined,
+            resultKeys: result ? Object.keys(result) : [],
+            resultStringified: JSON.stringify(result),
+          });
+          
+          // КРИТИЧНО: Если результат undefined/null, это может означать, что форма открылась
+          if (result === undefined || result === null) {
+            console.log(`ℹ️ [SWAP] swapTokenAsync returned ${result} - this usually means swap form opened in wallet`);
+          }
         } catch (formatError: any) {
           // Если форматированная строка не работает, пробуем wei
           console.warn(`⚠️ [TEST] Formatted amount "${formattedAmount}" failed:`, {
@@ -918,12 +947,22 @@ export default function BuyToken() {
           setSwapTimeoutId(null);
         }
         
-        console.error('❌ [SWAP] Swap error:', {
+        console.error('❌ [SWAP] Swap error caught:', {
           message: swapError?.message,
           code: swapError?.code,
           name: swapError?.name,
           stack: swapError?.stack,
+          error: swapError,
+          errorStringified: JSON.stringify(swapError, Object.getOwnPropertyNames(swapError)),
         });
+        
+        // КРИТИЧНО: Проверяем, может быть это не ошибка, а просто форма не открылась
+        if (swapError?.message?.includes('user rejected') || swapError?.code === 4001) {
+          console.log('ℹ️ [SWAP] User rejected - this is expected behavior');
+        } else {
+          console.error('❌ [SWAP] Unexpected error - swap form may not have opened');
+        }
+        
         throw swapError;
       }
 
