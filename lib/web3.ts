@@ -172,7 +172,7 @@ export async function connectWallet(): Promise<string | null> {
       const accounts = await provider.send('eth_requestAccounts', []);
 
       if (!accounts || accounts.length === 0) {
-        throw new Error('Пользователь отменил подключение кошелька');
+        throw new Error('User cancelled wallet connection');
       }
 
       console.log('✅ Wallet connected via Farcaster provider:', accounts[0]);
