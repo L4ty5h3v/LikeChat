@@ -884,8 +884,8 @@ export default function BuyToken() {
               </p>
                   {/* Показываем retry только для определенных типов ошибок и если не превышен лимит */}
                   {lastError && 
-                   !lastError.includes('отменена пользователем') && 
-                   !lastError.includes('Недостаточно USDC') &&
+                   !lastError.includes('cancelled by user') && 
+                   !lastError.includes('Insufficient USDC') &&
                    !lastError.includes('Slippage') &&
                    retryCount < MAX_RETRIES && (
                     <div className="mt-4">
