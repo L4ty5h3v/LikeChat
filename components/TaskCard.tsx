@@ -67,7 +67,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
               href={task.cast_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm text-primary hover:underline break-all block truncate"
+              className="text-sm text-purple-600 hover:text-purple-700 hover:underline break-all block truncate"
               onClick={(e) => {
                 // Не предотвращаем открытие ссылки, но также вызываем onOpen для отслеживания
                 if (!task.opened) {
