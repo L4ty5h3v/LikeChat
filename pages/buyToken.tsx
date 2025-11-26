@@ -154,19 +154,16 @@ export default function BuyToken() {
   const [tokenPriceUsd, setTokenPriceUsd] = useState<string | null>(null);
   const [mctAmountForPurchase, setMctAmountForPurchase] = useState<bigint | null>(null);
 
-  // Конфигурация (используем USDC для покупки)
-  const useUSDC = true; // false = ETH, true = USDC
-  const currencySymbol = useUSDC ? 'USDC' : 'ETH';
+  // Конфигурация (используем только USDC для покупки)
+  const useUSDC = true; // Только USDC
+  const currencySymbol = 'USDC';
   
   const tokenBalance = mctBalance ? formatUnits(mctBalance.value, mctBalance.decimals) : '0';
   
-  const parsedEthPrice = tokenPriceEth ? Number(tokenPriceEth) : null;
-  const isFree = parsedEthPrice === 0 || parsedEthPrice === null;
-  const displayEthPrice = parsedEthPrice !== null && !Number.isNaN(parsedEthPrice) && parsedEthPrice > 0
-    ? `${parsedEthPrice.toFixed(6)} ${currencySymbol}`
-    : null;
+  const parsedUsdcPrice = tokenPriceUsd ? parseFloat(tokenPriceUsd) : null;
+  const isFree = parsedUsdcPrice === 0 || parsedUsdcPrice === null;
   const displayUsdPrice = tokenPriceUsd && parseFloat(tokenPriceUsd) > 0 ? `$${tokenPriceUsd}` : null;
-  const purchasePriceLabel = isFree ? 'Free' : (displayUsdPrice || displayEthPrice || 'the configured price');
+  const purchasePriceLabel = isFree ? 'Free' : (displayUsdPrice || 'the configured price');
 
   useEffect(() => {
     // Проверяем, что код выполняется на клиенте
@@ -397,7 +394,7 @@ export default function BuyToken() {
                (errorLower.includes('insufficient') && errorLower.includes('usdc'))) {
       errorType = 'insufficient_funds';
       errorMessage = `Insufficient USDC for purchase`;
-      helpfulMessage = `💡 Add more USDC to wallet. Minimum ${PURCHASE_AMOUNT_USDC} USDC + ETH for gas required`;
+      helpfulMessage = `💡 Add more USDC to wallet. Minimum ${PURCHASE_AMOUNT_USDC} USDC required`;
     } else if (errorLower.includes('insufficient') || 
                errorLower.includes('balance') ||
                (errorLower.includes('amount') && !errorLower.includes('slippage'))) {
