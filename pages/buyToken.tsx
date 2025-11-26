@@ -907,7 +907,7 @@ export default function BuyToken() {
       // После завершения баланс обновится автоматически через wagmi hooks (refetchInterval)
       
       console.log('✅ [SWAP] Swap form should be open in wallet now. Waiting for user confirmation...');
-      console.log('📋 [SWAP] Expected amount in form:', formattedAmount, 'USDC');
+      console.log('📋 [SWAP] Expected amount in form:', manualAmount || PURCHASE_AMOUNT_USDC.toString(), 'USDC');
       
       setLoading(false);
       setRetryCount(0); // Сбрасываем счетчик при успешном запуске swap
