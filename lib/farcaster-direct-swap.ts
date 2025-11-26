@@ -433,12 +433,12 @@ export async function buyTokenViaDirectSwap(
   } catch (error: any) {
     console.error('❌ Error in direct swap:', error);
     
-    let errorMessage = 'Ошибка при выполнении swap';
+    let errorMessage = 'Error executing swap';
     
     if (error.message?.includes('user rejected')) {
-      errorMessage = 'Транзакция отменена пользователем';
+      errorMessage = 'Transaction cancelled by user';
     } else if (error.message?.includes('insufficient funds')) {
-      errorMessage = 'Недостаточно средств для swap';
+      errorMessage = 'Insufficient funds for swap';
     } else if (error.message) {
       errorMessage = error.message;
     }

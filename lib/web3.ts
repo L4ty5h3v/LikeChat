@@ -371,14 +371,14 @@ export async function buyToken(userFid: number): Promise<{
     console.error('Error buying token:', error);
     
     // Обработка специфических ошибок
-    let errorMessage = 'Ошибка при покупке токена';
+    let errorMessage = 'Error purchasing token';
     
     if (error.message?.includes('user rejected')) {
-      errorMessage = 'Транзакция отменена пользователем';
-    } else if (error.message?.includes('insufficient funds') || error.message?.includes('Недостаточно')) {
-      errorMessage = 'Недостаточно средств для покупки. Убедитесь, что у вас достаточно средств и ETH для комиссий сети.';
+      errorMessage = 'Transaction cancelled by user';
+    } else if (error.message?.includes('insufficient funds') || error.message?.includes('insufficient')) {
+      errorMessage = 'Insufficient funds for purchase. Make sure you have enough funds and ETH for network fees.';
     } else if (error.message?.includes('network')) {
-      errorMessage = 'Ошибка сети. Убедитесь, что вы подключены к сети Base.';
+      errorMessage = 'Network error. Make sure you are connected to Base network.';
     } else if (error.message) {
       errorMessage = error.message;
     }

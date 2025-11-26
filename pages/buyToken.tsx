@@ -32,7 +32,7 @@ async function publishSwapCastWithTxHash(
     if (typeof window === 'undefined') {
       return {
         success: false,
-        error: 'SDK доступен только на клиенте',
+        error: 'SDK available only on client',
       };
     }
 
@@ -532,14 +532,14 @@ export default function BuyToken() {
 
   const confirmBuyToken = async (isRetry: boolean = false) => {
     if (!user) {
-      setError('Пользователь не авторизован');
-      setLastError('Пользователь не авторизован');
+      setError('User not authorized');
+      setLastError('User not authorized');
       return;
     }
 
     if (!walletAddress) {
-      setError('Кошелек не подключен');
-      setLastError('Кошелек не подключен');
+      setError('Wallet not connected');
+      setLastError('Wallet not connected');
       return;
     }
 
@@ -580,7 +580,7 @@ export default function BuyToken() {
       // Таймаут для swap - 60 секунд
       const timeoutId = setTimeout(() => {
         console.warn(`⏱️ Swap timeout: ${SWAP_TIMEOUT_MS / 1000} seconds elapsed without response`);
-        handleSwapError(new Error(`Timeout: swap не завершился за ${SWAP_TIMEOUT_MS / 1000} секунд`), true);
+        handleSwapError(new Error(`Timeout: swap did not complete within ${SWAP_TIMEOUT_MS / 1000} seconds`), true);
       }, SWAP_TIMEOUT_MS);
       setSwapTimeoutId(timeoutId);
       
@@ -756,7 +756,7 @@ export default function BuyToken() {
     setBlocksSinceSwap(0);
     setSwapWaitTime(0);
     setLoading(false);
-    setError('Состояние транзакции сброшено. Попробуйте снова.');
+    setError('Transaction state reset. Please try again.');
   };
 
   // Очистка таймаутов при размонтировании
