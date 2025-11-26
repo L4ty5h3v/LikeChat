@@ -616,11 +616,26 @@ export default function BuyToken() {
         });
 
         // Убеждаемся, что все параметры готовы перед вызовом
+        // Формируем параметры с явной проверкой типов
         const swapParams = {
           sellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`, // USDC на Base
           buyToken: `eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`, // MCT Token на Base
           sellAmount: usdcAmountStr, // 0.10 USDC = 100000 wei (parseUnits(0.10, 6))
         };
+
+        // Дополнительная проверка перед вызовом
+        console.log(`🔍 [SWAP] Final params check before call:`, {
+          sellToken: swapParams.sellToken,
+          buyToken: swapParams.buyToken,
+          sellAmount: swapParams.sellAmount,
+          sellAmountType: typeof swapParams.sellAmount,
+          sellAmountLength: swapParams.sellAmount?.length,
+        });
+
+        // Убеждаемся, что sellAmount не пустой и не равен нулю
+        if (!swapParams.sellAmount || swapParams.sellAmount === '0') {
+          throw new Error(`Invalid sellAmount: ${swapParams.sellAmount}. Expected non-zero string.`);
+        }
 
         console.log(`🔍 [SWAP] Calling swapTokenAsync with params:`, swapParams);
         result = await swapTokenAsync(swapParams);
