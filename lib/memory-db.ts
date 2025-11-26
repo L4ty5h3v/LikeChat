@@ -52,18 +52,30 @@ function generateTestData() {
 export async function getLastTenLinks(taskType?: TaskType): Promise<LinkSubmission[]> {
   generateTestData();
   
+  // Сортируем все ссылки по дате создания (новые первыми)
+  const sortedLinks = [...linkSubmissions].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
+  
   // Фильтруем по taskType, если указан
-  let filteredLinks = linkSubmissions;
+  let filteredLinks = sortedLinks;
   if (taskType) {
-    filteredLinks = linkSubmissions.filter(link => link.task_type === taskType);
+    filteredLinks = sortedLinks.filter(link => link.task_type === taskType);
     console.log(`🔍 [MEMORY-DB] Filtering links by task type: ${taskType}`);
-    console.log(`📊 [MEMORY-DB] Total links: ${linkSubmissions.length}, Filtered: ${filteredLinks.length}`);
+    console.log(`📊 [MEMORY-DB] Total links: ${sortedLinks.length}, Filtered: ${filteredLinks.length}`);
+    
+    // Если после фильтрации меньше 10 ссылок, дополняем ссылками других типов
+    if (filteredLinks.length < 10) {
+      const otherLinks = sortedLinks
+        .filter(link => link.task_type !== taskType)
+        .slice(0, 10 - filteredLinks.length);
+      filteredLinks = [...filteredLinks, ...otherLinks];
+      console.log(`📊 [MEMORY-DB] Added ${otherLinks.length} links of other types to reach 10 total`);
+    }
   }
   
-  // Сортируем по дате создания (новые первыми) и берем первые 10
-  return filteredLinks
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, 10);
+  // Берем первые 10 ссылок
+  return filteredLinks.slice(0, 10);
 }
 
 // Получить прогресс пользователя

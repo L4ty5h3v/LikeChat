@@ -62,7 +62,24 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
             )}
             <span className="font-semibold text-gray-900">@{task.username}</span>
           </div>
-          <p className="text-sm text-gray-600 truncate">{task.cast_url}</p>
+          {task.cast_url ? (
+            <a
+              href={task.cast_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-primary hover:underline break-all block truncate"
+              onClick={(e) => {
+                // Не предотвращаем открытие ссылки, но также вызываем onOpen для отслеживания
+                if (!task.opened) {
+                  // onOpen будет вызван отдельно через кнопку "Open"
+                }
+              }}
+            >
+              {task.cast_url}
+            </a>
+          ) : (
+            <p className="text-sm text-gray-600 truncate">No link available</p>
+          )}
         </div>
 
         {/* Кнопки действий */}

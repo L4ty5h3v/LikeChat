@@ -59,6 +59,15 @@ export async function getLastTenLinks(taskType?: TaskType): Promise<LinkSubmissi
       filteredLinks = parsedLinks.filter((link: LinkSubmission) => link.task_type === taskType);
       console.log(`🔍 Filtering links by task type: ${taskType}`);
       console.log(`📊 Total links: ${parsedLinks.length}, Filtered: ${filteredLinks.length}`);
+      
+      // Если после фильтрации меньше 10 ссылок, дополняем ссылками других типов
+      if (filteredLinks.length < 10) {
+        const otherLinks = parsedLinks
+          .filter((link: LinkSubmission) => link.task_type !== taskType)
+          .slice(0, 10 - filteredLinks.length);
+        filteredLinks = [...filteredLinks, ...otherLinks];
+        console.log(`📊 Added ${otherLinks.length} links of other types to reach 10 total`);
+      }
     }
     
     // Берем первые 10 ссылок после фильтрации
