@@ -7,7 +7,7 @@ import Button from '@/components/Button';
 import { useAccount, useBalance, useConnect, useBlockNumber } from 'wagmi';
 import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector';
 import { useSwapToken } from '@coinbase/onchainkit/minikit';
-import { getTokenInfo, getTokenSalePriceEth, getMCTAmountForPurchase } from '@/lib/web3';
+import { getTokenInfo, getMCTAmountForPurchase } from '@/lib/web3';
 import { markTokenPurchased, getUserProgress } from '@/lib/db-config';
 import { formatUnits, parseUnits } from 'viem';
 import type { FarcasterUser } from '@/types';
@@ -88,7 +88,7 @@ async function publishSwapCastWithTxHash(
   }
 }
 
-// Removed: fetchEthUsdPrice() - теперь используем полностью onchain quotes через Uniswap WETH/USDC
+// Using onchain quotes through Uniswap for USDC swaps
 
 export default function BuyToken() {
   const router = useRouter();
@@ -177,7 +177,6 @@ export default function BuyToken() {
     address: string;
     decimals: number;
   } | null>(null);
-  const [tokenPriceEth, setTokenPriceEth] = useState<string | null>(null);
   const [tokenPriceUsd, setTokenPriceUsd] = useState<string | null>(null);
   const [mctAmountForPurchase, setMctAmountForPurchase] = useState<bigint | null>(null);
 
@@ -339,18 +338,9 @@ export default function BuyToken() {
       const info = await getTokenInfo();
       setTokenInfo(info);
 
-      // Загружаем цену со смарт-контракта
-      const priceEth = await getTokenSalePriceEth();
-      setTokenPriceEth(priceEth);
-
-      if (priceEth && parseFloat(priceEth) > 0) {
-        // Для USDC цена уже в USD (1 USDC = 1 USD)
-        setTokenPriceUsd(parseFloat(priceEth).toFixed(2));
-      } else {
-        // Если цена 0 или не установлена, показываем "Free"
-        setTokenPriceUsd('0.00');
-        setTokenPriceEth('0');
-      }
+      // Устанавливаем цену для USDC (1 USDC = 1 USD)
+      // Для покупки на 0.10 USDC цена фиксированная
+      setTokenPriceUsd('0.10');
 
       // Рассчитываем количество MCT для покупки
       try {
@@ -803,62 +793,59 @@ export default function BuyToken() {
         const formattedAmount = manualAmount || PURCHASE_AMOUNT_USDC.toString(); // "0.10"
         const weiAmount = usdcAmountStr; // "100000" для 0.10 USDC с 6 decimals
         
-        // КРИТИЧНО: Порядок важен! Сначала устанавливаем from token (USDC), потом amount
-        // Это нужно для правильной инициализации swap компонента
+        // КРИТИЧНО: Устанавливаем параметры swap ПЕРЕД вызовом swapTokenAsync
+        // Порядок важен: сначала токены, потом amount
         if (swapHookResult) {
-          console.log('🔧 [SWAP] Setting up swap parameters in correct order...');
+          console.log('🔧 [SWAP] Setting up swap parameters before calling swapTokenAsync...');
           
-          // ШАГ 1: Сначала устанавливаем from token (USDC) - КРИТИЧНО!
+          // ШАГ 1: Устанавливаем from token (USDC)
           const usdcTokenId = `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`;
           if (typeof (swapHookResult as any)?.setTokenFrom === 'function') {
             (swapHookResult as any).setTokenFrom(usdcTokenId);
-            console.log('✅ [SWAP] STEP 1: setTokenFrom called with USDC:', usdcTokenId);
+            console.log('✅ [SWAP] STEP 1: setTokenFrom(USDC)');
           } else if ((swapHookResult as any).tokenFrom !== undefined) {
             (swapHookResult as any).tokenFrom = usdcTokenId;
-            console.log('✅ [SWAP] STEP 1: tokenFrom property set:', usdcTokenId);
-          } else if (typeof (swapHookResult as any)?.setFromToken === 'function') {
-            (swapHookResult as any).setFromToken(usdcTokenId);
-            console.log('✅ [SWAP] STEP 1: setFromToken called:', usdcTokenId);
+            console.log('✅ [SWAP] STEP 1: tokenFrom = USDC');
           }
           
           // ШАГ 2: Устанавливаем to token (MCT)
           const mctTokenId = `eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`;
           if (typeof (swapHookResult as any)?.setTokenTo === 'function') {
             (swapHookResult as any).setTokenTo(mctTokenId);
-            console.log('✅ [SWAP] STEP 2: setTokenTo called with MCT:', mctTokenId);
+            console.log('✅ [SWAP] STEP 2: setTokenTo(MCT)');
           } else if ((swapHookResult as any).tokenTo !== undefined) {
             (swapHookResult as any).tokenTo = mctTokenId;
-            console.log('✅ [SWAP] STEP 2: tokenTo property set:', mctTokenId);
+            console.log('✅ [SWAP] STEP 2: tokenTo = MCT');
           }
           
-          // ШАГ 3: Теперь устанавливаем amount (0.10) - ПОСЛЕ установки токенов!
+          // ШАГ 3: Устанавливаем amount (0.10) - КРИТИЧНО!
           if (typeof (swapHookResult as any)?.setFromAmount === 'function') {
             (swapHookResult as any).setFromAmount(formattedAmount);
-            console.log('✅ [SWAP] STEP 3: setFromAmount called:', formattedAmount);
+            console.log('✅ [SWAP] STEP 3: setFromAmount("0.10")');
           } else if ((swapHookResult as any).fromAmount !== undefined) {
             (swapHookResult as any).fromAmount = formattedAmount;
-            console.log('✅ [SWAP] STEP 3: fromAmount property set:', formattedAmount);
+            console.log('✅ [SWAP] STEP 3: fromAmount = "0.10"');
           } else if (typeof (swapHookResult as any)?.setAmount === 'function') {
             (swapHookResult as any).setAmount(formattedAmount);
-            console.log('✅ [SWAP] STEP 3: setAmount called:', formattedAmount);
+            console.log('✅ [SWAP] STEP 3: setAmount("0.10")');
           }
           
-          // ШАГ 4: Обновляем quote после установки всех параметров
+          // ШАГ 4: Обновляем quote
           if (typeof (swapHookResult as any)?.refreshQuote === 'function') {
-            setTimeout(() => {
-              (swapHookResult as any).refreshQuote();
-              console.log('✅ [SWAP] STEP 4: refreshQuote called after setting params');
-            }, 300);
+            (swapHookResult as any).refreshQuote();
+            console.log('✅ [SWAP] STEP 4: refreshQuote()');
           }
           
-          // Логируем все доступные методы и свойства для диагностики
-          console.log('🔍 [SWAP] Available swapHookResult methods/properties:', {
-            keys: typeof swapHookResult === 'object' ? Object.keys(swapHookResult || {}) : [],
-            hasSetTokenFrom: typeof (swapHookResult as any)?.setTokenFrom === 'function',
-            hasTokenFrom: (swapHookResult as any).tokenFrom !== undefined,
-            hasSetFromAmount: typeof (swapHookResult as any)?.setFromAmount === 'function',
-            hasFromAmount: (swapHookResult as any).fromAmount !== undefined,
-            hasRefreshQuote: typeof (swapHookResult as any)?.refreshQuote === 'function',
+          // КРИТИЧНО: Ждем, чтобы параметры успели примениться
+          console.log('⏳ [SWAP] Waiting 500ms for parameters to apply...');
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Проверяем, что параметры установлены
+          console.log('🔍 [SWAP] Verifying parameters after setup:', {
+            tokenFrom: (swapHookResult as any)?.tokenFrom,
+            tokenTo: (swapHookResult as any)?.tokenTo,
+            fromAmount: (swapHookResult as any)?.fromAmount,
+            amount: (swapHookResult as any)?.amount,
           });
         }
         
@@ -884,15 +871,23 @@ export default function BuyToken() {
           throw new Error(`Invalid wei amount: ${weiAmount}. Expected non-zero value like "100000"`);
         }
         
-        // Пробуем сначала форматированную строку "0.10" - это наиболее вероятный формат для UI
-        // КРИТИЧНО: Добавляем slippageTolerance и chainId для правильной работы
+        // КРИТИЧНО: Используем форматированную строку "0.10" для UI
+        // OnchainKit ожидает человекочитаемый формат, не wei
         let swapCallParams: any = {
           sellToken: swapParams.sellToken,
           buyToken: swapParams.buyToken,
-          sellAmount: formattedAmount, // "0.10" - человекочитаемый формат
+          sellAmount: formattedAmount, // "0.10" - формат для UI
           slippageTolerance: 1, // 1% slippage tolerance
-          chainId: 8453, // Base chain ID - КРИТИЧНО для правильной работы
+          chainId: 8453, // Base chain ID
         };
+        
+        // КРИТИЧНО: Если параметры были установлены через swapHookResult,
+        // они должны быть уже применены. Но передаем их и в swapCallParams для надежности
+        console.log('🔍 [SWAP] Final swapCallParams before call:', {
+          ...swapCallParams,
+          sellAmountType: typeof swapCallParams.sellAmount,
+          sellAmountValue: swapCallParams.sellAmount,
+        });
         
         console.log(`🚀 [TEST] Calling swapTokenAsync with FORMATTED amount:`, {
           ...swapCallParams,
