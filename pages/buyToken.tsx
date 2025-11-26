@@ -1061,16 +1061,70 @@ export default function BuyToken() {
         // КРИТИЧНО: Используем форматированную строку "0.10" для UI
         // OnchainKit ожидает человекочитаемый формат, не wei
         // ВАЖНО: Передаем параметры напрямую в swapTokenAsync, даже если они уже установлены через методы
+        
+        // КРИТИЧНО: Формируем полный набор параметров для Farcaster wallet
+        // Farcaster wallet может требовать recipient, deadline, и правильный формат
+        const deadline = Math.floor(Date.now() / 1000) + 60 * 20; // 20 минут от сейчас
+        
         let swapCallParams: any = {
           sellToken: swapParams.sellToken,
           buyToken: swapParams.buyToken,
           sellAmount: formattedAmount, // "0.10" - формат для UI
           slippageTolerance: 1, // 1% slippage tolerance
           chainId: 8453, // Base chain ID
+          // КРИТИЧНО: Добавляем recipient для Farcaster wallet
+          recipient: walletAddress, // Адрес получателя (кошелек пользователя)
+          // КРИТИЧНО: Добавляем deadline для транзакции
+          deadline: deadline, // Unix timestamp в секундах
         };
         
         // Сохраняем swapCallParams для использования в catch блоке
         savedSwapCallParams = { ...swapCallParams };
+        
+        // КРИТИЧНО: Детальное логирование всех параметров перед вызовом
+        console.log('📋 [SWAP-PARAMS] Complete swapCallParams object BEFORE swapTokenAsync call:', {
+          // Основные параметры
+          sellToken: swapCallParams.sellToken,
+          buyToken: swapCallParams.buyToken,
+          sellAmount: swapCallParams.sellAmount,
+          sellAmountType: typeof swapCallParams.sellAmount,
+          sellAmountExact: JSON.stringify(swapCallParams.sellAmount),
+          
+          // Параметры транзакции
+          slippageTolerance: swapCallParams.slippageTolerance,
+          slippageToleranceType: typeof swapCallParams.slippageTolerance,
+          chainId: swapCallParams.chainId,
+          chainIdType: typeof swapCallParams.chainId,
+          chainIdHex: `0x${swapCallParams.chainId.toString(16)}`, // Base = 0x2105
+          recipient: swapCallParams.recipient,
+          recipientType: typeof swapCallParams.recipient,
+          recipientLength: swapCallParams.recipient?.length,
+          deadline: swapCallParams.deadline,
+          deadlineType: typeof swapCallParams.deadline,
+          deadlineDate: new Date(swapCallParams.deadline * 1000).toISOString(),
+          deadlineMinutesFromNow: Math.floor((swapCallParams.deadline - Math.floor(Date.now() / 1000)) / 60),
+          
+          // Проверка формата для Farcaster wallet
+          sellTokenFormat: swapCallParams.sellToken.startsWith('eip155:') ? 'EIP-155 format' : 'Invalid format',
+          buyTokenFormat: swapCallParams.buyToken.startsWith('eip155:') ? 'EIP-155 format' : 'Invalid format',
+          recipientFormat: swapCallParams.recipient?.startsWith('0x') ? 'Valid address' : 'Invalid address',
+          
+          // Проверка значений
+          isChainIdBase: swapCallParams.chainId === 8453,
+          isSlippageValid: swapCallParams.slippageTolerance > 0 && swapCallParams.slippageTolerance <= 100,
+          isDeadlineValid: swapCallParams.deadline > Math.floor(Date.now() / 1000),
+          isRecipientValid: swapCallParams.recipient && swapCallParams.recipient.length === 42,
+          
+          // Полный объект для проверки
+          fullParams: swapCallParams,
+          fullParamsStringified: JSON.stringify(swapCallParams, null, 2),
+          
+          // Контекст вызова
+          walletAddress,
+          isConnected,
+          userFid: user?.fid,
+          timestamp: new Date().toISOString(),
+        });
         
         // КРИТИЧНО: Проверяем текущие параметры из swapHookResult перед вызовом
         const currentTokenFrom = (swapHookResult as any)?.tokenFrom;
@@ -1119,28 +1173,94 @@ export default function BuyToken() {
             throw new Error(`swapTokenAsync is not a function. Type: ${typeof swapTokenAsync}, Value: ${swapTokenAsync}`);
           }
           
-          console.log(`🚀 [SWAP] Calling swapTokenAsync NOW with params:`, {
+          // КРИТИЧНО: Финальная проверка параметров прямо перед вызовом
+          console.log(`🚀 [SWAP] FINAL CHECK - Calling swapTokenAsync NOW with params:`, {
             ...swapCallParams,
             paramsStringified: JSON.stringify(swapCallParams),
+            // Дополнительная проверка формата
+            paramValidation: {
+              sellTokenValid: swapCallParams.sellToken?.startsWith('eip155:8453/erc20:'),
+              buyTokenValid: swapCallParams.buyToken?.startsWith('eip155:8453/erc20:'),
+              sellAmountValid: swapCallParams.sellAmount && swapCallParams.sellAmount !== '0',
+              chainIdValid: swapCallParams.chainId === 8453,
+              recipientValid: swapCallParams.recipient?.startsWith('0x') && swapCallParams.recipient.length === 42,
+              deadlineValid: swapCallParams.deadline > Math.floor(Date.now() / 1000),
+              slippageValid: swapCallParams.slippageTolerance > 0,
+            },
+            // Проверка wagmi/viem состояния
+            wagmiState: {
+              isConnected,
+              walletAddress,
+              chainId,
+              hasProvider: typeof window !== 'undefined' && !!(window as any).ethereum,
+            },
           });
           
           // КРИТИЧНО: Добавляем обработку ошибок прямо при вызове
+          // Также логируем ошибки от wagmi/viem transport
+          const callStartTime = Date.now(); // Объявляем перед try для использования в catch
           try {
+            console.log(`⏳ [SWAP] AWAITING swapTokenAsync call...`);
+            
             result = await swapTokenAsync(swapCallParams);
+            
+            const callDuration = Date.now() - callStartTime;
+            console.log(`⏱️ [SWAP] swapTokenAsync call completed in ${callDuration}ms`);
           } catch (callError: any) {
+            const callDuration = Date.now() - callStartTime;
             console.error('❌ [SWAP] Error during swapTokenAsync call:', {
+              // Основная информация об ошибке
               error: callError,
               message: callError?.message,
               code: callError?.code,
               name: callError?.name,
               stack: callError?.stack,
+              
+              // Детали вызова
+              callDuration: `${callDuration}ms`,
+              paramsUsed: swapCallParams,
+              
+              // Ошибки от wagmi/viem transport
+              wagmiError: callError?.cause,
+              viemError: callError?.walk,
+              transportError: callError?.transport,
+              
+              // Проверка типа ошибки
+              isRpcError: callError?.code && typeof callError.code === 'number',
+              isProviderError: callError?.provider,
+              isTransactionError: callError?.transaction,
+              
+              // Дополнительная информация
+              errorStringified: JSON.stringify(callError, Object.getOwnPropertyNames(callError)),
+              errorKeys: Object.keys(callError || {}),
+              
+              // Контекст
+              walletAddress,
+              isConnected,
+              chainId,
             });
             
             // Если это ошибка unsupported method, пробуем альтернативный подход
             const errorMessage = callError?.message?.toLowerCase() || '';
-            if (errorMessage.includes('unsupported method') || errorMessage.includes('eth_call')) {
+            const errorCode = callError?.code;
+            
+            if (
+              errorMessage.includes('unsupported method') || 
+              errorMessage.includes('eth_call') ||
+              errorCode === -32601 // Method not found
+            ) {
               console.warn('⚠️ [SWAP] Unsupported method error - Farcaster wallet limitation');
+              console.warn('⚠️ [SWAP] This usually means Farcaster wallet does not support eth_call for quotes');
               throw new Error('Farcaster wallet does not support eth_call. Please try using a different wallet or contact support.');
+            }
+            
+            // Логируем другие типы ошибок
+            if (errorMessage.includes('user rejected') || errorCode === 4001) {
+              console.log('ℹ️ [SWAP] User rejected transaction - this is expected behavior');
+            } else if (errorMessage.includes('insufficient funds')) {
+              console.error('❌ [SWAP] Insufficient funds error');
+            } else if (errorMessage.includes('network') || errorMessage.includes('timeout')) {
+              console.error('❌ [SWAP] Network/timeout error - check connection');
             }
             
             throw callError;
