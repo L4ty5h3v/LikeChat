@@ -1073,7 +1073,7 @@ export default function Submit() {
                 {!loading && castUrl && (
                   <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
                 )}
-                <span className="relative z-10 drop-shadow-lg">
+                <span className="relative z-20 drop-shadow-lg">
                 {loading ? (
                   <div className="flex items-center justify-center gap-2">
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />

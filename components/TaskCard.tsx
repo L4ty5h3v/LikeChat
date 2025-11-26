@@ -126,7 +126,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
             {!task.completed && !task.verified && (
               <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
             )}
-            <span className="relative z-10 text-white drop-shadow-lg">
+            <span className="relative z-20 text-white drop-shadow-lg">
               {task.completed && task.verified 
                 ? 'Completed ✓' 
                 : task.error
