@@ -607,9 +607,12 @@ export default function BuyToken() {
         console.log(`🔍 [SWAP] User FID: ${user.fid}, Wallet context should be set by onchainkit`);
         // Логирование будет после создания swapParams
 
-        // КРИТИЧНО: Согласно документации OnchainKit, useSwapToken НЕ имеет методов setTokenFrom/setTokenTo/setFromAmount
-        // Параметры передаются напрямую в swapTokenAsync(params)
-        // sellAmount должен быть в wei формате (6 decimals для USDC): "100000" для 0.10 USDC
+        // КРИТИЧНО: Пробуем ОБА формата - возможно Farcaster SDK ожидает форматированную строку
+        // Согласно OnchainKit типам: "Amount to sell, formatted as a numeric string including decimals"
+        // Пример в типах: "1 USDC (1_000_000)" - это может означать wei, НО Farcaster может ожидать "0.1"
+        // Пробуем сначала форматированную строку, так как форма показывает "0" - возможно она не понимает wei
+        const formattedAmount = PURCHASE_AMOUNT_USDC.toString(); // "0.1"
+        
         const swapParams: {
           sellToken: string;
           buyToken: string;
@@ -617,12 +620,14 @@ export default function BuyToken() {
         } = {
           sellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`, // USDC на Base
           buyToken: `eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`, // MCT Token на Base
-          sellAmount: usdcAmountStr, // "100000" - wei формат (0.10 USDC с 6 decimals)
+          sellAmount: formattedAmount, // Пробуем "0.1" вместо "100000" - возможно Farcaster ожидает форматированную строку
         };
         
-        console.log('🔍 [SWAP] Final swap params (according to OnchainKit docs):', {
+        console.log('🔍 [SWAP] Testing FORMATTED amount (not wei):', {
           ...swapParams,
-          sellAmountFormatted: `${PURCHASE_AMOUNT_USDC} USDC = ${usdcAmountStr} wei (6 decimals)`,
+          sellAmountFormatted: formattedAmount,
+          sellAmountWei: usdcAmountStr,
+          note: 'Farcaster wallet may expect formatted string "0.1" instead of wei "100000"',
         });
 
         console.log(`🔍 [SWAP] Calling swapTokenAsync with params:`, swapParams);
