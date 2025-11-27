@@ -611,6 +611,17 @@ export default function BuyToken() {
 
         // КРИТИЧНО: Устанавливаем параметры через методы хука ПЕРЕД вызовом swapTokenAsync
         // Это предзаполняет форму в кошельке
+        console.log('🔍 [SWAP] swapHookResult structure:', {
+          type: typeof swapHookResult,
+          isObject: typeof swapHookResult === 'object',
+          isFunction: typeof swapHookResult === 'function',
+          keys: typeof swapHookResult === 'object' ? Object.keys(swapHookResult || {}) : [],
+          hasSetTokenFrom: typeof (swapHookResult as any)?.setTokenFrom === 'function',
+          hasSetTokenTo: typeof (swapHookResult as any)?.setTokenTo === 'function',
+          hasSetFromAmount: typeof (swapHookResult as any)?.setFromAmount === 'function',
+          hasRefreshQuote: typeof (swapHookResult as any)?.refreshQuote === 'function',
+        });
+        
         if (swapHookResult && typeof swapHookResult === 'object') {
           console.log('🔧 [SWAP] Setting swap parameters via hook methods...');
           
@@ -620,28 +631,36 @@ export default function BuyToken() {
           // ШАГ 1: Устанавливаем from token (USDC)
           if (typeof (swapHookResult as any).setTokenFrom === 'function') {
             (swapHookResult as any).setTokenFrom(usdcTokenId);
-            console.log('✅ [SWAP] STEP 1: setTokenFrom(USDC)');
+            console.log('✅ [SWAP] STEP 1: setTokenFrom(USDC) called');
+          } else {
+            console.warn('⚠️ [SWAP] setTokenFrom method not found!');
           }
           await new Promise(resolve => setTimeout(resolve, 150));
           
           // ШАГ 2: Устанавливаем to token (MCT)
           if (typeof (swapHookResult as any).setTokenTo === 'function') {
             (swapHookResult as any).setTokenTo(mctTokenId);
-            console.log('✅ [SWAP] STEP 2: setTokenTo(MCT)');
+            console.log('✅ [SWAP] STEP 2: setTokenTo(MCT) called');
+          } else {
+            console.warn('⚠️ [SWAP] setTokenTo method not found!');
           }
           await new Promise(resolve => setTimeout(resolve, 150));
           
           // ШАГ 3: Устанавливаем amount (0.1) - КРИТИЧНО!
           if (typeof (swapHookResult as any).setFromAmount === 'function') {
             (swapHookResult as any).setFromAmount(usdcAmountStr); // "0.1"
-            console.log(`✅ [SWAP] STEP 3: setFromAmount("${usdcAmountStr}")`);
+            console.log(`✅ [SWAP] STEP 3: setFromAmount("${usdcAmountStr}") called`);
+          } else {
+            console.warn('⚠️ [SWAP] setFromAmount method not found! This is the problem!');
           }
           await new Promise(resolve => setTimeout(resolve, 200));
           
           // ШАГ 4: Обновляем quote
           if (typeof (swapHookResult as any).refreshQuote === 'function') {
             (swapHookResult as any).refreshQuote();
-            console.log('✅ [SWAP] STEP 4: refreshQuote()');
+            console.log('✅ [SWAP] STEP 4: refreshQuote() called');
+          } else {
+            console.warn('⚠️ [SWAP] refreshQuote method not found!');
           }
           
           // Ждем, чтобы параметры применились
@@ -651,7 +670,11 @@ export default function BuyToken() {
             tokenFrom: (swapHookResult as any)?.tokenFrom,
             tokenTo: (swapHookResult as any)?.tokenTo,
             fromAmount: (swapHookResult as any)?.fromAmount,
+            amount: (swapHookResult as any)?.amount,
+            isAmountSet: (swapHookResult as any)?.fromAmount === usdcAmountStr || (swapHookResult as any)?.amount === usdcAmountStr,
           });
+        } else {
+          console.warn('⚠️ [SWAP] swapHookResult is not an object, cannot set parameters via methods');
         }
 
         // Убеждаемся, что все параметры готовы перед вызовом
