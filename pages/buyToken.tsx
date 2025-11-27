@@ -7,8 +7,6 @@ import Button from '@/components/Button';
 import { useAccount, useBalance, useConnect, useBlockNumber } from 'wagmi';
 import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector';
 import { useSwapToken } from '@coinbase/onchainkit/minikit';
-import { Swap, useSwapContext } from '@coinbase/onchainkit/swap';
-import type { Token } from '@coinbase/onchainkit/token';
 import { getTokenInfo, getTokenSalePriceEth, getMCTAmountForPurchase } from '@/lib/web3';
 import { markTokenPurchased, getUserProgress } from '@/lib/db-config';
 import { formatUnits, parseUnits } from 'viem';
@@ -92,33 +90,6 @@ async function publishSwapCastWithTxHash(
 
 // Removed: fetchEthUsdPrice() - теперь используем полностью onchain quotes через Uniswap WETH/USDC
 
-// Компонент для предзаполнения суммы в Swap через useSwapContext
-function SwapWithPreFilledAmount({ 
-  usdcToken, 
-  mctToken, 
-  amount 
-}: { 
-  usdcToken: Token; 
-  mctToken: Token; 
-  amount: string;
-}) {
-  const { from, to, handleAmountChange } = useSwapContext();
-  
-  useEffect(() => {
-    // Предзаполняем токены и сумму при монтировании
-    if (from.setToken && to.setToken) {
-      from.setToken(usdcToken);
-      to.setToken(mctToken);
-      
-      // Предзаполняем сумму через handleAmountChange
-      // Формат: форматированная строка "0.1" (не wei!)
-      handleAmountChange('from', amount, usdcToken, mctToken);
-    }
-  }, [from, to, handleAmountChange, usdcToken, mctToken, amount]);
-  
-  return null; // Этот компонент только для инициализации, не рендерит UI
-}
-
 export default function BuyToken() {
   const router = useRouter();
   const { address: walletAddress, isConnected } = useAccount();
@@ -186,25 +157,6 @@ export default function BuyToken() {
   // Конфигурация (используем USDC для покупки)
   const useUSDC = true; // false = ETH, true = USDC
   const currencySymbol = useUSDC ? 'USDC' : 'ETH';
-  
-  // Создаем объекты Token для Swap компонента
-  const usdcToken: Token = {
-    address: USDC_CONTRACT_ADDRESS as `0x${string}`,
-    chainId: 8453, // Base
-    decimals: 6,
-    image: null,
-    name: 'USD Coin',
-    symbol: 'USDC',
-  };
-  
-  const mctToken: Token = {
-    address: MCT_CONTRACT_ADDRESS as `0x${string}`,
-    chainId: 8453, // Base
-    decimals: 18,
-    image: null,
-    name: tokenInfo?.name || 'Mrs Crypto Token',
-    symbol: tokenInfo?.symbol || 'MCT',
-  };
   
   const tokenBalance = mctBalance ? formatUnits(mctBalance.value, mctBalance.decimals) : '0';
   
@@ -1022,44 +974,54 @@ export default function BuyToken() {
             </div>
           )}
 
-          {/* Swap компонент с предзаполнением суммы */}
-          {(() => {
-            console.log('🔍 [BUYTOKEN] Render check - purchased:', purchased, 'walletAddress:', !!walletAddress);
-            return !purchased && walletAddress;
-          })() ? (
-            <div className="mb-6">
-              <Swap
-                onSuccess={(receipt) => {
-                  console.log('✅ [SWAP] Swap completed successfully:', receipt);
-                  setPurchased(true);
-                  if (receipt?.transactionHash) {
-                    setTxHash(receipt.transactionHash);
-                  }
-                }}
-                onError={(error) => {
-                  console.error('❌ [SWAP] Swap error:', error);
-                  handleSwapError(error, false);
-                }}
-                onStatus={(status) => {
-                  console.log('📊 [SWAP] Status update:', status);
-                  if (status.statusName === 'transactionApproved' || status.statusName === 'success') {
-                    setIsSwapping(true);
-                  }
-                }}
-              >
-                <SwapWithPreFilledAmount 
-                  usdcToken={usdcToken}
-                  mctToken={mctToken}
-                  amount={PURCHASE_AMOUNT_USDC.toString()}
-                />
-              </Swap>
-            </div>
-          ) : !purchased && !walletAddress ? (
-            <div className="mb-6">
-              <p className="text-center text-gray-600 mb-4">
-                Connect your wallet to buy tokens
+          {/* Информация о сумме покупки */}
+          {walletAddress && !purchased && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+              <p className="text-sm text-blue-800 text-center">
+                <span className="font-semibold">💡 Tip:</span> When the swap form opens, enter <span className="font-bold">0.10 USDC</span> as the amount to swap
               </p>
             </div>
+          )}
+
+          {/* Кнопка покупки */}
+          {(() => {
+            console.log('🔍 [BUYTOKEN] Render check - purchased:', purchased, 'walletAddress:', !!walletAddress);
+            return !purchased;
+          })() ? (
+            <button
+              onClick={handleBuyToken}
+              disabled={loading || isSwapping || !walletAddress}
+              className={`btn-gold-glow w-full text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold text-white group ${
+                loading || isSwapping || !walletAddress ? 'disabled' : ''
+              }`}
+            >
+              {/* Переливающийся эффект */}
+              {!loading && !isSwapping && walletAddress && (
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+              )}
+              {/* Внутреннее свечение */}
+              {!loading && !isSwapping && walletAddress && (
+                <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
+              )}
+              <span className="relative z-10 drop-shadow-lg">
+                {isSwapping 
+                  ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>WAITING FOR SWAP...</span>
+                    </div>
+                  )
+                  : loading 
+                    ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>PROCESSING...</span>
+                      </div>
+                    )
+                    : `❤️ BUY MRS. CRYPTO TOKEN${displayUsdPrice ? ` FOR ${displayUsdPrice}` : ' (FREE)'}`
+                }
+              </span>
+            </button>
           ) : (
             <button
               onClick={() => {
