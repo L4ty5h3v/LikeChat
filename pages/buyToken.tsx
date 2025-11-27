@@ -1027,22 +1027,6 @@ export default function BuyToken() {
           {walletAddress && !purchased && (
             <div className="mb-6">
               <Swap
-                from={[{
-                  address: USDC_CONTRACT_ADDRESS as `0x${string}`,
-                  chainId: 8453,
-                  decimals: 6,
-                  name: 'USD Coin',
-                  symbol: 'USDC',
-                  image: null,
-                }]}
-                to={[{
-                  address: MCT_CONTRACT_ADDRESS as `0x${string}`,
-                  chainId: 8453,
-                  decimals: 18,
-                  name: 'Mrs Crypto',
-                  symbol: 'MCT',
-                  image: null,
-                }]}
                 onSuccess={(receipt) => {
                   console.log('✅ [SWAP] Swap successful:', receipt);
                   setTxHash(receipt.transactionHash);
@@ -1061,47 +1045,10 @@ export default function BuyToken() {
             </div>
           )}
 
-          {/* Кнопка покупки - скрыта, используем компонент Swap выше */}
-          {false && (
-            <button
-              onClick={handleBuyToken}
-              disabled={loading || isSwapping || !walletAddress}
-              className={`btn-gold-glow w-full text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold text-white group ${
-                loading || isSwapping || !walletAddress ? 'disabled' : ''
-              }`}
-            >
-              {/* Переливающийся эффект */}
-              {!loading && !isSwapping && walletAddress && (
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-              )}
-              {/* Внутреннее свечение */}
-              {!loading && !isSwapping && walletAddress && (
-                <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
-              )}
-              <span className="relative z-10 drop-shadow-lg">
-                {isSwapping 
-                  ? (
-                    <div className="flex items-center justify-center gap-2">
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>WAITING FOR SWAP...</span>
-                    </div>
-                  )
-                  : loading 
-                    ? (
-                      <div className="flex items-center justify-center gap-2">
-                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        <span>PROCESSING...</span>
-                      </div>
-                    )
-                    : `❤️ BUY MRS. CRYPTO TOKEN${displayUsdPrice ? ` FOR ${displayUsdPrice}` : ' (FREE)'}`
-                }
-              </span>
-            </button>
-          ) : (
+          {/* Кнопка "ADD YOUR LINK" после покупки */}
+          {purchased && (
             <button
               onClick={() => {
-                // Используем router.replace для навигации внутри Farcaster Mini App iframe
-                // Это гарантирует, что мы остаемся в iframe и не открываем новую вкладку
                 router.replace('/submit');
               }}
               className="btn-gold-glow w-full text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold text-white group"
