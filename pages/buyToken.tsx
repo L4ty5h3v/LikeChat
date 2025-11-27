@@ -7,7 +7,6 @@ import Button from '@/components/Button';
 import { useAccount, useBalance, useConnect, useBlockNumber } from 'wagmi';
 import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector';
 import { useSwapToken } from '@coinbase/onchainkit/minikit';
-import { Swap, useSwapContext } from '@coinbase/onchainkit/swap';
 import { getTokenInfo, getTokenSalePriceEth, getMCTAmountForPurchase } from '@/lib/web3';
 import { markTokenPurchased, getUserProgress } from '@/lib/db-config';
 import { formatUnits, parseUnits } from 'viem';
@@ -138,54 +137,6 @@ export default function BuyToken() {
     ? swapHookResult 
     : (swapHookResult as any)?.swapTokenAsync;
   
-  // Компонент для предустановки суммы в Swap через useSwapContext
-  // Используется внутри компонента Swap как children
-  const SwapWithPreFilledAmount = () => {
-    const swapContext = useSwapContext();
-    
-    // Устанавливаем сумму и токены при монтировании
-    useEffect(() => {
-      if (walletAddress && isConnected) {
-        // Получаем токены
-        const usdcToken = {
-          address: USDC_CONTRACT_ADDRESS as `0x${string}`,
-          chainId: 8453,
-          decimals: 6,
-          name: 'USD Coin',
-          symbol: 'USDC',
-          image: null,
-        };
-        
-        const mctToken = {
-          address: MCT_CONTRACT_ADDRESS as `0x${string}`,
-          chainId: 8453,
-          decimals: 18,
-          name: 'Mrs Crypto',
-          symbol: 'MCT',
-          image: null,
-        };
-        
-        // КРИТИЧНО: Устанавливаем токены ПЕРВЫМИ, потом сумму
-        // Сначала устанавливаем токены напрямую
-        if (swapContext.from.setToken) {
-          swapContext.from.setToken(usdcToken);
-        }
-        if (swapContext.to.setToken) {
-          swapContext.to.setToken(mctToken);
-        }
-        
-        // Небольшая задержка для применения токенов
-        setTimeout(() => {
-          // Затем устанавливаем сумму через handleAmountChange
-          // Это предзаполнит форму Swap компонента
-          console.log('🔧 [SWAP-CONTEXT] Setting up swap with amount:', PURCHASE_AMOUNT_USDC);
-          swapContext.handleAmountChange('from', PURCHASE_AMOUNT_USDC.toString(), usdcToken, mctToken);
-        }, 100);
-      }
-    }, [swapContext, walletAddress, isConnected]);
-    
-    return null; // Этот компонент только для side effects
-  };
 
   const [loading, setLoading] = useState(false);
   const { user, isLoading: authLoading, isInitialized } = useFarcasterAuth(); // Используем контекст вместо localStorage
@@ -1023,30 +974,71 @@ export default function BuyToken() {
             </div>
           )}
 
-          {/* Компонент Swap с предустановленной суммой через useSwapContext */}
+          {/* Информация о сумме покупки */}
           {walletAddress && !purchased && (
-            <div className="mb-6">
-              <Swap
-                onSuccess={(receipt) => {
-                  console.log('✅ [SWAP] Swap successful:', receipt);
-                  setTxHash(receipt.transactionHash);
-                  setPurchased(true);
-                  if (user) {
-                    markTokenPurchased(user.fid, receipt.transactionHash);
-                  }
-                }}
-                onError={(error) => {
-                  console.error('❌ [SWAP] Swap error:', error);
-                  setError(error.message || 'Swap failed');
-                }}
-              >
-                <SwapWithPreFilledAmount />
-              </Swap>
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+              <p className="text-sm text-blue-800 text-center">
+                <span className="font-semibold">💡 Tip:</span> When the swap form opens, enter <span className="font-bold">0.10 USDC</span> as the amount to swap
+              </p>
             </div>
           )}
 
+          {/* Кнопка покупки */}
+          {(() => {
+            console.log('🔍 [BUYTOKEN] Render check - purchased:', purchased, 'walletAddress:', !!walletAddress);
+            return !purchased;
+          })() ? (
+            <button
+              onClick={handleBuyToken}
+              disabled={loading || isSwapping || !walletAddress}
+              className={`btn-gold-glow w-full text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold text-white group ${
+                loading || isSwapping || !walletAddress ? 'disabled' : ''
+              }`}
+            >
+              {/* Переливающийся эффект */}
+              {!loading && !isSwapping && walletAddress && (
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+              )}
+              {/* Внутреннее свечение */}
+              {!loading && !isSwapping && walletAddress && (
+                <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
+              )}
+              <span className="relative z-10 drop-shadow-lg">
+                {isSwapping 
+                  ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>WAITING FOR SWAP...</span>
+                    </div>
+                  )
+                  : loading 
+                    ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>PROCESSING...</span>
+                      </div>
+                    )
+                    : `❤️ BUY MRS. CRYPTO TOKEN${displayUsdPrice ? ` FOR ${displayUsdPrice}` : ' (FREE)'}`
+                }
+              </span>
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                router.replace('/submit');
+              }}
+              className="btn-gold-glow w-full text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold text-white group"
+            >
+              {/* Переливающийся эффект */}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+              {/* Внутреннее свечение */}
+              <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
+              <span className="relative z-20 drop-shadow-lg">ADD YOUR LINK →</span>
+            </button>
+          )}
+
           {/* Кнопка "ADD YOUR LINK" после покупки */}
-          {purchased && (
+          {false && purchased && (
             <button
               onClick={() => {
                 router.replace('/submit');
