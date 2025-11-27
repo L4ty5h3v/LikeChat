@@ -607,12 +607,10 @@ export default function BuyToken() {
         console.log(`🔍 [SWAP] User FID: ${user.fid}, Wallet context should be set by onchainkit`);
         // Логирование будет после создания swapParams
 
-        // КРИТИЧНО: Пробуем ОБА формата - возможно Farcaster SDK ожидает форматированную строку
-        // Согласно OnchainKit типам: "Amount to sell, formatted as a numeric string including decimals"
-        // Пример в типах: "1 USDC (1_000_000)" - это может означать wei, НО Farcaster может ожидать "0.1"
-        // Пробуем сначала форматированную строку, так как форма показывает "0" - возможно она не понимает wei
-        const formattedAmount = PURCHASE_AMOUNT_USDC.toString(); // "0.1"
-        
+        // КРИТИЧНО: Согласно тестам OnchainKit, sellAmount должен быть в wei формате
+        // Тест показывает: sellAmount: '1000000' для 1 USDC (6 decimals)
+        // Для 0.10 USDC: 0.10 * 10^6 = 100000
+        // В типах Farcaster: "Sell token amount, as numeric string. For example, 1 USDC: 1000000"
         const swapParams: {
           sellToken: string;
           buyToken: string;
@@ -620,18 +618,43 @@ export default function BuyToken() {
         } = {
           sellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`, // USDC на Base
           buyToken: `eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`, // MCT Token на Base
-          sellAmount: formattedAmount, // Пробуем "0.1" вместо "100000" - возможно Farcaster ожидает форматированную строку
+          sellAmount: usdcAmountStr, // "100000" - wei формат (0.10 USDC с 6 decimals)
         };
         
-        console.log('🔍 [SWAP] Testing FORMATTED amount (not wei):', {
+        console.log('🔍 [SWAP] Final params (wei format according to tests):', {
           ...swapParams,
-          sellAmountFormatted: formattedAmount,
           sellAmountWei: usdcAmountStr,
-          note: 'Farcaster wallet may expect formatted string "0.1" instead of wei "100000"',
+          sellAmountFormatted: `${PURCHASE_AMOUNT_USDC} USDC`,
+          calculation: `0.10 USDC * 10^6 = ${usdcAmountStr}`,
+          note: 'According to OnchainKit tests, sellAmount must be in wei format (numeric string)',
         });
 
-        console.log(`🔍 [SWAP] Calling swapTokenAsync with params:`, swapParams);
+        console.log(`🚀 [SWAP] Calling swapTokenAsync NOW with exact params:`, {
+          ...swapParams,
+          paramsStringified: JSON.stringify(swapParams),
+          timestamp: new Date().toISOString(),
+        });
+        
+        // КРИТИЧНО: Логируем что именно передается в Farcaster SDK
+        console.log('📤 [SWAP] Parameters being sent to sdk.actions.swapToken:', {
+          sellToken: swapParams.sellToken,
+          buyToken: swapParams.buyToken,
+          sellAmount: swapParams.sellAmount,
+          sellAmountType: typeof swapParams.sellAmount,
+          sellAmountLength: swapParams.sellAmount.length,
+          isNumeric: !isNaN(Number(swapParams.sellAmount)),
+          expectedFormat: 'wei format: "100000" for 0.10 USDC (6 decimals)',
+        });
+        
         result = await swapTokenAsync(swapParams);
+        
+        console.log('📥 [SWAP] swapTokenAsync returned:', {
+          result,
+          resultType: typeof result,
+          resultKeys: result ? Object.keys(result) : [],
+          resultStringified: JSON.stringify(result),
+          note: 'If result is undefined/null, form opened but amount may not be pre-filled',
+        });
         
         // Очищаем таймаут при успешном запуске
         if (timeoutId) {
