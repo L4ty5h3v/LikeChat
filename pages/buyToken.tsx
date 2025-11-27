@@ -7,6 +7,7 @@ import Button from '@/components/Button';
 import { useAccount, useBalance, useConnect, useBlockNumber } from 'wagmi';
 import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector';
 import { useSwapToken } from '@coinbase/onchainkit/minikit';
+import { Swap, useSwapContext } from '@coinbase/onchainkit/swap';
 import { getTokenInfo, getTokenSalePriceEth, getMCTAmountForPurchase } from '@/lib/web3';
 import { markTokenPurchased, getUserProgress } from '@/lib/db-config';
 import { formatUnits, parseUnits } from 'viem';
@@ -136,6 +137,55 @@ export default function BuyToken() {
   const swapTokenAsync = typeof swapHookResult === 'function' 
     ? swapHookResult 
     : (swapHookResult as any)?.swapTokenAsync;
+  
+  // Компонент для предустановки суммы в Swap через useSwapContext
+  // Используется внутри компонента Swap как children
+  const SwapWithPreFilledAmount = () => {
+    const swapContext = useSwapContext();
+    
+    // Устанавливаем сумму и токены при монтировании
+    useEffect(() => {
+      if (walletAddress && isConnected) {
+        // Получаем токены
+        const usdcToken = {
+          address: USDC_CONTRACT_ADDRESS as `0x${string}`,
+          chainId: 8453,
+          decimals: 6,
+          name: 'USD Coin',
+          symbol: 'USDC',
+          image: null,
+        };
+        
+        const mctToken = {
+          address: MCT_CONTRACT_ADDRESS as `0x${string}`,
+          chainId: 8453,
+          decimals: 18,
+          name: 'Mrs Crypto',
+          symbol: 'MCT',
+          image: null,
+        };
+        
+        // КРИТИЧНО: Устанавливаем токены ПЕРВЫМИ, потом сумму
+        // Сначала устанавливаем токены напрямую
+        if (swapContext.from.setToken) {
+          swapContext.from.setToken(usdcToken);
+        }
+        if (swapContext.to.setToken) {
+          swapContext.to.setToken(mctToken);
+        }
+        
+        // Небольшая задержка для применения токенов
+        setTimeout(() => {
+          // Затем устанавливаем сумму через handleAmountChange
+          // Это предзаполнит форму Swap компонента
+          console.log('🔧 [SWAP-CONTEXT] Setting up swap with amount:', PURCHASE_AMOUNT_USDC);
+          swapContext.handleAmountChange('from', PURCHASE_AMOUNT_USDC.toString(), usdcToken, mctToken);
+        }, 100);
+      }
+    }, [swapContext, walletAddress, isConnected]);
+    
+    return null; // Этот компонент только для side effects
+  };
 
   const [loading, setLoading] = useState(false);
   const { user, isLoading: authLoading, isInitialized } = useFarcasterAuth(); // Используем контекст вместо localStorage
@@ -973,20 +1023,46 @@ export default function BuyToken() {
             </div>
           )}
 
-          {/* Информация о сумме покупки */}
+          {/* Компонент Swap с предустановленной суммой через useSwapContext */}
           {walletAddress && !purchased && (
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
-              <p className="text-sm text-blue-800 text-center">
-                <span className="font-semibold">💡 Tip:</span> When the swap form opens, enter <span className="font-bold">0.10 USDC</span> as the amount to swap
-              </p>
+            <div className="mb-6">
+              <Swap
+                from={[{
+                  address: USDC_CONTRACT_ADDRESS as `0x${string}`,
+                  chainId: 8453,
+                  decimals: 6,
+                  name: 'USD Coin',
+                  symbol: 'USDC',
+                  image: null,
+                }]}
+                to={[{
+                  address: MCT_CONTRACT_ADDRESS as `0x${string}`,
+                  chainId: 8453,
+                  decimals: 18,
+                  name: 'Mrs Crypto',
+                  symbol: 'MCT',
+                  image: null,
+                }]}
+                onSuccess={(receipt) => {
+                  console.log('✅ [SWAP] Swap successful:', receipt);
+                  setTxHash(receipt.transactionHash);
+                  setPurchased(true);
+                  if (user) {
+                    markTokenPurchased(user.fid, receipt.transactionHash);
+                  }
+                }}
+                onError={(error) => {
+                  console.error('❌ [SWAP] Swap error:', error);
+                  setError(error.message || 'Swap failed');
+                }}
+              >
+                <SwapWithPreFilledAmount />
+              </Swap>
             </div>
           )}
 
-          {/* Кнопка покупки */}
-          {(() => {
-            console.log('🔍 [BUYTOKEN] Render check - purchased:', purchased, 'walletAddress:', !!walletAddress);
-            return !purchased;
-          })() ? (
+          {/* Кнопка покупки - скрыта, используем компонент Swap выше */}
+          {false && (
             <button
               onClick={handleBuyToken}
               disabled={loading || isSwapping || !walletAddress}
