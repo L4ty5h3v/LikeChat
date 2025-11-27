@@ -7,10 +7,9 @@ import Button from '@/components/Button';
 import { useAccount, useBalance, useConnect, useBlockNumber } from 'wagmi';
 import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector';
 import { useSwapToken } from '@coinbase/onchainkit/minikit';
-import { getTokenInfo, getMCTAmountForPurchase } from '@/lib/web3';
+import { getTokenInfo, getTokenSalePriceEth, getMCTAmountForPurchase } from '@/lib/web3';
 import { markTokenPurchased, getUserProgress } from '@/lib/db-config';
-import { formatUnits, parseUnits, createWalletClient, custom, encodeFunctionData, Address } from 'viem';
-import { base } from 'viem/chains';
+import { formatUnits, parseUnits } from 'viem';
 import type { FarcasterUser } from '@/types';
 import { sendTokenPurchaseNotification } from '@/lib/farcaster-notifications';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
@@ -18,8 +17,6 @@ import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
 const PURCHASE_AMOUNT_USDC = 0.10; // Покупаем MCT на 0.10 USDC
 const USDC_CONTRACT_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // USDC на Base (6 decimals) - правильный адрес
 const MCT_CONTRACT_ADDRESS = '0x04d388da70c32fc5876981097c536c51c8d3d236'; // MCT Token
-const UNISWAP_V3_ROUTER_BASE = '0x2626664c2603336E57B271c5C0b26F421741e481' as Address; // Uniswap V3 SwapRouter02 на Base
-const MAX_SLIPPAGE_BPS = 200; // 2% slippage (200 basis points)
 
 // Публиковать cast в Farcaster с tx hash после успешного swap для social proof
 async function publishSwapCastWithTxHash(
@@ -35,7 +32,7 @@ async function publishSwapCastWithTxHash(
     if (typeof window === 'undefined') {
       return {
         success: false,
-        error: 'SDK available only on client',
+        error: 'SDK доступен только на клиенте',
       };
     }
 
@@ -91,199 +88,12 @@ async function publishSwapCastWithTxHash(
   }
 }
 
-// Using onchain quotes through Uniswap for USDC swaps
-
-// КРИТИЧНО: Safe swap функция с fallback на прямую транзакцию через viem
-// Использует 0x aggregator для обхода eth_call проблем в Farcaster wallet
-async function safeSwap({
-  swapTokenAsync,
-  from,
-  to,
-  amount,
-  walletAddress,
-  account,
-}: {
-  swapTokenAsync: any;
-  from: string;
-  to: string;
-  amount: string;
-  walletAddress: string;
-  account: Address;
-}): Promise<any> {
-  try {
-    // Пробуем batch call через swapTokenAsync с 2% slippage
-    // КРИТИЧНО: OnchainKit должен использовать 0x aggregator (experimental.useAggregator: true)
-    console.log('🔄 [SAFE-SWAP] Attempting batch swap via swapTokenAsync with 0x aggregator...');
-    return await swapTokenAsync({
-      sellToken: from,
-      buyToken: to,
-      sellAmount: amount,
-      slippageTolerance: 2, // 2% slippage (200 basis points)
-      chainId: 8453,
-      recipient: walletAddress,
-    });
-  } catch (err: any) {
-    // КРИТИЧНО: Если ошибка -32601 или 4200, используем fallback на прямую транзакцию
-    if (err.code === -32601 || err.code === 4200) {
-      console.log('🔄 [SAFE-SWAP] Falling back to single sendTransaction (batch not supported)...');
-      console.log('🔄 [SAFE-SWAP] Error code:', err.code, 'Message:', err.message);
-      
-      try {
-        // Получаем Farcaster провайдер для viem walletClient
-        const { getEthereumProvider } = await import('@farcaster/miniapp-sdk/dist/ethereumProvider');
-        const miniProvider = await getEthereumProvider();
-        
-        if (!miniProvider) {
-          throw new Error('Farcaster provider not available');
-        }
-        
-        // Создаем walletClient через viem с Farcaster провайдером
-        const walletClient = createWalletClient({
-          chain: base,
-          transport: custom(miniProvider as any),
-          account,
-        });
-        
-        console.log('🔄 [SAFE-SWAP] Created viem walletClient, preparing hardcoded exactInputSingle...');
-        
-        // КРИТИЧНО: Hardcoded exactInputSingle для USDC -> MCT
-        // Без quoter fetch - используем статический расчет с 2% slippage
-        const amountIn = parseUnits(amount, 6); // USDC имеет 6 decimals (0.10 USDC = 100000)
-        
-        // КРИТИЧНО: Статический расчет amountOutMinimum с 2% slippage
-        // Для MCT/USDC на Base с хорошей ликвидностью, примерная оценка:
-        // Если 0.10 USDC ≈ X MCT, то с 2% slippage: amountOutMinimum = X * 0.98
-        // Используем консервативную оценку: предполагаем 1:1 курс для расчета минимума
-        // В реальности это будет больше, но это безопасная оценка
-        const estimatedMCTPerUSDC = parseUnits('1', 18); // Примерно 1 MCT за 1 USDC (консервативно)
-        const estimatedAmountOut = (amountIn * estimatedMCTPerUSDC) / parseUnits('1', 6);
-        const amountOutMinimum = (estimatedAmountOut * BigInt(98)) / BigInt(100); // 2% slippage
-        
-        console.log('🔄 [SAFE-SWAP] Hardcoded swap params:', {
-          amountIn: amountIn.toString(),
-          amountOutMinimum: amountOutMinimum.toString(),
-          tokenIn: USDC_CONTRACT_ADDRESS,
-          tokenOut: MCT_CONTRACT_ADDRESS,
-          fee: 10000, // 1% fee tier
-        });
-        
-        // КРИТИЧНО: Формируем calldata для Uniswap V3 exactInputSingle
-        // Используем fee tier 1% (10000) для MCT/USDC пары
-        const swapCalldata = encodeFunctionData({
-          abi: [
-            {
-              name: 'exactInputSingle',
-              type: 'function',
-              stateMutability: 'payable',
-              inputs: [
-                {
-                  name: 'params',
-                  type: 'tuple',
-                  components: [
-                    { name: 'tokenIn', type: 'address' },
-                    { name: 'tokenOut', type: 'address' },
-                    { name: 'fee', type: 'uint24' },
-                    { name: 'recipient', type: 'address' },
-                    { name: 'deadline', type: 'uint256' },
-                    { name: 'amountIn', type: 'uint256' },
-                    { name: 'amountOutMinimum', type: 'uint256' },
-                    { name: 'sqrtPriceLimitX96', type: 'uint160' },
-                  ],
-                },
-              ],
-              outputs: [{ name: 'amountOut', type: 'uint256' }],
-            },
-          ],
-          functionName: 'exactInputSingle',
-          args: [
-            {
-              tokenIn: USDC_CONTRACT_ADDRESS as Address,
-              tokenOut: MCT_CONTRACT_ADDRESS as Address,
-              fee: 10000, // 1% fee tier
-              recipient: walletAddress as Address,
-              deadline: BigInt(Math.floor(Date.now() / 1000) + 60 * 20), // 20 минут
-              amountIn,
-              amountOutMinimum,
-              sqrtPriceLimitX96: 0n,
-            },
-          ],
-        });
-        
-        console.log('🔄 [SAFE-SWAP] Sending direct transaction to Uniswap router (no quoter)...');
-        
-        // КРИТИЧНО: Estimate gas вручную если нужно, но обычно не требуется для простых swap
-        // Отправляем прямую транзакцию через viem
-        const hash = await walletClient.sendTransaction({
-          account,
-          to: UNISWAP_V3_ROUTER_BASE,
-          data: swapCalldata,
-          value: 0n,
-          // gas может быть оценен автоматически через viem
-        });
-        
-        console.log('✅ [SAFE-SWAP] Direct transaction sent (no quoter), hash:', hash);
-        return { hash, txHash: hash };
-      } catch (fallbackError: any) {
-        console.error('❌ [SAFE-SWAP] Fallback also failed:', {
-          error: fallbackError,
-          message: fallbackError?.message,
-          code: fallbackError?.code,
-        });
-        throw new Error(
-          `Both batch and direct transaction failed. ` +
-          `Batch error: ${err.message} (code: ${err.code}). ` +
-          `Direct error: ${fallbackError?.message || 'Unknown'}.`
-        );
-      }
-    }
-    
-    // Если это не ошибка method not found, пробрасываем дальше
-    throw err;
-  }
-}
+// Removed: fetchEthUsdPrice() - теперь используем полностью onchain quotes через Uniswap WETH/USDC
 
 export default function BuyToken() {
   const router = useRouter();
-  const { address: walletAddress, isConnected, chainId } = useAccount();
+  const { address: walletAddress, isConnected } = useAccount();
   const { connect, isPending: isConnecting } = useConnect();
-  
-  // КРИТИЧНО: Синхронизация isConnected с localStorage для сохранения сессии
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    
-    // Сохраняем состояние подключения
-    if (isConnected && walletAddress) {
-      localStorage.setItem('wallet_connected', 'true');
-      localStorage.setItem('wallet_address', walletAddress);
-      console.log('✅ [WALLET] Connection state saved to localStorage');
-    } else {
-      localStorage.removeItem('wallet_connected');
-      localStorage.removeItem('wallet_address');
-    }
-  }, [isConnected, walletAddress]);
-  
-  // Восстанавливаем состояние подключения из localStorage при монтировании
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    
-    const wasConnected = localStorage.getItem('wallet_connected') === 'true';
-    const savedAddress = localStorage.getItem('wallet_address');
-    
-    if (wasConnected && savedAddress && !isConnected) {
-      console.log('🔄 [WALLET] Restoring connection from localStorage...');
-      // Попытка переподключения будет выполнена автоматически через wagmi
-    }
-  }, []);
-  
-  // КРИТИЧНО: Проверяем chainId - должен быть строго 8453 (Base)
-  useEffect(() => {
-    if (chainId && chainId !== 8453) {
-      console.warn(`⚠️ [CHAIN] Wrong chain ID: ${chainId}, expected 8453 (Base)`);
-      setError(`Please switch to Base network (chain ID: 8453). Current: ${chainId}`);
-    } else if (chainId === 8453) {
-      console.log('✅ [CHAIN] Correct chain ID: 8453 (Base)');
-    }
-  }, [chainId]);
   const [isSwapping, setIsSwapping] = useState(false);
   const [swapInitiatedAt, setSwapInitiatedAt] = useState<number | null>(null);
   const [oldBalanceBeforeSwap, setOldBalanceBeforeSwap] = useState<number | null>(null);
@@ -321,141 +131,7 @@ export default function BuyToken() {
       enabled: !!walletAddress,
     },
   });
-  // useSwapToken hook - проверяем правильную структуру возвращаемого значения
-  const swapHookResult = useSwapToken();
-  
-  // Логируем версии для диагностики совместимости
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      console.log('📦 [VERSIONS] Package versions:', {
-        viem: '^2.39.0',
-        wagmi: '^2.19.4',
-        onchainkit: '^1.1.2',
-        farcasterSDK: '^0.2.1',
-        // Проверяем доступные методы в провайдере
-        hasEthereum: !!(window as any).ethereum,
-        ethereumMethods: (window as any).ethereum ? Object.keys((window as any).ethereum) : [],
-      });
-    }
-  }, []);
-  
-  // КРИТИЧНО: Обработка ошибок disconnect и retry connect через отдельный useEffect
-  useEffect(() => {
-    // Отслеживаем изменения isConnected для обнаружения disconnect
-    if (typeof window === 'undefined') return;
-    
-    const wasConnected = localStorage.getItem('wallet_connected') === 'true';
-    
-    // Если было подключение, но сейчас отключено - это disconnect
-    if (wasConnected && !isConnected && !isConnecting) {
-      console.log('🔄 [WALLET] Disconnect detected, attempting to reconnect...');
-      
-      // Очищаем localStorage
-      localStorage.removeItem('wallet_connected');
-      localStorage.removeItem('wallet_address');
-      
-      // Пытаемся переподключиться через 1 секунду
-      setTimeout(async () => {
-        if (!isConnected && !isConnecting) {
-          console.log('🔄 [WALLET] Retrying wallet connection...');
-          
-          // КРИТИЧНО: Убеждаемся, что SDK инициализирован перед переподключением
-          try {
-            const isInFarcasterFrame = window.self !== window.top;
-            if (isInFarcasterFrame) {
-              const { sdk } = await import('@farcaster/miniapp-sdk');
-              if (sdk && sdk.actions && typeof sdk.actions.ready === 'function') {
-                await sdk.actions.ready();
-                console.log('✅ [WALLET] SDK ready() called before reconnection');
-              }
-            }
-          } catch (sdkError: any) {
-            console.warn('⚠️ [WALLET] SDK ready() not available during reconnection:', sdkError?.message);
-          }
-          
-          // Небольшая задержка для инициализации
-          await new Promise(resolve => setTimeout(resolve, 300));
-          
-          try {
-            connect({ connector: farcasterMiniApp() });
-          } catch (connectError: any) {
-            console.error('❌ [WALLET] Reconnection failed:', connectError);
-          }
-        }
-      }, 1000);
-    }
-  }, [isConnected, isConnecting, connect]);
-  
-  // КРИТИЧНО: Проверяем инициализацию OnchainKit и Farcaster SDK при монтировании
-  useEffect(() => {
-    const checkInitialization = async () => {
-      if (typeof window === 'undefined') return;
-      
-      const isInFarcasterFrame = window.self !== window.top;
-      if (!isInFarcasterFrame) {
-        console.log('ℹ️ [INIT] Not in Farcaster frame, skipping initialization check');
-        return;
-      }
-      
-      try {
-        // Проверяем Farcaster SDK
-        const { sdk } = await import('@farcaster/miniapp-sdk');
-        console.log('✅ [INIT] Farcaster SDK loaded:', {
-          hasSDK: !!sdk,
-          hasActions: !!sdk?.actions,
-          hasReady: typeof sdk?.actions?.ready === 'function',
-        });
-        
-        // Проверяем OnchainKit (через window)
-        const hasOnchainKit = typeof window !== 'undefined' && (window as any).onchainkit;
-        console.log('✅ [INIT] OnchainKit check:', {
-          hasOnchainKit,
-        });
-        
-        // Проверяем wagmi connector
-        const hasWagmi = typeof window !== 'undefined' && (window as any).wagmi;
-        console.log('✅ [INIT] Wagmi check:', {
-          hasWagmi,
-        });
-        
-      } catch (error: any) {
-        console.error('❌ [INIT] Error checking initialization:', error);
-      }
-    };
-    
-    checkInitialization();
-  }, []);
-  
-  // КРИТИЧНО: useSwapToken может возвращать либо объект с swapTokenAsync, либо саму функцию
-  let swapTokenAsync: any = null;
-  if (typeof swapHookResult === 'function') {
-    // Если хук возвращает функцию напрямую
-    swapTokenAsync = swapHookResult;
-  } else if (swapHookResult && typeof (swapHookResult as any).swapTokenAsync === 'function') {
-    // Если хук возвращает объект с методом swapTokenAsync
-    swapTokenAsync = (swapHookResult as any).swapTokenAsync;
-  } else {
-    // Fallback: пробуем использовать весь объект как функцию
-    swapTokenAsync = swapHookResult as any;
-  }
-  
-  // Логируем структуру для диагностики
-  useEffect(() => {
-    if (swapHookResult) {
-      console.log('🔍 [SWAP-HOOK] useSwapToken returned:', {
-        type: typeof swapHookResult,
-        isFunction: typeof swapHookResult === 'function',
-        keys: typeof swapHookResult === 'object' ? Object.keys(swapHookResult) : [],
-        hasSwapTokenAsync: typeof (swapHookResult as any)?.swapTokenAsync === 'function',
-        swapTokenAsyncType: typeof swapTokenAsync,
-        swapTokenAsyncIsFunction: typeof swapTokenAsync === 'function',
-      });
-    }
-  }, [swapHookResult, swapTokenAsync]);
-  
-  // Состояние для manual amount - устанавливаем 0.10 USDC
-  // КРИТИЧНО: Явно устанавливаем "0.10" для синхронизации с useSwapToken
-  const [manualAmount, setManualAmount] = useState<string>('0.10');
+  const { swapTokenAsync } = useSwapToken();
 
   const [loading, setLoading] = useState(false);
   const { user, isLoading: authLoading, isInitialized } = useFarcasterAuth(); // Используем контекст вместо localStorage
@@ -469,19 +145,23 @@ export default function BuyToken() {
     address: string;
     decimals: number;
   } | null>(null);
+  const [tokenPriceEth, setTokenPriceEth] = useState<string | null>(null);
   const [tokenPriceUsd, setTokenPriceUsd] = useState<string | null>(null);
   const [mctAmountForPurchase, setMctAmountForPurchase] = useState<bigint | null>(null);
 
-  // Конфигурация (используем только USDC для покупки)
-  const useUSDC = true; // Только USDC
-  const currencySymbol = 'USDC';
+  // Конфигурация (используем USDC для покупки)
+  const useUSDC = true; // false = ETH, true = USDC
+  const currencySymbol = useUSDC ? 'USDC' : 'ETH';
   
   const tokenBalance = mctBalance ? formatUnits(mctBalance.value, mctBalance.decimals) : '0';
   
-  const parsedUsdcPrice = tokenPriceUsd ? parseFloat(tokenPriceUsd) : null;
-  const isFree = parsedUsdcPrice === 0 || parsedUsdcPrice === null;
+  const parsedEthPrice = tokenPriceEth ? Number(tokenPriceEth) : null;
+  const isFree = parsedEthPrice === 0 || parsedEthPrice === null;
+  const displayEthPrice = parsedEthPrice !== null && !Number.isNaN(parsedEthPrice) && parsedEthPrice > 0
+    ? `${parsedEthPrice.toFixed(6)} ${currencySymbol}`
+    : null;
   const displayUsdPrice = tokenPriceUsd && parseFloat(tokenPriceUsd) > 0 ? `$${tokenPriceUsd}` : null;
-  const purchasePriceLabel = isFree ? 'Free' : (displayUsdPrice || 'the configured price');
+  const purchasePriceLabel = isFree ? 'Free' : (displayUsdPrice || displayEthPrice || 'the configured price');
 
   useEffect(() => {
     // Проверяем, что код выполняется на клиенте
@@ -518,82 +198,6 @@ export default function BuyToken() {
       console.log('🔍 [BUYTOKEN] Balance changed, but not rechecking progress to avoid overwriting purchased state');
     }
   }, [tokenBalance, mctBalance, user?.fid]);
-
-  // КРИТИЧНО: Устанавливаем параметры swap сразу при подключении кошелька
-  // Это должно происходить ДО вызова swapTokenAsync, чтобы форма открылась с правильной суммой
-  useEffect(() => {
-    if (isConnected && walletAddress && swapHookResult) {
-      console.log('🔧 [SWAP-SETUP] Setting up swap parameters when wallet connected:', {
-        manualAmount,
-        walletAddress,
-        isConnected,
-        chainId: 8453, // Base
-        sellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`,
-        buyToken: `eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`,
-        swapHookKeys: typeof swapHookResult === 'object' ? Object.keys(swapHookResult || {}) : [],
-      });
-      
-      // КРИТИЧНО: Порядок установки важен! Сначала from token, потом to token, потом amount
-      const setupSwapParams = async () => {
-        // ШАГ 1: Устанавливаем from token (USDC) ПЕРВЫМ
-        const usdcTokenId = `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`;
-        if (typeof (swapHookResult as any)?.setTokenFrom === 'function') {
-          (swapHookResult as any).setTokenFrom(usdcTokenId);
-          console.log('✅ [SWAP-SETUP] STEP 1: setTokenFrom(USDC)');
-        } else if ((swapHookResult as any).tokenFrom !== undefined) {
-          (swapHookResult as any).tokenFrom = usdcTokenId;
-          console.log('✅ [SWAP-SETUP] STEP 1: tokenFrom = USDC');
-        }
-        
-        // Небольшая задержка между установками
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        // ШАГ 2: Устанавливаем to token (MCT)
-        const mctTokenId = `eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`;
-        if (typeof (swapHookResult as any)?.setTokenTo === 'function') {
-          (swapHookResult as any).setTokenTo(mctTokenId);
-          console.log('✅ [SWAP-SETUP] STEP 2: setTokenTo(MCT)');
-        } else if ((swapHookResult as any).tokenTo !== undefined) {
-          (swapHookResult as any).tokenTo = mctTokenId;
-          console.log('✅ [SWAP-SETUP] STEP 2: tokenTo = MCT');
-        }
-        
-        // Небольшая задержка между установками
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        // ШАГ 3: Теперь устанавливаем amount (0.10) ПОСЛЕ токенов - КРИТИЧНО!
-        if (typeof (swapHookResult as any)?.setFromAmount === 'function') {
-          (swapHookResult as any).setFromAmount(manualAmount);
-          console.log('✅ [SWAP-SETUP] STEP 3: setFromAmount("0.10")');
-        } else if ((swapHookResult as any).fromAmount !== undefined) {
-          (swapHookResult as any).fromAmount = manualAmount;
-          console.log('✅ [SWAP-SETUP] STEP 3: fromAmount = "0.10"');
-        } else if (typeof (swapHookResult as any)?.setAmount === 'function') {
-          (swapHookResult as any).setAmount(manualAmount);
-          console.log('✅ [SWAP-SETUP] STEP 3: setAmount("0.10")');
-        }
-        
-        // Небольшая задержка перед обновлением quote
-        await new Promise(resolve => setTimeout(resolve, 200));
-        
-        // ШАГ 4: Обновляем quote после установки всех параметров
-        if (typeof (swapHookResult as any)?.refreshQuote === 'function') {
-          (swapHookResult as any).refreshQuote();
-          console.log('✅ [SWAP-SETUP] STEP 4: refreshQuote() called');
-        }
-        
-        // Проверяем, что параметры установлены
-        console.log('🔍 [SWAP-SETUP] Parameters after setup:', {
-          tokenFrom: (swapHookResult as any)?.tokenFrom,
-          tokenTo: (swapHookResult as any)?.tokenTo,
-          fromAmount: (swapHookResult as any)?.fromAmount,
-          amount: (swapHookResult as any)?.amount,
-        });
-      };
-      
-      setupSwapParams();
-    }
-  }, [isConnected, walletAddress, manualAmount, swapHookResult]);
 
   const checkProgress = async (userFid: number) => {
     try {
@@ -653,9 +257,25 @@ export default function BuyToken() {
       const info = await getTokenInfo();
       setTokenInfo(info);
 
-      // Устанавливаем цену для USDC (1 USDC = 1 USD)
-      // Для покупки на 0.10 USDC цена фиксированная
-      setTokenPriceUsd('0.10');
+      // Загружаем цену со смарт-контракта
+      const priceEth = await getTokenSalePriceEth();
+      setTokenPriceEth(priceEth);
+
+      if (priceEth && parseFloat(priceEth) > 0) {
+        // Для USDC цена уже в USD (1 USDC = 1 USD), для ETH конвертируем
+        if (useUSDC) {
+          // Цена уже в USDC, напрямую используем как USD
+          setTokenPriceUsd(parseFloat(priceEth).toFixed(2));
+        } else {
+          // Для ETH: цена уже должна быть в USDC (onchain quote через Uniswap)
+          // Если цена не в USDC, используем как есть или null
+          setTokenPriceUsd(null);
+        }
+      } else {
+        // Если цена 0 или не установлена, показываем "Free"
+        setTokenPriceUsd('0.00');
+        setTokenPriceEth('0');
+      }
 
       // Рассчитываем количество MCT для покупки
       try {
@@ -677,16 +297,6 @@ export default function BuyToken() {
   };
 
   const handleBuyToken = async () => {
-    console.log('🛒 [BUYTOKEN] handleBuyToken called:', {
-      user: !!user,
-      walletAddress: !!walletAddress,
-      isConnected,
-      loading,
-      isSwapping,
-      swapTokenAsync: !!swapTokenAsync,
-      swapHookResult: !!swapHookResult,
-      manualAmount,
-    });
     // Проверяем, что пользователь авторизован
     if (!user) {
       setError('Please authorize through Farcaster');
@@ -741,7 +351,7 @@ export default function BuyToken() {
                (errorLower.includes('insufficient') && errorLower.includes('usdc'))) {
       errorType = 'insufficient_funds';
       errorMessage = `Insufficient USDC for purchase`;
-      helpfulMessage = `💡 Add more USDC to wallet. Minimum ${PURCHASE_AMOUNT_USDC} USDC required`;
+      helpfulMessage = `💡 Add more USDC to wallet. Minimum ${PURCHASE_AMOUNT_USDC} USDC + ETH for gas required`;
     } else if (errorLower.includes('insufficient') || 
                errorLower.includes('balance') ||
                (errorLower.includes('amount') && !errorLower.includes('slippage'))) {
@@ -922,14 +532,14 @@ export default function BuyToken() {
 
   const confirmBuyToken = async (isRetry: boolean = false) => {
     if (!user) {
-      setError('User not authorized');
-      setLastError('User not authorized');
+      setError('Пользователь не авторизован');
+      setLastError('Пользователь не авторизован');
       return;
     }
 
     if (!walletAddress) {
-      setError('Wallet not connected');
-      setLastError('Wallet not connected');
+      setError('Кошелек не подключен');
+      setLastError('Кошелек не подключен');
       return;
     }
 
@@ -970,7 +580,7 @@ export default function BuyToken() {
       // Таймаут для swap - 60 секунд
       const timeoutId = setTimeout(() => {
         console.warn(`⏱️ Swap timeout: ${SWAP_TIMEOUT_MS / 1000} seconds elapsed without response`);
-        handleSwapError(new Error(`Timeout: swap did not complete within ${SWAP_TIMEOUT_MS / 1000} seconds`), true);
+        handleSwapError(new Error(`Timeout: swap не завершился за ${SWAP_TIMEOUT_MS / 1000} секунд`), true);
       }, SWAP_TIMEOUT_MS);
       setSwapTimeoutId(timeoutId);
       
@@ -978,624 +588,34 @@ export default function BuyToken() {
       setSwapWaitTime(0);
 
       // Проверяем, что swapTokenAsync готов перед вызовом
-      console.log('🔍 [SWAP] Checking swapTokenAsync before call:', {
-        swapTokenAsyncExists: !!swapTokenAsync,
-        swapTokenAsyncType: typeof swapTokenAsync,
-        swapTokenAsyncValue: swapTokenAsync,
-        isFunction: typeof swapTokenAsync === 'function',
-        swapHookResultType: typeof swapHookResult,
-        swapHookResultKeys: typeof swapHookResult === 'object' ? Object.keys(swapHookResult || {}) : [],
-      });
-      
-      if (!swapTokenAsync || typeof swapTokenAsync !== 'function') {
-        console.error('❌ [SWAP] swapTokenAsync is not ready:', {
-          swapTokenAsync,
-          type: typeof swapTokenAsync,
-          swapHookResult,
-        });
+      if (!swapTokenAsync) {
         throw new Error('Swap function not ready. Please try again.');
       }
 
-      // Проверяем, что все параметры правильно сформированы
-      if (!usdcAmountStr || usdcAmountStr === '0' || usdcAmountStr === '') {
-        throw new Error('Invalid swap amount. Please try again.');
-      }
-
-      // Задержка для инициализации swap функции (особенно при первом вызове)
-      // Увеличиваем задержку для первого вызова, чтобы OnchainKit и Farcaster SDK успели инициализироваться
-      const isFirstCall = retryCount === 0;
-      const delay = isFirstCall ? 800 : 200; // 800ms для первого вызова (дает wallet больше времени на auth и chain state), 200ms для повторов
-      console.log(`⏳ [SWAP] Waiting ${delay}ms for wallet context initialization (first call: ${isFirstCall})...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
-
-      // КРИТИЧНО: Проверяем wallet address перед вызовом swap
-      // Если wallet не готов, это может быть причиной проблемы с суммой
-      console.log('🔍 [SWAP] Wallet state before swap:', {
-        walletAddress,
-        isConnected,
-        userFid: user?.fid,
-        swapTokenAsyncReady: !!swapTokenAsync,
-        swapTokenAsyncType: typeof swapTokenAsync,
-      });
-
-      if (!walletAddress) {
-        throw new Error('Wallet address not ready. Please wait for wallet connection.');
-      }
+      // Небольшая задержка для инициализации swap функции (особенно при первом вызове)
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       let result;
-      // Объявляем swapCallParams вне try блока для использования в catch
-      let savedSwapCallParams: any = null;
-      
       try {
         // Проверяем, что FID доступен для логирования
         console.log(`🔍 [SWAP] User FID: ${user.fid}, Wallet context should be set by onchainkit`);
-        console.log(`🔍 [SWAP] Wallet address confirmed: ${walletAddress}`);
         console.log(`🔍 [SWAP] Swap params:`, {
           sellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`,
           buyToken: `eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`,
           sellAmount: usdcAmountStr,
           sellAmountFormatted: `${PURCHASE_AMOUNT_USDC} USDC (${usdcAmountStr} wei)`,
-          slippageTolerance: 1, // 1% для MCT/USDC пары
+          slippageTolerance: 1, // 1% для MCT/WETH пары (больше волатильности)
         });
 
         // Убеждаемся, что все параметры готовы перед вызовом
-        // Формируем параметры с явной проверкой типов
-        // КРИТИЧНО: useSwapToken может ожидать sellAmount в разных форматах
-        // Проверяем оба варианта: строку в wei и форматированную строку
-        const swapParams: {
-          sellToken: string;
-          buyToken: string;
-          sellAmount: string;
-          sellAmountFormatted?: string;
-        } = {
+        const swapParams = {
           sellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`, // USDC на Base
           buyToken: `eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`, // MCT Token на Base
           sellAmount: usdcAmountStr, // 0.10 USDC = 100000 wei (parseUnits(0.10, 6))
-          // Также передаем форматированную сумму на случай, если useSwapToken ожидает её
-          sellAmountFormatted: PURCHASE_AMOUNT_USDC.toString(), // "0.10"
         };
 
-        // Дополнительная проверка перед вызовом
-        console.log(`🔍 [SWAP] Final params check before call:`, {
-          sellToken: swapParams.sellToken,
-          buyToken: swapParams.buyToken,
-          sellAmount: swapParams.sellAmount,
-          sellAmountFormatted: swapParams.sellAmountFormatted,
-          sellAmountType: typeof swapParams.sellAmount,
-          sellAmountLength: swapParams.sellAmount?.length,
-          usdcDecimals: 6,
-          mctDecimals: 18,
-          chainId: 8453,
-          usdcAddress: USDC_CONTRACT_ADDRESS,
-          mctAddress: MCT_CONTRACT_ADDRESS,
-          parsedAmount: parseUnits(PURCHASE_AMOUNT_USDC.toString(), 6).toString(),
-          formattedAmount: formatUnits(parseUnits(PURCHASE_AMOUNT_USDC.toString(), 6), 6),
-        });
-
-        // Убеждаемся, что sellAmount не пустой и не равен нулю
-        if (!swapParams.sellAmount || swapParams.sellAmount === '0') {
-          throw new Error(`Invalid sellAmount: ${swapParams.sellAmount}. Expected non-zero string.`);
-        }
-
-        // КРИТИЧНО: Проверяем wallet address прямо перед вызовом swapTokenAsync
-        // Если wallet не готов, делаем retry через 500ms
-        if (!walletAddress || !walletAddress) {
-          console.log('⚠️ [SWAP] Wallet not ready yet, retrying in 500ms...', {
-            walletAddress,
-            isConnected,
-            retryCount,
-          });
-          // Сбрасываем состояние swap перед retry
-          setIsSwapping(false);
-          setSwapInitiatedAt(null);
-          setOldBalanceBeforeSwap(null);
-          setBlocksSinceSwap(0);
-          setSwapWaitTime(0);
-          // Retry через 500ms
-          setTimeout(() => {
-            confirmBuyToken(true); // Передаем isRetry=true для правильного подсчета
-          }, 500);
-          return; // Выходим из функции, не вызывая swapTokenAsync
-        }
-
-        console.log(`🔍 [SWAP] Calling swapTokenAsync with params:`, {
-          ...swapParams,
-          // Логируем все возможные форматы для диагностики
-          sellAmountWei: swapParams.sellAmount,
-          sellAmountFormatted: swapParams.sellAmountFormatted,
-          expectedFormat: 'String in wei (100000 for 0.10 USDC with 6 decimals)',
-        });
-        
-        // КРИТИЧНО: Тестируем выставление суммы 0.10 USDC
-        // Используем manualAmount, который установлен в useState
-        const formattedAmount = manualAmount || PURCHASE_AMOUNT_USDC.toString(); // "0.10"
-        const weiAmount = usdcAmountStr; // "100000" для 0.10 USDC с 6 decimals
-        
-        // КРИТИЧНО: Принудительно устанавливаем параметры swap ПЕРЕД вызовом swapTokenAsync
-        // Делаем это с задержками между шагами для надежности
-        if (swapHookResult) {
-          console.log('🔧 [SWAP] Force-setting swap parameters before calling swapTokenAsync...');
-          
-          // ШАГ 1: Устанавливаем from token (USDC)
-          const usdcTokenId = `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`;
-          if (typeof (swapHookResult as any)?.setTokenFrom === 'function') {
-            (swapHookResult as any).setTokenFrom(usdcTokenId);
-            console.log('✅ [SWAP] STEP 1: setTokenFrom(USDC)');
-          } else if ((swapHookResult as any).tokenFrom !== undefined) {
-            (swapHookResult as any).tokenFrom = usdcTokenId;
-            console.log('✅ [SWAP] STEP 1: tokenFrom = USDC');
-          }
-          
-          await new Promise(resolve => setTimeout(resolve, 150));
-          
-          // ШАГ 2: Устанавливаем to token (MCT)
-          const mctTokenId = `eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`;
-          if (typeof (swapHookResult as any)?.setTokenTo === 'function') {
-            (swapHookResult as any).setTokenTo(mctTokenId);
-            console.log('✅ [SWAP] STEP 2: setTokenTo(MCT)');
-          } else if ((swapHookResult as any).tokenTo !== undefined) {
-            (swapHookResult as any).tokenTo = mctTokenId;
-            console.log('✅ [SWAP] STEP 2: tokenTo = MCT');
-          }
-          
-          await new Promise(resolve => setTimeout(resolve, 150));
-          
-          // ШАГ 3: Устанавливаем amount (0.10) - КРИТИЧНО! Пробуем все возможные методы
-          let amountSet = false;
-          if (typeof (swapHookResult as any)?.setFromAmount === 'function') {
-            (swapHookResult as any).setFromAmount(formattedAmount);
-            console.log('✅ [SWAP] STEP 3: setFromAmount("0.10")');
-            amountSet = true;
-          }
-          if (!amountSet && (swapHookResult as any).fromAmount !== undefined) {
-            (swapHookResult as any).fromAmount = formattedAmount;
-            console.log('✅ [SWAP] STEP 3: fromAmount = "0.10"');
-            amountSet = true;
-          }
-          if (!amountSet && typeof (swapHookResult as any)?.setAmount === 'function') {
-            (swapHookResult as any).setAmount(formattedAmount);
-            console.log('✅ [SWAP] STEP 3: setAmount("0.10")');
-            amountSet = true;
-          }
-          if (!amountSet && (swapHookResult as any).amount !== undefined) {
-            (swapHookResult as any).amount = formattedAmount;
-            console.log('✅ [SWAP] STEP 3: amount = "0.10"');
-            amountSet = true;
-          }
-          
-          if (!amountSet) {
-            console.warn('⚠️ [SWAP] Could not set amount through any method!');
-          }
-          
-          await new Promise(resolve => setTimeout(resolve, 200));
-          
-          // ШАГ 4: Обновляем quote
-          if (typeof (swapHookResult as any)?.refreshQuote === 'function') {
-            (swapHookResult as any).refreshQuote();
-            console.log('✅ [SWAP] STEP 4: refreshQuote()');
-          }
-          
-          // КРИТИЧНО: Увеличиваем задержку для применения параметров
-          console.log('⏳ [SWAP] Waiting 800ms for parameters to apply...');
-          await new Promise(resolve => setTimeout(resolve, 800));
-          
-          // Проверяем, что параметры установлены
-          const finalTokenFrom = (swapHookResult as any)?.tokenFrom;
-          const finalTokenTo = (swapHookResult as any)?.tokenTo;
-          const finalFromAmount = (swapHookResult as any)?.fromAmount || (swapHookResult as any)?.amount;
-          
-          console.log('🔍 [SWAP] Final parameters verification:', {
-            tokenFrom: finalTokenFrom,
-            tokenTo: finalTokenTo,
-            fromAmount: finalFromAmount,
-            isAmountSet: finalFromAmount && finalFromAmount !== '0' && finalFromAmount !== '0.0',
-          });
-          
-          // КРИТИЧНО: Если amount все еще не установлен, устанавливаем еще раз
-          if (!finalFromAmount || finalFromAmount === '0' || finalFromAmount === '0.0') {
-            console.warn('⚠️ [SWAP] Amount still not set after setup, forcing one more time...');
-            if (typeof (swapHookResult as any)?.setFromAmount === 'function') {
-              (swapHookResult as any).setFromAmount(formattedAmount);
-            } else if ((swapHookResult as any).fromAmount !== undefined) {
-              (swapHookResult as any).fromAmount = formattedAmount;
-            }
-            await new Promise(resolve => setTimeout(resolve, 300));
-          }
-        }
-        
-        // ВАЖНО: Проверяем значения перед использованием
-        console.log(`🧪 [TEST] Testing amount formats:`, {
-          PURCHASE_AMOUNT_USDC,
-          formattedAmount,
-          weiAmount,
-          formattedAmountType: typeof formattedAmount,
-          weiAmountType: typeof weiAmount,
-          formattedAmountLength: formattedAmount?.length,
-          weiAmountLength: weiAmount?.length,
-          isFormattedValid: formattedAmount && formattedAmount !== '0' && formattedAmount !== '0.0',
-          isWeiValid: weiAmount && weiAmount !== '0',
-        });
-        
-        // ВАЖНО: Проверяем, что сумма не равна нулю перед вызовом
-        if (!formattedAmount || formattedAmount === '0' || formattedAmount === '0.0' || formattedAmount === '0.00') {
-          throw new Error(`Invalid formatted amount: ${formattedAmount}. Expected non-zero value like "0.10"`);
-        }
-        
-        if (!weiAmount || weiAmount === '0') {
-          throw new Error(`Invalid wei amount: ${weiAmount}. Expected non-zero value like "100000"`);
-        }
-        
-        // КРИТИЧНО: Используем форматированную строку "0.10" для UI
-        // OnchainKit ожидает человекочитаемый формат, не wei
-        // ВАЖНО: Передаем параметры напрямую в swapTokenAsync, даже если они уже установлены через методы
-        
-        // КРИТИЧНО: Формируем полный набор параметров для Farcaster wallet
-        // Farcaster wallet может требовать recipient, deadline, и правильный формат
-        const deadline = Math.floor(Date.now() / 1000) + 60 * 20; // 20 минут от сейчас
-        
-        let swapCallParams: any = {
-          sellToken: swapParams.sellToken,
-          buyToken: swapParams.buyToken,
-          sellAmount: formattedAmount, // "0.10" - формат для UI
-          slippageTolerance: 1, // 1% slippage tolerance
-          chainId: 8453, // Base chain ID
-          // КРИТИЧНО: Добавляем recipient для Farcaster wallet
-          recipient: walletAddress, // Адрес получателя (кошелек пользователя)
-          // КРИТИЧНО: Добавляем deadline для транзакции
-          deadline: deadline, // Unix timestamp в секундах
-        };
-        
-        // Сохраняем swapCallParams для использования в catch блоке
-        savedSwapCallParams = { ...swapCallParams };
-        
-        // КРИТИЧНО: Детальное логирование всех параметров перед вызовом
-        console.log('📋 [SWAP-PARAMS] Complete swapCallParams object BEFORE swapTokenAsync call:', {
-          // Основные параметры
-          sellToken: swapCallParams.sellToken,
-          buyToken: swapCallParams.buyToken,
-          sellAmount: swapCallParams.sellAmount,
-          sellAmountType: typeof swapCallParams.sellAmount,
-          sellAmountExact: JSON.stringify(swapCallParams.sellAmount),
-          
-          // Параметры транзакции
-          slippageTolerance: swapCallParams.slippageTolerance,
-          slippageToleranceType: typeof swapCallParams.slippageTolerance,
-          chainId: swapCallParams.chainId,
-          chainIdType: typeof swapCallParams.chainId,
-          chainIdHex: `0x${swapCallParams.chainId.toString(16)}`, // Base = 0x2105
-          recipient: swapCallParams.recipient,
-          recipientType: typeof swapCallParams.recipient,
-          recipientLength: swapCallParams.recipient?.length,
-          deadline: swapCallParams.deadline,
-          deadlineType: typeof swapCallParams.deadline,
-          deadlineDate: new Date(swapCallParams.deadline * 1000).toISOString(),
-          deadlineMinutesFromNow: Math.floor((swapCallParams.deadline - Math.floor(Date.now() / 1000)) / 60),
-          
-          // Проверка формата для Farcaster wallet
-          sellTokenFormat: swapCallParams.sellToken.startsWith('eip155:') ? 'EIP-155 format' : 'Invalid format',
-          buyTokenFormat: swapCallParams.buyToken.startsWith('eip155:') ? 'EIP-155 format' : 'Invalid format',
-          recipientFormat: swapCallParams.recipient?.startsWith('0x') ? 'Valid address' : 'Invalid address',
-          
-          // Проверка значений
-          isChainIdBase: swapCallParams.chainId === 8453,
-          isSlippageValid: swapCallParams.slippageTolerance > 0 && swapCallParams.slippageTolerance <= 100,
-          isDeadlineValid: swapCallParams.deadline > Math.floor(Date.now() / 1000),
-          isRecipientValid: swapCallParams.recipient && swapCallParams.recipient.length === 42,
-          
-          // Полный объект для проверки
-          fullParams: swapCallParams,
-          fullParamsStringified: JSON.stringify(swapCallParams, null, 2),
-          
-          // Контекст вызова
-          walletAddress,
-          isConnected,
-          userFid: user?.fid,
-          timestamp: new Date().toISOString(),
-        });
-        
-        // КРИТИЧНО: Проверяем текущие параметры из swapHookResult перед вызовом
-        const currentTokenFrom = (swapHookResult as any)?.tokenFrom;
-        const currentTokenTo = (swapHookResult as any)?.tokenTo;
-        const currentFromAmount = (swapHookResult as any)?.fromAmount || (swapHookResult as any)?.amount;
-        
-        console.log('🔍 [SWAP] Current swapHookResult state before call:', {
-          tokenFrom: currentTokenFrom,
-          tokenTo: currentTokenTo,
-          fromAmount: currentFromAmount,
-          swapCallParams,
-          sellAmountType: typeof swapCallParams.sellAmount,
-          sellAmountValue: swapCallParams.sellAmount,
-        });
-        
-        // КРИТИЧНО: Если параметры не установлены в swapHookResult, устанавливаем их еще раз
-        if (!currentFromAmount || currentFromAmount === '0' || currentFromAmount === '0.0') {
-          console.warn('⚠️ [SWAP] fromAmount not set in swapHookResult, setting it again...');
-          if (typeof (swapHookResult as any)?.setFromAmount === 'function') {
-            (swapHookResult as any).setFromAmount(formattedAmount);
-          } else if ((swapHookResult as any).fromAmount !== undefined) {
-            (swapHookResult as any).fromAmount = formattedAmount;
-          }
-          // Ждем, чтобы параметр успел примениться
-          await new Promise(resolve => setTimeout(resolve, 300));
-        }
-        
-        console.log(`🚀 [TEST] Calling swapTokenAsync with FORMATTED amount:`, {
-          ...swapCallParams,
-          sellAmountValue: swapCallParams.sellAmount,
-          sellAmountExact: JSON.stringify(swapCallParams.sellAmount),
-          sellToken: swapCallParams.sellToken,
-          buyToken: swapCallParams.buyToken,
-          timestamp: new Date().toISOString(),
-        });
-        
-        try {
-          console.log(`🚀 [SWAP] About to call swapTokenAsync, checking if it's a function:`, {
-            isFunction: typeof swapTokenAsync === 'function',
-            swapTokenAsyncType: typeof swapTokenAsync,
-            swapTokenAsyncValue: swapTokenAsync,
-          });
-          
-          // КРИТИЧНО: Проверяем, что swapTokenAsync действительно функция
-          if (typeof swapTokenAsync !== 'function') {
-            throw new Error(`swapTokenAsync is not a function. Type: ${typeof swapTokenAsync}, Value: ${swapTokenAsync}`);
-          }
-          
-          // КРИТИЧНО: Финальная проверка параметров прямо перед вызовом
-          console.log(`🚀 [SWAP] FINAL CHECK - Calling swapTokenAsync NOW with params:`, {
-            ...swapCallParams,
-            paramsStringified: JSON.stringify(swapCallParams),
-            // Дополнительная проверка формата
-            paramValidation: {
-              sellTokenValid: swapCallParams.sellToken?.startsWith('eip155:8453/erc20:'),
-              buyTokenValid: swapCallParams.buyToken?.startsWith('eip155:8453/erc20:'),
-              sellAmountValid: swapCallParams.sellAmount && swapCallParams.sellAmount !== '0',
-              chainIdValid: swapCallParams.chainId === 8453,
-              recipientValid: swapCallParams.recipient?.startsWith('0x') && swapCallParams.recipient.length === 42,
-              deadlineValid: swapCallParams.deadline > Math.floor(Date.now() / 1000),
-              slippageValid: swapCallParams.slippageTolerance > 0,
-            },
-            // Проверка wagmi/viem состояния
-            wagmiState: {
-              isConnected,
-              walletAddress,
-              chainId,
-              hasProvider: typeof window !== 'undefined' && !!(window as any).ethereum,
-            },
-          });
-          
-          // КРИТИЧНО: Используем safeSwap вместо прямого вызова swapTokenAsync
-          // Это обходит проблемы с batch calls в Farcaster wallet
-          const callStartTime = Date.now(); // Объявляем перед try для использования в catch
-          try {
-            console.log(`⏳ [SWAP] AWAITING safeSwap call (with fallback)...`);
-            
-            // КРИТИЧНО: Используем safeSwap с fallback на прямую транзакцию
-            result = await safeSwap({
-              swapTokenAsync,
-              from: swapCallParams.sellToken,
-              to: swapCallParams.buyToken,
-              amount: swapCallParams.sellAmount,
-              walletAddress: walletAddress as Address,
-              account: walletAddress as Address,
-            });
-            
-            const callDuration = Date.now() - callStartTime;
-            console.log(`⏱️ [SWAP] swapTokenAsync call completed in ${callDuration}ms`);
-          } catch (callError: any) {
-            const callDuration = Date.now() - callStartTime;
-            console.error('❌ [SWAP] Error during swapTokenAsync call:', {
-              // Основная информация об ошибке
-              error: callError,
-              message: callError?.message,
-              code: callError?.code,
-              name: callError?.name,
-              stack: callError?.stack,
-              
-              // Детали вызова
-              callDuration: `${callDuration}ms`,
-              paramsUsed: swapCallParams,
-              
-              // Ошибки от wagmi/viem transport
-              wagmiError: callError?.cause,
-              viemError: callError?.walk,
-              transportError: callError?.transport,
-              
-              // Проверка типа ошибки
-              isRpcError: callError?.code && typeof callError.code === 'number',
-              isProviderError: callError?.provider,
-              isTransactionError: callError?.transaction,
-              
-              // Дополнительная информация
-              errorStringified: JSON.stringify(callError, Object.getOwnPropertyNames(callError)),
-              errorKeys: Object.keys(callError || {}),
-              
-              // Контекст
-              walletAddress,
-              isConnected,
-              chainId,
-            });
-            
-            // КРИТИЧНО: Обработка ошибок -32601 (method not found) и 4200 (unsupported method)
-            // Это означает, что Farcaster wallet не поддерживает batch calls или метод
-            const errorMessage = callError?.message?.toLowerCase() || '';
-            const errorCode = callError?.code;
-            const fullErrorMessage = callError?.message || JSON.stringify(callError);
-            
-            console.error('🔍 [SWAP] Full error details:', {
-              fullMessage: fullErrorMessage,
-              errorCode,
-              errorName: callError?.name,
-              errorStack: callError?.stack,
-              errorCause: callError?.cause,
-              errorData: callError?.data,
-              errorArgs: callError?.args,
-              // Проверка на специфичные ошибки Farcaster wallet
-              isMethodNotFound: errorCode === -32601,
-              isUnsupportedMethod: errorCode === 4200 || errorMessage.includes('unsupported method'),
-              isEthCallError: errorMessage.includes('eth_call'),
-              isBatchCallError: errorMessage.includes('batch') || errorMessage.includes('sendcalls'),
-            });
-            
-            // КРИТИЧНО: Fallback для EIP-5792 (wallet_sendCalls) если batch calls не поддерживаются
-            if (
-              errorCode === -32601 || // Method not found
-              errorCode === 4200 || // Unsupported method
-              errorMessage.includes('unsupported method') ||
-              errorMessage.includes('method not found') ||
-              errorMessage.includes('eth_call') ||
-              errorMessage.includes('batch') ||
-              errorMessage.includes('sendcalls')
-            ) {
-              console.warn('⚠️ [SWAP] Method not found/unsupported error detected');
-              console.warn('⚠️ [SWAP] Error code:', errorCode, 'Message:', fullErrorMessage);
-              console.log('🔄 [SWAP] Attempting EIP-5792 fallback: individual transactions instead of batch...');
-              
-              // FALLBACK: Пробуем использовать прямые транзакции через sendTransaction
-              // вместо batch calls через swapTokenAsync
-              try {
-                console.log('🔄 [SWAP-FALLBACK] Using direct sendTransaction approach...');
-                
-                // Импортируем функцию для прямого swap
-                const { buyTokenViaDirectSwap } = await import('@/lib/farcaster-direct-swap');
-                
-                if (user?.fid) {
-                  console.log('🔄 [SWAP-FALLBACK] Calling buyTokenViaDirectSwap with USDC...');
-                  const fallbackResult = await buyTokenViaDirectSwap(user.fid, 'USDC');
-                  
-                  if (fallbackResult.success && fallbackResult.txHash) {
-                    console.log('✅ [SWAP-FALLBACK] Direct swap succeeded via fallback method');
-                    result = { txHash: fallbackResult.txHash };
-                    // Продолжаем выполнение с результатом fallback
-                  } else {
-                    throw new Error(fallbackResult.error || 'Fallback swap failed');
-                  }
-                } else {
-                  throw new Error('User FID not available for fallback');
-                }
-              } catch (fallbackError: any) {
-                console.error('❌ [SWAP-FALLBACK] Fallback also failed:', {
-                  error: fallbackError,
-                  message: fallbackError?.message,
-                  code: fallbackError?.code,
-                });
-                
-                // Если fallback тоже не сработал, выбрасываем оригинальную ошибку
-                throw new Error(
-                  `Farcaster wallet does not support the required swap method. ` +
-                  `Original error: ${fullErrorMessage} (code: ${errorCode}). ` +
-                  `Fallback also failed: ${fallbackError?.message || 'Unknown error'}. ` +
-                  `Please try refreshing the page or contact support.`
-                );
-              }
-            }
-            
-            // Логируем другие типы ошибок
-            if (errorMessage.includes('user rejected') || errorCode === 4001) {
-              console.log('ℹ️ [SWAP] User rejected transaction - this is expected behavior');
-            } else if (errorMessage.includes('insufficient funds')) {
-              console.error('❌ [SWAP] Insufficient funds error');
-            } else if (errorMessage.includes('network') || errorMessage.includes('timeout')) {
-              console.error('❌ [SWAP] Network/timeout error - check connection');
-            }
-            
-            throw callError;
-          }
-          
-          console.log(`✅ [SWAP] swapTokenAsync returned successfully:`, {
-            result,
-            resultType: typeof result,
-            resultIsNull: result === null,
-            resultIsUndefined: result === undefined,
-            resultKeys: result ? Object.keys(result) : [],
-            resultStringified: JSON.stringify(result),
-          });
-          
-          // КРИТИЧНО: Если результат undefined/null, это может означать, что форма открылась
-          if (result === undefined || result === null) {
-            console.log(`ℹ️ [SWAP] swapTokenAsync returned ${result} - this usually means swap form opened in wallet`);
-            console.log(`ℹ️ [SWAP] Expected amount in form: ${formattedAmount} USDC`);
-            console.log(`ℹ️ [SWAP] If amount is not set, check swapHookResult state and parameters`);
-            
-            // КРИТИЧНО: Проверяем, что параметры действительно установлены
-            const checkParams = (swapHookResult as any);
-            console.log(`🔍 [SWAP] Final parameter check after swapTokenAsync call:`, {
-              tokenFrom: checkParams?.tokenFrom,
-              tokenTo: checkParams?.tokenTo,
-              fromAmount: checkParams?.fromAmount,
-              amount: checkParams?.amount,
-              sellAmount: swapCallParams.sellAmount,
-            });
-          }
-        } catch (formatError: any) {
-          const errorMessage = formatError?.message?.toLowerCase() || '';
-          const errorCode = formatError?.code;
-          
-          // КРИТИЧНО: Проверяем, является ли это ошибкой unsupported method (eth_call)
-          if (
-            errorMessage.includes('unsupported method') ||
-            errorMessage.includes('eth_call') ||
-            errorMessage.includes('method not supported') ||
-            errorCode === -32601 // Method not found
-          ) {
-            console.warn('⚠️ [SWAP] Unsupported method error detected (likely eth_call) - Farcaster wallet limitation');
-            console.log('🔄 [SWAP] Attempting fallback: direct transaction without quoter...');
-            
-            // FALLBACK: Прямая транзакция без quoter (если Farcaster wallet не поддерживает eth_call)
-            // Это требует использования прямого вызова контракта Uniswap через sendTransaction
-            // Пока что логируем ошибку и предлагаем пользователю использовать другой метод
-            throw new Error(
-              'Farcaster wallet does not support eth_call required for swap quotes. ' +
-              'Please try refreshing the page or contact support for alternative payment methods.'
-            );
-          }
-          
-          // Если форматированная строка не работает, пробуем wei
-          console.warn(`⚠️ [TEST] Formatted amount "${formattedAmount}" failed:`, {
-            error: formatError?.message,
-            code: formatError?.code,
-            name: formatError?.name,
-          });
-          
-          console.log(`🔄 [TEST] Retrying with WEI amount "${weiAmount}":`);
-          swapCallParams = {
-            sellToken: swapParams.sellToken,
-            buyToken: swapParams.buyToken,
-            sellAmount: weiAmount, // "100000" - wei формат
-          };
-          
-          console.log(`🚀 [TEST] Calling swapTokenAsync with WEI amount:`, {
-            ...swapCallParams,
-            sellAmountValue: swapCallParams.sellAmount,
-            sellAmountExact: JSON.stringify(swapCallParams.sellAmount),
-            timestamp: new Date().toISOString(),
-          });
-          
-          // КРИТИЧНО: Используем safeSwap вместо прямого вызова swapTokenAsync
-          // Это обходит проблемы с batch calls в Farcaster wallet через 0x aggregator
-          result = await safeSwap({
-            swapTokenAsync,
-            from: swapCallParams.sellToken,
-            to: swapCallParams.buyToken,
-            amount: swapCallParams.sellAmount,
-            walletAddress: walletAddress as Address,
-            account: walletAddress as Address,
-          });
-          console.log(`✅ [TEST] safeSwap succeeded with amount "${formattedAmount}"`);
-        }
-        
-        console.log(`✅ [SWAP] swapTokenAsync returned:`, {
-          result,
-          resultType: typeof result,
-          resultKeys: result ? Object.keys(result) : [],
-          hasTxHash: result && (typeof result === 'string' || (typeof result === 'object' && 'transactionHash' in result)),
-          amountPassed: formattedAmount,
-          timestamp: new Date().toISOString(),
-        });
-        
-        // Дополнительная проверка: если результат undefined или null, это может означать, что форма открылась
-        if (!result) {
-          console.log(`ℹ️ [SWAP] swapTokenAsync returned undefined/null - swap form should be open in wallet with amount: ${formattedAmount}`);
-        }
+        console.log(`🔍 [SWAP] Calling swapTokenAsync with params:`, swapParams);
+        result = await swapTokenAsync(swapParams);
         
         // Очищаем таймаут при успешном запуске
         if (timeoutId) {
@@ -1609,54 +629,12 @@ export default function BuyToken() {
           setSwapTimeoutId(null);
         }
         
-        const errorMessage = swapError?.message?.toLowerCase() || '';
-        const errorCode = swapError?.code;
-        
-        // КРИТИЧНО: Детальное логирование всех ошибок для диагностики
-        console.error('❌ [SWAP] Swap error caught:', {
+        console.error('❌ [SWAP] Swap error:', {
           message: swapError?.message,
           code: swapError?.code,
           name: swapError?.name,
           stack: swapError?.stack,
-          error: swapError,
-          errorStringified: JSON.stringify(swapError, Object.getOwnPropertyNames(swapError)),
-          swapCallParams: savedSwapCallParams ? {
-            sellToken: savedSwapCallParams.sellToken,
-            buyToken: savedSwapCallParams.buyToken,
-            sellAmount: savedSwapCallParams.sellAmount,
-          } : 'not set',
-          swapHookResultState: swapHookResult ? {
-            tokenFrom: (swapHookResult as any)?.tokenFrom,
-            tokenTo: (swapHookResult as any)?.tokenTo,
-            fromAmount: (swapHookResult as any)?.fromAmount,
-          } : 'not available',
-          walletAddress,
-          isConnected,
         });
-        
-        // КРИТИЧНО: Детальная обработка различных типов ошибок
-        if (swapError?.message?.includes('user rejected') || swapError?.code === 4001) {
-          console.log('ℹ️ [SWAP] User rejected - this is expected behavior');
-        } else if (
-          errorMessage.includes('unsupported method') ||
-          errorMessage.includes('eth_call') ||
-          errorMessage.includes('method not supported') ||
-          errorCode === -32601
-        ) {
-          console.error('❌ [SWAP] Unsupported method error - Farcaster wallet does not support eth_call');
-          console.error('💡 [SWAP] This is a known limitation of Farcaster smart wallet');
-          // Ошибка уже обработана выше, просто логируем
-        } else if (
-          errorMessage.includes('disconnect') ||
-          errorMessage.includes('not connected') ||
-          errorCode === 4900
-        ) {
-          console.error('❌ [SWAP] Wallet disconnected during swap');
-          // onError в useSwapToken уже обработает это
-        } else {
-          console.error('❌ [SWAP] Unexpected error - swap form may not have opened');
-        }
-        
         throw swapError;
       }
 
@@ -1700,9 +678,6 @@ export default function BuyToken() {
       // Пользователь завершает swap в кошельке
       // После завершения баланс обновится автоматически через wagmi hooks (refetchInterval)
       
-      console.log('✅ [SWAP] Swap form should be open in wallet now. Waiting for user confirmation...');
-      console.log('📋 [SWAP] Expected amount in form:', manualAmount || PURCHASE_AMOUNT_USDC.toString(), 'USDC');
-      
       setLoading(false);
       setRetryCount(0); // Сбрасываем счетчик при успешном запуске swap
       
@@ -1742,7 +717,7 @@ export default function BuyToken() {
     setBlocksSinceSwap(0);
     setSwapWaitTime(0);
     setLoading(false);
-    setError('Transaction state reset. Please try again.');
+    setError('Состояние транзакции сброшено. Попробуйте снова.');
   };
 
   // Очистка таймаутов при размонтировании
@@ -1829,65 +804,7 @@ export default function BuyToken() {
             <div className="mb-6">
               <div className="text-center">
                 <button
-                  onClick={async () => {
-                    try {
-                      console.log('🔗 [CONNECT] Starting wallet connection...');
-                      
-                      // КРИТИЧНО: Проверяем, что мы в Farcaster frame
-                      const isInFarcasterFrame = typeof window !== 'undefined' && window.self !== window.top;
-                      if (!isInFarcasterFrame) {
-                        throw new Error('Please open this app in Farcaster to connect your wallet');
-                      }
-                      
-                      // КРИТИЧНО: Убеждаемся, что SDK инициализирован перед подключением
-                      console.log('⏳ [CONNECT] Waiting for SDK initialization...');
-                      try {
-                        const { sdk } = await import('@farcaster/miniapp-sdk');
-                        if (sdk && sdk.actions && typeof sdk.actions.ready === 'function') {
-                          await sdk.actions.ready();
-                          console.log('✅ [CONNECT] SDK ready() called');
-                        }
-                      } catch (sdkError: any) {
-                        console.warn('⚠️ [CONNECT] SDK ready() not available, continuing anyway:', sdkError?.message);
-                      }
-                      
-                      // КРИТИЧНО: Небольшая задержка для инициализации OnchainKit
-                      await new Promise(resolve => setTimeout(resolve, 300));
-                      
-                      console.log('🔗 [CONNECT] Calling connect with farcasterMiniApp connector...');
-                      connect({ connector: farcasterMiniApp() });
-                      
-                      // Проверяем подключение через 2 секунды
-                      setTimeout(() => {
-                        if (!isConnected && !isConnecting) {
-                          console.warn('⚠️ [CONNECT] Connection may have failed, wallet not connected after 2s');
-                          setError('Wallet connection timeout. Please try again.');
-                        }
-                      }, 2000);
-                    } catch (connectError: any) {
-                      console.error('❌ [CONNECT] Error connecting wallet:', {
-                        error: connectError,
-                        message: connectError?.message,
-                        code: connectError?.code,
-                        name: connectError?.name,
-                        stack: connectError?.stack,
-                      });
-                      
-                      let errorMessage = connectError?.message || 'Failed to connect wallet. Please try again.';
-                      
-                      // Детальная обработка ошибок подключения
-                      if (connectError?.message?.includes('not in farcaster')) {
-                        errorMessage = 'Please open this app in Farcaster to connect your wallet';
-                      } else if (connectError?.message?.includes('user rejected') || connectError?.code === 4001) {
-                        errorMessage = 'Connection cancelled by user';
-                      } else if (connectError?.message?.includes('timeout')) {
-                        errorMessage = 'Connection timeout. Please try again.';
-                      }
-                      
-                      setError(errorMessage);
-                      setLastError(errorMessage);
-                    }
-                  }}
+                  onClick={() => connect({ connector: farcasterMiniApp() })}
                   disabled={isConnecting}
                   className={`btn-gold-glow w-full text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold text-white group ${
                     isConnecting ? 'disabled' : ''
@@ -1928,8 +845,8 @@ export default function BuyToken() {
               </p>
                   {/* Показываем retry только для определенных типов ошибок и если не превышен лимит */}
                   {lastError && 
-                   !lastError.includes('cancelled by user') && 
-                   !lastError.includes('Insufficient USDC') &&
+                   !lastError.includes('отменена пользователем') && 
+                   !lastError.includes('Недостаточно USDC') &&
                    !lastError.includes('Slippage') &&
                    retryCount < MAX_RETRIES && (
                     <div className="mt-4">
