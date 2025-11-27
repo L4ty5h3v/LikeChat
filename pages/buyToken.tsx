@@ -131,7 +131,11 @@ export default function BuyToken() {
       enabled: !!walletAddress,
     },
   });
-  const { swapTokenAsync } = useSwapToken();
+  // Получаем весь объект из useSwapToken для установки параметров
+  const swapHookResult = useSwapToken();
+  const swapTokenAsync = typeof swapHookResult === 'function' 
+    ? swapHookResult 
+    : (swapHookResult as any)?.swapTokenAsync;
 
   const [loading, setLoading] = useState(false);
   const { user, isLoading: authLoading, isInitialized } = useFarcasterAuth(); // Используем контекст вместо localStorage
@@ -601,16 +605,60 @@ export default function BuyToken() {
         console.log(`🔍 [SWAP] Swap params:`, {
           sellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`,
           buyToken: `eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`,
-          sellAmount: usdcAmountStr,
-          sellAmountFormatted: `${PURCHASE_AMOUNT_USDC} USDC (${usdcAmountStr} wei)`,
-          slippageTolerance: 1, // 1% для MCT/WETH пары (больше волатильности)
+          sellAmount: usdcAmountStr, // "0.1" - форматированная строка
+          slippageTolerance: 1, // 1% slippage
         });
+
+        // КРИТИЧНО: Устанавливаем параметры через методы хука ПЕРЕД вызовом swapTokenAsync
+        // Это предзаполняет форму в кошельке
+        if (swapHookResult && typeof swapHookResult === 'object') {
+          console.log('🔧 [SWAP] Setting swap parameters via hook methods...');
+          
+          const usdcTokenId = `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`;
+          const mctTokenId = `eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`;
+          
+          // ШАГ 1: Устанавливаем from token (USDC)
+          if (typeof (swapHookResult as any).setTokenFrom === 'function') {
+            (swapHookResult as any).setTokenFrom(usdcTokenId);
+            console.log('✅ [SWAP] STEP 1: setTokenFrom(USDC)');
+          }
+          await new Promise(resolve => setTimeout(resolve, 150));
+          
+          // ШАГ 2: Устанавливаем to token (MCT)
+          if (typeof (swapHookResult as any).setTokenTo === 'function') {
+            (swapHookResult as any).setTokenTo(mctTokenId);
+            console.log('✅ [SWAP] STEP 2: setTokenTo(MCT)');
+          }
+          await new Promise(resolve => setTimeout(resolve, 150));
+          
+          // ШАГ 3: Устанавливаем amount (0.1) - КРИТИЧНО!
+          if (typeof (swapHookResult as any).setFromAmount === 'function') {
+            (swapHookResult as any).setFromAmount(usdcAmountStr); // "0.1"
+            console.log(`✅ [SWAP] STEP 3: setFromAmount("${usdcAmountStr}")`);
+          }
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
+          // ШАГ 4: Обновляем quote
+          if (typeof (swapHookResult as any).refreshQuote === 'function') {
+            (swapHookResult as any).refreshQuote();
+            console.log('✅ [SWAP] STEP 4: refreshQuote()');
+          }
+          
+          // Ждем, чтобы параметры применились
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
+          console.log('🔍 [SWAP] Parameters after setup:', {
+            tokenFrom: (swapHookResult as any)?.tokenFrom,
+            tokenTo: (swapHookResult as any)?.tokenTo,
+            fromAmount: (swapHookResult as any)?.fromAmount,
+          });
+        }
 
         // Убеждаемся, что все параметры готовы перед вызовом
         const swapParams = {
           sellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`, // USDC на Base
           buyToken: `eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`, // MCT Token на Base
-          sellAmount: usdcAmountStr, // 0.10 USDC = 100000 wei (parseUnits(0.10, 6))
+          sellAmount: usdcAmountStr, // "0.1" - форматированная строка
         };
 
         console.log(`🔍 [SWAP] Calling swapTokenAsync with params:`, swapParams);
