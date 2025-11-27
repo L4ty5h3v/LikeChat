@@ -559,9 +559,8 @@ export default function BuyToken() {
     setLastError(null);
 
     try {
-      // Вычисляем количество USDC для покупки (в wei, USDC имеет 6 decimals)
-      const usdcAmountWei = parseUnits(PURCHASE_AMOUNT_USDC.toString(), 6);
-      const usdcAmountStr = usdcAmountWei.toString();
+      // Используем форматированную строку для OnchainKit (он сам делает parseUnits)
+      const usdcAmountStr = PURCHASE_AMOUNT_USDC.toString(); // "0.1"
 
       // Сохраняем текущий баланс для сравнения
       const currentBalance = mctBalance ? parseFloat(formatUnits(mctBalance.value, mctBalance.decimals)) : 0;
