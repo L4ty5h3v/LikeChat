@@ -563,8 +563,11 @@ export default function BuyToken() {
     setLastError(null);
 
     try {
-      // Используем форматированную строку для OnchainKit (он сам делает parseUnits)
-      const usdcAmountStr = PURCHASE_AMOUNT_USDC.toString(); // "0.1"
+      // КРИТИЧНО: sellAmount должен быть в wei формате (6 decimals для USDC)
+      // Согласно документации OnchainKit: "Amount to sell, formatted as a numeric string including decimals"
+      // Пример: "1 USDC (1_000_000)" -> для 0.10 USDC это "100000"
+      const usdcAmountWei = parseUnits(PURCHASE_AMOUNT_USDC.toString(), 6); // 0.10 USDC = 100000
+      const usdcAmountStr = usdcAmountWei.toString(); // "100000"
 
       // Сохраняем текущий баланс для сравнения
       const currentBalance = mctBalance ? parseFloat(formatUnits(mctBalance.value, mctBalance.decimals)) : 0;
@@ -602,87 +605,25 @@ export default function BuyToken() {
       try {
         // Проверяем, что FID доступен для логирования
         console.log(`🔍 [SWAP] User FID: ${user.fid}, Wallet context should be set by onchainkit`);
-        console.log(`🔍 [SWAP] Swap params:`, {
-          sellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`,
-          buyToken: `eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`,
-          sellAmount: usdcAmountStr, // "0.1" - форматированная строка
-          slippageTolerance: 1, // 1% slippage
-        });
+        // Логирование будет после создания swapParams
 
-        // КРИТИЧНО: Устанавливаем параметры через методы хука ПЕРЕД вызовом swapTokenAsync
-        // Это предзаполняет форму в кошельке
-        console.log('🔍 [SWAP] swapHookResult structure:', {
-          type: typeof swapHookResult,
-          isObject: typeof swapHookResult === 'object',
-          isFunction: typeof swapHookResult === 'function',
-          keys: typeof swapHookResult === 'object' ? Object.keys(swapHookResult || {}) : [],
-          hasSetTokenFrom: typeof (swapHookResult as any)?.setTokenFrom === 'function',
-          hasSetTokenTo: typeof (swapHookResult as any)?.setTokenTo === 'function',
-          hasSetFromAmount: typeof (swapHookResult as any)?.setFromAmount === 'function',
-          hasRefreshQuote: typeof (swapHookResult as any)?.refreshQuote === 'function',
-        });
-        
-        if (swapHookResult && typeof swapHookResult === 'object') {
-          console.log('🔧 [SWAP] Setting swap parameters via hook methods...');
-          
-          const usdcTokenId = `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`;
-          const mctTokenId = `eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`;
-          
-          // ШАГ 1: Устанавливаем from token (USDC)
-          if (typeof (swapHookResult as any).setTokenFrom === 'function') {
-            (swapHookResult as any).setTokenFrom(usdcTokenId);
-            console.log('✅ [SWAP] STEP 1: setTokenFrom(USDC) called');
-          } else {
-            console.warn('⚠️ [SWAP] setTokenFrom method not found!');
-          }
-          await new Promise(resolve => setTimeout(resolve, 150));
-          
-          // ШАГ 2: Устанавливаем to token (MCT)
-          if (typeof (swapHookResult as any).setTokenTo === 'function') {
-            (swapHookResult as any).setTokenTo(mctTokenId);
-            console.log('✅ [SWAP] STEP 2: setTokenTo(MCT) called');
-          } else {
-            console.warn('⚠️ [SWAP] setTokenTo method not found!');
-          }
-          await new Promise(resolve => setTimeout(resolve, 150));
-          
-          // ШАГ 3: Устанавливаем amount (0.1) - КРИТИЧНО!
-          if (typeof (swapHookResult as any).setFromAmount === 'function') {
-            (swapHookResult as any).setFromAmount(usdcAmountStr); // "0.1"
-            console.log(`✅ [SWAP] STEP 3: setFromAmount("${usdcAmountStr}") called`);
-          } else {
-            console.warn('⚠️ [SWAP] setFromAmount method not found! This is the problem!');
-          }
-          await new Promise(resolve => setTimeout(resolve, 200));
-          
-          // ШАГ 4: Обновляем quote
-          if (typeof (swapHookResult as any).refreshQuote === 'function') {
-            (swapHookResult as any).refreshQuote();
-            console.log('✅ [SWAP] STEP 4: refreshQuote() called');
-          } else {
-            console.warn('⚠️ [SWAP] refreshQuote method not found!');
-          }
-          
-          // Ждем, чтобы параметры применились
-          await new Promise(resolve => setTimeout(resolve, 300));
-          
-          console.log('🔍 [SWAP] Parameters after setup:', {
-            tokenFrom: (swapHookResult as any)?.tokenFrom,
-            tokenTo: (swapHookResult as any)?.tokenTo,
-            fromAmount: (swapHookResult as any)?.fromAmount,
-            amount: (swapHookResult as any)?.amount,
-            isAmountSet: (swapHookResult as any)?.fromAmount === usdcAmountStr || (swapHookResult as any)?.amount === usdcAmountStr,
-          });
-        } else {
-          console.warn('⚠️ [SWAP] swapHookResult is not an object, cannot set parameters via methods');
-        }
-
-        // Убеждаемся, что все параметры готовы перед вызовом
-        const swapParams = {
+        // КРИТИЧНО: Согласно документации OnchainKit, useSwapToken НЕ имеет методов setTokenFrom/setTokenTo/setFromAmount
+        // Параметры передаются напрямую в swapTokenAsync(params)
+        // sellAmount должен быть в wei формате (6 decimals для USDC): "100000" для 0.10 USDC
+        const swapParams: {
+          sellToken: string;
+          buyToken: string;
+          sellAmount: string;
+        } = {
           sellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`, // USDC на Base
           buyToken: `eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`, // MCT Token на Base
-          sellAmount: usdcAmountStr, // "0.1" - форматированная строка
+          sellAmount: usdcAmountStr, // "100000" - wei формат (0.10 USDC с 6 decimals)
         };
+        
+        console.log('🔍 [SWAP] Final swap params (according to OnchainKit docs):', {
+          ...swapParams,
+          sellAmountFormatted: `${PURCHASE_AMOUNT_USDC} USDC = ${usdcAmountStr} wei (6 decimals)`,
+        });
 
         console.log(`🔍 [SWAP] Calling swapTokenAsync with params:`, swapParams);
         result = await swapTokenAsync(swapParams);
