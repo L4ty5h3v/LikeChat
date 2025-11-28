@@ -255,60 +255,22 @@ export default function Tasks() {
         taskStates: taskList.map(t => ({ id: t.link_id, completed: t.completed, verified: t.verified }))
       });
       
-      // ⚠️ КРИТИЧНО: Если все задачи завершены и проверены (зеленые кнопки) - редирект сразу на кошелек
-      // Дополнительная проверка ошибок не нужна, так как если задачи завершены, они уже проверены
+      // ⚠️ КРИТИЧНО: Если все задачи завершены и проверены (зеленые кнопки) - редирект СРАЗУ на кошелек
+      // БЕЗ проверок, БЕЗ Promise.all, БЕЗ задержек - максимально быстрый редирект
       if (allTasksCompleted && allTasksVerified && taskList.length > 0 && user) {
-        // ⚠️ КРИТИЧЕСКАЯ ПРОВЕРКА: Сначала проверяем флаг link_published из хранилища
-        // Это предотвращает редирект на /submit, если ссылка уже опубликована (даже если БД еще не обновилась)
+        // ⚠️ КРИТИЧЕСКАЯ ПРОВЕРКА: Только проверяем флаг link_published из хранилища (синхронно)
         const linkPublishedSession = sessionStorage.getItem('link_published');
         const linkPublishedLocal = localStorage.getItem('link_published');
         if (linkPublishedSession === 'true' || linkPublishedLocal === 'true') {
-          console.log(`✅ [TASKS] Link already published (from storage), skipping auto-redirect check completely`);
-          return; // Прекращаем выполнение, не делаем никаких проверок и редиректов
+          console.log(`✅ [TASKS] Link already published (from storage), skipping auto-redirect`);
+          return;
         }
         
-        console.log(`🎯 All tasks completed! Checking user progress for auto-redirect...`);
-        
-        // Проверяем прогресс пользователя и наличие опубликованной ссылки
-        Promise.all([
-          fetch(`/api/user-progress?userFid=${user.fid}&t=${Date.now()}`).then(r => r.json()).then(d => d.progress),
-          getAllLinks(),
-        ]).then(([progress, allLinks]) => {
-          if (progress) {
-            // Еще раз проверяем флаг перед проверкой в БД (на случай если он установился пока выполнялся запрос)
-            const flagCheckSession = sessionStorage.getItem('link_published');
-            const flagCheckLocal = localStorage.getItem('link_published');
-            if (flagCheckSession === 'true' || flagCheckLocal === 'true') {
-              console.log(`✅ [TASKS] Link published flag detected during DB check, skipping redirect`);
-              return;
-            }
-            
-            // Проверяем, есть ли уже опубликованная ссылка от этого пользователя
-            const userHasPublishedLink = allLinks.some((link: LinkSubmission) => link.user_fid === user.fid);
-            
-            console.log(`📊 User progress:`, {
-              completed_links: progress.completed_links?.length || 0,
-              token_purchased: progress.token_purchased,
-              user_has_published_link: userHasPublishedLink,
-            });
-            
-            // Если ссылка уже опубликована - не делаем редирект, пользователь может остаться на /tasks
-            if (userHasPublishedLink) {
-              console.log(`✅ [TASKS] User already published a link (from DB), staying on /tasks page`);
-              // Устанавливаем флаг в хранилище для будущих проверок
-              sessionStorage.setItem('link_published', 'true');
-              localStorage.setItem('link_published', 'true');
-              return; // Прекращаем выполнение, не делаем редирект
-            }
-            
-            // Если все задания завершены → редирект на /buyToken СРАЗУ (независимо от статуса токена)
-            // ⚠️ КРИТИЧНО: Нет задержки, чтобы избежать промежуточных цветов
-            console.log(`🚀 Redirecting to /buyToken immediately (all tasks completed and verified)`);
-            router.replace('/buyToken'); // Сразу редирект, без задержки
-          }
-        }).catch((error) => {
-          console.error('❌ [TASKS] Error checking user progress for auto-redirect:', error);
-        });
+        // ⚠️ КРИТИЧНО: СРАЗУ редирект, без Promise.all, без проверок БД, без задержек
+        console.log(`🚀 IMMEDIATE redirect to /buyToken (all tasks verified - green buttons)`);
+        // Используем window.location для максимально быстрого редиректа
+        window.location.href = '/buyToken';
+        return; // Прекращаем выполнение сразу
       }
     } catch (error) {
       console.error('Error loading tasks:', error);
