@@ -102,10 +102,15 @@ export default function Tasks() {
   }, [router, user, authLoading, isInitialized]);
 
   const loadTasks = async (userFid: number, showLoading: boolean = true) => {
-    // ⚠️ КРИТИЧНО: Если все задачи уже завершены и проверены, не обновляем их (чтобы избежать промежуточных цветов)
+    // ⚠️ КРИТИЧНО: Если все задачи уже завершены и проверены, СРАЗУ редирект, не обновляем задачи
     const allTasksVerified = tasks.length > 0 && tasks.every((task) => task.completed && task.verified);
-    if (allTasksVerified && !showLoading) {
-      console.log('✅ [TASKS] All tasks verified (green buttons), skipping update to prevent color changes');
+    if (allTasksVerified) {
+      console.log('✅ [TASKS] All tasks verified (green buttons), redirecting immediately');
+      const linkPublishedSession = sessionStorage.getItem('link_published');
+      const linkPublishedLocal = localStorage.getItem('link_published');
+      if (linkPublishedSession !== 'true' && linkPublishedLocal !== 'true') {
+        window.location.href = '/buyToken';
+      }
       return;
     }
     
@@ -334,13 +339,17 @@ export default function Tasks() {
             console.log(`✅ [POLLING] Activity found for link ${linkId} and task is opened!`);
             
             // Обновляем задачу как выполненную (НЕ останавливаем polling сразу)
-            setTasks(prevTasks =>
-              prevTasks.map(task =>
-                task.link_id === linkId
-                  ? { ...task, completed: true, verified: true, verifying: false, error: false }
-                  : task
-              )
-            );
+            // ⚠️ КРИТИЧНО: Если все задачи уже завершены, не меняем состояние - сразу редирект
+            const allTasksVerified = tasks.every((t) => t.completed && t.verified);
+            if (!allTasksVerified) {
+              setTasks(prevTasks =>
+                prevTasks.map(task =>
+                  task.link_id === linkId
+                    ? { ...task, completed: true, verified: true, verifying: false, error: false }
+                    : task
+                )
+              );
+            }
             
             // Помечаем ссылку как выполненную в базе
             try {
@@ -572,17 +581,13 @@ export default function Tasks() {
       console.log(`🔍 [VERIFY] Processing ALL ${tasks.length} tasks in parallel...`);
 
       // ✅ Сначала помечаем все задачи как проверяемые
-      // ⚠️ КРИТИЧНО: Сохраняем error состояние и устанавливаем его ТОЛЬКО для неоткрытых и невыполненных задач
+      // ⚠️ КРИТИЧНО: НЕ меняем состояние завершенных задач - они должны оставаться зелеными
       setTasks(prevTasks => 
         prevTasks.map(task => {
           const isOpened = task.opened || openedTasks[task.link_id] === true;
-          // Если задача выполнена, ошибки быть не должно
+          // ⚠️ КРИТИЧНО: Если задача уже завершена и проверена - НЕ меняем её состояние вообще
           if (task.completed && task.verified) {
-            return {
-              ...task, 
-              verifying: true,
-              error: false // Выполненные задачи не должны показывать ошибку
-            };
+            return task; // Возвращаем задачу БЕЗ изменений - она остается зеленой
           }
           // ⚠️ КРИТИЧНО: НЕ устанавливаем ошибку автоматически для неоткрытых задач
           // Ошибка должна устанавливаться только после реальной проверки через API
