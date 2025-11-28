@@ -105,6 +105,25 @@ export default function Tasks() {
     }
   }, [router, user, authLoading, isInitialized]);
 
+  // ⚠️ КРИТИЧНО: Отслеживаем изменения задач и немедленно редиректим, если все зеленые
+  useEffect(() => {
+    if (tasks.length === 0 || !user || redirectingRef.current) return;
+    
+    const allTasksVerified = tasks.every((task) => task.completed && task.verified);
+    const allTasksCompleted = tasks.length > 0 && tasks.filter(t => t.completed).length === tasks.length;
+    
+    if (allTasksCompleted && allTasksVerified) {
+      const linkPublishedSession = sessionStorage.getItem('link_published');
+      const linkPublishedLocal = localStorage.getItem('link_published');
+      
+      if (linkPublishedSession !== 'true' && linkPublishedLocal !== 'true') {
+        console.log(`🚀 [USEFFECT] All tasks green! Redirecting immediately...`);
+        redirectingRef.current = true;
+        window.location.href = '/buyToken';
+      }
+    }
+  }, [tasks, user]);
+
   const loadTasks = async (userFid: number, showLoading: boolean = true) => {
     // ⚠️ КРИТИЧНО: Если происходит редирект, не обновляем задачи
     if (redirectingRef.current) {
@@ -239,7 +258,44 @@ export default function Tasks() {
         return (a as any)._originalIndex - (b as any)._originalIndex;
       });
 
-      // Считаем количество завершенных заданий ТОЛЬКО для текущего типа активности
+      // ⚠️ КРИТИЧНО: Проверяем завершенность задач ДО обновления состояния
+      // Это предотвращает промежуточные рендеры с неправильными цветами
+      const allTasksCompleted = completedLinks.length >= taskList.length;
+      const allTasksVerified = taskList.length > 0 && taskList.every((task) => task.completed && task.verified);
+      
+      console.log('🔍 [TASKS] Redirect check (BEFORE setState):', {
+        allTasksCompleted,
+        allTasksVerified,
+        tasksCount: taskList.length,
+        completedCount: completedLinks.length,
+        verifiedTasks: taskList.filter(t => t.completed && t.verified).length,
+        taskStates: taskList.map(t => ({ id: t.link_id, completed: t.completed, verified: t.verified }))
+      });
+      
+      // ⚠️ КРИТИЧНО: Если все задачи завершены и проверены (зеленые кнопки) - редирект НЕМЕДЛЕННО
+      // НЕ обновляем состояние задач, чтобы избежать промежуточных рендеров
+      if (allTasksCompleted && allTasksVerified && taskList.length > 0 && user && !redirectingRef.current) {
+        // Устанавливаем флаг редиректа, чтобы остановить обновление задач
+        redirectingRef.current = true;
+        
+        // ⚠️ КРИТИЧЕСКАЯ ПРОВЕРКА: Сначала проверяем флаг link_published из хранилища
+        const linkPublishedSession = sessionStorage.getItem('link_published');
+        const linkPublishedLocal = localStorage.getItem('link_published');
+        if (linkPublishedSession === 'true' || linkPublishedLocal === 'true') {
+          console.log(`✅ [TASKS] Link already published (from storage), skipping auto-redirect check completely`);
+          redirectingRef.current = false; // Сбрасываем флаг, если редирект не нужен
+          // Продолжаем обновление задач, так как редирект не нужен
+        } else {
+          console.log(`🎯 All tasks completed and verified (green buttons)! Redirecting IMMEDIATELY to wallet...`);
+          
+          // ⚠️ КРИТИЧНО: Редирект НЕМЕДЛЕННО, БЕЗ обновления состояния задач
+          // Это предотвращает промежуточные рендеры с красно-фиолетовым цветом
+          window.location.href = '/buyToken';
+          return; // Выходим сразу, не обновляем состояние
+        }
+      }
+      
+      // Обновляем состояние задач ТОЛЬКО если не происходит редирект
       const completedCountForActivity = taskList.filter(task => task.completed).length;
 
       console.log(`✅ [TASKS] Setting tasks to state: ${taskList.length} tasks`);
@@ -266,49 +322,6 @@ export default function Tasks() {
       })));
       console.log(`🔍 [TASKS] Activity filter: ${currentActivity || 'NONE'}, Raw links from API: ${links.length}, Filtered links: ${filteredLinks.length}, Final tasks: ${taskList.length}`);
       console.log(`📊 [TASKS] Task types in loaded links:`, links.map((l: LinkSubmission) => l.task_type));
-      
-      // Проверяем: если все задания завершены, проверяем прогресс и делаем автоматический редирект
-      // ⚠️ ВАЖНО: Проверяем, не опубликована ли уже ссылка пользователем, чтобы избежать бесконечного редиректа
-      // ⚠️ КРИТИЧНО: Проверяем, что все задания действительно выполнены И проверены (зеленые кнопки)
-      // Если кнопки зеленые (completed && verified), значит проверка уже пройдена, редирект сразу
-      const allTasksCompleted = completedLinks.length >= taskList.length;
-      const allTasksVerified = taskList.length > 0 && taskList.every((task) => task.completed && task.verified);
-      
-      console.log('🔍 [TASKS] Redirect check:', {
-        allTasksCompleted,
-        allTasksVerified,
-        tasksCount: taskList.length,
-        completedCount: completedLinks.length,
-        verifiedTasks: taskList.filter(t => t.completed && t.verified).length,
-        taskStates: taskList.map(t => ({ id: t.link_id, completed: t.completed, verified: t.verified }))
-      });
-      
-      // ⚠️ КРИТИЧНО: Если все задачи завершены и проверены (зеленые кнопки) - редирект НЕМЕДЛЕННО на кошелек
-      // Дополнительная проверка ошибок не нужна, так как если задачи завершены, они уже проверены
-      if (allTasksCompleted && allTasksVerified && taskList.length > 0 && user && !redirectingRef.current) {
-        // Устанавливаем флаг редиректа, чтобы остановить обновление задач
-        redirectingRef.current = true;
-        
-        // ⚠️ КРИТИЧНО: Сразу останавливаем обновление задач, чтобы предотвратить промежуточные состояния
-        // Это должно быть сделано ДО любых проверок
-        
-        // ⚠️ КРИТИЧЕСКАЯ ПРОВЕРКА: Сначала проверяем флаг link_published из хранилища
-        // Это предотвращает редирект на /submit, если ссылка уже опубликована (даже если БД еще не обновилась)
-        const linkPublishedSession = sessionStorage.getItem('link_published');
-        const linkPublishedLocal = localStorage.getItem('link_published');
-        if (linkPublishedSession === 'true' || linkPublishedLocal === 'true') {
-          console.log(`✅ [TASKS] Link already published (from storage), skipping auto-redirect check completely`);
-          redirectingRef.current = false; // Сбрасываем флаг, если редирект не нужен
-          return; // Прекращаем выполнение, не делаем никаких проверок и редиректов
-        }
-        
-        console.log(`🎯 All tasks completed and verified (green buttons)! Redirecting immediately to wallet...`);
-        
-        // ⚠️ КРИТИЧНО: Редирект НЕМЕДЛЕННО, без задержек и дополнительных проверок
-        // Используем window.location для немедленного редиректа без промежуточных рендеров
-        // router.replace может иметь задержку, поэтому используем прямой редирект
-        window.location.href = '/buyToken';
-      }
     } catch (error) {
       console.error('Error loading tasks:', error);
     } finally {
