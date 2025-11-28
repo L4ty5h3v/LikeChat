@@ -27,10 +27,6 @@ export default function Tasks() {
   const taskErrorsRef = useRef<Record<string, boolean>>({});
   // Храним активные polling интервалы для очистки
   const pollingIntervalsRef = useRef<Record<string, NodeJS.Timeout>>({});
-  // Флаг для остановки обновления задач, если все завершены и происходит редирект
-  const redirectingRef = useRef<boolean>(false);
-  // Храним завершенные задачи в localStorage для сохранения состояния между обновлениями
-  const completedTasksRef = useRef<Set<string>>(new Set());
 
   // Загрузка данных
   useEffect(() => {
@@ -96,64 +92,15 @@ export default function Tasks() {
       }
       
       // Обновляем список задач каждые 2 секунды (быстрее для более оперативного отображения новых ссылок)
-      // НО только если не происходит редирект (все задачи завершены)
       const interval = setInterval(() => {
-        if (!redirectingRef.current) {
-          loadTasks(user.fid, false);
-        }
+        loadTasks(user.fid, false);
       }, 2000);
       
       return () => clearInterval(interval);
     }
   }, [router, user, authLoading, isInitialized]);
 
-  // ⚠️ КРИТИЧНО: Загружаем завершенные задачи из localStorage при монтировании
-  useEffect(() => {
-    if (typeof window !== 'undefined' && user?.fid) {
-      const stored = localStorage.getItem(`completed_tasks_${user.fid}`);
-      if (stored) {
-        try {
-          const completedIds = JSON.parse(stored);
-          completedTasksRef.current = new Set(completedIds);
-          console.log(`✅ [TASKS] Loaded ${completedIds.length} completed tasks from localStorage`);
-        } catch (e) {
-          console.error('❌ [TASKS] Error loading completed tasks from localStorage', e);
-        }
-      }
-    }
-  }, [user?.fid]);
-
-  // ⚠️ ОТКЛЮЧЕНО: Автоматический редирект в useEffect отключен, чтобы не блокировать отображение задач
-  // Редирект происходит только через loadTasks после проверки всех условий
-  // useEffect(() => {
-  //   if (tasks.length === 0 || !user || redirectingRef.current) return;
-  //   
-  //   const allTasksVerified = tasks.every((task) => task.completed && task.verified);
-  //   const allTasksCompleted = tasks.length > 0 && tasks.filter(t => t.completed).length === tasks.length;
-  //   
-  //   if (allTasksCompleted && allTasksVerified) {
-  //     const linkPublishedSession = sessionStorage.getItem('link_published');
-  //     const linkPublishedLocal = localStorage.getItem('link_published');
-  //     
-  //     if (linkPublishedSession !== 'true' && linkPublishedLocal !== 'true') {
-  //       console.log(`🚀 [USEFFECT] All tasks green! Redirecting immediately...`);
-  //       redirectingRef.current = true;
-  //       if (typeof window !== 'undefined' && user.fid) {
-  //         const completedIds = tasks.map(t => t.link_id);
-  //         localStorage.setItem(`completed_tasks_${user.fid}`, JSON.stringify(completedIds));
-  //       }
-  //       window.location.href = '/buyToken';
-  //     }
-  //   }
-  // }, [tasks, user]);
-
   const loadTasks = async (userFid: number, showLoading: boolean = true) => {
-    // ⚠️ КРИТИЧНО: Если происходит редирект, не обновляем задачи
-    if (redirectingRef.current) {
-      console.log('⏸️ [TASKS] Skipping task update - redirect in progress');
-      return;
-    }
-    
     if (showLoading) {
       setLoading(true);
     }
@@ -216,54 +163,19 @@ export default function Tasks() {
       
       const taskList: TaskProgress[] = filteredLinks.map((link: LinkSubmission, index: number) => {
         const castHash = extractCastHash(link.cast_url) || '';
-        const isCompletedFromAPI = completedLinks.includes(link.id);
+        const isCompleted = completedLinks.includes(link.id);
         const isOpened = openedTasks[link.id] === true;
         // Сохраняем состояние ошибки из предыдущих проверок
         // Если задание не открыто и не выполнено, и была ошибка - сохраняем её
         const hasStoredError = taskErrorsRef.current[link.id] === true;
+        const shouldHaveError = hasStoredError && !isOpened && !isCompleted;
         
         // ⚠️ КРИТИЧНО: Сохраняем verifying и error из текущего состояния, если задача уже существует
         const currentTask = currentTasksMap.get(link.id);
-        
-        // ⚠️ КРИТИЧНО: Сохраняем completed и verified из текущего состояния, если задача уже была завершена
-        // Это предотвращает исчезновение зеленого цвета при обновлении задач
-        const wasCompletedInState = currentTask?.completed === true && currentTask?.verified === true;
-        const wasCompletedInStorage = completedTasksRef.current.has(link.id);
-        const wasCompleted = wasCompletedInState || wasCompletedInStorage;
-        const isCompleted = isCompletedFromAPI || wasCompleted; // Используем API, текущее состояние ИЛИ localStorage
-        
-        // ⚠️ КРИТИЧНО: Если задача завершена, она ВСЕГДА остается зеленой
-        // НЕ устанавливаем error, verifying или любые другие состояния, которые могут изменить цвет
-        if (isCompleted) {
-          // Сохраняем в localStorage для сохранения между обновлениями
-          completedTasksRef.current.add(link.id);
-          if (typeof window !== 'undefined') {
-            const completedIds = Array.from(completedTasksRef.current);
-            localStorage.setItem(`completed_tasks_${userFid}`, JSON.stringify(completedIds));
-          }
-          
-          // Завершенная задача ВСЕГДА остается зеленой - никаких ошибок или проверок
-          return {
-            link_id: link.id,
-            cast_url: link.cast_url,
-            cast_hash: castHash,
-            task_type: link.task_type,
-            user_fid_required: userFid,
-            username: link.username,
-            pfp_url: link.pfp_url,
-            completed: true,
-            verified: true, // verified всегда true для завершенных задач
-            opened: true, // Завершенная задача считается открытой
-            error: false, // ВСЕГДА false для завершенных задач
-            verifying: false, // ВСЕГДА false для завершенных задач
-            _originalIndex: index,
-          };
-        }
-        
-        // Для незавершенных задач применяем обычную логику
-        const shouldHaveError = hasStoredError && !isOpened;
-        const preservingVerifying = currentTask?.verifying === true; // Сохраняем verifying только если задача не выполнена
-        const preservingError = isOpened ? false : (shouldHaveError); // Сохраняем error только если задача НЕ открыта И есть ошибка
+        const preservingVerifying = currentTask?.verifying === true && !isCompleted; // Сохраняем verifying только если задача не выполнена
+        // ⚠️ КРИТИЧНО: Для открытых задач ВСЕГДА error: false, чтобы кнопка оставалась синей
+        // НЕ восстанавливаем ошибку из currentTask или taskErrorsRef для открытых задач
+        const preservingError = isOpened ? false : (shouldHaveError); // Сохраняем error только если задача НЕ открыта И есть ошибка в taskErrorsRef
         
         return {
           link_id: link.id,
@@ -273,11 +185,11 @@ export default function Tasks() {
           user_fid_required: userFid, // FID текущего пользователя
           username: link.username,
           pfp_url: link.pfp_url,
-          completed: false,
-          verified: false,
+          completed: isCompleted,
+          verified: isCompleted,
           opened: isOpened,
-          error: preservingError,
-          verifying: preservingVerifying,
+          error: preservingError, // Сохраняем ошибку из текущего состояния или из taskErrorsRef
+          verifying: preservingVerifying, // Сохраняем verifying если идет проверка
           _originalIndex: index, // Сохраняем оригинальный индекс для стабильной сортировки
         };
       }).sort((a: TaskProgress, b: TaskProgress) => {
@@ -290,7 +202,7 @@ export default function Tasks() {
         return (a as any)._originalIndex - (b as any)._originalIndex;
       });
 
-      // Обновляем состояние задач - редирект происходит только через handleVerifyAll
+      // Считаем количество завершенных заданий ТОЛЬКО для текущего типа активности
       const completedCountForActivity = taskList.filter(task => task.completed).length;
 
       console.log(`✅ [TASKS] Setting tasks to state: ${taskList.length} tasks`);
@@ -317,6 +229,78 @@ export default function Tasks() {
       })));
       console.log(`🔍 [TASKS] Activity filter: ${currentActivity || 'NONE'}, Raw links from API: ${links.length}, Filtered links: ${filteredLinks.length}, Final tasks: ${taskList.length}`);
       console.log(`📊 [TASKS] Task types in loaded links:`, links.map((l: LinkSubmission) => l.task_type));
+      
+      // Проверяем: если все задания завершены, проверяем прогресс и делаем автоматический редирект
+      // ⚠️ ВАЖНО: Проверяем, не опубликована ли уже ссылка пользователем, чтобы избежать бесконечного редиректа
+      // ⚠️ КРИТИЧНО: Проверяем, что все задания действительно выполнены И открыты
+      const allTasksCompleted = completedLinks.length >= taskList.length;
+      // ВАЖНО: Проверяем, что ВСЕ задания открыты (независимо от выполнения)
+      // Если задание не открыто, редирект не должен происходить
+      const allTasksOpened = taskList.length > 0 && taskList.every((task) => task.opened === true);
+      
+      console.log('🔍 [TASKS] Redirect check:', {
+        allTasksCompleted,
+        allTasksOpened,
+        tasksCount: taskList.length,
+        completedCount: completedLinks.length,
+        openedTasks: taskList.filter(t => t.opened).length,
+        taskStates: taskList.map(t => ({ id: t.link_id, opened: t.opened, completed: t.completed }))
+      });
+      
+      if (allTasksCompleted && allTasksOpened && taskList.length > 0 && user) {
+        // ⚠️ КРИТИЧЕСКАЯ ПРОВЕРКА: Сначала проверяем флаг link_published из хранилища
+        // Это предотвращает редирект на /submit, если ссылка уже опубликована (даже если БД еще не обновилась)
+        const linkPublishedSession = sessionStorage.getItem('link_published');
+        const linkPublishedLocal = localStorage.getItem('link_published');
+        if (linkPublishedSession === 'true' || linkPublishedLocal === 'true') {
+          console.log(`✅ [TASKS] Link already published (from storage), skipping auto-redirect check completely`);
+          return; // Прекращаем выполнение, не делаем никаких проверок и редиректов
+        }
+        
+        console.log(`🎯 All tasks completed! Checking user progress for auto-redirect...`);
+        
+        // Проверяем прогресс пользователя и наличие опубликованной ссылки
+        Promise.all([
+          fetch(`/api/user-progress?userFid=${user.fid}&t=${Date.now()}`).then(r => r.json()).then(d => d.progress),
+          getAllLinks(),
+        ]).then(([progress, allLinks]) => {
+          if (progress) {
+            // Еще раз проверяем флаг перед проверкой в БД (на случай если он установился пока выполнялся запрос)
+            const flagCheckSession = sessionStorage.getItem('link_published');
+            const flagCheckLocal = localStorage.getItem('link_published');
+            if (flagCheckSession === 'true' || flagCheckLocal === 'true') {
+              console.log(`✅ [TASKS] Link published flag detected during DB check, skipping redirect`);
+              return;
+            }
+            
+            // Проверяем, есть ли уже опубликованная ссылка от этого пользователя
+            const userHasPublishedLink = allLinks.some((link: LinkSubmission) => link.user_fid === user.fid);
+            
+            console.log(`📊 User progress:`, {
+              completed_links: progress.completed_links?.length || 0,
+              token_purchased: progress.token_purchased,
+              user_has_published_link: userHasPublishedLink,
+            });
+            
+            // Если ссылка уже опубликована - не делаем редирект, пользователь может остаться на /tasks
+            if (userHasPublishedLink) {
+              console.log(`✅ [TASKS] User already published a link (from DB), staying on /tasks page`);
+              // Устанавливаем флаг в хранилище для будущих проверок
+              sessionStorage.setItem('link_published', 'true');
+              localStorage.setItem('link_published', 'true');
+              return; // Прекращаем выполнение, не делаем редирект
+            }
+            
+            // Если все задания завершены → редирект на /buyToken (независимо от статуса токена)
+            console.log(`🚀 Redirecting to /buyToken (all tasks completed)`);
+              setTimeout(() => {
+                router.replace('/buyToken'); // Используем replace для предотвращения возврата назад
+              }, 2000);
+          }
+        }).catch((error) => {
+          console.error('❌ [TASKS] Error checking user progress for auto-redirect:', error);
+        });
+      }
     } catch (error) {
       console.error('Error loading tasks:', error);
     } finally {
@@ -413,17 +397,14 @@ export default function Tasks() {
             return; // Выходим из интервала
           } else if (result.completed && !isOpened) {
             // Если активность найдена, но задача не открыта - это ошибка
-            // НО только если задача еще не завершена
             console.log(`⚠️ [POLLING] Activity found for link ${linkId}, but task is not opened!`);
+            taskErrorsRef.current[linkId] = true;
             setTasks(prevTasks =>
-              prevTasks.map(task => {
-                // ⚠️ КРИТИЧНО: Не меняем состояние завершенных задач
-                if (task.link_id === linkId && !task.completed) {
-                  taskErrorsRef.current[linkId] = true;
-                  return { ...task, error: true, verifying: false };
-                }
-                return task;
-              })
+              prevTasks.map(task =>
+                task.link_id === linkId
+                  ? { ...task, error: true, verifying: false }
+                  : task
+              )
             );
           } else if (!result.completed && isOpened) {
             // ⚠️ КРИТИЧНО: Если задача открыта, но активность еще не найдена - НЕ устанавливаем error
@@ -437,20 +418,21 @@ export default function Tasks() {
           }
         } catch (error) {
           console.error(`❌ [POLLING] Error during poll for link ${linkId}`, error);
-          // ⚠️ КРИТИЧНО: Если задача открыта или завершена, НЕ устанавливаем ошибку при исключении
+          // ⚠️ КРИТИЧНО: Если задача открыта, НЕ устанавливаем ошибку при исключении
           const isOpened = openedTasks[linkId] === true;
-          setTasks(prevTasks =>
-            prevTasks.map(task => {
-              // ⚠️ КРИТИЧНО: Не меняем состояние завершенных задач
-              if (task.link_id === linkId && !task.completed && !isOpened) {
-                taskErrorsRef.current[linkId] = true;
-                return { ...task, error: true, verifying: false };
-              } else if (task.link_id === linkId && isOpened) {
-                console.log(`⏳ [POLLING] Task ${linkId} is opened, skipping error on exception`);
-              }
-              return task;
-            })
-          );
+          if (!isOpened) {
+            // Устанавливаем ошибку только если задача НЕ открыта
+            taskErrorsRef.current[linkId] = true;
+            setTasks(prevTasks =>
+              prevTasks.map(task =>
+                task.link_id === linkId
+                  ? { ...task, error: true, verifying: false }
+                  : task
+              )
+            );
+          } else {
+            console.log(`⏳ [POLLING] Task ${linkId} is opened, skipping error on exception`);
+          }
           if (pollCount >= maxPolls) {
             clearInterval(pollIntervalId);
             delete pollingIntervalsRef.current[linkId];
@@ -610,16 +592,18 @@ export default function Tasks() {
       console.log(`🔍 [VERIFY] Processing ALL ${tasks.length} tasks in parallel...`);
 
       // ✅ Сначала помечаем все задачи как проверяемые
-      // ⚠️ КРИТИЧНО: Завершенные задачи (зеленые) НЕ меняем - они остаются зелеными всегда
+      // ⚠️ КРИТИЧНО: Сохраняем error состояние и устанавливаем его ТОЛЬКО для неоткрытых и невыполненных задач
       setTasks(prevTasks => 
         prevTasks.map(task => {
-          // ⚠️ КРИТИЧНО: Если задача завершена и проверена - НЕ меняем её состояние
-          // Она должна оставаться зеленой всегда
-          if (task.completed && task.verified) {
-            return task; // Возвращаем задачу без изменений
-          }
-          
           const isOpened = task.opened || openedTasks[task.link_id] === true;
+          // Если задача выполнена, ошибки быть не должно
+          if (task.completed && task.verified) {
+            return {
+              ...task, 
+              verifying: true,
+              error: false // Выполненные задачи не должны показывать ошибку
+            };
+          }
           // ⚠️ КРИТИЧНО: НЕ устанавливаем ошибку автоматически для неоткрытых задач
           // Ошибка должна устанавливаться только после реальной проверки через API
           // Для открытых задач НЕ устанавливаем error, чтобы кнопка оставалась синей
@@ -818,17 +802,12 @@ export default function Tasks() {
               console.log(`✅ [VERIFY] Removed error for task ${task.link_id}`, taskErrorsRef.current);
             }
             
-            // ⚠️ КРИТИЧНО: Если задача уже была завершена ранее, сохраняем её статус
-            // Не позволяем завершенным задачам стать незавершенными
-            const wasCompleted = task.completed && task.verified;
-            const shouldBeCompleted = wasCompleted || finalCompleted;
-            
             return {
               ...task,
-              completed: shouldBeCompleted, // Сохраняем завершенный статус или устанавливаем новый
-              verified: shouldBeCompleted, // verified всегда равен completed
+              completed: finalCompleted, // ⚠️ Используем finalCompleted, а не result.completed
+              verified: true,
               verifying: false,
-              error: shouldBeCompleted ? false : hasError, // Завершенные задачи ВСЕГДА без ошибок
+              error: hasError,
               opened: isOpened, // Сохраняем состояние opened
             } as TaskProgress;
           } catch (err: any) {
@@ -841,15 +820,12 @@ export default function Tasks() {
             taskErrorsRef.current[task.link_id] = true;
             console.log(`🔴 [VERIFY] Stored error for task ${task.link_id} (exception)`, taskErrorsRef.current);
             
-            // ⚠️ КРИТИЧНО: Если задача уже была завершена, не меняем её статус
-            const wasCompleted = task.completed && task.verified;
-            
             return {
               ...task,
-              completed: wasCompleted ? true : false, // Сохраняем завершенный статус
-              verified: wasCompleted ? true : true, // Помечаем как проверенное
+              completed: false,
+              verified: true, // Помечаем как проверенное, но не выполненное
               verifying: false,
-              error: wasCompleted ? false : true, // Завершенные задачи ВСЕГДА без ошибок
+              error: true, // Ошибка при проверке
               opened: task.opened || openedTasks[task.link_id] === true,
             } as TaskProgress;
           }
@@ -861,24 +837,10 @@ export default function Tasks() {
 
       // Обновляем состояние
       // ВАЖНО: Убеждаемся, что выполненные задачи не имеют ошибок
-      // ⚠️ КРИТИЧНО: Завершенные задачи ВСЕГДА остаются зелеными
-      // Не позволяем им менять статус на ошибку или проверку
-      const finalUpdatedTasks = updatedTasks.map(task => {
-        // Если задача завершена - она ВСЕГДА остается завершенной и без ошибок
-        if (task.completed && task.verified) {
-          return {
-            ...task,
-            completed: true,
-            verified: true,
-            error: false,
-            verifying: false,
-          };
-        }
-        return {
-          ...task,
-          error: task.completed ? false : task.error // Выполненные задачи не должны показывать ошибку
-        };
-      });
+      const finalUpdatedTasks = updatedTasks.map(task => ({
+        ...task,
+        error: task.completed ? false : task.error // Выполненные задачи не должны показывать ошибку
+      }));
       
       const newCompletedCount = finalUpdatedTasks.filter(t => t.completed).length;
       
@@ -906,21 +868,9 @@ export default function Tasks() {
       // НЕ делаем редирект, если есть ошибки или не все задания открыты
       if (allCompleted && allOpened && !hasErrors && finalUpdatedTasks.length > 0) {
         console.log(`✅ All tasks completed! (${newCompletedCount}/${finalUpdatedTasks.length})`);
-        // Устанавливаем флаг редиректа
-        redirectingRef.current = true;
-        
-        // Сохраняем завершенные задачи в localStorage перед редиректом
-        if (typeof window !== 'undefined' && user?.fid) {
-          const completedIds = finalUpdatedTasks.filter(t => t.completed).map(t => t.link_id);
-          if (completedIds.length > 0) {
-            completedTasksRef.current = new Set(completedIds);
-            localStorage.setItem(`completed_tasks_${user.fid}`, JSON.stringify(completedIds));
-          }
-        }
-        
-        // Редирект через 2 секунды, чтобы пользователь видел зеленые кнопки
+        // НЕ перезагружаем задачи, чтобы кнопки остались зелеными
         setTimeout(() => {
-          window.location.href = '/buyToken';
+          router.replace('/buyToken'); // Используем replace вместо push
         }, 2000);
       } else if (newCompletedCount > 0 && newCompletedCount < finalUpdatedTasks.length) {
         // Перезагружаем задачи только если не все выполнены
