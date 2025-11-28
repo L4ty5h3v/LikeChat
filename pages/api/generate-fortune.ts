@@ -26,8 +26,22 @@ async function updateFortuneStreak(userFid: number): Promise<{
   const todayUTC = toDateOnlyUTC(now);
   const yesterdayUTC = getYesterdayUTC(now);
   
+  console.log(`📅 [STREAK] Date info for user ${userFid}:`, {
+    todayUTC,
+    yesterdayUTC,
+    now: now.toISOString(),
+  });
+  
   // Получаем текущий прогресс пользователя
   const existing = await getUserProgress(userFid);
+  
+  console.log(`📊 [STREAK] Existing progress for user ${userFid}:`, {
+    hasProgress: !!existing,
+    lastClaimDate: existing?.last_fortune_claim_date,
+    currentStreak: existing?.current_streak,
+    longestStreak: existing?.longest_streak,
+    totalClaims: existing?.total_fortune_claims,
+  });
   
   const lastClaimDate = existing?.last_fortune_claim_date || null;
   const currentStreak = existing?.current_streak || 0;
@@ -36,6 +50,7 @@ async function updateFortuneStreak(userFid: number): Promise<{
   
   // Если уже клеймили сегодня, не обновляем
   if (lastClaimDate === todayUTC) {
+    console.log(`ℹ️ [STREAK] User ${userFid} already claimed today, returning existing streak`);
     return {
       current_streak: currentStreak,
       longest_streak: longestStreak,
@@ -47,17 +62,27 @@ async function updateFortuneStreak(userFid: number): Promise<{
   // Проверяем, последовательный ли клейм
   const isConsecutive = lastClaimDate === yesterdayUTC;
   
+  console.log(`🔍 [STREAK] Streak calculation for user ${userFid}:`, {
+    lastClaimDate,
+    yesterdayUTC,
+    isConsecutive,
+    currentStreak,
+  });
+  
   // Обновляем стрик
   let newCurrentStreak: number;
   if (lastClaimDate === null) {
     // Первый клейм
     newCurrentStreak = 1;
+    console.log(`🆕 [STREAK] First claim for user ${userFid}`);
   } else if (isConsecutive) {
     // Последовательный клейм
     newCurrentStreak = currentStreak + 1;
+    console.log(`✅ [STREAK] Consecutive claim for user ${userFid}, streak: ${currentStreak} → ${newCurrentStreak}`);
   } else {
     // Пропущен день - сброс стрика
     newCurrentStreak = 1;
+    console.log(`🔄 [STREAK] Streak reset for user ${userFid} (missed day), was: ${currentStreak}`);
   }
   
   // Обновляем рекорд
@@ -66,13 +91,27 @@ async function updateFortuneStreak(userFid: number): Promise<{
   // Обновляем общее количество клеймов
   const newTotalClaims = totalClaims + 1;
   
-  // Сохраняем в базу данных
-  await upsertUserProgress(userFid, {
+  console.log(`💾 [STREAK] Saving streak for user ${userFid}:`, {
     current_streak: newCurrentStreak,
     longest_streak: newLongestStreak,
     last_fortune_claim_date: todayUTC,
     total_fortune_claims: newTotalClaims,
   });
+  
+  // Сохраняем в базу данных
+  try {
+    await upsertUserProgress(userFid, {
+      current_streak: newCurrentStreak,
+      longest_streak: newLongestStreak,
+      last_fortune_claim_date: todayUTC,
+      total_fortune_claims: newTotalClaims,
+    });
+    console.log(`✅ [STREAK] Successfully saved streak for user ${userFid}`);
+  } catch (saveError: any) {
+    console.error(`❌ [STREAK] Error saving streak for user ${userFid}:`, saveError.message);
+    console.error(`❌ [STREAK] Save error stack:`, saveError.stack);
+    throw saveError;
+  }
   
   return {
     current_streak: newCurrentStreak,
@@ -112,14 +151,21 @@ export default async function handler(
     const { prompt, userFid } = req.body;
     
     // Обновляем стрик, если передан userFid
-    if (userFid && typeof userFid === 'number') {
+    // Преобразуем userFid в число, если он передан как строка
+    const numericUserFid = userFid ? (typeof userFid === 'string' ? parseInt(userFid, 10) : userFid) : null;
+    
+    if (numericUserFid && !isNaN(numericUserFid) && numericUserFid > 0) {
       try {
-        streakData = await updateFortuneStreak(userFid);
-        console.log(`✅ [FORTUNE] Streak updated for user ${userFid}:`, streakData);
+        console.log(`🔄 [FORTUNE] Updating streak for user ${numericUserFid}...`);
+        streakData = await updateFortuneStreak(numericUserFid);
+        console.log(`✅ [FORTUNE] Streak updated for user ${numericUserFid}:`, streakData);
       } catch (streakError: any) {
         console.error('⚠️ [FORTUNE] Error updating streak:', streakError.message);
+        console.error('⚠️ [FORTUNE] Streak error stack:', streakError.stack);
         // Продолжаем генерацию предсказания даже если стрик не обновился
       }
+    } else {
+      console.warn('⚠️ [FORTUNE] Invalid or missing userFid:', { userFid, numericUserFid });
     }
 
     // Используем официальный OpenAI API
@@ -130,7 +176,13 @@ export default async function handler(
       return res.status(200).json({ 
         error: 'API key not configured',
         fortune: "Your intuition will lead to unexpected success",
-        source: 'fallback'
+        source: 'fallback',
+        streak: streakData ? {
+          current: streakData.current_streak,
+          longest: streakData.longest_streak,
+          last_claim: streakData.last_fortune_claim_date,
+          total: streakData.total_fortune_claims,
+        } : null,
       });
     }
     
