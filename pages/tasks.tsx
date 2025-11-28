@@ -232,22 +232,23 @@ export default function Tasks() {
       
       // Проверяем: если все задания завершены, проверяем прогресс и делаем автоматический редирект
       // ⚠️ ВАЖНО: Проверяем, не опубликована ли уже ссылка пользователем, чтобы избежать бесконечного редиректа
-      // ⚠️ КРИТИЧНО: Проверяем, что все задания действительно выполнены И открыты
+      // ⚠️ КРИТИЧНО: Проверяем, что все задания действительно выполнены И проверены (зеленые кнопки)
+      // Если кнопки зеленые (completed && verified), значит проверка уже пройдена, редирект сразу
       const allTasksCompleted = completedLinks.length >= taskList.length;
-      // ВАЖНО: Проверяем, что ВСЕ задания открыты (независимо от выполнения)
-      // Если задание не открыто, редирект не должен происходить
-      const allTasksOpened = taskList.length > 0 && taskList.every((task) => task.opened === true);
+      const allTasksVerified = taskList.length > 0 && taskList.every((task) => task.completed && task.verified);
       
       console.log('🔍 [TASKS] Redirect check:', {
         allTasksCompleted,
-        allTasksOpened,
+        allTasksVerified,
         tasksCount: taskList.length,
         completedCount: completedLinks.length,
-        openedTasks: taskList.filter(t => t.opened).length,
-        taskStates: taskList.map(t => ({ id: t.link_id, opened: t.opened, completed: t.completed }))
+        verifiedTasks: taskList.filter(t => t.completed && t.verified).length,
+        taskStates: taskList.map(t => ({ id: t.link_id, completed: t.completed, verified: t.verified }))
       });
       
-      if (allTasksCompleted && allTasksOpened && taskList.length > 0 && user) {
+      // ⚠️ КРИТИЧНО: Если все задачи завершены и проверены (зеленые кнопки) - редирект сразу на кошелек
+      // Дополнительная проверка ошибок не нужна, так как если задачи завершены, они уже проверены
+      if (allTasksCompleted && allTasksVerified && taskList.length > 0 && user) {
         // ⚠️ КРИТИЧЕСКАЯ ПРОВЕРКА: Сначала проверяем флаг link_published из хранилища
         // Это предотвращает редирект на /submit, если ссылка уже опубликована (даже если БД еще не обновилась)
         const linkPublishedSession = sessionStorage.getItem('link_published');
