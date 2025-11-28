@@ -362,8 +362,18 @@ export default function Tasks() {
             clearInterval(pollIntervalId);
             delete pollingIntervalsRef.current[linkId];
             
-            // ⚠️ КРИТИЧНО: Проверяем через API, все ли задачи завершены, ПЕРЕД любыми обновлениями состояния
-            // Это предотвращает промежуточные рендеры
+            // ⚠️ КРИТИЧНО: Сначала обновляем состояние текущей задачи как завершенной
+            // Это нужно для того, чтобы кнопка стала зеленой сразу после проверки
+            setTasks(prevTasks =>
+              prevTasks.map(task =>
+                task.link_id === linkId
+                  ? { ...task, completed: true, verified: true, verifying: false, error: false }
+                  : task
+              )
+            );
+            
+            // ⚠️ КРИТИЧНО: Проверяем через API, все ли задачи завершены, ПЕРЕД вызовом loadTasks
+            // Это предотвращает промежуточные рендеры через loadTasks
             if (user?.fid) {
               try {
                 // Проверяем прогресс через API напрямую
