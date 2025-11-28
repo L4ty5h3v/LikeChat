@@ -89,10 +89,8 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
             disabled={task.completed && task.verified}
             className={`btn-gold-glow px-4 py-1.5 font-bold text-sm group ${
               task.completed && task.verified ? 'disabled cursor-not-allowed' : ''
-            } ${task.verifying && !task.completed ? 'cursor-wait' : ''} ${task.error && !task.completed ? 'animate-pulse' : ''}`}
+            } ${task.verifying ? 'cursor-wait' : ''} ${task.error ? 'animate-pulse' : ''}`}
             style={
-              // ⚠️ КРИТИЧНО: Завершенные задачи ВСЕГДА зеленые, независимо от других состояний
-              // Это предотвращает появление промежуточных красно-фиолетовых цветов
               task.completed && task.verified
                 ? { 
                     background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.9), rgba(22, 163, 74, 0.9))',
@@ -105,13 +103,19 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
                     border: '2px solid rgba(239, 68, 68, 0.8)',
                     boxShadow: '0 4px 30px rgba(239, 68, 68, 0.4)',
                   }
+                : task.error
+                ? { 
+                    background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.4), rgba(220, 38, 38, 0.4))',
+                    border: '1px solid rgba(255, 255, 255, 0.3)',
+                    boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
+                  }
                 : task.verifying && !task.opened && !task.completed
                 ? { 
                     background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.4), rgba(220, 38, 38, 0.4))',
                     border: '1px solid rgba(255, 255, 255, 0.3)',
                     boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
                   }
-                : task.verifying && !task.completed
+                : task.verifying
                 ? { 
                     background: 'linear-gradient(135deg, rgba(251, 146, 60, 0.4), rgba(249, 115, 22, 0.4))',
                     border: '1px solid rgba(255, 255, 255, 0.3)',

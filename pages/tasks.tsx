@@ -256,10 +256,8 @@ export default function Tasks() {
       console.log(`🔍 [TASKS] Activity filter: ${currentActivity || 'NONE'}, Raw links from API: ${links.length}, Filtered links: ${filteredLinks.length}, Final tasks: ${taskList.length}`);
       console.log(`📊 [TASKS] Task types in loaded links:`, links.map((l: LinkSubmission) => l.task_type));
       
-      // Проверяем: если все задания завершены, проверяем прогресс и делаем автоматический редирект
-      // ⚠️ ВАЖНО: Проверяем, не опубликована ли уже ссылка пользователем, чтобы избежать бесконечного редиректа
-      // ⚠️ КРИТИЧНО: Проверяем, что все задания действительно выполнены И проверены (зеленые кнопки)
-      // Если кнопки зеленые (completed && verified), значит проверка уже пройдена, редирект сразу
+      // Проверяем: если все задания завершены, делаем автоматический редирект
+      // ⚠️ КРИТИЧНО: Проверяем только allTasksCompleted && allTasksVerified - если задачи завершены, они уже проверены
       const allTasksCompleted = completedLinks.length >= taskList.length;
       const allTasksVerified = taskList.length > 0 && taskList.every((task) => task.completed && task.verified);
       
@@ -269,25 +267,23 @@ export default function Tasks() {
         tasksCount: taskList.length,
         completedCount: completedLinks.length,
         verifiedTasks: taskList.filter(t => t.completed && t.verified).length,
-        taskStates: taskList.map(t => ({ id: t.link_id, completed: t.completed, verified: t.verified }))
       });
       
-      // ⚠️ КРИТИЧНО: Если все задачи завершены и проверены (зеленые кнопки) - редирект СРАЗУ на кошелек
-      // БЕЗ проверок, БЕЗ Promise.all, БЕЗ задержек - максимально быстрый редирект
+      // ⚠️ КРИТИЧНО: Если все задачи завершены и проверены (зеленые кнопки) - редирект СРАЗУ
+      // Убрана проверка ошибок и открытия - если задачи завершены, они уже проверены
       if (allTasksCompleted && allTasksVerified && taskList.length > 0 && user) {
-        // ⚠️ КРИТИЧЕСКАЯ ПРОВЕРКА: Только проверяем флаг link_published из хранилища (синхронно)
+        // Только проверяем флаг link_published (синхронно)
         const linkPublishedSession = sessionStorage.getItem('link_published');
         const linkPublishedLocal = localStorage.getItem('link_published');
         if (linkPublishedSession === 'true' || linkPublishedLocal === 'true') {
-          console.log(`✅ [TASKS] Link already published (from storage), skipping auto-redirect`);
+          console.log(`✅ [TASKS] Link already published, skipping redirect`);
           return;
         }
         
-        // ⚠️ КРИТИЧНО: СРАЗУ редирект, без Promise.all, без проверок БД, без задержек
+        // СРАЗУ редирект, без Promise.all, без проверок БД, без задержек
         console.log(`🚀 IMMEDIATE redirect to /buyToken (all tasks verified - green buttons)`);
-        // Используем window.location для максимально быстрого редиректа
         window.location.href = '/buyToken';
-        return; // Прекращаем выполнение сразу
+        return;
       }
     } catch (error) {
       console.error('Error loading tasks:', error);
