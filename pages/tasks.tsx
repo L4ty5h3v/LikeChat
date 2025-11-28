@@ -163,15 +163,21 @@ export default function Tasks() {
       
       const taskList: TaskProgress[] = filteredLinks.map((link: LinkSubmission, index: number) => {
         const castHash = extractCastHash(link.cast_url) || '';
-        const isCompleted = completedLinks.includes(link.id);
+        const isCompletedFromAPI = completedLinks.includes(link.id);
         const isOpened = openedTasks[link.id] === true;
         // Сохраняем состояние ошибки из предыдущих проверок
         // Если задание не открыто и не выполнено, и была ошибка - сохраняем её
         const hasStoredError = taskErrorsRef.current[link.id] === true;
-        const shouldHaveError = hasStoredError && !isOpened && !isCompleted;
         
         // ⚠️ КРИТИЧНО: Сохраняем verifying и error из текущего состояния, если задача уже существует
         const currentTask = currentTasksMap.get(link.id);
+        
+        // ⚠️ КРИТИЧНО: Сохраняем completed и verified из текущего состояния, если задача уже была завершена
+        // Это предотвращает исчезновение зеленого цвета при обновлении задач
+        const wasCompleted = currentTask?.completed === true && currentTask?.verified === true;
+        const isCompleted = isCompletedFromAPI || wasCompleted; // Используем API или сохраняем из текущего состояния
+        
+        const shouldHaveError = hasStoredError && !isOpened && !isCompleted;
         const preservingVerifying = currentTask?.verifying === true && !isCompleted; // Сохраняем verifying только если задача не выполнена
         // ⚠️ КРИТИЧНО: Для открытых задач ВСЕГДА error: false, чтобы кнопка оставалась синей
         // НЕ восстанавливаем ошибку из currentTask или taskErrorsRef для открытых задач
@@ -186,7 +192,7 @@ export default function Tasks() {
           username: link.username,
           pfp_url: link.pfp_url,
           completed: isCompleted,
-          verified: isCompleted,
+          verified: isCompleted, // verified всегда равен completed
           opened: isOpened,
           error: preservingError, // Сохраняем ошибку из текущего состояния или из taskErrorsRef
           verifying: preservingVerifying, // Сохраняем verifying если идет проверка
