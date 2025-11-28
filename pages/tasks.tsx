@@ -219,6 +219,18 @@ export default function Tasks() {
       // Считаем количество завершенных заданий ТОЛЬКО для текущего типа активности
       const completedCountForActivity = taskList.filter(task => task.completed).length;
 
+      // ⚠️ КРИТИЧНО: Проверяем ПЕРЕД setTasks - если все задачи завершены, сразу редирект БЕЗ обновления состояния
+      const allTasksVerifiedInList = taskList.length > 0 && taskList.every((task) => task.completed && task.verified);
+      if (allTasksVerifiedInList && user) {
+        const linkPublishedSession = sessionStorage.getItem('link_published');
+        const linkPublishedLocal = localStorage.getItem('link_published');
+        if (linkPublishedSession !== 'true' && linkPublishedLocal !== 'true') {
+          console.log('🚀 [TASKS] All tasks verified in new list, redirecting IMMEDIATELY before setState');
+          window.location.href = '/buyToken';
+          return; // Прекращаем выполнение, НЕ вызываем setTasks
+        }
+      }
+
       console.log(`✅ [TASKS] Setting tasks to state: ${taskList.length} tasks`);
       setTasks(taskList);
       setCompletedCount(completedCountForActivity);
