@@ -182,13 +182,31 @@ export default function Tasks() {
         const wasCompleted = currentTask?.completed === true && currentTask?.verified === true;
         const isCompleted = isCompletedFromAPI || wasCompleted; // Используем API или сохраняем из текущего состояния
         
-        // ⚠️ КРИТИЧНО: Если задача завершена, ошибки быть не должно (зеленый цвет имеет приоритет)
-        // Ошибка может быть только если задача НЕ завершена
-        const shouldHaveError = hasStoredError && !isOpened && !isCompleted;
-        const preservingVerifying = currentTask?.verifying === true && !isCompleted; // Сохраняем verifying только если задача не выполнена
-        // ⚠️ КРИТИЧНО: Для открытых задач ВСЕГДА error: false, чтобы кнопка оставалась синей
-        // НЕ восстанавливаем ошибку из currentTask или taskErrorsRef для открытых задач
-        const preservingError = isOpened ? false : (shouldHaveError); // Сохраняем error только если задача НЕ открыта И есть ошибка в taskErrorsRef
+        // ⚠️ КРИТИЧНО: Если задача завершена, она ВСЕГДА остается зеленой
+        // НЕ устанавливаем error, verifying или любые другие состояния, которые могут изменить цвет
+        if (isCompleted) {
+          // Завершенная задача ВСЕГДА остается зеленой - никаких ошибок или проверок
+          return {
+            link_id: link.id,
+            cast_url: link.cast_url,
+            cast_hash: castHash,
+            task_type: link.task_type,
+            user_fid_required: userFid,
+            username: link.username,
+            pfp_url: link.pfp_url,
+            completed: true,
+            verified: true, // verified всегда true для завершенных задач
+            opened: true, // Завершенная задача считается открытой
+            error: false, // ВСЕГДА false для завершенных задач
+            verifying: false, // ВСЕГДА false для завершенных задач
+            _originalIndex: index,
+          };
+        }
+        
+        // Для незавершенных задач применяем обычную логику
+        const shouldHaveError = hasStoredError && !isOpened;
+        const preservingVerifying = currentTask?.verifying === true; // Сохраняем verifying только если задача не выполнена
+        const preservingError = isOpened ? false : (shouldHaveError); // Сохраняем error только если задача НЕ открыта И есть ошибка
         
         return {
           link_id: link.id,
@@ -198,11 +216,11 @@ export default function Tasks() {
           user_fid_required: userFid, // FID текущего пользователя
           username: link.username,
           pfp_url: link.pfp_url,
-          completed: isCompleted,
-          verified: isCompleted, // verified всегда равен completed
+          completed: false,
+          verified: false,
           opened: isOpened,
-          error: preservingError, // Сохраняем ошибку из текущего состояния или из taskErrorsRef
-          verifying: preservingVerifying, // Сохраняем verifying если идет проверка
+          error: preservingError,
+          verifying: preservingVerifying,
           _originalIndex: index, // Сохраняем оригинальный индекс для стабильной сортировки
         };
       }).sort((a: TaskProgress, b: TaskProgress) => {
@@ -377,14 +395,17 @@ export default function Tasks() {
             return; // Выходим из интервала
           } else if (result.completed && !isOpened) {
             // Если активность найдена, но задача не открыта - это ошибка
+            // НО только если задача еще не завершена
             console.log(`⚠️ [POLLING] Activity found for link ${linkId}, but task is not opened!`);
-            taskErrorsRef.current[linkId] = true;
             setTasks(prevTasks =>
-              prevTasks.map(task =>
-                task.link_id === linkId
-                  ? { ...task, error: true, verifying: false }
-                  : task
-              )
+              prevTasks.map(task => {
+                // ⚠️ КРИТИЧНО: Не меняем состояние завершенных задач
+                if (task.link_id === linkId && !task.completed) {
+                  taskErrorsRef.current[linkId] = true;
+                  return { ...task, error: true, verifying: false };
+                }
+                return task;
+              })
             );
           } else if (!result.completed && isOpened) {
             // ⚠️ КРИТИЧНО: Если задача открыта, но активность еще не найдена - НЕ устанавливаем error
@@ -398,21 +419,20 @@ export default function Tasks() {
           }
         } catch (error) {
           console.error(`❌ [POLLING] Error during poll for link ${linkId}`, error);
-          // ⚠️ КРИТИЧНО: Если задача открыта, НЕ устанавливаем ошибку при исключении
+          // ⚠️ КРИТИЧНО: Если задача открыта или завершена, НЕ устанавливаем ошибку при исключении
           const isOpened = openedTasks[linkId] === true;
-          if (!isOpened) {
-            // Устанавливаем ошибку только если задача НЕ открыта
-            taskErrorsRef.current[linkId] = true;
-            setTasks(prevTasks =>
-              prevTasks.map(task =>
-                task.link_id === linkId
-                  ? { ...task, error: true, verifying: false }
-                  : task
-              )
-            );
-          } else {
-            console.log(`⏳ [POLLING] Task ${linkId} is opened, skipping error on exception`);
-          }
+          setTasks(prevTasks =>
+            prevTasks.map(task => {
+              // ⚠️ КРИТИЧНО: Не меняем состояние завершенных задач
+              if (task.link_id === linkId && !task.completed && !isOpened) {
+                taskErrorsRef.current[linkId] = true;
+                return { ...task, error: true, verifying: false };
+              } else if (task.link_id === linkId && isOpened) {
+                console.log(`⏳ [POLLING] Task ${linkId} is opened, skipping error on exception`);
+              }
+              return task;
+            })
+          );
           if (pollCount >= maxPolls) {
             clearInterval(pollIntervalId);
             delete pollingIntervalsRef.current[linkId];
@@ -572,18 +592,16 @@ export default function Tasks() {
       console.log(`🔍 [VERIFY] Processing ALL ${tasks.length} tasks in parallel...`);
 
       // ✅ Сначала помечаем все задачи как проверяемые
-      // ⚠️ КРИТИЧНО: Сохраняем error состояние и устанавливаем его ТОЛЬКО для неоткрытых и невыполненных задач
+      // ⚠️ КРИТИЧНО: Завершенные задачи (зеленые) НЕ меняем - они остаются зелеными всегда
       setTasks(prevTasks => 
         prevTasks.map(task => {
-          const isOpened = task.opened || openedTasks[task.link_id] === true;
-          // Если задача выполнена, ошибки быть не должно
+          // ⚠️ КРИТИЧНО: Если задача завершена и проверена - НЕ меняем её состояние
+          // Она должна оставаться зеленой всегда
           if (task.completed && task.verified) {
-            return {
-              ...task, 
-              verifying: true,
-              error: false // Выполненные задачи не должны показывать ошибку
-            };
+            return task; // Возвращаем задачу без изменений
           }
+          
+          const isOpened = task.opened || openedTasks[task.link_id] === true;
           // ⚠️ КРИТИЧНО: НЕ устанавливаем ошибку автоматически для неоткрытых задач
           // Ошибка должна устанавливаться только после реальной проверки через API
           // Для открытых задач НЕ устанавливаем error, чтобы кнопка оставалась синей
@@ -782,12 +800,17 @@ export default function Tasks() {
               console.log(`✅ [VERIFY] Removed error for task ${task.link_id}`, taskErrorsRef.current);
             }
             
+            // ⚠️ КРИТИЧНО: Если задача уже была завершена ранее, сохраняем её статус
+            // Не позволяем завершенным задачам стать незавершенными
+            const wasCompleted = task.completed && task.verified;
+            const shouldBeCompleted = wasCompleted || finalCompleted;
+            
             return {
               ...task,
-              completed: finalCompleted, // ⚠️ Используем finalCompleted, а не result.completed
-              verified: true,
+              completed: shouldBeCompleted, // Сохраняем завершенный статус или устанавливаем новый
+              verified: shouldBeCompleted, // verified всегда равен completed
               verifying: false,
-              error: hasError,
+              error: shouldBeCompleted ? false : hasError, // Завершенные задачи ВСЕГДА без ошибок
               opened: isOpened, // Сохраняем состояние opened
             } as TaskProgress;
           } catch (err: any) {
@@ -800,12 +823,15 @@ export default function Tasks() {
             taskErrorsRef.current[task.link_id] = true;
             console.log(`🔴 [VERIFY] Stored error for task ${task.link_id} (exception)`, taskErrorsRef.current);
             
+            // ⚠️ КРИТИЧНО: Если задача уже была завершена, не меняем её статус
+            const wasCompleted = task.completed && task.verified;
+            
             return {
               ...task,
-              completed: false,
-              verified: true, // Помечаем как проверенное, но не выполненное
+              completed: wasCompleted ? true : false, // Сохраняем завершенный статус
+              verified: wasCompleted ? true : true, // Помечаем как проверенное
               verifying: false,
-              error: true, // Ошибка при проверке
+              error: wasCompleted ? false : true, // Завершенные задачи ВСЕГДА без ошибок
               opened: task.opened || openedTasks[task.link_id] === true,
             } as TaskProgress;
           }
@@ -817,10 +843,24 @@ export default function Tasks() {
 
       // Обновляем состояние
       // ВАЖНО: Убеждаемся, что выполненные задачи не имеют ошибок
-      const finalUpdatedTasks = updatedTasks.map(task => ({
-        ...task,
-        error: task.completed ? false : task.error // Выполненные задачи не должны показывать ошибку
-      }));
+      // ⚠️ КРИТИЧНО: Завершенные задачи ВСЕГДА остаются зелеными
+      // Не позволяем им менять статус на ошибку или проверку
+      const finalUpdatedTasks = updatedTasks.map(task => {
+        // Если задача завершена - она ВСЕГДА остается завершенной и без ошибок
+        if (task.completed && task.verified) {
+          return {
+            ...task,
+            completed: true,
+            verified: true,
+            error: false,
+            verifying: false,
+          };
+        }
+        return {
+          ...task,
+          error: task.completed ? false : task.error // Выполненные задачи не должны показывать ошибку
+        };
+      });
       
       const newCompletedCount = finalUpdatedTasks.filter(t => t.completed).length;
       
