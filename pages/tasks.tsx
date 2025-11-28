@@ -297,7 +297,8 @@ export default function Tasks() {
       
       // ⚠️ ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: Проверяем текущее состояние задач
       // Если в текущем состоянии все задачи уже завершены, не обновляем их
-      const currentAllCompleted = tasks.length > 0 && tasks.every(t => t.completed && t.verified);
+      // НО только если есть задачи (не пустой массив)
+      const currentAllCompleted = tasks.length > 0 && tasks.length === taskList.length && tasks.every(t => t.completed && t.verified);
       
       console.log('🔍 [TASKS] Redirect check (BEFORE setState):', {
         allTasksCompleted,
@@ -312,8 +313,9 @@ export default function Tasks() {
       
       // ⚠️ КРИТИЧНО: Если все задачи завершены и проверены (зеленые кнопки) - редирект НЕМЕДЛЕННО
       // НЕ обновляем состояние задач, чтобы избежать промежуточных рендеров
-      if ((allTasksCompleted && allTasksVerified) || currentAllCompleted) {
-        if (taskList.length > 0 && user && !redirectingRef.current) {
+      // ВАЖНО: Проверяем, что taskList не пустой и есть задачи для отображения
+      if ((allTasksCompleted && allTasksVerified && taskList.length > 0) || (currentAllCompleted && taskList.length > 0)) {
+        if (user && !redirectingRef.current) {
           // Устанавливаем флаг редиректа, чтобы остановить обновление задач
           redirectingRef.current = true;
           
