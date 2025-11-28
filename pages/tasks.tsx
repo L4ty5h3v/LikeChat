@@ -123,29 +123,29 @@ export default function Tasks() {
     }
   }, [user?.fid]);
 
-  // ⚠️ КРИТИЧНО: Отслеживаем изменения задач и немедленно редиректим, если все зеленые
-  useEffect(() => {
-    if (tasks.length === 0 || !user || redirectingRef.current) return;
-    
-    const allTasksVerified = tasks.every((task) => task.completed && task.verified);
-    const allTasksCompleted = tasks.length > 0 && tasks.filter(t => t.completed).length === tasks.length;
-    
-    if (allTasksCompleted && allTasksVerified) {
-      const linkPublishedSession = sessionStorage.getItem('link_published');
-      const linkPublishedLocal = localStorage.getItem('link_published');
-      
-      if (linkPublishedSession !== 'true' && linkPublishedLocal !== 'true') {
-        console.log(`🚀 [USEFFECT] All tasks green! Redirecting immediately...`);
-        redirectingRef.current = true;
-        // Сохраняем завершенные задачи в localStorage перед редиректом
-        if (typeof window !== 'undefined' && user.fid) {
-          const completedIds = tasks.map(t => t.link_id);
-          localStorage.setItem(`completed_tasks_${user.fid}`, JSON.stringify(completedIds));
-        }
-        window.location.href = '/buyToken';
-      }
-    }
-  }, [tasks, user]);
+  // ⚠️ ОТКЛЮЧЕНО: Автоматический редирект в useEffect отключен, чтобы не блокировать отображение задач
+  // Редирект происходит только через loadTasks после проверки всех условий
+  // useEffect(() => {
+  //   if (tasks.length === 0 || !user || redirectingRef.current) return;
+  //   
+  //   const allTasksVerified = tasks.every((task) => task.completed && task.verified);
+  //   const allTasksCompleted = tasks.length > 0 && tasks.filter(t => t.completed).length === tasks.length;
+  //   
+  //   if (allTasksCompleted && allTasksVerified) {
+  //     const linkPublishedSession = sessionStorage.getItem('link_published');
+  //     const linkPublishedLocal = localStorage.getItem('link_published');
+  //     
+  //     if (linkPublishedSession !== 'true' && linkPublishedLocal !== 'true') {
+  //       console.log(`🚀 [USEFFECT] All tasks green! Redirecting immediately...`);
+  //       redirectingRef.current = true;
+  //       if (typeof window !== 'undefined' && user.fid) {
+  //         const completedIds = tasks.map(t => t.link_id);
+  //         localStorage.setItem(`completed_tasks_${user.fid}`, JSON.stringify(completedIds));
+  //       }
+  //       window.location.href = '/buyToken';
+  //     }
+  //   }
+  // }, [tasks, user]);
 
   const loadTasks = async (userFid: number, showLoading: boolean = true) => {
     // ⚠️ КРИТИЧНО: Если происходит редирект, не обновляем задачи
@@ -290,63 +290,7 @@ export default function Tasks() {
         return (a as any)._originalIndex - (b as any)._originalIndex;
       });
 
-      // ⚠️ КРИТИЧНО: Проверяем завершенность задач ДО обновления состояния
-      // Это предотвращает промежуточные рендеры с неправильными цветами
-      const allTasksCompleted = completedLinks.length >= taskList.length;
-      const allTasksVerified = taskList.length > 0 && taskList.every((task) => task.completed && task.verified);
-      
-      // ⚠️ ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: Проверяем текущее состояние задач
-      // Если в текущем состоянии все задачи уже завершены, не обновляем их
-      // НО только если есть задачи (не пустой массив)
-      const currentAllCompleted = tasks.length > 0 && tasks.length === taskList.length && tasks.every(t => t.completed && t.verified);
-      
-      console.log('🔍 [TASKS] Redirect check (BEFORE setState):', {
-        allTasksCompleted,
-        allTasksVerified,
-        currentAllCompleted,
-        tasksCount: taskList.length,
-        currentTasksCount: tasks.length,
-        completedCount: completedLinks.length,
-        verifiedTasks: taskList.filter(t => t.completed && t.verified).length,
-        taskStates: taskList.map(t => ({ id: t.link_id, completed: t.completed, verified: t.verified }))
-      });
-      
-      // ⚠️ КРИТИЧНО: Если все задачи завершены и проверены (зеленые кнопки) - редирект НЕМЕДЛЕННО
-      // НЕ обновляем состояние задач, чтобы избежать промежуточных рендеров
-      // ВАЖНО: Проверяем, что taskList не пустой и есть задачи для отображения
-      if ((allTasksCompleted && allTasksVerified && taskList.length > 0) || (currentAllCompleted && taskList.length > 0)) {
-        if (user && !redirectingRef.current) {
-          // Устанавливаем флаг редиректа, чтобы остановить обновление задач
-          redirectingRef.current = true;
-          
-          // ⚠️ КРИТИЧЕСКАЯ ПРОВЕРКА: Сначала проверяем флаг link_published из хранилища
-          const linkPublishedSession = sessionStorage.getItem('link_published');
-          const linkPublishedLocal = localStorage.getItem('link_published');
-          if (linkPublishedSession === 'true' || linkPublishedLocal === 'true') {
-            console.log(`✅ [TASKS] Link already published (from storage), skipping auto-redirect check completely`);
-            redirectingRef.current = false; // Сбрасываем флаг, если редирект не нужен
-            // Продолжаем обновление задач, так как редирект не нужен
-          } else {
-            console.log(`🎯 All tasks completed and verified (green buttons)! Redirecting IMMEDIATELY to wallet...`);
-            
-            // Сохраняем завершенные задачи в localStorage перед редиректом
-            if (typeof window !== 'undefined' && user.fid) {
-              const completedIds = taskList.filter(t => t.completed).map(t => t.link_id);
-              if (completedIds.length > 0) {
-                completedTasksRef.current = new Set(completedIds);
-                localStorage.setItem(`completed_tasks_${user.fid}`, JSON.stringify(completedIds));
-              }
-            }
-            
-            // ⚠️ КРИТИЧНО: Редирект НЕМЕДЛЕННО, БЕЗ обновления состояния задач
-            // Это предотвращает промежуточные рендеры с красно-фиолетовым цветом
-            window.location.href = '/buyToken';
-            return; // Выходим сразу, не обновляем состояние
-          }
-        }
-      }
-      
-      // Обновляем состояние задач ТОЛЬКО если не происходит редирект
+      // Обновляем состояние задач - редирект происходит только через handleVerifyAll
       const completedCountForActivity = taskList.filter(task => task.completed).length;
 
       console.log(`✅ [TASKS] Setting tasks to state: ${taskList.length} tasks`);
