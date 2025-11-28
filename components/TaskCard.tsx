@@ -97,11 +97,11 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
                     border: '2px solid rgba(34, 197, 94, 0.8)',
                     boxShadow: '0 4px 30px rgba(34, 197, 94, 0.4)',
                   }
-                : task.error
+                : task.error && !task.completed
                 ? { 
-                    background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.4), rgba(220, 38, 38, 0.4))',
-                    border: '1px solid rgba(255, 255, 255, 0.3)',
-                    boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
+                    background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.9), rgba(220, 38, 38, 0.9))',
+                    border: '2px solid rgba(239, 68, 68, 0.8)',
+                    boxShadow: '0 4px 30px rgba(239, 68, 68, 0.4)',
                   }
                 : task.verifying && !task.opened && !task.completed
                 ? { 
