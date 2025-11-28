@@ -89,8 +89,10 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
             disabled={task.completed && task.verified}
             className={`btn-gold-glow px-4 py-1.5 font-bold text-sm group ${
               task.completed && task.verified ? 'disabled cursor-not-allowed' : ''
-            } ${task.verifying ? 'cursor-wait' : ''} ${task.error ? 'animate-pulse' : ''}`}
+            } ${task.verifying && !task.completed ? 'cursor-wait' : ''} ${task.error && !task.completed ? 'animate-pulse' : ''}`}
             style={
+              // ⚠️ КРИТИЧНО: Завершенные задачи ВСЕГДА зеленые, независимо от других состояний
+              // Это предотвращает появление промежуточных красно-фиолетовых цветов
               task.completed && task.verified
                 ? { 
                     background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.9), rgba(22, 163, 74, 0.9))',
@@ -109,7 +111,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
                     border: '1px solid rgba(255, 255, 255, 0.3)',
                     boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
                   }
-                : task.verifying
+                : task.verifying && !task.completed
                 ? { 
                     background: 'linear-gradient(135deg, rgba(251, 146, 60, 0.4), rgba(249, 115, 22, 0.4))',
                     border: '1px solid rgba(255, 255, 255, 0.3)',
