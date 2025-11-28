@@ -205,16 +205,23 @@ export default function Tasks() {
       // Считаем количество завершенных заданий ТОЛЬКО для текущего типа активности
       const completedCountForActivity = taskList.filter(task => task.completed).length;
 
-      // ⚠️ КРИТИЧНО: Проверяем ПЕРЕД setTasks - если все задачи завершены, сразу редирект БЕЗ обновления состояния
-      // Это предотвращает промежуточные рендеры с красно-фиолетовыми цветами
+      // ⚠️ КРИТИЧНО: Проверяем, если все задачи завершены - обновляем состояние и делаем редирект с задержкой
       const allTasksVerifiedInList = taskList.length > 0 && taskList.every((task) => task.completed && task.verified);
       if (allTasksVerifiedInList && user) {
         const linkPublishedSession = sessionStorage.getItem('link_published');
         const linkPublishedLocal = localStorage.getItem('link_published');
         if (linkPublishedSession !== 'true' && linkPublishedLocal !== 'true') {
-          console.log('🚀 [TASKS] All tasks verified in new list, redirecting IMMEDIATELY before setState');
-          window.location.href = '/buyToken';
-          return; // Прекращаем выполнение, НЕ вызываем setTasks
+          // ⚠️ КРИТИЧНО: Обновляем состояние, чтобы показать зеленые кнопки
+          console.log(`✅ [TASKS] Setting tasks to state: ${taskList.length} tasks (all verified)`);
+          setTasks(taskList);
+          setCompletedCount(completedCountForActivity);
+          
+          // ⚠️ КРИТИЧНО: Задержка 2 секунды, чтобы зеленая кнопка светилась дольше
+          setTimeout(() => {
+            console.log('🚀 [TASKS] All tasks verified, redirecting to wallet after showing green buttons');
+            window.location.href = '/buyToken';
+          }, 2000); // 2 секунды чтобы показать зеленые кнопки
+          return; // Прекращаем выполнение, НЕ вызываем дальнейшие обновления
         }
       }
 
@@ -407,8 +414,12 @@ export default function Tasks() {
                   const linkPublishedSession = sessionStorage.getItem('link_published');
                   const linkPublishedLocal = localStorage.getItem('link_published');
                   if (linkPublishedSession !== 'true' && linkPublishedLocal !== 'true') {
-                    console.log('🚀 [POLLING] All tasks completed (checked via API), redirecting IMMEDIATELY');
-                    window.location.href = '/buyToken';
+                    // ⚠️ КРИТИЧНО: Задержка 2 секунды, чтобы зеленая кнопка светилась дольше
+                    // НЕ вызываем loadTasks, чтобы не было промежуточных рендеров
+                    setTimeout(() => {
+                      console.log('🚀 [POLLING] All tasks completed (checked via API), redirecting to wallet after showing green buttons');
+                      window.location.href = '/buyToken';
+                    }, 2000); // 2 секунды чтобы показать зеленые кнопки
                     return; // Прекращаем выполнение, НЕ вызываем loadTasks
                   }
                 }
@@ -881,27 +892,31 @@ export default function Tasks() {
       
       const newCompletedCount = finalUpdatedTasks.filter(t => t.completed).length;
       
-      // ⚠️ КРИТИЧНО: ВСЕГДА обновляем состояние задач, чтобы кнопки стали зелеными
-      // Редирект проверяем ПОСЛЕ обновления состояния, чтобы пользователь видел зеленые кнопки
-      setTasks(finalUpdatedTasks);
-      setCompletedCount(newCompletedCount);
-      
-      // ⚠️ КРИТИЧНО: Проверяем ПОСЛЕ setTasks - если все задачи завершены, сразу редирект
-      // Но сначала показываем зеленые кнопки пользователю
+      // ⚠️ КРИТИЧНО: Проверяем ПЕРЕД setTasks - если все задачи завершены, обновляем состояние и делаем редирект с задержкой
       const allTasksCompleted = newCompletedCount === finalUpdatedTasks.length && finalUpdatedTasks.length > 0;
       const allTasksVerified = finalUpdatedTasks.every((task) => task.completed && task.verified);
+      
       if (allTasksCompleted && allTasksVerified && user) {
         const linkPublishedSession = sessionStorage.getItem('link_published');
         const linkPublishedLocal = localStorage.getItem('link_published');
         if (linkPublishedSession !== 'true' && linkPublishedLocal !== 'true') {
-          // Небольшая задержка, чтобы пользователь увидел зеленые кнопки
+          // ⚠️ КРИТИЧНО: Обновляем состояние, чтобы показать зеленые кнопки
+          setTasks(finalUpdatedTasks);
+          setCompletedCount(newCompletedCount);
+          
+          // ⚠️ КРИТИЧНО: Задержка 2 секунды, чтобы зеленая кнопка светилась дольше
+          // НЕ вызываем loadTasks, чтобы не было промежуточных рендеров
           setTimeout(() => {
-            console.log('🚀 [VERIFY] All tasks verified, redirecting to wallet');
+            console.log('🚀 [VERIFY] All tasks verified, redirecting to wallet after showing green buttons');
             window.location.href = '/buyToken';
-          }, 500); // 500ms чтобы показать зеленые кнопки
-          return; // Прекращаем выполнение
+          }, 2000); // 2 секунды чтобы показать зеленые кнопки
+          return; // Прекращаем выполнение, НЕ вызываем loadTasks
         }
       }
+
+      // ⚠️ КРИТИЧНО: Если не все задачи завершены, обновляем состояние нормально
+      setTasks(finalUpdatedTasks);
+      setCompletedCount(newCompletedCount);
 
       console.log(`📊 [VERIFY] Verification complete: ${newCompletedCount}/${updatedTasks.length} completed`);
 
@@ -921,19 +936,9 @@ export default function Tasks() {
         taskStates: finalUpdatedTasks.map(t => ({ id: t.link_id, opened: t.opened, completed: t.completed, error: t.error }))
       });
       
-      // НЕ делаем редирект, если есть ошибки или не все задания открыты
-      // ⚠️ КРИТИЧНО: Эта проверка не должна выполняться, так как редирект уже произошел выше ПЕРЕД setTasks
-      // Но оставляем для безопасности на случай, если проверка выше не сработала
-      if (allCompleted && allOpened && !hasErrors && finalUpdatedTasks.length > 0) {
-        console.log(`✅ All tasks completed! (${newCompletedCount}/${finalUpdatedTasks.length})`);
-        const linkPublishedSession = sessionStorage.getItem('link_published');
-        const linkPublishedLocal = localStorage.getItem('link_published');
-        if (linkPublishedSession !== 'true' && linkPublishedLocal !== 'true') {
-          console.log('🚀 [VERIFY] All tasks completed, redirecting IMMEDIATELY (fallback)');
-          window.location.href = '/buyToken';
-          return; // Прекращаем выполнение
-        }
-      } else if (newCompletedCount > 0 && newCompletedCount < finalUpdatedTasks.length) {
+      // ⚠️ КРИТИЧНО: Если не все задачи завершены, перезагружаем задачи только если есть новые завершенные
+      // НО не перезагружаем, если все задачи уже завершены (редирект уже произошел выше)
+      if (newCompletedCount > 0 && newCompletedCount < finalUpdatedTasks.length) {
         // Перезагружаем задачи только если не все выполнены
         setTimeout(() => {
           loadTasks(user.fid, false);
