@@ -92,6 +92,7 @@ export default function Tasks() {
       }
       
       // Обновляем список задач каждые 2 секунды (быстрее для более оперативного отображения новых ссылок)
+      // ⚠️ КРИТИЧНО: Проверка на завершенность всех задач происходит внутри loadTasks
       const interval = setInterval(() => {
         loadTasks(user.fid, false);
       }, 2000);
@@ -101,6 +102,13 @@ export default function Tasks() {
   }, [router, user, authLoading, isInitialized]);
 
   const loadTasks = async (userFid: number, showLoading: boolean = true) => {
+    // ⚠️ КРИТИЧНО: Если все задачи уже завершены и проверены, не обновляем их (чтобы избежать промежуточных цветов)
+    const allTasksVerified = tasks.length > 0 && tasks.every((task) => task.completed && task.verified);
+    if (allTasksVerified && !showLoading) {
+      console.log('✅ [TASKS] All tasks verified (green buttons), skipping update to prevent color changes');
+      return;
+    }
+    
     if (showLoading) {
       setLoading(true);
     }
@@ -171,8 +179,9 @@ export default function Tasks() {
         const shouldHaveError = hasStoredError && !isOpened && !isCompleted;
         
         // ⚠️ КРИТИЧНО: Сохраняем verifying и error из текущего состояния, если задача уже существует
+        // ⚠️ КРИТИЧНО: Если задача завершена, НЕ сохраняем verifying - она должна оставаться зеленой
         const currentTask = currentTasksMap.get(link.id);
-        const preservingVerifying = currentTask?.verifying === true && !isCompleted; // Сохраняем verifying только если задача не выполнена
+        const preservingVerifying = currentTask?.verifying === true && !isCompleted; // Сохраняем verifying ТОЛЬКО если задача НЕ выполнена
         // ⚠️ КРИТИЧНО: Для открытых задач ВСЕГДА error: false, чтобы кнопка оставалась синей
         // НЕ восстанавливаем ошибку из currentTask или taskErrorsRef для открытых задач
         const preservingError = isOpened ? false : (shouldHaveError); // Сохраняем error только если задача НЕ открыта И есть ошибка в taskErrorsRef
@@ -292,11 +301,10 @@ export default function Tasks() {
               return; // Прекращаем выполнение, не делаем редирект
             }
             
-            // Если все задания завершены → редирект на /buyToken (независимо от статуса токена)
-            console.log(`🚀 Redirecting to /buyToken (all tasks completed)`);
-              setTimeout(() => {
-                router.replace('/buyToken'); // Используем replace для предотвращения возврата назад
-              }, 2000);
+            // Если все задания завершены → редирект на /buyToken СРАЗУ (независимо от статуса токена)
+            // ⚠️ КРИТИЧНО: Нет задержки, чтобы избежать промежуточных цветов
+            console.log(`🚀 Redirecting to /buyToken immediately (all tasks completed and verified)`);
+            router.replace('/buyToken'); // Сразу редирект, без задержки
           }
         }).catch((error) => {
           console.error('❌ [TASKS] Error checking user progress for auto-redirect:', error);
@@ -573,6 +581,15 @@ export default function Tasks() {
   // Проверить выполнение всех заданий (правильный алгоритм с Promise.all)
   const handleVerifyAll = async () => {
     console.log('🔍 [VERIFY] Starting verification process...');
+    
+    // ⚠️ КРИТИЧНО: Если все задачи уже завершены и проверены (зеленые кнопки), не запускаем проверку
+    const allTasksVerified = tasks.length > 0 && tasks.every((task) => task.completed && task.verified);
+    if (allTasksVerified) {
+      console.log('✅ [VERIFY] All tasks already verified (green buttons), skipping verification');
+      // Сразу редирект на кошелек
+      router.replace('/buyToken');
+      return;
+    }
     
     // Проверяем наличие user из контекста
     if (!user || !user.fid) {
