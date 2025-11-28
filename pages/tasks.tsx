@@ -960,9 +960,21 @@ export default function Tasks() {
       // НЕ делаем редирект, если есть ошибки или не все задания открыты
       if (allCompleted && allOpened && !hasErrors && finalUpdatedTasks.length > 0) {
         console.log(`✅ All tasks completed! (${newCompletedCount}/${finalUpdatedTasks.length})`);
-        // НЕ перезагружаем задачи, чтобы кнопки остались зелеными
+        // Устанавливаем флаг редиректа
+        redirectingRef.current = true;
+        
+        // Сохраняем завершенные задачи в localStorage перед редиректом
+        if (typeof window !== 'undefined' && user?.fid) {
+          const completedIds = finalUpdatedTasks.filter(t => t.completed).map(t => t.link_id);
+          if (completedIds.length > 0) {
+            completedTasksRef.current = new Set(completedIds);
+            localStorage.setItem(`completed_tasks_${user.fid}`, JSON.stringify(completedIds));
+          }
+        }
+        
+        // Редирект через 2 секунды, чтобы пользователь видел зеленые кнопки
         setTimeout(() => {
-          router.replace('/buyToken'); // Используем replace вместо push
+          window.location.href = '/buyToken';
         }, 2000);
       } else if (newCompletedCount > 0 && newCompletedCount < finalUpdatedTasks.length) {
         // Перезагружаем задачи только если не все выполнены
