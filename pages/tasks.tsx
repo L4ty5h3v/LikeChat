@@ -93,6 +93,7 @@ export default function Tasks() {
       
       // Обновляем список задач каждые 2 секунды (быстрее для более оперативного отображения новых ссылок)
       // ⚠️ КРИТИЧНО: loadTasks сохраняет состояние verified заданий, поэтому можно безопасно обновлять
+      // ⚠️ КРИТИЧНО: Интервал обновления не перезаписывает verified состояние благодаря логике в loadTasks
       const interval = setInterval(() => {
         loadTasks(user.fid, false);
       }, 2000);
@@ -100,6 +101,26 @@ export default function Tasks() {
       return () => clearInterval(interval);
     }
   }, [router, user, authLoading, isInitialized]);
+
+  // ⚠️ КРИТИЧНО: Автоматически запускаем polling для всех открытых заданий после загрузки
+  useEffect(() => {
+    if (!user?.fid || !activity || tasks.length === 0) return;
+
+    // Запускаем polling для всех открытых заданий, которые еще не выполнены
+    tasks.forEach((task) => {
+      const isOpened = task.opened || openedTasks[task.link_id] === true;
+      const isCompleted = task.completed && task.verified;
+      
+      // Запускаем polling только если задание открыто, но еще не выполнено
+      if (isOpened && !isCompleted && task.cast_url) {
+        // Проверяем, не запущен ли уже polling для этого задания
+        if (!pollingIntervalsRef.current[task.link_id]) {
+          console.log(`🔄 [AUTO-POLLING] Starting polling for opened task ${task.link_id}`);
+          startPollingForActivity(task.cast_url, task.link_id, task.task_type || activity);
+        }
+      }
+    });
+  }, [tasks, user?.fid, activity, openedTasks]);
 
   const loadTasks = async (userFid: number, showLoading: boolean = true) => {
     if (showLoading) {
@@ -238,6 +259,25 @@ export default function Tasks() {
       console.log(`✅ [TASKS] Setting tasks to state: ${taskList.length} tasks`);
       setTasks(taskList);
       setCompletedCount(completedCountForActivity);
+      
+      // ⚠️ КРИТИЧНО: После загрузки задач запускаем polling для открытых заданий
+      // Это нужно делать после setTasks, чтобы tasks были обновлены
+      // Используем setTimeout чтобы дать время React обновить состояние
+      setTimeout(() => {
+        taskList.forEach((task) => {
+          const isOpened = task.opened || openedTasks[task.link_id] === true;
+          const isCompleted = task.completed && task.verified;
+          
+          // Запускаем polling только если задание открыто, но еще не выполнено
+          if (isOpened && !isCompleted && task.cast_url && activity) {
+            // Проверяем, не запущен ли уже polling для этого задания
+            if (!pollingIntervalsRef.current[task.link_id]) {
+              console.log(`🔄 [LOAD-POLLING] Starting polling for opened task ${task.link_id}`);
+              startPollingForActivity(task.cast_url, task.link_id, task.task_type || activity);
+            }
+          }
+        });
+      }, 100);
       
       // Логируем для отладки
       if (taskList.length === 0) {
@@ -437,8 +477,9 @@ export default function Tasks() {
                 console.error('[POLLING] Error checking all tasks completion:', e);
               }
               
-              // Только если не все задачи завершены - перезагружаем через loadTasks
-              loadTasks(user.fid, false);
+              // ⚠️ КРИТИЧНО: НЕ вызываем loadTasks после того как задание помечено как completed
+              // Состояние уже обновлено через setTasks выше, не нужно перезагружать из БД
+              // Это предотвращает перезапись verified состояния
             }
             return; // Выходим из интервала
           } else if (result.completed && !isOpened) {
@@ -949,6 +990,10 @@ export default function Tasks() {
       // ⚠️ КРИТИЧНО: НЕ перезагружаем задачи после проверки, чтобы сохранить состояние verified
       // Состояние уже обновлено через setTasks выше, не нужно перезагружать из БД
       // Это предотвращает "мигание" состояния - задания остаются в проверенном состоянии
+      // После проверки состояние фиксируется и не меняется до следующей загрузки страницы
+      
+      setVerifying(false);
+      
       if (newCompletedCount < updatedTasks.length) {
         // Показываем предупреждение с детальными сообщениями
         const incompleteCount = updatedTasks.length - newCompletedCount;
