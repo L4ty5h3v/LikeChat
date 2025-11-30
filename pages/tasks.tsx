@@ -27,6 +27,8 @@ export default function Tasks() {
   const taskErrorsRef = useRef<Record<string, boolean>>({});
   // Храним активные polling интервалы для очистки
   const pollingIntervalsRef = useRef<Record<string, NodeJS.Timeout>>({});
+  // ⚠️ КРИТИЧНО: Храним verified задания в ref, чтобы они не терялись при обновлениях
+  const verifiedTasksRef = useRef<Set<string>>(new Set());
 
   // Загрузка данных
   useEffect(() => {
@@ -188,19 +190,45 @@ export default function Tasks() {
       // ⚠️ КРИТИЧНО: Сохраняем текущие состояния задач для сохранения verifying и error
       const currentTasksMap = new Map(tasks.map(t => [t.link_id, t]));
       
+      // ⚠️ КРИТИЧНО: Обновляем verifiedTasksRef из текущего состояния
+      tasks.forEach(task => {
+        if (task.completed && task.verified) {
+          verifiedTasksRef.current.add(task.link_id);
+        }
+      });
+      
       const taskList: TaskProgress[] = filteredLinks.map((link: LinkSubmission, index: number) => {
         const castHash = extractCastHash(link.cast_url) || '';
         const isCompleted = completedLinks.includes(link.id);
         const isOpened = openedTasks[link.id] === true;
         
-        // ⚠️ КРИТИЧНО: Сохраняем состояние из текущих задач, если задание уже было проверено
-        const currentTask = currentTasksMap.get(link.id);
+        // ⚠️ КРИТИЧНО: Проверяем verifiedTasksRef ПЕРВЫМ - это источник истины
+        // Если задание в verifiedTasksRef, оно ВСЕГДА completed && verified
+        const isVerifiedInRef = verifiedTasksRef.current.has(link.id);
         
-        // ⚠️ КРИТИЧНО: Если задание уже было проверено и помечено как completed && verified,
+        // ⚠️ КРИТИЧНО: Если задание уже было проверено (в ref или в текущем состоянии),
         // НЕ перезаписываем это состояние - проверки для него прекращаются
-        const wasVerified = currentTask?.completed === true && currentTask?.verified === true;
+        const currentTask = currentTasksMap.get(link.id);
+        const wasVerifiedInState = currentTask?.completed === true && currentTask?.verified === true;
+        const wasVerified = isVerifiedInRef || wasVerifiedInState;
+        
+        // Логируем для отладки
+        if (isVerifiedInRef) {
+          console.log(`🔒 [LOAD] Task ${link.id} is in verifiedTasksRef - preserving completed state`);
+        }
+        if (wasVerifiedInState && !isVerifiedInRef) {
+          console.log(`🔒 [LOAD] Task ${link.id} was verified in state - adding to ref`);
+          verifiedTasksRef.current.add(link.id);
+        }
+        
         const finalCompleted = wasVerified ? true : isCompleted;
         const finalVerified = wasVerified ? true : isCompleted;
+        
+        // ⚠️ КРИТИЧНО: Если задание verified, добавляем в ref для постоянного хранения
+        if (finalCompleted && finalVerified && !isVerifiedInRef) {
+          verifiedTasksRef.current.add(link.id);
+          console.log(`✅ [LOAD] Added task ${link.id} to verifiedTasksRef`);
+        }
         
         // ⚠️ КРИТИЧНО: Для completed && verified заданий - проверки прекращаются
         // Сохраняем состояние как есть, не меняем error, verifying и т.д.
@@ -458,6 +486,10 @@ export default function Tasks() {
             
             // Убираем ошибку, если она была
             delete taskErrorsRef.current[linkId];
+            
+            // ⚠️ КРИТИЧНО: Добавляем в verifiedTasksRef ПЕРЕД обновлением состояния
+            verifiedTasksRef.current.add(linkId);
+            console.log(`✅ [POLLING] Added task ${linkId} to verifiedTasksRef`);
             
             // Останавливаем polling
             clearInterval(pollIntervalId);
@@ -922,8 +954,12 @@ export default function Tasks() {
               console.warn(`⚠️ [VERIFY] Hash warning for task ${task.link_id}:`, result.hashWarning);
             }
 
-            // Если задача выполнена (открыта И активность найдена) - сохраняем в БД
+            // Если задача выполнена (открыта И активность найдена) - сохраняем в БД и в ref
             if (finalCompleted) {
+              // ⚠️ КРИТИЧНО: Добавляем в verifiedTasksRef сразу после проверки
+              verifiedTasksRef.current.add(task.link_id);
+              console.log(`✅ [VERIFY] Added task ${task.link_id} to verifiedTasksRef`);
+              
               try {
                 const markResponse = await fetch('/api/mark-completed', {
                   method: 'POST',
