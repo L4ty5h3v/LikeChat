@@ -92,6 +92,7 @@ export default function Tasks() {
       }
       
       // Обновляем список задач каждые 2 секунды (быстрее для более оперативного отображения новых ссылок)
+      // ⚠️ КРИТИЧНО: loadTasks сохраняет состояние verified заданий, поэтому можно безопасно обновлять
       const interval = setInterval(() => {
         loadTasks(user.fid, false);
       }, 2000);
@@ -165,14 +166,23 @@ export default function Tasks() {
         const castHash = extractCastHash(link.cast_url) || '';
         const isCompleted = completedLinks.includes(link.id);
         const isOpened = openedTasks[link.id] === true;
+        
+        // ⚠️ КРИТИЧНО: Сохраняем состояние из текущих задач, если задание уже было проверено
+        const currentTask = currentTasksMap.get(link.id);
+        
+        // ⚠️ КРИТИЧНО: Если задание уже было проверено и помечено как completed && verified,
+        // НЕ перезаписываем это состояние, даже если в БД еще не обновилось
+        const wasVerified = currentTask?.completed === true && currentTask?.verified === true;
+        const finalCompleted = wasVerified ? true : isCompleted; // Сохраняем verified состояние
+        const finalVerified = wasVerified ? true : isCompleted; // Сохраняем verified флаг (если было verified, всегда true)
+        
         // Сохраняем состояние ошибки из предыдущих проверок
         // Если задание не открыто и не выполнено, и была ошибка - сохраняем её
         const hasStoredError = taskErrorsRef.current[link.id] === true;
-        const shouldHaveError = hasStoredError && !isOpened && !isCompleted;
+        const shouldHaveError = hasStoredError && !isOpened && !finalCompleted;
         
         // ⚠️ КРИТИЧНО: Сохраняем verifying и error из текущего состояния, если задача уже существует
-        const currentTask = currentTasksMap.get(link.id);
-        const preservingVerifying = currentTask?.verifying === true && !isCompleted; // Сохраняем verifying только если задача не выполнена
+        const preservingVerifying = currentTask?.verifying === true && !finalCompleted; // Сохраняем verifying только если задача не выполнена
         // ⚠️ КРИТИЧНО: Для открытых задач ВСЕГДА error: false, чтобы кнопка оставалась синей
         // НЕ восстанавливаем ошибку из currentTask или taskErrorsRef для открытых задач
         const preservingError = isOpened ? false : (shouldHaveError); // Сохраняем error только если задача НЕ открыта И есть ошибка в taskErrorsRef
@@ -185,8 +195,8 @@ export default function Tasks() {
           user_fid_required: userFid, // FID текущего пользователя
           username: link.username,
           pfp_url: link.pfp_url,
-          completed: isCompleted,
-          verified: isCompleted,
+          completed: finalCompleted, // ⚠️ Используем сохраненное состояние если было verified
+          verified: finalVerified, // ⚠️ Используем сохраненное состояние если было verified
           opened: isOpened,
           error: preservingError, // Сохраняем ошибку из текущего состояния или из taskErrorsRef
           verifying: preservingVerifying, // Сохраняем verifying если идет проверка
@@ -319,8 +329,8 @@ export default function Tasks() {
 
     console.log(`🔄 [POLLING] Starting polling for link ${linkId}`, { castUrl, activityType });
     
-    // Ждем 30 секунд перед первой проверкой (даем время на индексацию)
-    const initialDelay = 30000; // 30 секунд
+    // Ждем 7 секунд перед первой проверкой (даем время на индексацию)
+    const initialDelay = 7000; // 7 секунд
     
     const timeoutId = setTimeout(() => {
       let pollCount = 0;
@@ -936,14 +946,10 @@ export default function Tasks() {
         taskStates: finalUpdatedTasks.map(t => ({ id: t.link_id, opened: t.opened, completed: t.completed, error: t.error }))
       });
       
-      // ⚠️ КРИТИЧНО: Если не все задачи завершены, перезагружаем задачи только если есть новые завершенные
-      // НО не перезагружаем, если все задачи уже завершены (редирект уже произошел выше)
-      if (newCompletedCount > 0 && newCompletedCount < finalUpdatedTasks.length) {
-        // Перезагружаем задачи только если не все выполнены
-        setTimeout(() => {
-          loadTasks(user.fid, false);
-        }, 1000);
-      } else if (newCompletedCount < updatedTasks.length) {
+      // ⚠️ КРИТИЧНО: НЕ перезагружаем задачи после проверки, чтобы сохранить состояние verified
+      // Состояние уже обновлено через setTasks выше, не нужно перезагружать из БД
+      // Это предотвращает "мигание" состояния - задания остаются в проверенном состоянии
+      if (newCompletedCount < updatedTasks.length) {
         // Показываем предупреждение с детальными сообщениями
         const incompleteCount = updatedTasks.length - newCompletedCount;
         let message = `Вы не выполнили все задания. Проверьте оставшиеся ${incompleteCount} ссылок.\n\n`;
