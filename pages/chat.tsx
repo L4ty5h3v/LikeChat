@@ -5,7 +5,6 @@ import Layout from '@/components/Layout';
 import LinkCard from '@/components/LinkCard';
 import Button from '@/components/Button';
 import { getAllLinks, subscribeToLinks, getUserProgress, submitLink } from '@/lib/db-config';
-// import { publishCastToFarcaster } from '@/lib/farcaster-publish'; // Убрано - не нужно открывать Compose
 import type { LinkSubmission, FarcasterUser, ActivityType } from '@/types';
 
 export default function Chat() {
