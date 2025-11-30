@@ -1061,7 +1061,7 @@ export default function Tasks() {
                 <p className="text-white text-opacity-80 mb-6">
                   {activity 
                     ? `No ${activity} tasks found. Please check back later.`
-                    : 'No tasks found. Please select an activity type first.'}
+                    : 'No tasks found. Please select a task type first.'}
                 </p>
                 {!activity && (
                   <button

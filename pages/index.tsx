@@ -662,10 +662,10 @@ export default function Home() {
               {/* Выбор активности */}
               <div>
                 <h2 className="text-4xl md:text-5xl font-black text-gray-900 mb-4 text-center font-display">
-                  SELECT ACTIVITY TYPE
+                  SELECT TASK TYPE
                 </h2>
                 <p className="text-base sm:text-xl md:text-2xl text-gray-700 mb-6 sm:mb-8 text-center font-bold px-4">
-                  You will perform this activity on all 10 links
+                  You will perform this task on all 10 links
                 </p>
 
                 {/* Стеклянные кнопки активности в стиле glassmorphism */}
@@ -763,7 +763,7 @@ export default function Home() {
               <div className="space-y-3">
                 <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
                   <span className="text-3xl font-black text-accent">01</span>
-                  <span className="font-bold text-xl">Select activity type</span>
+                  <span className="font-bold text-xl">Select task type</span>
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
                   <span className="text-3xl font-black text-accent">02</span>

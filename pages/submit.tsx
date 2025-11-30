@@ -890,7 +890,7 @@ export default function Submit() {
                 </p>
                 <div className="bg-gradient-to-r from-red-500/10 via-purple-600/10 to-pink-500/10 rounded-2xl p-6 mb-8 border border-red-500/20">
                   <p className="text-base text-gray-700">
-                    <strong>The next 10 users</strong> will go through your link and perform the selected activity.
+                    <strong>The next 10 users</strong> will go through your link and perform the selected task.
                   </p>
                 </div>
                 <Button
@@ -1000,7 +1000,7 @@ export default function Submit() {
             {/* Информация о выбранной активности */}
             <div className="bg-gradient-to-r from-primary/10 via-secondary/10 to-accent/10 rounded-xl p-6 mb-6 border border-primary/20">
               <p className="text-sm text-gray-700 mb-3 font-semibold">
-                Selected activity:
+                Selected task:
               </p>
               <div className="flex items-center gap-3 text-primary font-bold text-xl">
                 {activity === 'like' && (
@@ -1023,7 +1023,7 @@ export default function Submit() {
                 )}
               </div>
               <p className="text-sm text-gray-600 mt-3">
-                Other users will perform this activity on your link
+                Other users will perform this task on your link
               </p>
             </div>
 
@@ -1107,7 +1107,7 @@ export default function Submit() {
               <div className="space-y-3">
                 <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
                   <span className="text-3xl font-black text-accent">03</span>
-                  <span className="font-bold text-xl">They will perform your selected activity</span>
+                  <span className="font-bold text-xl">They will perform your selected task</span>
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
                   <span className="text-3xl font-black text-accent">04</span>
