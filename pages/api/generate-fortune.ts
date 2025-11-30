@@ -148,11 +148,43 @@ export default async function handler(
   } | null = null;
 
   try {
-    const { prompt, userFid } = req.body;
+    const { prompt, userFid: bodyUserFid } = req.body;
     
-    // Обновляем стрик, если передан userFid
+    // Пробуем получить userFid из разных источников:
+    // 1. Из body (основной способ)
+    // 2. Из query параметров
+    // 3. Из заголовков (для Frame запросов)
+    const queryUserFid = req.query.userFid;
+    const headerUserFid = req.headers['x-user-fid'] || req.headers['x-farcaster-user-fid'];
+    
+    let userFid = bodyUserFid || queryUserFid || headerUserFid;
+    
+    console.log('🔍 [FORTUNE] Received request:', {
+      hasBodyUserFid: !!bodyUserFid,
+      hasQueryUserFid: !!queryUserFid,
+      hasHeaderUserFid: !!headerUserFid,
+      userFid: userFid,
+      userFidType: typeof userFid,
+      body: req.body,
+      query: req.query,
+    });
+    
     // Преобразуем userFid в число, если он передан как строка
-    const numericUserFid = userFid ? (typeof userFid === 'string' ? parseInt(userFid, 10) : userFid) : null;
+    let numericUserFid: number | null = null;
+    if (userFid !== undefined && userFid !== null && userFid !== '') {
+      if (typeof userFid === 'string') {
+        const parsed = parseInt(userFid, 10);
+        numericUserFid = !isNaN(parsed) && parsed > 0 ? parsed : null;
+      } else if (typeof userFid === 'number') {
+        numericUserFid = userFid > 0 ? userFid : null;
+      }
+    }
+    
+    console.log('🔢 [FORTUNE] Processed userFid:', {
+      original: userFid,
+      numeric: numericUserFid,
+      isValid: numericUserFid !== null && numericUserFid > 0,
+    });
     
     if (numericUserFid && !isNaN(numericUserFid) && numericUserFid > 0) {
       try {
@@ -165,7 +197,13 @@ export default async function handler(
         // Продолжаем генерацию предсказания даже если стрик не обновился
       }
     } else {
-      console.warn('⚠️ [FORTUNE] Invalid or missing userFid:', { userFid, numericUserFid });
+      console.warn('⚠️ [FORTUNE] Invalid or missing userFid:', { 
+        bodyUserFid, 
+        queryUserFid, 
+        headerUserFid,
+        userFid,
+        numericUserFid 
+      });
     }
 
     // Используем официальный OpenAI API
