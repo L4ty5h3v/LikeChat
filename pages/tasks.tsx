@@ -27,6 +27,8 @@ export default function Tasks() {
   const taskErrorsRef = useRef<Record<string, boolean>>({});
   // Храним активные polling интервалы для очистки
   const pollingIntervalsRef = useRef<Record<string, NodeJS.Timeout>>({});
+  // ⚠️ КРИТИЧНО: Храним verified задания в ref, чтобы они не терялись при обновлениях
+  const verifiedTasksRef = useRef<Set<string>>(new Set());
 
   // Загрузка данных
   useEffect(() => {
@@ -92,6 +94,8 @@ export default function Tasks() {
       }
       
       // Обновляем список задач каждые 2 секунды (быстрее для более оперативного отображения новых ссылок)
+      // ⚠️ КРИТИЧНО: loadTasks сохраняет состояние verified заданий, поэтому можно безопасно обновлять
+      // ⚠️ КРИТИЧНО: Интервал обновления не перезаписывает verified состояние благодаря логике в loadTasks
       const interval = setInterval(() => {
         loadTasks(user.fid, false);
       }, 2000);
@@ -99,6 +103,31 @@ export default function Tasks() {
       return () => clearInterval(interval);
     }
   }, [router, user, authLoading, isInitialized]);
+
+  // ⚠️ КРИТИЧНО: Автоматически запускаем polling для всех открытых заданий после загрузки
+  useEffect(() => {
+    if (!user?.fid || !activity || tasks.length === 0) return;
+
+    // Запускаем polling для всех открытых заданий, которые еще не выполнены
+    tasks.forEach((task) => {
+      // ⚠️ КРИТИЧНО: Пропускаем задания с completed && verified - проверки для них прекращены
+      const isCompleted = task.completed && task.verified;
+      if (isCompleted) {
+        return; // Пропускаем - проверки прекращены
+      }
+      
+      const isOpened = task.opened || openedTasks[task.link_id] === true;
+      
+      // Запускаем polling только если задание открыто, но еще не выполнено
+      if (isOpened && task.cast_url) {
+        // Проверяем, не запущен ли уже polling для этого задания
+        if (!pollingIntervalsRef.current[task.link_id]) {
+          console.log(`🔄 [AUTO-POLLING] Starting polling for opened task ${task.link_id}`);
+          startPollingForActivity(task.cast_url, task.link_id, task.task_type || activity);
+        }
+      }
+    });
+  }, [tasks, user?.fid, activity, openedTasks]);
 
   const loadTasks = async (userFid: number, showLoading: boolean = true) => {
     if (showLoading) {
@@ -161,36 +190,86 @@ export default function Tasks() {
       // ⚠️ КРИТИЧНО: Сохраняем текущие состояния задач для сохранения verifying и error
       const currentTasksMap = new Map(tasks.map(t => [t.link_id, t]));
       
+      // ⚠️ КРИТИЧНО: Обновляем verifiedTasksRef из текущего состояния
+      tasks.forEach(task => {
+        if (task.completed && task.verified) {
+          verifiedTasksRef.current.add(task.link_id);
+        }
+      });
+      
       const taskList: TaskProgress[] = filteredLinks.map((link: LinkSubmission, index: number) => {
         const castHash = extractCastHash(link.cast_url) || '';
         const isCompleted = completedLinks.includes(link.id);
         const isOpened = openedTasks[link.id] === true;
-        // Сохраняем состояние ошибки из предыдущих проверок
-        // Если задание не открыто и не выполнено, и была ошибка - сохраняем её
-        const hasStoredError = taskErrorsRef.current[link.id] === true;
-        const shouldHaveError = hasStoredError && !isOpened && !isCompleted;
         
-        // ⚠️ КРИТИЧНО: Сохраняем verifying и error из текущего состояния, если задача уже существует
+        // ⚠️ КРИТИЧНО: Проверяем verifiedTasksRef ПЕРВЫМ - это источник истины
+        // Если задание в verifiedTasksRef, оно ВСЕГДА completed && verified
+        const isVerifiedInRef = verifiedTasksRef.current.has(link.id);
+        
+        // ⚠️ КРИТИЧНО: Если задание уже было проверено (в ref или в текущем состоянии),
+        // НЕ перезаписываем это состояние - проверки для него прекращаются
         const currentTask = currentTasksMap.get(link.id);
-        const preservingVerifying = currentTask?.verifying === true && !isCompleted; // Сохраняем verifying только если задача не выполнена
-        // ⚠️ КРИТИЧНО: Для открытых задач ВСЕГДА error: false, чтобы кнопка оставалась синей
-        // НЕ восстанавливаем ошибку из currentTask или taskErrorsRef для открытых задач
-        const preservingError = isOpened ? false : (shouldHaveError); // Сохраняем error только если задача НЕ открыта И есть ошибка в taskErrorsRef
+        const wasVerifiedInState = currentTask?.completed === true && currentTask?.verified === true;
+        const wasVerified = isVerifiedInRef || wasVerifiedInState;
+        
+        // Логируем для отладки
+        if (isVerifiedInRef) {
+          console.log(`🔒 [LOAD] Task ${link.id} is in verifiedTasksRef - preserving completed state`);
+        }
+        if (wasVerifiedInState && !isVerifiedInRef) {
+          console.log(`🔒 [LOAD] Task ${link.id} was verified in state - adding to ref`);
+          verifiedTasksRef.current.add(link.id);
+        }
+        
+        const finalCompleted = wasVerified ? true : isCompleted;
+        const finalVerified = wasVerified ? true : isCompleted;
+        
+        // ⚠️ КРИТИЧНО: Если задание verified, добавляем в ref для постоянного хранения
+        if (finalCompleted && finalVerified && !isVerifiedInRef) {
+          verifiedTasksRef.current.add(link.id);
+          console.log(`✅ [LOAD] Added task ${link.id} to verifiedTasksRef`);
+        }
+        
+        // ⚠️ КРИТИЧНО: Для completed && verified заданий - проверки прекращаются
+        // Сохраняем состояние как есть, не меняем error, verifying и т.д.
+        if (finalCompleted && finalVerified) {
+          return {
+            link_id: link.id,
+            cast_url: link.cast_url,
+            cast_hash: castHash,
+            task_type: link.task_type,
+            user_fid_required: userFid,
+            username: link.username,
+            pfp_url: link.pfp_url,
+            completed: true, // Проверки прекращены
+            verified: true, // Проверки прекращены
+            opened: isOpened,
+            error: false, // Нет ошибок у выполненных заданий
+            verifying: false, // Не проверяем выполненные задания
+            _originalIndex: index,
+          };
+        }
+        
+        // Для невыполненных заданий сохраняем обычную логику
+        const hasStoredError = taskErrorsRef.current[link.id] === true;
+        const shouldHaveError = hasStoredError && !isOpened && !finalCompleted;
+        const preservingVerifying = currentTask?.verifying === true && !finalCompleted;
+        const preservingError = isOpened ? false : (shouldHaveError);
         
         return {
           link_id: link.id,
           cast_url: link.cast_url,
           cast_hash: castHash,
           task_type: link.task_type,
-          user_fid_required: userFid, // FID текущего пользователя
+          user_fid_required: userFid,
           username: link.username,
           pfp_url: link.pfp_url,
-          completed: isCompleted,
-          verified: isCompleted,
+          completed: finalCompleted,
+          verified: finalVerified,
           opened: isOpened,
-          error: preservingError, // Сохраняем ошибку из текущего состояния или из taskErrorsRef
-          verifying: preservingVerifying, // Сохраняем verifying если идет проверка
-          _originalIndex: index, // Сохраняем оригинальный индекс для стабильной сортировки
+          error: preservingError,
+          verifying: preservingVerifying,
+          _originalIndex: index,
         };
       }).sort((a: TaskProgress, b: TaskProgress) => {
         // Сохраняем порядок с сервера (новые первыми), но добавляем стабильную сортировку
@@ -228,6 +307,25 @@ export default function Tasks() {
       console.log(`✅ [TASKS] Setting tasks to state: ${taskList.length} tasks`);
       setTasks(taskList);
       setCompletedCount(completedCountForActivity);
+      
+      // ⚠️ КРИТИЧНО: После загрузки задач запускаем polling для открытых заданий
+      // Это нужно делать после setTasks, чтобы tasks были обновлены
+      // Используем setTimeout чтобы дать время React обновить состояние
+      setTimeout(() => {
+        taskList.forEach((task) => {
+          const isOpened = task.opened || openedTasks[task.link_id] === true;
+          const isCompleted = task.completed && task.verified;
+          
+          // Запускаем polling только если задание открыто, но еще не выполнено
+          if (isOpened && !isCompleted && task.cast_url && activity) {
+            // Проверяем, не запущен ли уже polling для этого задания
+            if (!pollingIntervalsRef.current[task.link_id]) {
+              console.log(`🔄 [LOAD-POLLING] Starting polling for opened task ${task.link_id}`);
+              startPollingForActivity(task.cast_url, task.link_id, task.task_type || activity);
+            }
+          }
+        });
+      }, 100);
       
       // Логируем для отладки
       if (taskList.length === 0) {
@@ -300,16 +398,31 @@ export default function Tasks() {
     // ⚠️ КРИТИЧНО: Убираем ошибку при открытии задачи, чтобы кнопка стала синей
     delete taskErrorsRef.current[linkId];
     // Также обновляем в tasks для немедленного отображения
+    // ⚠️ КРИТИЧНО: Не меняем состояние completed && verified заданий
     setTasks(prevTasks => 
-      prevTasks.map(task => 
-        task.link_id === linkId ? { ...task, opened: true, error: false } : task
-      )
+      prevTasks.map(task => {
+        if (task.link_id === linkId) {
+          // Если задание уже completed && verified, не меняем его состояние
+          if (task.completed && task.verified) {
+            return task; // Возвращаем как есть
+          }
+          return { ...task, opened: true, error: false };
+        }
+        return task;
+      })
     );
   };
 
   // Polling для автоматической проверки активности после открытия ссылки
   const startPollingForActivity = (castUrl: string, linkId: string, activityType: TaskType) => {
     if (!user?.fid) return;
+
+    // ⚠️ КРИТИЧНО: Проверяем, не выполнено ли уже задание - если да, проверки прекращаем
+    const currentTask = tasks.find(t => t.link_id === linkId);
+    if (currentTask?.completed && currentTask?.verified) {
+      console.log(`⏹️ [POLLING] Task ${linkId} already completed and verified, skipping polling`);
+      return; // Проверки прекращены
+    }
 
     // Если уже есть активный polling для этой ссылки, не создаем новый
     if (pollingIntervalsRef.current[linkId]) {
@@ -319,8 +432,8 @@ export default function Tasks() {
 
     console.log(`🔄 [POLLING] Starting polling for link ${linkId}`, { castUrl, activityType });
     
-    // Ждем 30 секунд перед первой проверкой (даем время на индексацию)
-    const initialDelay = 30000; // 30 секунд
+    // Ждем 7 секунд перед первой проверкой (даем время на индексацию)
+    const initialDelay = 7000; // 7 секунд
     
     const timeoutId = setTimeout(() => {
       let pollCount = 0;
@@ -330,6 +443,15 @@ export default function Tasks() {
       const pollIntervalId = setInterval(async () => {
         pollCount++;
         console.log(`🔄 [POLLING] Poll attempt ${pollCount}/${maxPolls} for link ${linkId}`);
+        
+        // ⚠️ КРИТИЧНО: Проверяем, не выполнено ли уже задание - если да, прекращаем проверки
+        const currentTask = tasks.find(t => t.link_id === linkId);
+        if (currentTask?.completed && currentTask?.verified) {
+          console.log(`⏹️ [POLLING] Task ${linkId} already completed and verified, stopping polling`);
+          clearInterval(pollIntervalId);
+          delete pollingIntervalsRef.current[linkId];
+          return; // Проверки прекращены
+        }
         
         try {
           const result = await verifyActivity({
@@ -364,6 +486,10 @@ export default function Tasks() {
             
             // Убираем ошибку, если она была
             delete taskErrorsRef.current[linkId];
+            
+            // ⚠️ КРИТИЧНО: Добавляем в verifiedTasksRef ПЕРЕД обновлением состояния
+            verifiedTasksRef.current.add(linkId);
+            console.log(`✅ [POLLING] Added task ${linkId} to verifiedTasksRef`);
             
             // Останавливаем polling
             clearInterval(pollIntervalId);
@@ -427,8 +553,9 @@ export default function Tasks() {
                 console.error('[POLLING] Error checking all tasks completion:', e);
               }
               
-              // Только если не все задачи завершены - перезагружаем через loadTasks
-              loadTasks(user.fid, false);
+              // ⚠️ КРИТИЧНО: НЕ вызываем loadTasks после того как задание помечено как completed
+              // Состояние уже обновлено через setTasks выше, не нужно перезагружать из БД
+              // Это предотвращает перезапись verified состояния
             }
             return; // Выходим из интервала
           } else if (result.completed && !isOpened) {
@@ -500,12 +627,19 @@ export default function Tasks() {
 
   // Открыть ссылку
   const handleOpenLink = (castUrl: string, linkId: string) => {
-    // Отмечаем задачу как открытую
-    markOpened(linkId);
-    
-    // Запускаем polling для автоматической проверки
-    if (activity) {
-      startPollingForActivity(castUrl, linkId, activity);
+    // ⚠️ КРИТИЧНО: Проверяем, не выполнено ли уже задание - если да, не запускаем polling
+    const currentTask = tasks.find(t => t.link_id === linkId);
+    if (currentTask?.completed && currentTask?.verified) {
+      console.log(`⏹️ [OPEN] Task ${linkId} already completed and verified, skipping polling`);
+      // Просто открываем ссылку, но не запускаем polling
+    } else {
+      // Отмечаем задачу как открытую
+      markOpened(linkId);
+      
+      // Запускаем polling для автоматической проверки
+      if (activity) {
+        startPollingForActivity(castUrl, linkId, activity);
+      }
     }
     
     // Определяем, мобильное ли устройство
@@ -669,6 +803,12 @@ export default function Tasks() {
       const messages: Array<{ linkId: string; message: string; neynarUrl?: string }> = [];
       const updatedTasks: TaskProgress[] = await Promise.all(
         tasks.map(async (task: TaskProgress) => {
+          // ⚠️ КРИТИЧНО: Пропускаем задания с completed && verified - проверки для них прекращены
+          if (task.completed && task.verified) {
+            console.log(`⏹️ [VERIFY] Task ${task.link_id} already completed and verified, skipping verification`);
+            return task; // Возвращаем как есть, проверки прекращены
+          }
+          
           try {
             // ✅ Отправляем castUrl (весь URL, даже с "...")
             // API сам разрешит URL через getFullCastHash
@@ -814,8 +954,12 @@ export default function Tasks() {
               console.warn(`⚠️ [VERIFY] Hash warning for task ${task.link_id}:`, result.hashWarning);
             }
 
-            // Если задача выполнена (открыта И активность найдена) - сохраняем в БД
+            // Если задача выполнена (открыта И активность найдена) - сохраняем в БД и в ref
             if (finalCompleted) {
+              // ⚠️ КРИТИЧНО: Добавляем в verifiedTasksRef сразу после проверки
+              verifiedTasksRef.current.add(task.link_id);
+              console.log(`✅ [VERIFY] Added task ${task.link_id} to verifiedTasksRef`);
+              
               try {
                 const markResponse = await fetch('/api/mark-completed', {
                   method: 'POST',
@@ -936,14 +1080,14 @@ export default function Tasks() {
         taskStates: finalUpdatedTasks.map(t => ({ id: t.link_id, opened: t.opened, completed: t.completed, error: t.error }))
       });
       
-      // ⚠️ КРИТИЧНО: Если не все задачи завершены, перезагружаем задачи только если есть новые завершенные
-      // НО не перезагружаем, если все задачи уже завершены (редирект уже произошел выше)
-      if (newCompletedCount > 0 && newCompletedCount < finalUpdatedTasks.length) {
-        // Перезагружаем задачи только если не все выполнены
-        setTimeout(() => {
-          loadTasks(user.fid, false);
-        }, 1000);
-      } else if (newCompletedCount < updatedTasks.length) {
+      // ⚠️ КРИТИЧНО: НЕ перезагружаем задачи после проверки, чтобы сохранить состояние verified
+      // Состояние уже обновлено через setTasks выше, не нужно перезагружать из БД
+      // Это предотвращает "мигание" состояния - задания остаются в проверенном состоянии
+      // После проверки состояние фиксируется и не меняется до следующей загрузки страницы
+      
+      setVerifying(false);
+      
+      if (newCompletedCount < updatedTasks.length) {
         // Показываем предупреждение с детальными сообщениями
         const incompleteCount = updatedTasks.length - newCompletedCount;
         let message = `Вы не выполнили все задания. Проверьте оставшиеся ${incompleteCount} ссылок.\n\n`;
