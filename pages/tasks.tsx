@@ -1182,7 +1182,6 @@ export default function Tasks() {
               <span className="font-bold text-yellow-300 text-xl md:text-2xl">
                 {activity === 'like' && '❤️ LIKE'}
                 {activity === 'recast' && '🔄 RECAST'}
-                {activity === 'comment' && '💬 COMMENT'}
               </span>
             </p>
           </div>

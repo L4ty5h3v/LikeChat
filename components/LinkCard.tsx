@@ -11,13 +11,11 @@ import type { TaskType } from '@/types';
 const activityIcons: Record<TaskType, string> = {
   like: '❤️',
   recast: '🔄',
-  comment: '💬',
 };
 
 const activityLabels: Record<TaskType, string> = {
   like: 'Like',
   recast: 'Recast',
-  comment: 'Comment',
 };
 
 const LinkCard: React.FC<LinkCardProps> = ({ link }) => {

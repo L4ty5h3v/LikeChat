@@ -152,11 +152,6 @@ export async function checkUserReactionsByCast(
 ): Promise<boolean> {
   if (!cleanApiKey) return false;
   
-  // Комментарии больше не поддерживаются
-  if (taskType === "comment") {
-    console.warn("[neynar] checkUserReactionsByCast: comment task type is no longer supported");
-    return false;
-  }
   
   // ВАЖНО: Neynar API возвращает пустой массив likes/recasts по умолчанию
   // Нужно использовать параметр viewer_fid, чтобы получить информацию о реакции конкретного пользователя

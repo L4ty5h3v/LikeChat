@@ -1,0 +1,71 @@
+[33m3f7ff68[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Remove unsupported experimental prop from OnchainKitProvider
+[33m75e1b4a[m Implement safeSwap with 0x aggregator fallback, hardcoded exactInputSingle without quoter, 2% slippage
+[33m64d6625[m Add EIP-5792 fallback for -32601 errors, detailed error logging with full message, version tracking
+[33m3c0925f[m Add detailed swapCallParams logging: recipient, deadline, format validation, wagmi/viem error tracking
+[33m39ffb5f[m Add detailed error logging and improve swap error handling for debugging
+[33m15de42a[m Fix 0.10 USDC amount setting: improve parameter setup with delays and verification
+[33mbdf8d89[m Fix wallet connection: add SDK initialization check, improve error handling, sync connection state with localStorage
+[33m93fa589[m Remove ETH references and improve USDC swap amount setting
+[33m6448d81[m FIX: Fix remaining swapHook references to swapHookResult
+[33m59500ba[m FIX: Replace all swapHook references with swapHookResult to fix undefined variable error
+[33m02d1982[m TEST: Add detailed error logging and swapTokenAsync validation
+[33m1c6da56[m TEST: Add comprehensive logging to diagnose why swap form is not opening
+[33m385abe3[m FIX: Update useEffect to set from token BEFORE amount in correct order
+[33mc42ee3e[m FIX: Set from token (USDC) BEFORE amount, add slippageTolerance and chainId to swapTokenAsync params
+[33mbf98c88[m FIX: Add multiple methods to set 0.10 USDC amount and log available swapHook properties
+[33m2ab1762[m FIX: Remove all ETH references and try multiple methods to set 0.10 USDC amount in swap form
+[33mc8d319c[m FIX: Fix linter error - use manualAmount instead of formattedAmount
+[33m4bed0d3[m FIX: Add logging to diagnose why swap form is not opening
+[33m8fe1c00[m FIX: Explicitly set manualAmount to 0.10 string for useSwapToken synchronization
+[33m14a1b3f[m FIX: Remove ETH support, use only USDC with 0.10 amount
+[33m14ecb44[m FIX: Add useEffect to set fromAmount/tokenFrom/tokenTo when wallet connects for useSwapToken synchronization
+[33m2d10c2e[m FIX: Add manualAmount state and explicit fromAmount/tokenFrom setup for useSwapToken hook synchronization
+[33m77c91a3[m TEST: Add comprehensive testing and logging for 0.10 USDC amount display in swap form
+[33m32832bd[m FIX: Try both formatted and wei formats for sellAmount in useSwapToken
+[33m25c4f9f[m TEST: Add validation and enhanced logging to verify amount is passed correctly to swap form
+[33m1e0b018[m FIX: Change sellAmount format from wei to formatted string (0.10) for useSwapToken
+[33mcbfc914[m TEST: Add comprehensive logging to verify if sellAmount is passed correctly to swapTokenAsync
+[33m557f3d4[m FIX: Add detailed logging before swapTokenAsync call to diagnose amount format issue
+[33m0803ed3[m FIX: Add detailed logging for swap params and verify sellAmount format (wei vs formatted)
+[33m2d9e575[m FIX: Replace last Russian text in wallet connection error handling
+[33md00908d[m FIX: Replace remaining Russian text in wallet connection errors
+[33mb4ea06e[m FIX: Replace Russian text in connection errors and add error handling for wallet connection
+[33m56ea664[m FIX: Add wallet address check before swapTokenAsync call with auto-retry if not ready
+[33m5949577[m FIX: Replace remaining Russian text in error checks
+[33mc494e4a[m FIX: Replace all Russian text with English throughout the application
+[33mc7c98cb[m FIX: Increase swap initialization delay to 1s and add wallet address validation before swap call
+[33m0976dc1[m FIX: Add detailed parameter validation and logging before swapTokenAsync call
+[33me82a72c[m FIX: Increase initialization delay for first swap call and add parameter validation
+[33m2f34836[m FIX: Add initialization delay and parameter validation for swapTokenAsync to ensure amount is set on first open
+[33mcaa3bf6[m FIX: Remove automatic error setting for unopened tasks - only set error after real verification
+[33m2d4550d[m REFACTOR: Update btn-gold-glow to use CSS variables
+[33md19b20e[m FEAT: Add global theme with CSS variables for red-purple gradient and gold glow
+[33m0eb768a[m STYLE: Change link text color to purple in task cards
+[33m602c644[m STYLE: Remove external gold glow, keep only internal shine on buttons
+[33m6f7f989[m FIX: Update z-index for button text to appear above gold glow overlay
+[33m7f52644[m STYLE: Update buttons with red-purple gradient and gold glow effect
+[33m5402b4f[m STYLE: Update button styles - red-purple gradient with glass effect, gold gradient for verify button
+[33mb269634[m FIX: Make task links clickable and ensure 10 links per page
+[33m996a33e[m Fix: Enable test data generation in memory-db and add database check API endpoint
+[33m7722bab[m Fix: Add better error handling and logging for task loading
+[33mae41467[m Fix: Improve task loading logic - always show links even if filter returns empty, add better logging
+[33ma0501bc[m Style: Unify all activity buttons with same red-to-purple gradient and purple shadows
+[33m26614f0[m Style: Update button gradients to red-to-purple gradient matching Farcaster connect button
+[33m5512a1e[m Fix: Improve task loading - show all links if filtered result is empty, add backward compatibility for activity_type
+[33m12aab57[m Fix: Add empty state message when tasks list is empty
+[33mb6d8a53[m Style: Update all button gradients to red-orange-pink-purple gradient while keeping glassmorphism effect
+[33me2d8dc5[m Fix: Close missing span tag in buyToken.tsx
+[33mc4b3b9c[m Fix: Close missing span tag in TaskCard.tsx
+[33m4dfab34[m Fix: Replace remaining activityType reference with taskType in submit.tsx
+[33mef3a04b[m Fix: Replace ActivityType with TaskType in submit-link API and submit page
+[33mfda7a42[m Fix: Replace ActivityType with TaskType in database functions to fix tasks not loading
+[33m3aeba7e[m Style: Update all buttons to glassmorphism design with animated gradients and shimmer effects
+[33m84df613[m Fix: Change activityType parameter to taskType in API request to match backend
+[33m6f1859c[m Fix: Remove invalid slippageTolerance and defaultSellAmount parameters from swapTokenAsync
+[33me3a142f[m Fix: Remove parameters from useSwapToken hook call - it doesn't accept arguments
+[33m1df3bdb[m Fix: Remove unused Swap import from buyToken.tsx
+[33m8135fc8[m Fix: Replace all activity_type references with task_type in pages files
+[33m28540a9[m Fix: Replace activity_type with task_type and selected_activity with selected_task in database files
+[33m23d2d34[m Fix: Update LinkCard to use task_type instead of activity_type with proper typing
+[33m535361e[m Fix: Add ActivityType alias for backward compatibility to fix build error
+[33md2c65ef[m Refactor: Change activity to task terminology, update UI texts, fix error display logic, add swap preset amount
