@@ -238,7 +238,8 @@ export async function upsertUserProgress(
       user_fid: userFid,
       completed_links: updates.completed_links || existing?.completed_links || [],
       token_purchased: updates.token_purchased ?? existing?.token_purchased ?? false,
-      selected_task: updates.selected_task || existing?.selected_task,
+      // ⚠️ ВАЖНО: Если selected_task передан в updates, используем его (даже если это обновление)
+      selected_task: updates.selected_task !== undefined ? updates.selected_task : existing?.selected_task,
       current_link_id: updates.current_link_id || existing?.current_link_id,
       // Fortune cookie streak fields
       current_streak: updates.current_streak !== undefined ? updates.current_streak : (existing?.current_streak ?? 0),

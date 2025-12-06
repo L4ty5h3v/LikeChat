@@ -19,18 +19,22 @@ export default async function handler(
   try {
     let { userFid, username, pfpUrl, castUrl, activityType, taskType } = req.body;
     
+    // ⚠️ КРИТИЧНО: ВАЖНО использовать selected_task из БД как основной источник истины
+    // Получаем selected_task из прогресса пользователя, чтобы гарантировать правильный тип
+    const progress = await getUserProgress(Number(userFid));
+    const taskTypeFromDb = progress?.selected_task;
+    
     // Поддержка как activityType (старое), так и taskType (новое)
     let finalTaskType = taskType || activityType;
-
-    // ⚠️ ВАЖНО: Если taskType не передан, получаем его из прогресса пользователя
-    // Это гарантирует, что ссылка публикуется с тем же типом заданий, которые пользователь прошел
-    if (!finalTaskType && userFid) {
-      console.log('⚠️ [SUBMIT-LINK] taskType not provided, fetching from user progress...');
-      const progress = await getUserProgress(Number(userFid));
-      if (progress?.selected_task) {
-        finalTaskType = progress.selected_task;
-        console.log(`✅ [SUBMIT-LINK] Using taskType from user progress: ${finalTaskType}`);
-      }
+    
+    // ⚠️ ВАЖНО: Приоритет у selected_task из БД - это то, что пользователь реально прошел
+    if (taskTypeFromDb) {
+      console.log(`✅ [SUBMIT-LINK] Using taskType from user progress (DB): ${taskTypeFromDb}`);
+      finalTaskType = taskTypeFromDb;
+    } else if (finalTaskType) {
+      console.log(`⚠️ [SUBMIT-LINK] Using taskType from request: ${finalTaskType} (no taskType in DB)`);
+    } else {
+      console.error('❌ [SUBMIT-LINK] No taskType provided and no selected_task in DB!');
     }
 
     if (!userFid || !username || !castUrl || !finalTaskType) {

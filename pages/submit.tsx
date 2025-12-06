@@ -361,20 +361,57 @@ export default function Submit() {
         return;
       }
       
-    const savedActivity = localStorage.getItem('selected_activity');
-      if (!savedActivity) {
-        console.error('❌ [SUBMIT] No activity selected, redirecting to home...');
-        router.push('/');
-        return;
-      }
+      // ⚠️ ВАЖНО: Получаем активность из БД, а не только из localStorage
+      // Это гарантирует, что используем актуальное значение, которое пользователь действительно прошел
+      (async () => {
+        try {
+          const progressResponse = await fetch(`/api/user-progress?userFid=${user.fid}`);
+          const progressData = await progressResponse.json();
+          const progress = progressData.progress;
+          
+          // Используем selected_task из БД, если он есть, иначе из localStorage
+          const activityFromDb = progress?.selected_task;
+          const activityFromStorage = localStorage.getItem('selected_activity');
+          const savedActivity = activityFromDb || activityFromStorage;
+          
+          if (!savedActivity) {
+            console.error('❌ [SUBMIT] No activity selected in DB or localStorage, redirecting to home...');
+            router.push('/');
+            return;
+          }
 
-    setActivity(savedActivity as TaskType);
-    
-      console.log('✅ [SUBMIT] User and activity loaded:', {
-        fid: user.fid,
-        username: user.username,
-        activity: savedActivity,
-      });
+          console.log('✅ [SUBMIT] Activity loaded:', {
+            fromDb: activityFromDb,
+            fromStorage: activityFromStorage,
+            final: savedActivity,
+            fid: user.fid,
+            username: user.username,
+          });
+          
+          setActivity(savedActivity as TaskType);
+          
+          // Обновляем localStorage для синхронизации
+          if (activityFromDb && activityFromDb !== activityFromStorage) {
+            localStorage.setItem('selected_activity', activityFromDb);
+            console.log('🔄 [SUBMIT] Updated localStorage with activity from DB:', activityFromDb);
+          }
+          
+          console.log('✅ [SUBMIT] User and activity loaded:', {
+            fid: user.fid,
+            username: user.username,
+            activity: savedActivity,
+          });
+        } catch (error) {
+          console.error('❌ [SUBMIT] Error loading progress, using localStorage:', error);
+          const savedActivity = localStorage.getItem('selected_activity');
+          if (!savedActivity) {
+            console.error('❌ [SUBMIT] No activity in localStorage either, redirecting to home...');
+            router.push('/');
+            return;
+          }
+          setActivity(savedActivity as TaskType);
+        }
+      })();
       
       // ⚠️ ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: Проверяем в БД, не опубликована ли уже ссылка
       // Это предотвращает зацикливание редиректов даже если флаг sessionStorage не установлен
