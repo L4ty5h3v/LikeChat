@@ -25,7 +25,7 @@ function generateTestData() {
       'https://farcaster.xyz/svs-smm/0xd4a09fb3',
     ];
     
-    const taskTypes: TaskType[] = ['like', 'recast', 'comment'];
+    const taskTypes: TaskType[] = ['like', 'recast'];
     
     // Создаем по 10 ссылок для каждого типа задачи (всего 30)
     taskTypes.forEach((taskType, typeIndex) => {

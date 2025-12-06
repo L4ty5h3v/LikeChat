@@ -669,7 +669,7 @@ export default function Home() {
                 </p>
 
                 {/* Стеклянные кнопки активности в стиле glassmorphism */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-8 sm:mb-12">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-8 sm:mb-12">
                   {/* Кнопка Лайк */}
                   <button
                     onClick={() => handleActivitySelect('like')}
@@ -722,31 +722,6 @@ export default function Home() {
                     )}
                   </button>
 
-                  {/* Кнопка Комментарий */}
-                  <button
-                    onClick={() => handleActivitySelect('comment')}
-                    className={`btn-gold-glow px-4 sm:px-8 py-4 sm:py-6 text-white font-bold text-base sm:text-lg group ${
-                      selectedActivity === 'comment' 
-                        ? 'shadow-2xl shadow-purple-500/50 ring-4 ring-purple-500/30' 
-                        : ''
-                    }`}
-                  >
-                    {/* Переливающийся эффект */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 z-10"></div>
-                    
-                    <div className="flex items-center justify-between relative z-20">
-                      <div className="flex items-center gap-2 sm:gap-3">
-                        <span className="text-2xl sm:text-3xl drop-shadow-lg">💬</span>
-                        <span className="drop-shadow-lg">COMMENT NOW</span>
-                      </div>
-                      <div className="text-xl sm:text-2xl drop-shadow-lg">✨</div>
-                    </div>
-                    {selectedActivity === 'comment' && (
-                      <div className="absolute -top-2 -right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center shadow-lg z-20">
-                        <span className="text-white text-sm font-bold">✓</span>
-                      </div>
-                    )}
-                  </button>
                 </div>
               </div>
             </div>

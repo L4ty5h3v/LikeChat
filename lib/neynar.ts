@@ -152,11 +152,10 @@ export async function checkUserReactionsByCast(
 ): Promise<boolean> {
   if (!cleanApiKey) return false;
   
-  // Для комментариев используем специальную проверку через checkUserCommented
-  // Это более надежный метод для комментариев, чем проверка через /cast endpoint
+  // Комментарии больше не поддерживаются
   if (taskType === "comment") {
-    console.log("[neynar] checkUserReactionsByCast: using checkUserCommented for comment verification", { castHash, userFid });
-    return await checkUserCommented(castHash, userFid);
+    console.warn("[neynar] checkUserReactionsByCast: comment task type is no longer supported");
+    return false;
   }
   
   // ВАЖНО: Neynar API возвращает пустой массив likes/recasts по умолчанию
@@ -626,8 +625,6 @@ export async function checkUserTaskByHash(
       return await checkUserLiked(fullHash, userFid);
     case "recast":
       return await checkUserRecasted(fullHash, userFid);
-    case "comment":
-      return await checkUserCommented(fullHash, userFid);
     default:
       console.error("[neynar] Unknown task type:", taskType);
       return false;

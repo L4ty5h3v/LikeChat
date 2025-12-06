@@ -13,7 +13,7 @@ export default function Chat() {
   const [user, setUser] = useState<FarcasterUser | null>(null);
   const [links, setLinks] = useState<LinkSubmission[]>([]);
   const [userLinkId, setUserLinkId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'all' | 'like' | 'recast' | 'comment'>('all');
+  const [filter, setFilter] = useState<'all' | 'like' | 'recast'>('all');
   const [castUrl, setCastUrl] = useState('');
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -228,16 +228,6 @@ export default function Chat() {
             >
               🔄 Recasts ({links.filter((l) => l.task_type === 'recast').length})
             </button>
-            <button
-              onClick={() => setFilter('comment')}
-              className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                filter === 'comment'
-                  ? 'bg-primary text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              💬 Comments ({links.filter((l) => l.task_type === 'comment').length})
-            </button>
           </div>
         </div>
 
@@ -279,7 +269,7 @@ export default function Chat() {
             <h3 className="text-xl font-bold text-gray-900 mb-4 text-center">
               📊 Community Statistics
             </h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div className="text-center">
                 <div className="text-3xl font-bold text-primary mb-1">
                   {links.length}
@@ -297,12 +287,6 @@ export default function Chat() {
                   {links.filter((l) => l.task_type === 'recast').length}
                 </div>
                 <div className="text-sm text-gray-600">🔄 Recasts</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-primary mb-1">
-                  {links.filter((l) => l.task_type === 'comment').length}
-                </div>
-                <div className="text-sm text-gray-600">💬 Comments</div>
               </div>
             </div>
           </div>

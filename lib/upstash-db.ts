@@ -356,7 +356,7 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
     ];
 
     // Получаем реальные данные авторов кастов через Neynar API
-    const taskTypes: TaskType[] = ['like', 'recast', 'comment'];
+    const taskTypes: TaskType[] = ['like', 'recast'];
     const baseTimestamp = Date.now();
     const linksToAdd: LinkSubmission[] = [];
     const userCache = new Map<string, { fid: number; username: string; pfp_url: string }>();
@@ -634,7 +634,7 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
       await redis.lpush(KEYS.LINKS, JSON.stringify(link));
     }
 
-    // Устанавливаем счетчик (всего должно быть 30 ссылок: 10 like + 10 recast + 10 comment)
+    // Устанавливаем счетчик (всего должно быть 20 ссылок: 10 like + 10 recast)
     await redis.set(KEYS.TOTAL_LINKS_COUNT, baseLinks.length * taskTypes.length);
 
     console.log(`✅ Successfully initialized ${linksToAdd.length} links`);

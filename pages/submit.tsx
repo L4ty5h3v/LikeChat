@@ -1015,12 +1015,6 @@ export default function Submit() {
                     <span>RECAST</span>
                   </>
                 )}
-                {activity === 'comment' && (
-                  <>
-                    <span className="text-3xl">💬</span>
-                    <span>COMMENT</span>
-                  </>
-                )}
               </div>
               <p className="text-sm text-gray-600 mt-3">
                 Other users will perform this task on your link

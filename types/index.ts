@@ -7,7 +7,7 @@ export interface FarcasterUser {
   display_name?: string;
 }
 
-export type TaskType = 'like' | 'recast' | 'comment';
+export type TaskType = 'like' | 'recast';
 // Обратная совместимость: ActivityType теперь является алиасом для TaskType
 export type ActivityType = TaskType;
 
