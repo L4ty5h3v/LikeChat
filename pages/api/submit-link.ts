@@ -20,12 +20,31 @@ export default async function handler(
     let { userFid, username, pfpUrl, castUrl, activityType, taskType } = req.body;
     
     // Поддержка как activityType (старое), так и taskType (новое)
-    const finalTaskType = taskType || activityType;
+    let finalTaskType = taskType || activityType;
+
+    // ⚠️ ВАЖНО: Если taskType не передан, получаем его из прогресса пользователя
+    // Это гарантирует, что ссылка публикуется с тем же типом заданий, которые пользователь прошел
+    if (!finalTaskType && userFid) {
+      console.log('⚠️ [SUBMIT-LINK] taskType not provided, fetching from user progress...');
+      const progress = await getUserProgress(Number(userFid));
+      if (progress?.selected_task) {
+        finalTaskType = progress.selected_task;
+        console.log(`✅ [SUBMIT-LINK] Using taskType from user progress: ${finalTaskType}`);
+      }
+    }
 
     if (!userFid || !username || !castUrl || !finalTaskType) {
       return res.status(400).json({ 
         success: false,
-        error: 'Missing required fields: userFid, username, castUrl, taskType (or activityType)' 
+        error: 'Missing required fields: userFid, username, castUrl, taskType (or activityType). taskType must be "like" or "recast".' 
+      });
+    }
+
+    // Валидация taskType
+    if (finalTaskType !== 'like' && finalTaskType !== 'recast') {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid taskType: ${finalTaskType}. Must be "like" or "recast".`
       });
     }
 

@@ -550,13 +550,22 @@ export default function Submit() {
     try {
       // Публикация cast убрана - чтобы избежать баннера "Upgrade to Pro"
       // Сохраняем ссылку в базе данных через API endpoint
+      // ⚠️ ВАЖНО: Используем activity (выбранный тип заданий) как taskType для публикации
+      // Это гарантирует, что ссылка публикуется с тем же типом, который пользователь прошел
       const submissionData = {
         userFid: user.fid,
         username: user.username,
         pfpUrl: user.pfp_url || '',
         castUrl: castUrl,
-        activityType: activity,
+        taskType: activity, // Используем taskType вместо activityType для ясности
+        activityType: activity, // Оставляем для обратной совместимости
       };
+      
+      console.log('📝 [SUBMIT] Publishing link with taskType:', {
+        taskType: activity,
+        userFid: user.fid,
+        username: user.username,
+      });
       
       console.log('📝 [SUBMIT] Submitting link via API...', {
         ...submissionData,
