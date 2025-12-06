@@ -271,15 +271,8 @@ export default function Tasks() {
           verifying: preservingVerifying,
           _originalIndex: index,
         };
-      }).sort((a: TaskProgress, b: TaskProgress) => {
-        // Сохраняем порядок с сервера (новые первыми), но добавляем стабильную сортировку
-        // Сначала по статусу выполнения (невыполненные первыми)
-        if (a.completed !== b.completed) {
-          return a.completed ? 1 : -1; // Невыполненные первыми
-        }
-        // Если статус одинаковый, сохраняем оригинальный порядок с сервера
-        return (a as any)._originalIndex - (b as any)._originalIndex;
       });
+      // УБРАНА СОРТИРОВКА: Задания остаются в исходном порядке очереди, выполненные не перемещаются вниз
 
       // Считаем количество завершенных заданий ТОЛЬКО для текущего типа активности
       const completedCountForActivity = taskList.filter(task => task.completed).length;
