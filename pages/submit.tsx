@@ -919,6 +919,12 @@ export default function Submit() {
             {/* Модная карточка поздравления */}
             <div className="bg-white bg-opacity-95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 sm:p-12 mb-12 border border-white border-opacity-20 mt-6 sm:mt-12">
               <div className="text-center">
+                <h2 className="text-4xl sm:text-5xl font-black bg-gradient-to-r from-red-500 via-purple-600 to-pink-500 bg-clip-text text-transparent mb-4">
+                  Congratulations!
+                </h2>
+                <p className="text-2xl sm:text-3xl text-gray-800 font-bold mb-8">
+                  Your link has been added!
+                </p>
                 <div className="bg-gradient-to-r from-red-500/10 via-purple-600/10 to-pink-500/10 rounded-2xl p-6 mb-8 border border-red-500/20">
                   <p className="text-base text-gray-700">
                     <strong>The next 10 users</strong> will go through your link and perform the selected task.
