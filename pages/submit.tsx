@@ -772,9 +772,10 @@ export default function Submit() {
         });
         
         setPublishedLinkId(data.link.id);
+        setShowSuccessModal(true);
         
         logEvent('✅ [SUBMIT]', {
-          action: 'AFTER setState (setPublishedLinkId)',
+          action: 'AFTER setState (setPublishedLinkId, setShowSuccessModal)',
           flagStatus: {
             sessionStorage: sessionStorage.getItem('link_published'),
             localStorage: localStorage.getItem('link_published'),
@@ -785,10 +786,6 @@ export default function Submit() {
         // Очищаем форму, чтобы предотвратить повторную отправку
         setCastUrl('');
         setError('');
-        
-        // Редиректим на главную страницу без показа модального окна
-        setLoading(false);
-        router.replace('/');
         
         // Публикуем cast в Farcaster только для соответствующего типа активности
         // ⚠️ ОТКЛЮЧЕНО: Автоматическая публикация каста с текстом "Liked via mini-app" отключена
