@@ -29,15 +29,10 @@ export default async function handler(
       });
     }
 
-    let links = await getLastTenLinks(taskType);
+    // ⚠️ ВАЖНО: Строгая фильтрация - возвращаем только ссылки нужного типа (может быть пустой массив)
+    const links = await getLastTenLinks(taskType);
     
-    // Если фильтрация не дала результатов, попробуем получить все ссылки
-    if (links.length === 0 && taskType) {
-      console.log(`⚠️ API /tasks: No links found for taskType "${taskType}", trying to get all links`);
-      links = await getLastTenLinks(undefined);
-    }
-    
-    console.log(`📋 API /tasks: returning ${links.length} links${taskType ? ` (filtered by task: ${taskType})` : ' (all tasks)'}`);
+    console.log(`📋 API /tasks: returning ${links.length} links${taskType ? ` (strictly filtered by task: ${taskType})` : ' (all tasks)'}`);
     
     return res.status(200).json({ success: true, links });
   } catch (error: any) {

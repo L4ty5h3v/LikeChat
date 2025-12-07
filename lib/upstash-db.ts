@@ -56,21 +56,13 @@ export async function getLastTenLinks(taskType?: TaskType): Promise<LinkSubmissi
     // Фильтруем по taskType, если указан
     let filteredLinks = parsedLinks;
     if (taskType) {
+      // ⚠️ ВАЖНО: Строгая фильтрация - только ссылки нужного типа, без дополнения другими типами
       filteredLinks = parsedLinks.filter((link: LinkSubmission) => link.task_type === taskType);
       console.log(`🔍 Filtering links by task type: ${taskType}`);
-      console.log(`📊 Total links: ${parsedLinks.length}, Filtered: ${filteredLinks.length}`);
-      
-      // Если после фильтрации меньше 10 ссылок, дополняем ссылками других типов
-      if (filteredLinks.length < 10) {
-        const otherLinks = parsedLinks
-          .filter((link: LinkSubmission) => link.task_type !== taskType)
-          .slice(0, 10 - filteredLinks.length);
-        filteredLinks = [...filteredLinks, ...otherLinks];
-        console.log(`📊 Added ${otherLinks.length} links of other types to reach 10 total`);
-      }
+      console.log(`📊 Total links: ${parsedLinks.length}, Filtered: ${filteredLinks.length} (strict filtering - no mixing)`);
     }
     
-    // Берем первые 10 ссылок после фильтрации
+    // Берем первые 10 ссылок после фильтрации (может быть меньше 10, если нет достаточного количества)
     const result = filteredLinks.slice(0, 10);
     
     // Логируем данные для диагностики

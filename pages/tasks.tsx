@@ -171,11 +171,8 @@ export default function Tasks() {
         });
         console.log(`🔍 [TASKS] Frontend filtering: ${links.length} links → ${filteredLinks.length} links (activity: ${currentActivity})`);
         
-        // ⚠️ КРИТИЧНО: Если после фильтрации нет ссылок, но есть ссылки без фильтра - показываем их все
-        if (filteredLinks.length === 0 && links.length > 0) {
-          console.warn(`⚠️ [TASKS] No links found for activity "${currentActivity}", showing all ${links.length} links instead`);
-          filteredLinks = links;
-        }
+        // ⚠️ ВАЖНО: Строгая фильтрация - показываем только ссылки нужного типа, даже если список пустой
+        // Не показываем все ссылки, если нет ссылок нужного типа - это нарушает разделение по типам
       } else {
         // Если activity не выбрана, показываем все ссылки
         console.log(`📋 [TASKS] No activity filter - showing all ${links.length} links`);
