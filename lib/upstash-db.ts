@@ -642,6 +642,251 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
   }
 }
 
+// Функция для добавления ссылок только одного типа (без удаления существующих)
+export async function addLinksForTaskType(taskType: TaskType): Promise<{ success: boolean; count: number; error?: string }> {
+  if (!redis) {
+    return { success: false, count: 0, error: 'Redis not available' };
+  }
+
+  try {
+    // Валидация taskType
+    const validTaskTypes: TaskType[] = ['like', 'recast'];
+    if (!validTaskTypes.includes(taskType)) {
+      return { success: false, count: 0, error: `Invalid task type: ${taskType}. Must be "like" or "recast".` };
+    }
+
+    // Список начальных ссылок
+    const baseLinks = [
+      'https://farcaster.xyz/gladness/0xaa4214bf',
+      'https://farcaster.xyz/svs-smm/0xf17842cb',
+      'https://farcaster.xyz/svs-smm/0x4fce02cd',
+      'https://farcaster.xyz/svs-smm/0xd976e9a8',
+      'https://farcaster.xyz/svs-smm/0x4349a0e0',
+      'https://farcaster.xyz/svs-smm/0x3bfa3788',
+      'https://farcaster.xyz/svs-smm/0xef39e991',
+      'https://farcaster.xyz/svs-smm/0xea43ddbf',
+      'https://farcaster.xyz/svs-smm/0x31157f15',
+      'https://farcaster.xyz/svs-smm/0xd4a09fb3',
+    ];
+
+    const baseTimestamp = Date.now();
+    const linksToAdd: LinkSubmission[] = [];
+    const userCache = new Map<string, { fid: number; username: string; pfp_url: string }>();
+
+    // Создаем 10 ссылок для указанного типа
+    for (let linkIndex = 0; linkIndex < baseLinks.length; linkIndex++) {
+      const castUrl = baseLinks[linkIndex];
+      const index = linkIndex;
+      
+      console.log(`🔍 [ADD-LINKS] Fetching cast author data for: ${castUrl} [${taskType}]`);
+      
+      try {
+        // Получаем реальные данные автора каста
+        const authorData = await getCastAuthor(castUrl);
+        
+        if (authorData && authorData.fid && authorData.username) {
+          userCache.set(authorData.username.toLowerCase(), {
+            fid: authorData.fid,
+            username: authorData.username,
+            pfp_url: authorData.pfp_url,
+          });
+          linksToAdd.push({
+            id: `add_link_${taskType}_${index + 1}_${baseTimestamp + index}`,
+            user_fid: authorData.fid,
+            username: authorData.username,
+            pfp_url: authorData.pfp_url,
+            cast_url: castUrl,
+            task_type: taskType,
+            completed_by: [],
+            created_at: new Date().toISOString(),
+          });
+          console.log(`✅ [ADD-LINKS] [${index + 1}/${baseLinks.length}] Loaded real data for @${authorData.username} (FID: ${authorData.fid}) [${taskType}]`);
+        } else {
+          // Если не удалось получить данные из каста, пытаемся получить данные пользователя по username из URL
+          console.warn(`⚠️ [ADD-LINKS] [${index + 1}/${baseLinks.length}] Failed to get author data from cast for ${castUrl}`);
+          
+          const castHash = castUrl.match(/0x[a-fA-F0-9]+/)?.[0] || `hash_${index}`;
+          const urlMatch = castUrl.match(/farcaster\.xyz\/([^\/]+)/);
+          const usernameFromUrl = urlMatch ? urlMatch[1] : null;
+          
+          let userData = null;
+          let cachedUser = null;
+          if (usernameFromUrl) {
+            cachedUser = userCache.get(usernameFromUrl.toLowerCase()) || null;
+          }
+
+          if (usernameFromUrl && !cachedUser) {
+            try {
+              console.log(`🔍 [ADD-LINKS] [${index + 1}/${baseLinks.length}] Trying to get user data by username: ${usernameFromUrl}`);
+              userData = await getUserByUsername(usernameFromUrl);
+              
+              if (userData && userData.fid && userData.username) {
+                userCache.set(userData.username.toLowerCase(), {
+                  fid: userData.fid,
+                  username: userData.username,
+                  pfp_url: userData?.pfp?.url || userData?.pfp_url || userData?.profile?.pfp?.url || '',
+                });
+              }
+            } catch (userError: any) {
+              console.error(`❌ [ADD-LINKS] [${index + 1}/${baseLinks.length}] Failed to get user by username:`, userError?.message);
+            }
+          } else if (cachedUser) {
+            userData = cachedUser;
+          }
+
+          if (userData && userData.fid) {
+            const userDataAny = userData as any;
+            let pfpUrl = null;
+            if (userDataAny.pfp?.url) {
+              pfpUrl = userDataAny.pfp.url;
+            } else if (userDataAny.pfp_url) {
+              pfpUrl = userDataAny.pfp_url;
+            } else if (userDataAny.pfp) {
+              pfpUrl = typeof userDataAny.pfp === 'string' ? userDataAny.pfp : userDataAny.pfp.url;
+            } else if (userDataAny.profile?.pfp?.url) {
+              pfpUrl = userDataAny.profile.pfp.url;
+            } else if (userDataAny.profile?.pfp_url) {
+              pfpUrl = userDataAny.profile.pfp_url;
+            }
+            
+            if (!pfpUrl) {
+              pfpUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.fid}`;
+            }
+
+            userCache.set((userData.username || usernameFromUrl || `user_${index + 1}`).toLowerCase(), {
+              fid: userData.fid,
+              username: userData.username || usernameFromUrl || `user_${index + 1}`,
+              pfp_url: pfpUrl,
+            });
+            
+            linksToAdd.push({
+              id: `add_link_${taskType}_${index + 1}_${baseTimestamp + index}`,
+              user_fid: userData.fid,
+              username: userData.username || (userDataAny.display_name) || usernameFromUrl || `user_${index + 1}`,
+              pfp_url: pfpUrl,
+              cast_url: castUrl,
+              task_type: taskType,
+              completed_by: [],
+              created_at: new Date().toISOString(),
+            });
+            console.log(`✅ [ADD-LINKS] [${index + 1}/${baseLinks.length}] Loaded real user data by username: @${userData.username || (userDataAny.display_name)} (FID: ${userData.fid}) [${taskType}]`);
+          } else {
+            // Fallback
+            linksToAdd.push({
+              id: `add_link_${taskType}_${index + 1}_${baseTimestamp + index}`,
+              user_fid: 0,
+              username: usernameFromUrl || `user_${index + 1}`,
+              pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${castHash}`,
+              cast_url: castUrl,
+              task_type: taskType,
+              completed_by: [],
+              created_at: new Date().toISOString(),
+            });
+            console.log(`⚠️ [ADD-LINKS] [${index + 1}/${baseLinks.length}] Using fallback data for ${castUrl} (username: ${usernameFromUrl || `user_${index + 1}`}) [${taskType}]`);
+          }
+        }
+      } catch (error: any) {
+        console.error(`❌ [ADD-LINKS] [${index + 1}/${baseLinks.length}] Error fetching author data for ${castUrl}:`, error.message);
+        
+        const castHash = castUrl.match(/0x[a-fA-F0-9]+/)?.[0] || `hash_${index}`;
+        const urlMatch = castUrl.match(/farcaster\.xyz\/([^\/]+)/);
+        const usernameFromUrl = urlMatch ? urlMatch[1] : null;
+        
+        let userData = null;
+        if (usernameFromUrl) {
+          const cachedUser = userCache.get(usernameFromUrl.toLowerCase()) || null;
+          if (cachedUser) {
+            userData = cachedUser;
+          } else {
+            try {
+              await new Promise(resolve => setTimeout(resolve, 500));
+              userData = await getUserByUsername(usernameFromUrl);
+              if (userData && userData.fid) {
+                const userDataAnyRetry = userData as any;
+                userCache.set((userData.username || usernameFromUrl).toLowerCase(), {
+                  fid: userData.fid,
+                  username: userData.username || usernameFromUrl,
+                  pfp_url: userDataAnyRetry?.pfp?.url || userDataAnyRetry?.pfp_url || userDataAnyRetry?.profile?.pfp?.url || '',
+                });
+              }
+            } catch (retryError: any) {
+              console.warn(`⚠️ [ADD-LINKS] Retry failed to get user by username:`, retryError?.message);
+            }
+          }
+        }
+
+        if (userData && userData.fid) {
+          const userDataAny = userData as any;
+          let pfpUrl = null;
+          if (userDataAny.pfp?.url) {
+            pfpUrl = userDataAny.pfp.url;
+          } else if (userDataAny.pfp_url) {
+            pfpUrl = userDataAny.pfp_url;
+          } else if (userDataAny.pfp) {
+            pfpUrl = typeof userDataAny.pfp === 'string' ? userDataAny.pfp : userDataAny.pfp.url;
+          } else if (userDataAny.profile?.pfp?.url) {
+            pfpUrl = userDataAny.profile.pfp.url;
+          } else if (userDataAny.profile?.pfp_url) {
+            pfpUrl = userDataAny.profile.pfp_url;
+          }
+          
+          if (!pfpUrl) {
+            pfpUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.fid}`;
+          }
+
+          linksToAdd.push({
+            id: `add_link_${taskType}_${index + 1}_${baseTimestamp + index}`,
+            user_fid: userData.fid,
+            username: userData.username || (userDataAny.display_name) || usernameFromUrl || `user_${index + 1}`,
+            pfp_url: pfpUrl,
+            cast_url: castUrl,
+            task_type: taskType,
+            completed_by: [],
+            created_at: new Date().toISOString(),
+          });
+          console.log(`✅ [ADD-LINKS] [${index + 1}/${baseLinks.length}] Loaded real user data after error: @${userData.username || (userDataAny.display_name)} (FID: ${userData.fid}) [${taskType}]`);
+        } else {
+          linksToAdd.push({
+            id: `add_link_${taskType}_${index + 1}_${baseTimestamp + index}`,
+            user_fid: 0,
+            username: usernameFromUrl || `user_${index + 1}`,
+            pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${castHash}`,
+            cast_url: castUrl,
+            task_type: taskType,
+            completed_by: [],
+            created_at: new Date().toISOString(),
+          });
+          console.log(`⚠️ [ADD-LINKS] [${index + 1}/${baseLinks.length}] Using fallback data due to error for ${castUrl} [${taskType}]`);
+        }
+      }
+      
+      // Задержка между запросами
+      const delay = 500;
+      if (linkIndex < baseLinks.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+
+    // Добавляем ссылки в Redis (НЕ удаляя существующие)
+    console.log(`📝 [ADD-LINKS] Adding ${linksToAdd.length} links for task type "${taskType}" to Redis (existing links preserved)...`);
+    for (let i = 0; i < linksToAdd.length; i++) {
+      const link = linksToAdd[i];
+      await redis.lpush(KEYS.LINKS, JSON.stringify(link));
+      await redis.incr(KEYS.TOTAL_LINKS_COUNT);
+    }
+
+    console.log(`✅ [ADD-LINKS] Successfully added ${linksToAdd.length} links for task type "${taskType}"`);
+    return { success: true, count: linksToAdd.length };
+  } catch (error: any) {
+    console.error(`❌ [ADD-LINKS] Error adding links for task type "${taskType}":`, error);
+    return { 
+      success: false, 
+      count: 0, 
+      error: error.message || `Failed to add links for task type "${taskType}"` 
+    };
+  }
+}
+
 // Функция для подписки на обновления (заглушка для совместимости)
 export function subscribeToLinks(callback: (payload: unknown) => void): { unsubscribe: () => void } {
   // В Upstash Redis нет встроенной подписки на изменения

@@ -31,6 +31,9 @@ export const getAllUsersProgress = USE_UPSTASH ? (upstashDb as any).getAllUsersP
 // Экспортируем initializeLinks только из upstash-db (если доступна)
 export const initializeLinks = USE_UPSTASH ? (upstashDb as any).initializeLinks : undefined;
 
+// Экспортируем addLinksForTaskType только из upstash-db (если доступна)
+export const addLinksForTaskType = USE_UPSTASH ? (upstashDb as any).addLinksForTaskType : undefined;
+
 // Информация о текущей базе данных
 export const DB_INFO = {
   type: USE_UPSTASH ? 'upstash' : 'memory',

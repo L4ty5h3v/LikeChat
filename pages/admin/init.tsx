@@ -5,6 +5,7 @@ import Button from '@/components/Button';
 
 export default function InitLinks() {
   const [loading, setLoading] = useState(false);
+  const [addLinksLoading, setAddLinksLoading] = useState<{ like?: boolean; recast?: boolean }>({});
   const [result, setResult] = useState<{ success?: boolean; error?: string; message?: string } | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
@@ -60,6 +61,50 @@ export default function InitLinks() {
     }
   };
 
+  const performAddLinks = async (taskType: 'like' | 'recast') => {
+    setAddLinksLoading({ [taskType]: true });
+    setResult(null);
+
+    try {
+      const response = await fetch('/api/add-links', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          taskType,
+          secretKey: '' // Секретный ключ проверяется на сервере
+        }),
+      });
+
+      const text = await response.text();
+      let data;
+      
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError, 'Response text:', text);
+        setResult({ error: `Ошибка ответа сервера: ${text || 'пустой ответ'}` });
+        setAddLinksLoading({ [taskType]: false });
+        return;
+      }
+
+      if (response.ok) {
+        setResult({ 
+          success: true, 
+          message: data.message || `Успешно добавлено ${data.count || 0} ссылок для типа "${taskType}"!` 
+        });
+      } else {
+        setResult({ error: data.error || data.message || `Ошибка при добавлении ссылок (${response.status})` });
+      }
+    } catch (error: any) {
+      console.error('Add links error:', error);
+      setResult({ error: error.message || 'Неизвестная ошибка' });
+    } finally {
+      setAddLinksLoading({ [taskType]: false });
+    }
+  };
+
   return (
     <Layout title="Инициализация системы">
       <div className="max-w-3xl mx-auto">
@@ -101,15 +146,41 @@ export default function InitLinks() {
             </div>
           )}
 
-          <Button
-            onClick={handleInitClick}
-            loading={loading}
-            variant="primary"
-            fullWidth
-            className="text-lg py-4"
-          >
-            {loading ? 'Инициализация...' : 'Инициализировать систему'}
-          </Button>
+          <div className="space-y-4">
+            <Button
+              onClick={handleInitClick}
+              loading={loading}
+              variant="primary"
+              fullWidth
+              className="text-lg py-4"
+            >
+              {loading ? 'Инициализация...' : 'Инициализировать систему (удаляет все существующие ссылки)'}
+            </Button>
+
+            <div className="border-t pt-4">
+              <h3 className="text-lg font-bold text-gray-900 mb-3">
+                Добавить ссылки только для одного типа (без удаления существующих)
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                <Button
+                  onClick={() => performAddLinks('like')}
+                  loading={addLinksLoading.like}
+                  variant="secondary"
+                  className="text-base py-3"
+                >
+                  {addLinksLoading.like ? 'Добавление...' : '➕ Добавить 10 ссылок для LIKE'}
+                </Button>
+                <Button
+                  onClick={() => performAddLinks('recast')}
+                  loading={addLinksLoading.recast}
+                  variant="secondary"
+                  className="text-base py-3"
+                >
+                  {addLinksLoading.recast ? 'Добавление...' : '➕ Добавить 10 ссылок для RECAST'}
+                </Button>
+              </div>
+            </div>
+          </div>
 
           {/* Модальное окно подтверждения */}
           {showConfirmModal && (
@@ -141,14 +212,20 @@ export default function InitLinks() {
 
         </div>
 
-        <div className="bg-yellow-50 border-2 border-yellow-300 rounded-2xl p-6">
+        <div className="bg-yellow-50 border-2 border-yellow-300 rounded-2xl p-6 mb-6">
           <h3 className="text-lg font-bold text-yellow-800 mb-2">
             ⚠️ Внимание
           </h3>
+          <p className="text-yellow-700 mb-2">
+            <strong>Инициализация системы:</strong> Эта операция добавляет 20 начальных ссылок в систему (10 для like, 10 для recast). 
+            Если система уже инициализирована, старые ссылки будут удалены перед добавлением новых.
+          </p>
           <p className="text-yellow-700">
-            Эта операция добавляет 20 начальных ссылок в систему (10 для like, 10 для recast). 
-            Если система уже инициализирована, старые ссылки будут удалены перед добавлением новых. 
-            Для работы этого действия необходим секретный ключ (установите его в переменную окружения INIT_LINKS_SECRET_KEY на Vercel).
+            <strong>Добавление ссылок по типам:</strong> Эти кнопки добавляют 10 ссылок только для указанного типа (like или recast) 
+            БЕЗ удаления существующих ссылок. Это безопасный способ заполнить пустые разделы.
+          </p>
+          <p className="text-yellow-700 mt-2">
+            Для работы этих действий необходим секретный ключ (установите его в переменную окружения INIT_LINKS_SECRET_KEY на Vercel).
           </p>
         </div>
       </div>
