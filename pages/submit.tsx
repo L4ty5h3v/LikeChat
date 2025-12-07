@@ -772,10 +772,9 @@ export default function Submit() {
         });
         
         setPublishedLinkId(data.link.id);
-        setShowSuccessModal(true);
         
         logEvent('✅ [SUBMIT]', {
-          action: 'AFTER setState (setPublishedLinkId, setShowSuccessModal)',
+          action: 'AFTER setState (setPublishedLinkId)',
           flagStatus: {
             sessionStorage: sessionStorage.getItem('link_published'),
             localStorage: localStorage.getItem('link_published'),
@@ -786,6 +785,10 @@ export default function Submit() {
         // Очищаем форму, чтобы предотвратить повторную отправку
         setCastUrl('');
         setError('');
+        
+        // Редиректим на главную страницу без показа модального окна
+        setLoading(false);
+        router.replace('/');
         
         // Публикуем cast в Farcaster только для соответствующего типа активности
         // ⚠️ ОТКЛЮЧЕНО: Автоматическая публикация каста с текстом "Liked via mini-app" отключена
@@ -914,26 +917,11 @@ export default function Submit() {
                 </div>
                 <div className="w-10 sm:w-20 h-1 bg-white"></div>
               </div>
-              <p className="text-xl sm:text-3xl md:text-4xl text-white font-bold mb-4 tracking-wide px-4">
-                <span className="text-white">🎉</span> CONGRATULATIONS <span className="text-white">🎉</span>
-              </p>
-              <p className="text-lg text-white text-opacity-90 max-w-2xl mx-auto">
-                Your link has been added successfully!
-              </p>
             </div>
 
             {/* Модная карточка поздравления */}
             <div className="bg-white bg-opacity-95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 sm:p-12 mb-12 border border-white border-opacity-20 mt-6 sm:mt-12">
               <div className="text-center">
-                <h2 className="text-4xl sm:text-5xl font-black bg-gradient-to-r from-red-500 via-purple-600 to-pink-500 bg-clip-text text-transparent mb-4">
-                  Congratulations!
-                </h2>
-                <p className="text-2xl sm:text-3xl text-gray-800 font-bold mb-6">
-                  Your link has been added!
-                </p>
-                <p className="text-lg text-gray-600 mb-8">
-                  Your link is now available in the task list for other users.
-                </p>
                 <div className="bg-gradient-to-r from-red-500/10 via-purple-600/10 to-pink-500/10 rounded-2xl p-6 mb-8 border border-red-500/20">
                   <p className="text-base text-gray-700">
                     <strong>The next 10 users</strong> will go through your link and perform the selected task.
