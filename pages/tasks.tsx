@@ -794,9 +794,23 @@ export default function Tasks() {
       const updatedTasks: TaskProgress[] = await Promise.all(
         tasks.map(async (task: TaskProgress) => {
           // ⚠️ КРИТИЧНО: Пропускаем задания с completed && verified - проверки для них прекращены
-          if (task.completed && task.verified) {
-            console.log(`⏹️ [VERIFY] Task ${task.link_id} already completed and verified, skipping verification`);
-            return task; // Возвращаем как есть, проверки прекращены
+          // Также проверяем verifiedTasksRef - если задача уже была проверена ранее, пропускаем
+          const isAlreadyVerified = task.completed && task.verified;
+          const isInVerifiedRef = verifiedTasksRef.current.has(task.link_id);
+          
+          if (isAlreadyVerified || isInVerifiedRef) {
+            console.log(`⏹️ [VERIFY] Task ${task.link_id} already completed and verified (${isAlreadyVerified ? 'in state' : 'in ref'}), skipping verification`);
+            // Убеждаемся, что задача в ref
+            if (!isInVerifiedRef) {
+              verifiedTasksRef.current.add(task.link_id);
+            }
+            return {
+              ...task,
+              completed: true,
+              verified: true,
+              verifying: false,
+              error: false,
+            } as TaskProgress; // Возвращаем как выполненную, проверки прекращены
           }
           
           try {

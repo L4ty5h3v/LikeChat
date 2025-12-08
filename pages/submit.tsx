@@ -1024,16 +1024,6 @@ export default function Submit() {
           {/* Модная карточка публикации */}
           <div className="bg-white bg-opacity-95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 sm:p-12 mb-12 border border-white border-opacity-20 mt-6 sm:mt-12">
 
-
-            <div className="mb-8">
-              <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-3 text-center">
-                ADD YOUR LINK
-              </h2>
-              <p className="text-lg text-gray-700 text-center">
-                Insert your cast link from Farcaster
-              </p>
-            </div>
-
             {/* Информация о выбранной активности */}
             <div className="bg-gradient-to-r from-primary/10 via-secondary/10 to-accent/10 rounded-xl p-6 mb-6 border border-primary/20">
               <p className="text-sm text-gray-700 mb-3 font-semibold">

@@ -685,7 +685,7 @@ export default function Home() {
                     <div className="flex items-center justify-between relative z-20">
                       <div className="flex items-center gap-2 sm:gap-3">
                         <span className="text-2xl sm:text-3xl drop-shadow-lg">❤️</span>
-                        <span className="drop-shadow-lg">LIKE NOW</span>
+                        <span className="drop-shadow-lg">LIKE</span>
                       </div>
                       <div className="text-xl sm:text-2xl drop-shadow-lg">💫</div>
                     </div>
@@ -711,7 +711,7 @@ export default function Home() {
                     <div className="flex items-center justify-between relative z-20">
                       <div className="flex items-center gap-2 sm:gap-3">
                         <span className="text-2xl sm:text-3xl drop-shadow-lg">🔄</span>
-                        <span className="drop-shadow-lg">RECAST NOW</span>
+                        <span className="drop-shadow-lg">RECAST</span>
                       </div>
                       <div className="text-xl sm:text-2xl drop-shadow-lg">⚡</div>
                     </div>

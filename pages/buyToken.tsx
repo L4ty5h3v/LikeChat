@@ -978,7 +978,7 @@ export default function BuyToken() {
           {walletAddress && !purchased && (
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
               <p className="text-sm text-blue-800 text-center">
-                <span className="font-semibold">💡 Tip:</span> When the swap form opens, enter <span className="font-bold">0.10 USDC</span> as the amount to swap
+                <span className="font-semibold">💡 Amount:</span> The swap will be pre-filled with <span className="font-bold">{PURCHASE_AMOUNT_USDC} USDC</span>. If the field is empty, enter <span className="font-bold">{PURCHASE_AMOUNT_USDC} USDC</span> manually.
               </p>
             </div>
           )}
