@@ -103,7 +103,6 @@ export default function BuyToken() {
   const [lastCheckedBlock, setLastCheckedBlock] = useState<bigint | null>(null);
   const [blocksSinceSwap, setBlocksSinceSwap] = useState(0);
   const [swapWaitTime, setSwapWaitTime] = useState(0);
-  const [isFirstSwapCall, setIsFirstSwapCall] = useState(true); // Отслеживаем первый вызов
   const MAX_RETRIES = 3;
   const BLOCKS_TO_CHECK = 4; // Проверяем каждые 4 блока (~12 секунд на Base)
   const SWAP_TIMEOUT_MS = 60000; // Увеличиваем таймаут до 60 секунд
@@ -319,7 +318,7 @@ export default function BuyToken() {
     if (useUSDC && usdcBalance) {
       const usdcAmount = parseUnits(PURCHASE_AMOUNT_USDC.toString(), 6); // USDC имеет 6 decimals
       if (usdcBalance.value < usdcAmount) {
-        setError(`Insufficient USDC. Required: ${PURCHASE_AMOUNT_USDC.toFixed(2)} USDC`);
+        setError(`Insufficient USDC. Required: ${PURCHASE_AMOUNT_USDC} USDC`);
         return;
       }
     }
@@ -357,7 +356,7 @@ export default function BuyToken() {
                (errorLower.includes('insufficient') && errorLower.includes('usdc'))) {
       errorType = 'insufficient_funds';
       errorMessage = `Insufficient USDC for purchase`;
-      helpfulMessage = `💡 Add more USDC to wallet. Minimum ${PURCHASE_AMOUNT_USDC.toFixed(2)} USDC + ETH for gas required`;
+      helpfulMessage = `💡 Add more USDC to wallet. Minimum ${PURCHASE_AMOUNT_USDC} USDC + ETH for gas required`;
     } else if (errorLower.includes('insufficient') || 
                errorLower.includes('balance') ||
                (errorLower.includes('amount') && !errorLower.includes('slippage'))) {
@@ -553,7 +552,7 @@ export default function BuyToken() {
     if (useUSDC && usdcBalance) {
       const usdcAmount = parseUnits(PURCHASE_AMOUNT_USDC.toString(), 6);
       if (usdcBalance.value < usdcAmount) {
-        const errorMsg = `Insufficient USDC. Required: ${PURCHASE_AMOUNT_USDC.toFixed(2)} USDC, available: ${formatUnits(usdcBalance.value, usdcBalance.decimals)}`;
+        const errorMsg = `Insufficient USDC. Required: ${PURCHASE_AMOUNT_USDC} USDC, available: ${formatUnits(usdcBalance.value, usdcBalance.decimals)}`;
         setError(errorMsg);
         setLastError(errorMsg);
         return;
@@ -600,43 +599,8 @@ export default function BuyToken() {
         throw new Error('Swap function not ready. Please try again.');
       }
 
-      // ⚠️ КРИТИЧНО: Увеличиваем задержку для первого вызова, чтобы Farcaster SDK успел инициализироваться
-      // При первом вызове форма может не предзаполниться суммой, если SDK еще не готов
-      const initializationDelay = isFirstSwapCall ? 800 : 100;
-      console.log(`⏳ [SWAP] Waiting ${initializationDelay}ms for swap initialization (first call: ${isFirstSwapCall})...`);
-      
-      // ⚠️ КРИТИЧНО: Для первого вызова пытаемся явно установить параметры через методы hook
-      if (isFirstSwapCall && swapHookResult && typeof swapHookResult === 'object') {
-        try {
-          // Пытаемся установить токены и сумму через методы hook, если они доступны
-          if (typeof (swapHookResult as any).setTokenFrom === 'function') {
-            console.log('🔧 [SWAP] Setting tokenFrom to USDC via hook method...');
-            (swapHookResult as any).setTokenFrom(`eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`);
-            await new Promise(resolve => setTimeout(resolve, 150));
-          }
-          
-          if (typeof (swapHookResult as any).setTokenTo === 'function') {
-            console.log('🔧 [SWAP] Setting tokenTo to MCT via hook method...');
-            (swapHookResult as any).setTokenTo(`eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`);
-            await new Promise(resolve => setTimeout(resolve, 150));
-          }
-          
-          if (typeof (swapHookResult as any).setFromAmount === 'function') {
-            console.log(`🔧 [SWAP] Setting fromAmount to ${PURCHASE_AMOUNT_USDC.toFixed(2)} via hook method...`);
-            (swapHookResult as any).setFromAmount(PURCHASE_AMOUNT_USDC.toFixed(2));
-            await new Promise(resolve => setTimeout(resolve, 200));
-          }
-        } catch (hookError) {
-          console.warn('⚠️ [SWAP] Could not set parameters via hook methods, will use swapParams only:', hookError);
-        }
-      }
-      
-      await new Promise(resolve => setTimeout(resolve, initializationDelay));
-      
-      // После первого вызова помечаем, что это уже не первый раз
-      if (isFirstSwapCall) {
-        setIsFirstSwapCall(false);
-      }
+      // Небольшая задержка для инициализации swap функции (особенно при первом вызове)
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       let result;
       try {
@@ -661,7 +625,7 @@ export default function BuyToken() {
         console.log('🔍 [SWAP] Final params (wei format according to tests):', {
           ...swapParams,
           sellAmountWei: usdcAmountStr,
-          sellAmountFormatted: `${PURCHASE_AMOUNT_USDC.toFixed(2)} USDC`,
+          sellAmountFormatted: `${PURCHASE_AMOUNT_USDC} USDC`,
           calculation: `0.10 USDC * 10^6 = ${usdcAmountStr}`,
           note: 'According to OnchainKit tests, sellAmount must be in wei format (numeric string)',
         });
@@ -721,7 +685,7 @@ export default function BuyToken() {
         resultType: typeof result,
         resultKeys: result ? Object.keys(result) : [],
         userFid: user.fid,
-        sellAmount: `${PURCHASE_AMOUNT_USDC.toFixed(2)} USDC (${usdcAmountStr} wei)`,
+        sellAmount: `${PURCHASE_AMOUNT_USDC} USDC (${usdcAmountStr} wei)`,
         sellToken: USDC_CONTRACT_ADDRESS,
         buyToken: MCT_CONTRACT_ADDRESS,
       });
@@ -1014,7 +978,7 @@ export default function BuyToken() {
           {walletAddress && !purchased && (
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
               <p className="text-sm text-blue-800 text-center">
-                <span className="font-semibold">💡 Amount:</span> The swap will be pre-filled with <span className="font-bold">{PURCHASE_AMOUNT_USDC.toFixed(2)} USDC</span>. If the field is empty, enter <span className="font-bold">{PURCHASE_AMOUNT_USDC.toFixed(2)} USDC</span> manually.
+                <span className="font-semibold">💡 Amount:</span> The swap will be pre-filled with <span className="font-bold">{PURCHASE_AMOUNT_USDC} USDC</span>. If the field is empty, enter <span className="font-bold">{PURCHASE_AMOUNT_USDC} USDC</span> manually.
               </p>
             </div>
           )}
