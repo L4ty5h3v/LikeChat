@@ -927,7 +927,7 @@ export default function Submit() {
                 </p>
                 <div className="bg-gradient-to-r from-red-500/10 via-purple-600/10 to-pink-500/10 rounded-2xl p-6 mb-8 border border-red-500/20">
                   <p className="text-base text-gray-700">
-                    <strong>The next 10 users</strong> will go through your link and perform the selected task.
+                    <strong>The next 10 users</strong> who choose the same task will perform that task on your cast.
                   </p>
                 </div>
                 <Button
