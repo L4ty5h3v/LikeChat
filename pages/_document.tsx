@@ -20,7 +20,15 @@ Document.getInitialProps = async (ctx: DocumentContext) => {
 
 export default function Document() {
   const baseUrl = getBaseUrl();
-  const isBaseApp = process.env.NEXT_PUBLIC_APP_VARIANT === 'base';
+  // Включаем base:app_id ТОЛЬКО для Base версии.
+  // 1) Можно явно включить через NEXT_PUBLIC_APP_VARIANT=base
+  // 2) Или автоматически по домену проекта (likechat-base-app.vercel.app)
+  const envVariant = process.env.NEXT_PUBLIC_APP_VARIANT;
+  const inferredHost = (process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL || '').toString();
+  const isBaseApp =
+    envVariant === 'base' ||
+    inferredHost.includes('likechat-base-app') ||
+    baseUrl.includes('likechat-base-app.vercel.app');
   
   return (
     <Html>
