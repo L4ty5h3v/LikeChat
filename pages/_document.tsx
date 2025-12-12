@@ -22,13 +22,18 @@ export default function Document() {
   const baseUrl = getBaseUrl();
   // Включаем base:app_id ТОЛЬКО для Base версии.
   // 1) Можно явно включить через NEXT_PUBLIC_APP_VARIANT=base
-  // 2) Или автоматически по домену проекта (likechat-base-app.vercel.app)
+  // 2) Или автоматически по домену проекта (например: likechat-base-app.vercel.app
+  //    или Vercel preview домен вида likechat-base-<hash>-....vercel.app)
   const envVariant = process.env.NEXT_PUBLIC_APP_VARIANT;
   const inferredHost = (process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL || '').toString();
   const isBaseApp =
     envVariant === 'base' ||
     inferredHost.includes('likechat-base-app') ||
-    baseUrl.includes('likechat-base-app.vercel.app');
+    inferredHost.includes('likechat-base-') ||
+    inferredHost.startsWith('likechat-base') ||
+    baseUrl.includes('likechat-base-app.vercel.app') ||
+    baseUrl.includes('likechat-base-') ||
+    baseUrl.includes('likechat-base');
   
   return (
     <Html>
