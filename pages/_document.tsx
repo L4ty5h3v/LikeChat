@@ -20,6 +20,7 @@ Document.getInitialProps = async (ctx: DocumentContext) => {
 
 export default function Document() {
   const baseUrl = getBaseUrl();
+  const isBaseApp = process.env.NEXT_PUBLIC_APP_VARIANT === 'base';
   
   return (
     <Html>
@@ -31,6 +32,9 @@ export default function Document() {
         <meta property="fc:miniapp:button:1" content="Открыть LikeChat" />
         <meta property="fc:miniapp:button:1:action" content="link" />
         <meta property="fc:miniapp:button:1:target" content={baseUrl} />
+        {isBaseApp && (
+          <meta name="base:app_id" content="693c50258a7c4e55fec73fe1" />
+        )}
       </Head>
       <body>
         <Main />
