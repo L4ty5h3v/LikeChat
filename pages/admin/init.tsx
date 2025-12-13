@@ -120,16 +120,16 @@ export default function InitLinks() {
             Эта страница позволяет инициализировать систему 20 начальными ссылками (по 10 для каждого типа активности: like, recast).
           </p>
           <ul className="list-disc list-inside text-gray-600 mb-6 space-y-2">
-            <li>https://farcaster.xyz/svs-smm/0xf9660a16</li>
-            <li>https://farcaster.xyz/svs-smm/0xf17842cb</li>
-            <li>https://farcaster.xyz/svs-smm/0x4fce02cd</li>
-            <li>https://farcaster.xyz/svs-smm/0xd976e9a8</li>
-            <li>https://farcaster.xyz/svs-smm/0x4349a0e0</li>
-            <li>https://farcaster.xyz/svs-smm/0x3bfa3788</li>
-            <li>https://farcaster.xyz/svs-smm/0xef39e991</li>
-            <li>https://farcaster.xyz/svs-smm/0xea43ddbf</li>
-            <li>https://farcaster.xyz/svs-smm/0x31157f15</li>
-            <li>https://farcaster.xyz/svs-smm/0xd4a09fb3</li>
+            <li>https://base.app/post/0x0c9e45b37e2db246d9544689bfbed28bca434be</li>
+            <li>https://base.app/post/0x06ec6e3b5d340f8f7197324a96bf870265e78c2a</li>
+            <li>https://base.app/post/0xfb1f9d9f118290a0657a9d68d6ce0ac09d6d44ba</li>
+            <li>https://base.app/post/0x641593bd41eb199d5e6930e0d519d685ec7a9436</li>
+            <li>https://base.app/post/0xd02763287849293a7a6cdb7104ee5513d318abaf</li>
+            <li>https://base.app/post/0x8409b3edbfb9d07a3cc9dbe53927b33d9b02d9c1</li>
+            <li>https://base.app/post/0xdc51c8f0091d16bb0c7b866b52cdde3457ce848c</li>
+            <li>https://base.app/post/0x2cb6509bc661eb2f08588d8f8de3c4e7d83fdfb5</li>
+            <li>https://base.app/post/0x9a33dc3ee6cf006ce8efe990293f5e38be152ee9</li>
+            <li>https://base.app/post/0x281b68bb29c5b64194a580da8f678db4831cc1c1</li>
           </ul>
 
           {result && (

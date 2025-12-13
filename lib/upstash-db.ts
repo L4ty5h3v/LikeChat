@@ -336,16 +336,16 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
 
     // Список начальных ссылок - по 10 для каждого типа активности (всего 30 ссылок)
     const baseLinks = [
-      'https://farcaster.xyz/gladness/0xaa4214bf',
-      'https://farcaster.xyz/svs-smm/0xf17842cb',
-      'https://farcaster.xyz/svs-smm/0x4fce02cd',
-      'https://farcaster.xyz/svs-smm/0xd976e9a8',
-      'https://farcaster.xyz/svs-smm/0x4349a0e0',
-      'https://farcaster.xyz/svs-smm/0x3bfa3788',
-      'https://farcaster.xyz/svs-smm/0xef39e991',
-      'https://farcaster.xyz/svs-smm/0xea43ddbf',
-      'https://farcaster.xyz/svs-smm/0x31157f15',
-      'https://farcaster.xyz/svs-smm/0xd4a09fb3',
+      'https://base.app/post/0x0c9e45b37e2db246d9544689bfbed28bca434be',
+      'https://base.app/post/0x06ec6e3b5d340f8f7197324a96bf870265e78c2a',
+      'https://base.app/post/0xfb1f9d9f118290a0657a9d68d6ce0ac09d6d44ba',
+      'https://base.app/post/0x641593bd41eb199d5e6930e0d519d685ec7a9436',
+      'https://base.app/post/0xd02763287849293a7a6cdb7104ee5513d318abaf',
+      'https://base.app/post/0x8409b3edbfb9d07a3cc9dbe53927b33d9b02d9c1',
+      'https://base.app/post/0xdc51c8f0091d16bb0c7b866b52cdde3457ce848c',
+      'https://base.app/post/0x2cb6509bc661eb2f08588d8f8de3c4e7d83fdfb5',
+      'https://base.app/post/0x9a33dc3ee6cf006ce8efe990293f5e38be152ee9',
+      'https://base.app/post/0x281b68bb29c5b64194a580da8f678db4831cc1c1',
     ];
 
     // Получаем реальные данные авторов кастов через Neynar API
@@ -657,16 +657,16 @@ export async function addLinksForTaskType(taskType: TaskType): Promise<{ success
 
     // Список начальных ссылок
     const baseLinks = [
-      'https://farcaster.xyz/gladness/0xaa4214bf',
-      'https://farcaster.xyz/svs-smm/0xf17842cb',
-      'https://farcaster.xyz/svs-smm/0x4fce02cd',
-      'https://farcaster.xyz/svs-smm/0xd976e9a8',
-      'https://farcaster.xyz/svs-smm/0x4349a0e0',
-      'https://farcaster.xyz/svs-smm/0x3bfa3788',
-      'https://farcaster.xyz/svs-smm/0xef39e991',
-      'https://farcaster.xyz/svs-smm/0xea43ddbf',
-      'https://farcaster.xyz/svs-smm/0x31157f15',
-      'https://farcaster.xyz/svs-smm/0xd4a09fb3',
+      'https://base.app/post/0x0c9e45b37e2db246d9544689bfbed28bca434be',
+      'https://base.app/post/0x06ec6e3b5d340f8f7197324a96bf870265e78c2a',
+      'https://base.app/post/0xfb1f9d9f118290a0657a9d68d6ce0ac09d6d44ba',
+      'https://base.app/post/0x641593bd41eb199d5e6930e0d519d685ec7a9436',
+      'https://base.app/post/0xd02763287849293a7a6cdb7104ee5513d318abaf',
+      'https://base.app/post/0x8409b3edbfb9d07a3cc9dbe53927b33d9b02d9c1',
+      'https://base.app/post/0xdc51c8f0091d16bb0c7b866b52cdde3457ce848c',
+      'https://base.app/post/0x2cb6509bc661eb2f08588d8f8de3c4e7d83fdfb5',
+      'https://base.app/post/0x9a33dc3ee6cf006ce8efe990293f5e38be152ee9',
+      'https://base.app/post/0x281b68bb29c5b64194a580da8f678db4831cc1c1',
     ];
 
     const baseTimestamp = Date.now();
