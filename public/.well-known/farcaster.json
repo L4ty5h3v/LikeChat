@@ -1,0 +1,30 @@
+{
+  "accountAssociation": {
+    "header": "",
+    "payload": "",
+    "signature": ""
+  },
+  "miniapp": {
+    "version": "1",
+    "name": "Multi Like",
+    "homeUrl": "https://likechat-base-app.vercel.app",
+    "iconUrl": "https://likechat-base-app.vercel.app/favicon.ico",
+    "splashImageUrl": "https://likechat-base-app.vercel.app/images/mrs-crypto.jpg",
+    "splashBackgroundColor": "#000000",
+    "webhookUrl": "https://likechat-base-app.vercel.app/api/webhook",
+    "subtitle": "Mutual likes and recasts",
+    "description": "A fast, fun way to coordinate likes and recasts on Base.",
+    "screenshotUrls": [
+      "https://likechat-base-app.vercel.app/images/mrs-crypto.jpg"
+    ],
+    "primaryCategory": "social",
+    "tags": ["baseapp", "miniapp", "social"],
+    "heroImageUrl": "https://likechat-base-app.vercel.app/images/mrs-crypto.jpg",
+    "tagline": "Mutual love on Base",
+    "ogTitle": "Multi Like on Base",
+    "ogDescription": "Mutual likes and recasts on Base.",
+    "ogImageUrl": "https://likechat-base-app.vercel.app/images/mrs-crypto.jpg",
+    "noindex": false
+  }
+}
+
