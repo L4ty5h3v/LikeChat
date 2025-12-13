@@ -578,7 +578,7 @@ export default function Submit() {
 
     // Валидация URL
     if (!validateUrl(castUrl)) {
-      setError('Please enter a valid Farcaster cast link');
+      setError('Please enter a valid cast link');
       return;
     }
 

@@ -304,7 +304,7 @@ export default function BuyToken() {
   const handleBuyToken = async () => {
     // Проверяем, что пользователь авторизован
     if (!user) {
-      setError('Please authorize through Farcaster');
+      setError('Please authorize through Base');
       return;
     }
 
@@ -1064,7 +1064,7 @@ export default function BuyToken() {
                   </p>
                 </div>
                 <p className="text-blue-600 text-sm mb-2">
-                  Confirm the transaction in your Farcaster wallet. Balance will update automatically.
+                  Confirm the transaction in your Base wallet. Balance will update automatically.
                 </p>
                 {swapWaitTime > 0 && (
                   <p className="text-blue-500 text-xs mb-4">

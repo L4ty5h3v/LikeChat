@@ -86,9 +86,9 @@ export default function Home() {
     }
   }, []);
 
-  // Авторизация через Farcaster кошелек
+  // Авторизация через Base (кошелек в Base App)
   const handleConnect = async () => {
-    console.log('🔗 Farcaster authorization called');
+    console.log('🔗 Base authorization called');
     console.log('🔍 Current state:', { loading, user, mounted });
     
     // Предотвращаем повторные вызовы
@@ -113,19 +113,19 @@ export default function Home() {
       let farcasterUser: FarcasterUser | null = null;
       let walletAddress: string | null = null;
       
-      // Пытаемся получить адрес кошелька через Farcaster Mini App SDK
+      // Пытаемся получить адрес кошелька через Base (Mini App SDK)
       try {
-        console.log('🔄 Connecting Farcaster wallet via SDK...');
+        console.log('🔄 Connecting Base wallet via SDK...');
         console.log('🔍 [WALLET-CONNECT] Starting wallet connection process...', {
           timestamp: new Date().toISOString(),
           windowAvailable: typeof window !== 'undefined',
         });
         
-        // Используем Farcaster Mini App SDK для получения адреса кошелька
+        // Используем Mini App SDK для получения адреса кошелька
         if (typeof window !== 'undefined') {
           try {
             // Динамический импорт SDK с таймаутом
-            console.log('📦 [WALLET-CONNECT] Importing Farcaster SDK...');
+            console.log('📦 [WALLET-CONNECT] Importing Mini App SDK...');
             const sdkModule = await Promise.race([
               import('@farcaster/miniapp-sdk'),
               new Promise((_, reject) => 
@@ -196,13 +196,13 @@ export default function Home() {
             console.log('🔄 Attempting to get SDK context...');
             try {
               const context = await sdk.context;
-              console.log('📊 Farcaster SDK context received:', JSON.stringify(context, null, 2));
+            console.log('📊 Mini App SDK context received:', JSON.stringify(context, null, 2));
               console.log('📊 SDK context.user:', context?.user);
               console.log('📊 SDK context.user type:', typeof context?.user);
               
               // Если получили context с пользователем, используем его данные напрямую
               if (context?.user && context.user.fid) {
-                console.log('✅ Farcaster user found in SDK context:', {
+                console.log('✅ User found in SDK context:', {
                   fid: context.user.fid,
                   username: context.user.username,
                   displayName: (context.user as any).displayName,
@@ -217,7 +217,7 @@ export default function Home() {
                   display_name: (context.user as any).displayName || context.user.username || `User ${context.user.fid}`,
                 };
                 
-                console.log('✅ Using Farcaster user from SDK context:', farcasterUser);
+                console.log('✅ Using user from SDK context:', farcasterUser);
               } else {
                 console.warn('⚠️ SDK context does not contain user data:', {
                   hasContext: !!context,
@@ -276,10 +276,10 @@ export default function Home() {
           
           if (!walletAddress) {
             // Если кошелек не найден и нет пользователя из SDK, показываем ошибку
-            console.error('❌ Farcaster wallet not detected and no user from SDK context');
+            console.error('❌ Base wallet not detected and no user from SDK context');
             setErrorModal({
               show: true,
-              message: '❌ Farcaster wallet not detected.\n\nPlease make sure:\n1. You are using Farcaster Mini App\n2. Wallet is connected and unlocked\n3. Connection requests are allowed\n\nTry refreshing the page and connecting the wallet again.'
+              message: '❌ Base wallet not detected.\n\nPlease make sure:\n1. You are using the Base app\n2. Wallet is connected and unlocked\n3. Connection requests are allowed\n\nTry refreshing the page and connecting the wallet again.'
             });
             setLoading(false);
             return;
@@ -299,9 +299,9 @@ export default function Home() {
         return;
       }
       
-      // Ищем пользователя Farcaster по адресу кошелька (если есть и еще не получили из SDK context)
+      // Ищем пользователя по адресу кошелька (если есть и еще не получили из SDK context)
       if (walletAddress && !farcasterUser) {
-        console.log('🔍 Looking for Farcaster user by wallet address:', walletAddress);
+        console.log('🔍 Looking for user by wallet address:', walletAddress);
         console.log('🔍 Wallet address validation:', {
           startsWith0x: walletAddress.startsWith('0x'),
           length: walletAddress.length,
@@ -349,7 +349,7 @@ export default function Home() {
               display_name: data.user.display_name || data.user.username || `User ${data.user.fid}`,
             };
             
-            console.log('✅ Farcaster user object created:', farcasterUser);
+            console.log('✅ User object created:', farcasterUser);
             console.log('✅ Real user data validation:', {
               hasFid: !!farcasterUser.fid,
               hasUsername: !!farcasterUser.username,
@@ -357,7 +357,7 @@ export default function Home() {
               hasDisplayName: !!farcasterUser.display_name,
             });
           } else {
-            console.warn('⚠️ Farcaster user not found for wallet address:', walletAddress);
+            console.warn('⚠️ User not found for wallet address:', walletAddress);
             console.warn('⚠️ API response structure:', {
               hasUser: !!data.user,
               userValue: data.user,
@@ -386,7 +386,7 @@ export default function Home() {
             }
           }
         } catch (error: any) {
-          console.error('❌ Failed to fetch Farcaster user by address:', error);
+          console.error('❌ Failed to fetch user by address:', error);
           console.error('❌ Error details:', {
             message: error.message,
             stack: error.stack,
@@ -396,7 +396,7 @@ export default function Home() {
           // Показываем пользователю детальную ошибку
           setErrorModal({
             show: true,
-            message: `❌ Error fetching Farcaster user data:\n\n${error.message}\n\nCheck browser console for details.`
+            message: `❌ Error fetching user data:\n\n${error.message}\n\nCheck browser console for details.`
           });
         }
       }
@@ -404,18 +404,18 @@ export default function Home() {
       // Если не нашли по адресу, пробуем другие способы
       if (!farcasterUser) {
         if (walletAddress) {
-          console.error('❌ Farcaster user not found for wallet:', walletAddress);
+          console.error('❌ User not found for wallet:', walletAddress);
           setErrorModal({
             show: true,
-            message: `Farcaster user not found for address ${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}.\n\nPossible reasons:\n1. Wallet is not linked to Farcaster account\n2. Neynar API key is not configured\n3. API cannot find user by this address\n\nCheck browser console for details.`
+            message: `User not found for address ${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}.\n\nPossible reasons:\n1. Wallet is not linked to Base account\n2. Neynar API key is not configured\n3. API cannot find user by this address\n\nCheck browser console for details.`
           });
           setLoading(false);
           return;
       } else {
-          console.error('❌ Farcaster wallet not detected');
+          console.error('❌ Base wallet not detected');
           setErrorModal({
             show: true,
-            message: 'Farcaster wallet not detected. Please use Farcaster wallet for authorization.'
+            message: 'Base wallet not detected. Please use Base app wallet for authorization.'
           });
           setLoading(false);
           return;
@@ -424,10 +424,10 @@ export default function Home() {
       
       // Проверяем, что данные пользователя валидны
       if (!farcasterUser.fid || !farcasterUser.username) {
-        console.error('❌ Invalid Farcaster user data:', farcasterUser);
+        console.error('❌ Invalid user data:', farcasterUser);
         setErrorModal({
           show: true,
-          message: 'Invalid Farcaster user data received. Please try again.'
+          message: 'Invalid user data received. Please try again.'
         });
         setLoading(false);
         return;
@@ -444,7 +444,7 @@ export default function Home() {
         return;
       }
       
-      console.log('✅ [INDEX] Setting Farcaster user via context:', {
+      console.log('✅ [INDEX] Setting user via context:', {
         fid: farcasterUser.fid,
         username: farcasterUser.username,
         hasPfp: !!farcasterUser.pfp_url,
@@ -597,7 +597,7 @@ export default function Home() {
                   {/* Фото Миссис Крипто */}
                   
                   <h2 className="text-2xl sm:text-4xl font-black text-dark mb-4 font-display tracking-tight px-4">
-                    FARCASTER AUTHORIZATION
+                    BASE AUTHORIZATION
                   </h2>
                 </div>
 
@@ -637,7 +637,7 @@ export default function Home() {
                       <span>AUTHORIZING...</span>
                     </div>
                   ) : (
-                    'CONNECT FARCASTER'
+                    'CONNECT BASE'
                   )}
                 </button>
               </div>

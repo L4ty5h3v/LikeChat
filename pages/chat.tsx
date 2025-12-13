@@ -83,7 +83,7 @@ export default function Chat() {
       return;
     }
     if (!validateUrl(castUrl)) {
-      setSubmitError('Введите корректную ссылку на каст Farcaster');
+      setSubmitError('Введите корректную ссылку на каст');
       return;
     }
     setSubmitError('');
@@ -190,7 +190,7 @@ export default function Chat() {
             {submitError && (
               <p className="text-red-600 text-sm mt-2">{submitError}</p>
             )}
-            <p className="text-xs text-gray-500 mt-2">Ссылка на ваш каст Farcaster</p>
+              <p className="text-xs text-gray-500 mt-2">Ссылка на ваш каст</p>
           </div>
         )}
 
