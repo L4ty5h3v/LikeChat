@@ -17,6 +17,7 @@ export interface LinkSubmission {
   username: string;
   pfp_url: string;
   cast_url: string;
+  token_address?: string;
   task_type: TaskType;
   created_at: string;
   completed_by?: number[]; // массив FID пользователей, которые завершили задание
@@ -43,6 +44,7 @@ export interface TaskProgress {
   link_id: string;
   cast_url: string;
   cast_hash: string; // ✅ Hash каста для проверки через Neynar API
+  token_address?: string;
   task_type: TaskType;
   user_fid_required: number;
   completed: boolean;

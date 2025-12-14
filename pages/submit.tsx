@@ -183,6 +183,7 @@ export default function Submit() {
   const { user, isLoading: authLoading, isInitialized } = useFarcasterAuth();
   const [activity, setActivity] = useState<TaskType | null>(null);
   const [castUrl, setCastUrl] = useState('');
+  const [tokenAddress, setTokenAddress] = useState('');
   const [error, setError] = useState('');
   const [canSubmit, setCanSubmit] = useState(true); // Публикация разрешена всегда
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -552,11 +553,12 @@ export default function Submit() {
       return;
     }
     
-    if (!activity || !castUrl) {
+    if (!activity || !castUrl || !tokenAddress) {
       console.error('❌ [SUBMIT] Missing required data:', {
         hasUser: !!user,
         hasActivity: !!activity,
         hasCastUrl: !!castUrl,
+        hasTokenAddress: !!tokenAddress,
       });
       setError('Заполните все обязательные поля');
       return;
@@ -596,6 +598,7 @@ export default function Submit() {
         castUrl: castUrl,
         taskType: activity, // Используем taskType вместо activityType для ясности
         activityType: activity, // Оставляем для обратной совместимости
+        tokenAddress,
       };
       
       console.log('📝 [SUBMIT] Publishing link with taskType:', {
@@ -785,6 +788,7 @@ export default function Submit() {
         
         // Очищаем форму, чтобы предотвратить повторную отправку
         setCastUrl('');
+        setTokenAddress('');
         setError('');
         
         // Публикуем cast в Farcaster только для соответствующего типа активности
@@ -1054,19 +1058,40 @@ export default function Submit() {
                   htmlFor="castUrl"
                   className="block text-lg font-bold text-gray-900 mb-3"
                 >
-                  Link to your cast:
+                  Link to your post:
                 </label>
                 <input
                   type="url"
                   id="castUrl"
                   value={castUrl}
                   onChange={(e) => setCastUrl(e.target.value)}
-                  placeholder="https://farcaster.xyz/username/0x123abc..."
+                  placeholder="https://base.app/post/..."
                   className="w-full px-6 py-4 border-2 border-gray-300 rounded-xl focus:border-primary focus:outline-none transition-colors text-lg"
                   required
                 />
                 <p className="text-sm text-gray-500 mt-2">
-                  Example: https://farcaster.xyz/username/0x123abc
+                  Example: https://base.app/post/0x...
+                </p>
+              </div>
+
+              <div className="mb-6">
+                <label
+                  htmlFor="tokenAddress"
+                  className="block text-lg font-bold text-gray-900 mb-3"
+                >
+                  Token address (ERC-20, buy()):
+                </label>
+                <input
+                  type="text"
+                  id="tokenAddress"
+                  value={tokenAddress}
+                  onChange={(e) => setTokenAddress(e.target.value)}
+                  placeholder="0x..."
+                  className="w-full px-6 py-4 border-2 border-gray-300 rounded-xl focus:border-primary focus:outline-none transition-colors text-lg"
+                  required
+                />
+                <p className="text-sm text-gray-500 mt-2">
+                  Адрес контракта токена поста для покупки на $0.01
                 </p>
               </div>
 

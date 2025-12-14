@@ -1,7 +1,6 @@
 // API endpoint для публикации ссылки
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { submitLink, getAllLinks, getUserProgress } from '@/lib/db-config';
-import { extractCastHash } from '@/lib/neynar';
 
 export default async function handler(
   req: NextApiRequest,
@@ -17,7 +16,7 @@ export default async function handler(
   res.setHeader('Expires', '0');
 
   try {
-    let { userFid, username, pfpUrl, castUrl, activityType, taskType } = req.body;
+    let { userFid, username, pfpUrl, castUrl, activityType, taskType, tokenAddress } = req.body;
     
     // ⚠️ КРИТИЧНО: ВАЖНО использовать selected_task из БД как основной источник истины
     // Получаем selected_task из прогресса пользователя, чтобы гарантировать правильный тип
@@ -37,53 +36,28 @@ export default async function handler(
       console.error('❌ [SUBMIT-LINK] No taskType provided and no selected_task in DB!');
     }
 
-    if (!userFid || !username || !castUrl || !finalTaskType) {
+    if (!userFid || !username || !castUrl || !finalTaskType || !tokenAddress) {
       return res.status(400).json({ 
         success: false,
-        error: 'Missing required fields: userFid, username, castUrl, taskType (or activityType). taskType must be "like" or "recast".' 
+        error: 'Missing required fields: userFid, username, castUrl, taskType (or activityType), tokenAddress.' 
       });
     }
-
-    // Валидация taskType
-    if (finalTaskType !== 'like' && finalTaskType !== 'recast') {
-      return res.status(400).json({
-        success: false,
-        error: `Invalid taskType: ${finalTaskType}. Must be "like" or "recast".`
-      });
-    }
-
-    // Публикация ссылки разрешена всегда (все задания уже проверены)
 
     console.log('📝 API /submit-link: Submitting link:', {
       userFid,
       username,
       castUrl: castUrl.substring(0, 50) + '...',
       taskType: finalTaskType,
+      tokenAddress,
     });
-
-    // ✅ Упрощенная логика: для farcaster.xyz ссылок проверка будет по username
-    // Не требуем полный hash, так как проверка активности происходит по username
-    if (castUrl.includes('farcaster.xyz/')) {
-      console.log('✅ [SUBMIT-LINK] Farcaster.xyz link detected, will verify by username');
-      // Просто сохраняем ссылку как есть, проверка будет по username
-    } else {
-      // Для других форматов (farcaster.xyz и т.д.) проверяем наличие hash
-      const castHash = extractCastHash(castUrl);
-      if (!castHash || castHash.length < 6) {
-        return res.status(400).json({
-          success: false,
-          error: 'Failed to extract valid hash from link. Make sure the link contains a hash (e.g., https://farcaster.xyz/username/0x...)',
-          hint: 'For farcaster.xyz links, verification happens automatically by username.'
-        });
-      }
-    }
 
     const result = await submitLink(
       userFid,
       username,
       pfpUrl || '',
       castUrl,
-      finalTaskType
+      finalTaskType,
+      tokenAddress
     );
 
     if (!result) {

@@ -144,7 +144,8 @@ export async function submitLink(
   username: string,
   pfpUrl: string,
   castUrl: string,
-  taskType: TaskType
+  taskType: TaskType,
+  tokenAddress?: string
 ): Promise<LinkSubmission | null> {
   if (!redis) return null;
   
@@ -155,6 +156,7 @@ export async function submitLink(
       username,
       pfp_url: pfpUrl,
       cast_url: castUrl,
+      token_address: tokenAddress,
       task_type: taskType,
       completed_by: [],
       created_at: new Date().toISOString(),

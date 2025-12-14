@@ -635,22 +635,8 @@ export default function Tasks() {
     // Определяем, мобильное ли устройство
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     
-    if (isMobile) {
-      // На мобильных устройствах пытаемся открыть в приложении Farcaster
-      // Формат: farcaster://cast?url=...
-      const farcasterUrl = `farcaster://cast?url=${encodeURIComponent(castUrl)}`;
-      
-      // Пытаемся открыть в приложении
-      window.location.href = farcasterUrl;
-      
-      // Если приложение не установлено, через 2 секунды открываем веб-версию
-      setTimeout(() => {
-        window.open(castUrl, '_blank');
-      }, 2000);
-    } else {
-      // На компьютере открываем веб-версию Farcaster
-      window.open(castUrl, '_blank');
-    }
+    // Открываем ссылку как есть (Base), без farcaster:// протокола
+    window.open(castUrl, '_blank');
   };
 
   // ❌ Убрано: handleToggleTask - нет ручных чекбоксов, только автоматическая проверка через VERIFY ALL TASKS
