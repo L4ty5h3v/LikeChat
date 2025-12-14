@@ -21,7 +21,7 @@ export default async function handler(
     const taskType = req.query.taskType as TaskType | undefined;
     
     // Валидация taskType
-    const validTaskTypes: TaskType[] = ['like', 'recast'];
+    const validTaskTypes: TaskType[] = ['support'];
     if (taskType && !validTaskTypes.includes(taskType)) {
       return res.status(400).json({
         error: 'Invalid task type',

@@ -30,12 +30,12 @@ export default async function handler(
     if (!taskType) {
       return res.status(400).json({
         error: 'Missing taskType',
-        message: 'taskType is required. Must be "like" or "recast".'
+        message: 'taskType is required. Must be "support".'
       });
     }
 
     // Валидация taskType
-    const validTaskTypes: TaskType[] = ['like', 'recast'];
+    const validTaskTypes: TaskType[] = ['support'];
     if (!validTaskTypes.includes(taskType)) {
       return res.status(400).json({
         error: 'Invalid task type',

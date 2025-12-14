@@ -8,7 +8,9 @@ export interface FarcasterUser {
   address?: string;
 }
 
-export type TaskType = 'like' | 'recast';
+// Base-версия: основная активность — поддержка поста покупкой post-token.
+// (Legacy like/recast оставлены временно, пока переписываем tasks/submit; после будут удалены.)
+export type TaskType = 'support' | 'like' | 'recast';
 // Обратная совместимость: ActivityType теперь является алиасом для TaskType
 export type ActivityType = TaskType;
 

@@ -9,11 +9,13 @@ interface LinkCardProps {
 import type { TaskType } from '@/types';
 
 const activityIcons: Record<TaskType, string> = {
+  support: '💎',
   like: '❤️',
   recast: '🔄',
 };
 
 const activityLabels: Record<TaskType, string> = {
+  support: 'Support',
   like: 'Like',
   recast: 'Recast',
 };

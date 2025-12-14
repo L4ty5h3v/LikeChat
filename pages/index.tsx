@@ -15,7 +15,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const { user, setUser, isLoading: authLoading, isInitialized } = useFarcasterAuth();
   const { address, isConnected } = useAccount();
-  const { connect, connectors } = useConnect();
+  const { connectAsync, connectors } = useConnect();
   const [selectedActivity, setSelectedActivity] = useState<ActivityType | null>(null);
   const [mounted, setMounted] = useState(false);
   const [errorModal, setErrorModal] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
@@ -76,11 +76,14 @@ export default function Home() {
       if (!connector) {
         throw new Error('Нет доступных коннекторов кошелька. Установите Coinbase Wallet или MetaMask.');
       }
-      connect({ connector });
+      await connectAsync({ connector });
       setSuccess(true);
-      return;
 
-      // legacy (будет удалено): Farcaster SDK/Neynar
+      /*
+        legacy (удаляем): Farcaster SDK/Neynar авторизация
+        Этот блок оставался в файле исторически. Для Base-версии не используется.
+      */
+      /*
       let farcasterUser: any = null;
       let walletAddress: string | null = null;
       
@@ -455,6 +458,7 @@ export default function Home() {
       }
       console.log('✅ Farcaster user authorized successfully:', farcasterUser);
       setSuccess(true);
+      */
     } catch (error: any) {
       console.error('❌ Error during Farcaster authorization:', error);
       console.error('❌ Error details:', {
@@ -625,7 +629,10 @@ export default function Home() {
                   <h3 className="text-xl font-bold text-gray-900">
                     @{user.username}
                   </h3>
-                  <p className="text-sm text-gray-600">FID: {user.fid}</p>
+                  <p className="text-sm text-gray-600">
+                    ID: {user.fid}
+                    {user.address ? ` • ${user.address}` : ''}
+                  </p>
                 </div>
                 <div className="text-green-500 text-2xl">✓</div>
               </div>
@@ -640,59 +647,30 @@ export default function Home() {
                 </p>
 
                 {/* Стеклянные кнопки активности в стиле glassmorphism */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-8 sm:mb-12">
-                  {/* Кнопка Лайк */}
+                <div className="grid grid-cols-1 gap-4 sm:gap-6 mb-8 sm:mb-12">
+                  {/* Support (покупка post-token) */}
                   <button
-                    onClick={() => handleActivitySelect('like')}
+                    onClick={() => handleActivitySelect('support')}
                     className={`btn-gold-glow px-4 sm:px-8 py-4 sm:py-6 text-white font-bold text-base sm:text-lg group ${
-                      selectedActivity === 'like' 
-                        ? 'shadow-2xl shadow-purple-500/50 ring-4 ring-purple-500/30' 
+                      selectedActivity === 'support'
+                        ? 'shadow-2xl shadow-purple-500/50 ring-4 ring-purple-500/30'
                         : ''
                     }`}
                   >
-                    {/* Переливающийся эффект */}
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 z-10"></div>
-                    
                     <div className="flex items-center justify-between relative z-20">
                       <div className="flex items-center gap-2 sm:gap-3">
-                        <span className="text-2xl sm:text-3xl drop-shadow-lg">❤️</span>
-                        <span className="drop-shadow-lg">LIKE</span>
+                        <span className="text-2xl sm:text-3xl drop-shadow-lg">💎</span>
+                        <span className="drop-shadow-lg">SUPPORT</span>
                       </div>
-                      <div className="text-xl sm:text-2xl drop-shadow-lg">💫</div>
+                      <div className="text-xl sm:text-2xl drop-shadow-lg">$0.01</div>
                     </div>
-                    {selectedActivity === 'like' && (
+                    {selectedActivity === 'support' && (
                       <div className="absolute -top-2 -right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center shadow-lg z-20">
                         <span className="text-white text-sm font-bold">✓</span>
                       </div>
                     )}
                   </button>
-
-                  {/* Кнопка Рекаст */}
-                  <button
-                    onClick={() => handleActivitySelect('recast')}
-                    className={`btn-gold-glow px-4 sm:px-8 py-4 sm:py-6 text-white font-bold text-base sm:text-lg group ${
-                      selectedActivity === 'recast' 
-                        ? 'shadow-2xl shadow-purple-500/50 ring-4 ring-purple-500/30' 
-                        : ''
-                    }`}
-                  >
-                    {/* Переливающийся эффект */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 z-10"></div>
-                    
-                    <div className="flex items-center justify-between relative z-20">
-                      <div className="flex items-center gap-2 sm:gap-3">
-                        <span className="text-2xl sm:text-3xl drop-shadow-lg">🔄</span>
-                        <span className="drop-shadow-lg">RECAST</span>
-                      </div>
-                      <div className="text-xl sm:text-2xl drop-shadow-lg">⚡</div>
-                    </div>
-                    {selectedActivity === 'recast' && (
-                      <div className="absolute -top-2 -right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center shadow-lg z-20">
-                        <span className="text-white text-sm font-bold">✓</span>
-                      </div>
-                    )}
-                  </button>
-
                 </div>
               </div>
             </div>
