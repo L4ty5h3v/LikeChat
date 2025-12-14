@@ -52,15 +52,15 @@ export const FarcasterAuthProvider: React.FC<FarcasterAuthProviderProps> = ({ ch
         try {
           const savedUser: BaseUser = JSON.parse(savedUserStr);
           
-          // Валидация: проверяем, что fid валидный
-          if (savedUser && savedUser.fid && typeof savedUser.fid === 'number' && savedUser.fid > 0) {
+          // Валидация для Base: допускаем fid === 0, главное чтобы был username или address
+          if (savedUser && (savedUser.username || (savedUser as any).address)) {
             console.log('✅ [AUTH-CONTEXT] Valid user loaded from localStorage:', {
               fid: savedUser.fid,
               username: savedUser.username,
             });
             setUserState(savedUser);
           } else {
-            console.warn('⚠️ [AUTH-CONTEXT] Invalid user data in localStorage (invalid fid):', savedUser);
+            console.warn('⚠️ [AUTH-CONTEXT] Invalid user data in localStorage:', savedUser);
             localStorage.removeItem('base_user');
           }
         } catch (parseError) {
@@ -95,17 +95,14 @@ export const FarcasterAuthProvider: React.FC<FarcasterAuthProviderProps> = ({ ch
     
     if (typeof window !== 'undefined') {
       if (newUser) {
-        // Валидируем данные перед сохранением
-        if (newUser.fid && typeof newUser.fid === 'number' && newUser.fid > 0) {
-          const userJson = JSON.stringify(newUser);
-          localStorage.setItem('base_user', userJson);
-          console.log('✅ [AUTH-CONTEXT] User saved to localStorage:', {
-            fid: newUser.fid,
-            username: newUser.username,
-          });
-        } else {
-          console.error('❌ [AUTH-CONTEXT] Invalid user data, not saving:', newUser);
-        }
+        // Для Base сохраняем всегда (если есть хоть какие-то идентификаторы)
+        const userJson = JSON.stringify(newUser);
+        localStorage.setItem('base_user', userJson);
+        console.log('✅ [AUTH-CONTEXT] User saved to localStorage:', {
+          fid: newUser.fid,
+          username: newUser.username,
+          address: (newUser as any).address,
+        });
       } else {
         // Если newUser null, очищаем localStorage
         logout();

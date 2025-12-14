@@ -5,6 +5,7 @@ export interface FarcasterUser {
   username: string;
   pfp_url: string;
   display_name?: string;
+  address?: string;
 }
 
 export type TaskType = 'like' | 'recast';

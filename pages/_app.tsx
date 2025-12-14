@@ -36,49 +36,7 @@ export default function App({ Component, pageProps }: AppProps) {
     };
   }, []);
 
-  // Вызываем sdk.actions.ready() для Farcaster Mini App
-  useEffect(() => {
-    let mounted = true;
-    
-    const callReady = async () => {
-      try {
-        if (typeof window === 'undefined' || !mounted) {
-          return;
-        }
-
-        // Проверяем, что мы в iframe Farcaster Mini App
-        const isInFarcasterFrame = window.self !== window.top;
-        
-        if (!isInFarcasterFrame) {
-          console.log('ℹ️ [_APP] Not running in Farcaster Mini App frame, skipping ready()');
-          return;
-        }
-
-        // Динамический импорт для избежания SSR проблем
-        const { sdk } = await import('@farcaster/miniapp-sdk');
-        
-        if (!mounted) return;
-        
-        // Проверяем, что SDK доступен
-        if (sdk && sdk.actions && typeof sdk.actions.ready === 'function') {
-          await sdk.actions.ready();
-          console.log('✅ [_APP] Farcaster Mini App SDK ready() called successfully');
-        } else {
-          console.warn('⚠️ [_APP] Farcaster Mini App SDK not properly initialized', { sdk });
-        }
-      } catch (error: any) {
-        if (mounted) {
-          console.log('ℹ️ [_APP] Farcaster Mini App SDK not available:', error?.message || 'running in regular browser');
-        }
-      }
-    };
-
-    callReady();
-    
-    return () => {
-      mounted = false;
-    };
-  }, []);
+  // Base-версия: Farcaster Mini App SDK не используем
 
   return (
     <>

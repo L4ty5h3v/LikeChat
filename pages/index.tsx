@@ -6,14 +6,16 @@ import Layout from '@/components/Layout';
 import ActivityButton from '@/components/ActivityButton';
 import Button from '@/components/Button';
 import { setUserActivity } from '@/lib/db-config';
-import { getUserByFid } from '@/lib/neynar';
-import type { ActivityType, FarcasterUser } from '@/types';
+import type { ActivityType } from '@/types';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
+import { useAccount, useConnect } from 'wagmi';
 
 export default function Home() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const { user, setUser, isLoading: authLoading, isInitialized } = useFarcasterAuth();
+  const { address, isConnected } = useAccount();
+  const { connect, connectors } = useConnect();
   const [selectedActivity, setSelectedActivity] = useState<ActivityType | null>(null);
   const [mounted, setMounted] = useState(false);
   const [errorModal, setErrorModal] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
@@ -45,40 +47,8 @@ export default function Home() {
         });
       }
       
-    const savedUser = localStorage.getItem('farcaster_user');
     const savedActivity = localStorage.getItem('selected_activity');
-    
-    if (savedUser) {
-        try {
-          const parsedUser = JSON.parse(savedUser);
-          console.log('🔍 Loading saved user from localStorage:', parsedUser);
-          
-          // Проверяем валидность данных пользователя
-          // Если данные не валидны (например, случайный пользователь), очищаем их
-          if (parsedUser && parsedUser.fid && parsedUser.username) {
-            // Проверяем, что это не случайный пользователь (например, user_176369225243)
-            const isRandomUser = parsedUser.username.startsWith('user_') && 
-                                 parsedUser.username.match(/^user_\d+$/);
-            
-            if (isRandomUser) {
-              console.warn('⚠️ Random user detected in localStorage, clearing...');
-              localStorage.removeItem('farcaster_user');
-              setUser(null);
-            } else {
-              console.log('✅ Valid user data loaded from localStorage');
-              setUser(parsedUser);
-            }
-          } else {
-            console.warn('⚠️ Invalid user data in localStorage, clearing...');
-            localStorage.removeItem('farcaster_user');
-            setUser(null);
-          }
-        } catch (error) {
-          console.error('❌ Error parsing saved user:', error);
-          localStorage.removeItem('farcaster_user');
-          setUser(null);
-        }
-    }
+    // user загружается из контекста (localStorage base_user) + из wagmi (AuthSync)
     
     if (savedActivity) {
       setSelectedActivity(savedActivity as ActivityType);
@@ -88,29 +58,30 @@ export default function Home() {
 
   // Авторизация через Base (кошелек в Base App)
   const handleConnect = async () => {
-    console.log('🔗 Base authorization called');
-    console.log('🔍 Current state:', { loading, user, mounted });
-    
-    // Предотвращаем повторные вызовы
-    if (loading) {
-      console.warn('⚠️ Already loading');
-      return;
-    }
-    
+    if (loading) return;
+
     // Очищаем старые данные перед подключением
     if (typeof window !== 'undefined') {
-      console.log('🧹 Clearing old user data from localStorage');
-      localStorage.removeItem('farcaster_user');
+      localStorage.removeItem('base_user');
       setUser(null);
     }
-    
-    // Сбрасываем состояние ошибки и успеха
+
     setErrorModal({ show: false, message: '' });
     setSuccess(false);
     setLoading(true);
     
     try {
-      let farcasterUser: FarcasterUser | null = null;
+      // Base: подключаем кошелёк через wagmi (без Farcaster SDK)
+      const connector = connectors?.[0];
+      if (!connector) {
+        throw new Error('Нет доступных коннекторов кошелька. Установите Coinbase Wallet или MetaMask.');
+      }
+      connect({ connector });
+      setSuccess(true);
+      return;
+
+      // legacy (будет удалено): Farcaster SDK/Neynar
+      let farcasterUser: any = null;
       let walletAddress: string | null = null;
       
       // Пытаемся получить адрес кошелька через Base (Mini App SDK)
@@ -504,11 +475,11 @@ export default function Home() {
       return; // Явно выходим из функции
     } finally {
       // Проверяем успешность авторизации по наличию пользователя
-      const wasSuccessful = typeof window !== 'undefined' && localStorage.getItem('farcaster_user');
+      const wasSuccessful = typeof window !== 'undefined' && localStorage.getItem('base_user');
       if (wasSuccessful) {
-        console.log('✅ Farcaster authorization completed');
+        console.log('✅ Base authorization completed');
       } else {
-        console.log('❌ Farcaster authorization failed');
+        console.log('❌ Base authorization failed');
       }
       // Убеждаемся, что loading сбрасывается в finally
       setLoading(false);
