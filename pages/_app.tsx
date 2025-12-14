@@ -2,10 +2,23 @@ import '@/styles/globals.css';
 import type { AppProps } from 'next/app';
 import Head from 'next/head';
 import { useEffect } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { WagmiProvider, createConfig, http } from 'wagmi';
 import { base } from 'wagmi/chains';
-import { OnchainKitProvider } from '@coinbase/onchainkit';
+import { injected } from 'wagmi/connectors';
 import { FarcasterAuthProvider } from '@/contexts/FarcasterAuthContext';
 import { AuthSync } from '@/components/AuthSync';
+
+const queryClient = new QueryClient();
+
+const wagmiConfig = createConfig({
+  chains: [base],
+  connectors: [injected()],
+  transports: {
+    [base.id]: http(),
+  },
+  ssr: true,
+});
 
 export default function App({ Component, pageProps }: AppProps) {
   // Глобальный обработчик ошибок для отлова неперехваченных ошибок
@@ -43,25 +56,14 @@ export default function App({ Component, pageProps }: AppProps) {
       <Head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
       </Head>
-      <OnchainKitProvider
-        chain={base} // КРИТИЧНО: base из wagmi/chains имеет chainId 8453
-        config={{
-          appearance: {
-            name: 'Multi Like',
-            logo: '/mrs-crypto.png',
-            theme: 'default',
-            mode: 'auto',
-          },
-        }}
-        miniKit={{
-          enabled: true,
-        }}
-      >
-        <FarcasterAuthProvider>
-          <AuthSync />
-          <Component {...pageProps} />
-        </FarcasterAuthProvider>
-      </OnchainKitProvider>
+      <WagmiProvider config={wagmiConfig}>
+        <QueryClientProvider client={queryClient}>
+          <FarcasterAuthProvider>
+            <AuthSync />
+            <Component {...pageProps} />
+          </FarcasterAuthProvider>
+        </QueryClientProvider>
+      </WagmiProvider>
     </>
   );
 }

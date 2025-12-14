@@ -99,22 +99,15 @@ export default function Home() {
         if (typeof window !== 'undefined') {
           try {
             // Динамический импорт SDK с таймаутом
-            console.log('📦 [WALLET-CONNECT] Importing Mini App SDK...');
-            const sdkModule = await Promise.race([
-              import('@farcaster/miniapp-sdk'),
-              new Promise((_, reject) => 
-                setTimeout(() => reject(new Error('SDK import timeout (5s)')), 5000)
-              )
-            ]) as any;
-            const { sdk } = sdkModule;
-            console.log('✅ [WALLET-CONNECT] SDK imported successfully');
+            // (удалено) Farcaster Mini App SDK
+            const sdkModule = null as any;
+            const { sdk } = sdkModule || {};
             
             // Пробуем получить Ethereum провайдер через SDK
             console.log('🔄 Trying to get Ethereum provider via SDK...');
             try {
-              // Импортируем getEthereumProvider напрямую из ethereumProvider
-              const { getEthereumProvider } = await import('@farcaster/miniapp-sdk/dist/ethereumProvider');
-              const provider = await getEthereumProvider();
+              // (удалено) getEthereumProvider через Farcaster SDK
+              const provider = null as any;
               if (provider) {
                 console.log('✅ Ethereum provider obtained from SDK');
                 // Получаем адрес кошелька через провайдер
@@ -283,14 +276,7 @@ export default function Home() {
         });
         
         try {
-          console.log('📡 Sending request to /api/farcaster-user...');
-          const response = await fetch('/api/farcaster-user', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ walletAddress }),
-          });
+          const response = null as any;
 
           console.log('📡 Response status:', response.status);
           console.log('📡 Response ok:', response.ok);

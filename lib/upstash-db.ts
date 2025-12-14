@@ -1,6 +1,5 @@
 import { Redis } from '@upstash/redis';
 import type { LinkSubmission, UserProgress, TaskType } from '@/types';
-import { getCastAuthor, getUserByUsername } from '@/lib/neynar';
 
 // Инициализация Redis клиента
 let redis: Redis | null = null;
@@ -336,7 +335,7 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
       await clearAllLinks();
     }
 
-    // Список начальных ссылок - по 10 для каждого типа активности (всего 30 ссылок)
+    // Список начальных ссылок (Base)
     const baseLinks = [
       'https://base.app/post/0x0c9e45b37e2db246d9544689bfbed28bca434be',
       'https://base.app/post/0x06ec6e3b5d340f8f7197324a96bf870265e78c2a',
@@ -350,269 +349,25 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
       'https://base.app/post/0x281b68bb29c5b64194a580da8f678db4831cc1c1',
     ];
 
-    // Получаем реальные данные авторов кастов через Neynar API
-    const taskTypes: TaskType[] = ['like', 'recast'];
+    // Base: без Neynar. Генерируем тестовые записи только под support.
+    const taskTypes: TaskType[] = ['support'];
     const baseTimestamp = Date.now();
     const linksToAdd: LinkSubmission[] = [];
-    const userCache = new Map<string, { fid: number; username: string; pfp_url: string }>();
 
-    // Создаем по 10 ссылок для каждого типа активности (всего 30 ссылок)
-    for (let taskIndex = 0; taskIndex < taskTypes.length; taskIndex++) {
-      const taskType = taskTypes[taskIndex];
-      
-      for (let linkIndex = 0; linkIndex < baseLinks.length; linkIndex++) {
-        const castUrl = baseLinks[linkIndex];
-        const index = taskIndex * baseLinks.length + linkIndex;
-        
-        console.log(`🔍 Fetching cast author data for: ${castUrl} [${taskType}]`);
-        
-        try {
-        // Получаем реальные данные автора каста
-        const authorData = await getCastAuthor(castUrl);
-        
-        if (authorData && authorData.fid && authorData.username) {
-          userCache.set(authorData.username.toLowerCase(), {
-            fid: authorData.fid,
-            username: authorData.username,
-            pfp_url: authorData.pfp_url,
-          });
-          linksToAdd.push({
-            id: `init_link_${index + 1}_${baseTimestamp + index}`,
-            user_fid: authorData.fid,
-            username: authorData.username,
-            pfp_url: authorData.pfp_url,
-            cast_url: castUrl,
-            task_type: taskType,
-            completed_by: [],
-            created_at: new Date().toISOString(),
-          });
-          console.log(`✅ [${index + 1}/${baseLinks.length * taskTypes.length}] Loaded real data for @${authorData.username} (FID: ${authorData.fid}) [${taskType}]`);
-        } else {
-          // Если не удалось получить данные из каста, пытаемся получить данные пользователя по username из URL
-          console.warn(`⚠️ [${index + 1}/${baseLinks.length * taskTypes.length}] Failed to get author data from cast for ${castUrl}`);
-          console.warn(`⚠️ Author data received:`, authorData);
-          console.warn(`⚠️ Cast may not exist in Neynar API, trying to get user by username from URL...`);
-          
-          // Извлекаем hash из URL для использования в fallback
-          const castHash = castUrl.match(/0x[a-fA-F0-9]+/)?.[0] || `hash_${index}`;
-          
-          // Пытаемся извлечь username из URL (если есть)
-          // Формат: https://farcaster.xyz/svs-smm/0xf9660a16
-          const urlMatch = castUrl.match(/farcaster\.xyz\/([^\/]+)/);
-          const usernameFromUrl = urlMatch ? urlMatch[1] : null;
-          
-          // Пытаемся получить данные пользователя по username через Neynar API
-          let userData = null;
-          let cachedUser = null;
-          if (usernameFromUrl) {
-            cachedUser = userCache.get(usernameFromUrl.toLowerCase()) || null;
-          }
-
-          if (usernameFromUrl && !cachedUser) {
-            try {
-              console.log(`🔍 [${index + 1}/${baseLinks.length * taskTypes.length}] Trying to get user data by username: ${usernameFromUrl}`);
-              userData = await getUserByUsername(usernameFromUrl);
-              
-              console.log(`🔍 [${index + 1}/${baseLinks.length * taskTypes.length}] getUserByUsername returned:`, {
-                hasData: !!userData,
-                fid: userData?.fid,
-                username: userData?.username,
-                display_name: userData?.display_name,
-                hasPfp: !!(userData?.pfp || userData?.pfp_url || userData?.profile?.pfp),
-                pfpUrl: userData?.pfp?.url || userData?.pfp_url || userData?.profile?.pfp?.url,
-                rawData: userData,
-              });
-              
-              if (userData && userData.fid) {
-                console.log(`✅ [${index + 1}/${baseLinks.length * taskTypes.length}] Got user data by username: @${userData.username || userData.display_name} (FID: ${userData.fid})`);
-              } else {
-                console.warn(`⚠️ [${index + 1}/${baseLinks.length * taskTypes.length}] User data not found or invalid for username: ${usernameFromUrl}`);
-                console.warn(`⚠️ [${index + 1}/${baseLinks.length * taskTypes.length}] UserData received:`, userData);
-              }
-
-              if (userData && userData.fid && userData.username) {
-                userCache.set(userData.username.toLowerCase(), {
-                  fid: userData.fid,
-                  username: userData.username,
-                  pfp_url: userData?.pfp?.url || userData?.pfp_url || userData?.profile?.pfp?.url || '',
-                });
-              }
-            } catch (userError: any) {
-              console.error(`❌ [${index + 1}/${baseLinks.length * taskTypes.length}] Failed to get user by username:`, {
-                message: userError?.message,
-                stack: userError?.stack,
-                response: userError?.response?.data,
-                status: userError?.response?.status,
-              });
-            }
-          } else {
-            console.warn(`⚠️ [${index + 1}/${baseLinks.length * taskTypes.length}] No username extracted from URL: ${castUrl}`);
-          }
-          
-          // Если username из URL не найден, но это может быть реальный пользователь,
-          // попробуем использовать данные из других источников или создать временные данные с более реалистичными значениями
-          if (!userData && cachedUser) {
-            userData = cachedUser;
-          }
-
-          if (!userData && usernameFromUrl) {
-            console.warn(`⚠️ Could not fetch real user data for ${usernameFromUrl}, but will use it as username`);
-          }
-          
-          // Если получили данные пользователя, используем их
-          if (userData && userData.fid) {
-            // Извлекаем pfp_url из различных форматов ответа Neynar API
-            let pfpUrl = null;
-            const userDataAny = userData as any; // Type assertion для обработки разных форматов
-            if (userDataAny.pfp?.url) {
-              pfpUrl = userDataAny.pfp.url;
-            } else if (userDataAny.pfp_url) {
-              pfpUrl = userDataAny.pfp_url;
-            } else if (userDataAny.pfp) {
-              pfpUrl = typeof userDataAny.pfp === 'string' ? userDataAny.pfp : userDataAny.pfp.url;
-            } else if (userDataAny.profile?.pfp?.url) {
-              pfpUrl = userDataAny.profile.pfp.url;
-            } else if (userDataAny.profile?.pfp_url) {
-              pfpUrl = userDataAny.profile.pfp_url;
-            }
-            
-            // Если не нашли pfp_url, используем fallback
-            if (!pfpUrl) {
-              pfpUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.fid}`;
-            }
-
-            userCache.set((userData.username || usernameFromUrl || `user_${index + 1}`).toLowerCase(), {
-              fid: userData.fid,
-              username: userData.username || usernameFromUrl || `user_${index + 1}`,
-              pfp_url: pfpUrl,
-            });
-            
-            linksToAdd.push({
-              id: `init_link_${index + 1}_${baseTimestamp + index}`,
-              user_fid: userData.fid,
-              username: userData.username || (userDataAny.display_name) || usernameFromUrl || `user_${index + 1}`,
-              pfp_url: pfpUrl,
-              cast_url: castUrl,
-              task_type: taskType,
-              completed_by: [],
-              created_at: new Date().toISOString(),
-            });
-            console.log(`✅ [${index + 1}/${baseLinks.length * taskTypes.length}] Loaded real user data by username: @${userData.username || (userDataAny.display_name)} (FID: ${userData.fid}, pfp: ${pfpUrl}) [${taskType}]`);
-          } else {
-            // Если не удалось получить данные пользователя, используем fallback
-            linksToAdd.push({
-              id: `init_link_${index + 1}_${baseTimestamp + index}`,
-              user_fid: 0, // Временный FID
-              username: usernameFromUrl || `user_${index + 1}`, // Используем username из URL если есть
-              pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${castHash}`,
-              cast_url: castUrl,
-              task_type: taskType,
-              completed_by: [],
-              created_at: new Date().toISOString(),
-            });
-            console.log(`⚠️ [${index + 1}/${baseLinks.length * taskTypes.length}] Using fallback data for ${castUrl} (username: ${usernameFromUrl || `user_${index + 1}`}) [${taskType}]`);
-          }
-        }
-      } catch (error: any) {
-        console.error(`❌ [${index + 1}/${baseLinks.length * taskTypes.length}] Error fetching author data for ${castUrl}:`, error);
-        console.error(`❌ Error details:`, {
-          message: error.message,
-          stack: error.stack,
-        });
-        
-        // Используем fallback вместо выброса ошибки, чтобы система могла работать
-        const castHash = castUrl.match(/0x[a-fA-F0-9]+/)?.[0] || `hash_${index}`;
-        
-        // Пытаемся извлечь username из URL (если есть)
-        const urlMatch = castUrl.match(/farcaster\.xyz\/([^\/]+)/);
-        const usernameFromUrl = urlMatch ? urlMatch[1] : null;
-        
-        // Пытаемся получить данные пользователя по username даже при ошибке
-        let userData = null;
-        if (usernameFromUrl) {
-          const cachedUser = userCache.get(usernameFromUrl.toLowerCase()) || null;
-          try {
-            console.log(`🔍 Retrying to get user data by username after error: ${usernameFromUrl}`);
-            // Добавляем небольшую задержку перед повторной попыткой
-            await new Promise(resolve => setTimeout(resolve, 500));
-            userData = cachedUser || await getUserByUsername(usernameFromUrl);
-            if (userData && userData.fid) {
-              console.log(`✅ Got user data by username after error: @${userData.username} (FID: ${userData.fid})`);
-              const userDataAnyRetry = userData as any;
-              userCache.set((userData.username || usernameFromUrl).toLowerCase(), {
-                fid: userData.fid,
-                username: userData.username || usernameFromUrl,
-                pfp_url: userDataAnyRetry?.pfp?.url || userDataAnyRetry?.pfp_url || userDataAnyRetry?.profile?.pfp?.url || '',
-              });
-            }
-          } catch (retryError: any) {
-            console.warn(`⚠️ Retry failed to get user by username:`, retryError?.message);
-          }
-        }
-        
-        // Если получили данные пользователя, используем их
-        if (!userData && usernameFromUrl) {
-          userData = userCache.get(usernameFromUrl.toLowerCase()) || null;
-        }
-
-        if (userData && userData.fid) {
-          let pfpUrl = null;
-          const userDataAny = userData as any; // Type assertion для обработки разных форматов
-          if (userDataAny.pfp?.url) {
-            pfpUrl = userDataAny.pfp.url;
-          } else if (userDataAny.pfp_url) {
-            pfpUrl = userDataAny.pfp_url;
-          } else if (userDataAny.pfp) {
-            pfpUrl = typeof userDataAny.pfp === 'string' ? userDataAny.pfp : userDataAny.pfp.url;
-          } else if (userDataAny.profile?.pfp?.url) {
-            pfpUrl = userDataAny.profile.pfp.url;
-          } else if (userDataAny.profile?.pfp_url) {
-            pfpUrl = userDataAny.profile.pfp_url;
-          }
-          
-          if (!pfpUrl) {
-            pfpUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.fid}`;
-          }
-
-          userCache.set((userData.username || usernameFromUrl || `user_${index + 1}`).toLowerCase(), {
-            fid: userData.fid,
-            username: userData.username || usernameFromUrl || `user_${index + 1}`,
-            pfp_url: pfpUrl,
-          });
-          
-          linksToAdd.push({
-            id: `init_link_${index + 1}_${baseTimestamp + index}`,
-            user_fid: userData.fid,
-            username: userData.username || (userDataAny.display_name) || usernameFromUrl || `user_${index + 1}`,
-            pfp_url: pfpUrl,
-            cast_url: castUrl,
-            task_type: taskType,
-            completed_by: [],
-            created_at: new Date().toISOString(),
-          });
-          console.log(`✅ [${index + 1}/${baseLinks.length * taskTypes.length}] Loaded real user data after error: @${userData.username || (userDataAny.display_name)} (FID: ${userData.fid}, pfp: ${pfpUrl}) [${taskType}]`);
-        } else {
-          // Если не удалось получить данные пользователя, используем fallback
-          linksToAdd.push({
-            id: `init_link_${index + 1}_${baseTimestamp + index}`,
-            user_fid: 0,
-            username: usernameFromUrl || `user_${index + 1}`, // Используем username из URL если есть
-            pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${castHash}`,
-            cast_url: castUrl,
-            task_type: taskType,
-            completed_by: [],
-            created_at: new Date().toISOString(),
-          });
-          console.log(`⚠️ [${index + 1}/${baseLinks.length * taskTypes.length}] Using fallback data due to error for ${castUrl} (username: ${usernameFromUrl || `user_${index + 1}`}) [${taskType}]`);
-        }
-      }
-      
-      // Задержка между запросами, чтобы не перегружать API и избежать rate limiting
-      const delay = 500;
-      if (index < baseLinks.length * taskTypes.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
-      }
+    for (let linkIndex = 0; linkIndex < baseLinks.length; linkIndex++) {
+      const castUrl = baseLinks[linkIndex];
+      const index = linkIndex;
+      linksToAdd.push({
+        id: `init_link_${index + 1}_${baseTimestamp + index}`,
+        user_fid: 0,
+        username: `base_user_${index + 1}`,
+        pfp_url: `https://api.dicebear.com/7.x/identicon/svg?seed=base_user_${index + 1}`,
+        cast_url: castUrl,
+        task_type: 'support',
+        token_address: undefined,
+        completed_by: [],
+        created_at: new Date().toISOString(),
+      });
     }
 
     // Добавляем ссылки в Redis (в правильном порядке, первая - последняя)
@@ -629,7 +384,7 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
       await redis.lpush(KEYS.LINKS, JSON.stringify(link));
     }
 
-    // Устанавливаем счетчик (всего должно быть 20 ссылок: 10 like + 10 recast)
+    // Устанавливаем счетчик
     await redis.set(KEYS.TOTAL_LINKS_COUNT, baseLinks.length * taskTypes.length);
 
     console.log(`✅ Successfully initialized ${linksToAdd.length} links`);
@@ -652,9 +407,9 @@ export async function addLinksForTaskType(taskType: TaskType): Promise<{ success
 
   try {
     // Валидация taskType
-    const validTaskTypes: TaskType[] = ['like', 'recast'];
+    const validTaskTypes: TaskType[] = ['support'];
     if (!validTaskTypes.includes(taskType)) {
-      return { success: false, count: 0, error: `Invalid task type: ${taskType}. Must be "like" or "recast".` };
+      return { success: false, count: 0, error: `Invalid task type: ${taskType}. Must be "support".` };
     }
 
     // Список начальных ссылок
@@ -673,200 +428,20 @@ export async function addLinksForTaskType(taskType: TaskType): Promise<{ success
 
     const baseTimestamp = Date.now();
     const linksToAdd: LinkSubmission[] = [];
-    const userCache = new Map<string, { fid: number; username: string; pfp_url: string }>();
-
-    // Создаем 10 ссылок для указанного типа
     for (let linkIndex = 0; linkIndex < baseLinks.length; linkIndex++) {
       const castUrl = baseLinks[linkIndex];
       const index = linkIndex;
-      
-      console.log(`🔍 [ADD-LINKS] Fetching cast author data for: ${castUrl} [${taskType}]`);
-      
-      try {
-        // Получаем реальные данные автора каста
-        const authorData = await getCastAuthor(castUrl);
-        
-        if (authorData && authorData.fid && authorData.username) {
-          userCache.set(authorData.username.toLowerCase(), {
-            fid: authorData.fid,
-            username: authorData.username,
-            pfp_url: authorData.pfp_url,
-          });
-          linksToAdd.push({
-            id: `add_link_${taskType}_${index + 1}_${baseTimestamp + index}`,
-            user_fid: authorData.fid,
-            username: authorData.username,
-            pfp_url: authorData.pfp_url,
-            cast_url: castUrl,
-            task_type: taskType,
-            completed_by: [],
-            created_at: new Date().toISOString(),
-          });
-          console.log(`✅ [ADD-LINKS] [${index + 1}/${baseLinks.length}] Loaded real data for @${authorData.username} (FID: ${authorData.fid}) [${taskType}]`);
-        } else {
-          // Если не удалось получить данные из каста, пытаемся получить данные пользователя по username из URL
-          console.warn(`⚠️ [ADD-LINKS] [${index + 1}/${baseLinks.length}] Failed to get author data from cast for ${castUrl}`);
-          
-          const castHash = castUrl.match(/0x[a-fA-F0-9]+/)?.[0] || `hash_${index}`;
-          const urlMatch = castUrl.match(/farcaster\.xyz\/([^\/]+)/);
-          const usernameFromUrl = urlMatch ? urlMatch[1] : null;
-          
-          let userData = null;
-          let cachedUser = null;
-          if (usernameFromUrl) {
-            cachedUser = userCache.get(usernameFromUrl.toLowerCase()) || null;
-          }
-
-          if (usernameFromUrl && !cachedUser) {
-            try {
-              console.log(`🔍 [ADD-LINKS] [${index + 1}/${baseLinks.length}] Trying to get user data by username: ${usernameFromUrl}`);
-              userData = await getUserByUsername(usernameFromUrl);
-              
-              if (userData && userData.fid && userData.username) {
-                userCache.set(userData.username.toLowerCase(), {
-                  fid: userData.fid,
-                  username: userData.username,
-                  pfp_url: userData?.pfp?.url || userData?.pfp_url || userData?.profile?.pfp?.url || '',
-                });
-              }
-            } catch (userError: any) {
-              console.error(`❌ [ADD-LINKS] [${index + 1}/${baseLinks.length}] Failed to get user by username:`, userError?.message);
-            }
-          } else if (cachedUser) {
-            userData = cachedUser;
-          }
-
-          if (userData && userData.fid) {
-            const userDataAny = userData as any;
-            let pfpUrl = null;
-            if (userDataAny.pfp?.url) {
-              pfpUrl = userDataAny.pfp.url;
-            } else if (userDataAny.pfp_url) {
-              pfpUrl = userDataAny.pfp_url;
-            } else if (userDataAny.pfp) {
-              pfpUrl = typeof userDataAny.pfp === 'string' ? userDataAny.pfp : userDataAny.pfp.url;
-            } else if (userDataAny.profile?.pfp?.url) {
-              pfpUrl = userDataAny.profile.pfp.url;
-            } else if (userDataAny.profile?.pfp_url) {
-              pfpUrl = userDataAny.profile.pfp_url;
-            }
-            
-            if (!pfpUrl) {
-              pfpUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.fid}`;
-            }
-
-            userCache.set((userData.username || usernameFromUrl || `user_${index + 1}`).toLowerCase(), {
-              fid: userData.fid,
-              username: userData.username || usernameFromUrl || `user_${index + 1}`,
-              pfp_url: pfpUrl,
-            });
-            
-            linksToAdd.push({
-              id: `add_link_${taskType}_${index + 1}_${baseTimestamp + index}`,
-              user_fid: userData.fid,
-              username: userData.username || (userDataAny.display_name) || usernameFromUrl || `user_${index + 1}`,
-              pfp_url: pfpUrl,
-              cast_url: castUrl,
-              task_type: taskType,
-              completed_by: [],
-              created_at: new Date().toISOString(),
-            });
-            console.log(`✅ [ADD-LINKS] [${index + 1}/${baseLinks.length}] Loaded real user data by username: @${userData.username || (userDataAny.display_name)} (FID: ${userData.fid}) [${taskType}]`);
-          } else {
-            // Fallback
-            linksToAdd.push({
-              id: `add_link_${taskType}_${index + 1}_${baseTimestamp + index}`,
-              user_fid: 0,
-              username: usernameFromUrl || `user_${index + 1}`,
-              pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${castHash}`,
-              cast_url: castUrl,
-              task_type: taskType,
-              completed_by: [],
-              created_at: new Date().toISOString(),
-            });
-            console.log(`⚠️ [ADD-LINKS] [${index + 1}/${baseLinks.length}] Using fallback data for ${castUrl} (username: ${usernameFromUrl || `user_${index + 1}`}) [${taskType}]`);
-          }
-        }
-      } catch (error: any) {
-        console.error(`❌ [ADD-LINKS] [${index + 1}/${baseLinks.length}] Error fetching author data for ${castUrl}:`, error.message);
-        
-        const castHash = castUrl.match(/0x[a-fA-F0-9]+/)?.[0] || `hash_${index}`;
-        const urlMatch = castUrl.match(/farcaster\.xyz\/([^\/]+)/);
-        const usernameFromUrl = urlMatch ? urlMatch[1] : null;
-        
-        let userData = null;
-        if (usernameFromUrl) {
-          const cachedUser = userCache.get(usernameFromUrl.toLowerCase()) || null;
-          if (cachedUser) {
-            userData = cachedUser;
-          } else {
-            try {
-              await new Promise(resolve => setTimeout(resolve, 500));
-              userData = await getUserByUsername(usernameFromUrl);
-              if (userData && userData.fid) {
-                const userDataAnyRetry = userData as any;
-                userCache.set((userData.username || usernameFromUrl).toLowerCase(), {
-                  fid: userData.fid,
-                  username: userData.username || usernameFromUrl,
-                  pfp_url: userDataAnyRetry?.pfp?.url || userDataAnyRetry?.pfp_url || userDataAnyRetry?.profile?.pfp?.url || '',
-                });
-              }
-            } catch (retryError: any) {
-              console.warn(`⚠️ [ADD-LINKS] Retry failed to get user by username:`, retryError?.message);
-            }
-          }
-        }
-
-        if (userData && userData.fid) {
-          const userDataAny = userData as any;
-          let pfpUrl = null;
-          if (userDataAny.pfp?.url) {
-            pfpUrl = userDataAny.pfp.url;
-          } else if (userDataAny.pfp_url) {
-            pfpUrl = userDataAny.pfp_url;
-          } else if (userDataAny.pfp) {
-            pfpUrl = typeof userDataAny.pfp === 'string' ? userDataAny.pfp : userDataAny.pfp.url;
-          } else if (userDataAny.profile?.pfp?.url) {
-            pfpUrl = userDataAny.profile.pfp.url;
-          } else if (userDataAny.profile?.pfp_url) {
-            pfpUrl = userDataAny.profile.pfp_url;
-          }
-          
-          if (!pfpUrl) {
-            pfpUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.fid}`;
-          }
-
-          linksToAdd.push({
-            id: `add_link_${taskType}_${index + 1}_${baseTimestamp + index}`,
-            user_fid: userData.fid,
-            username: userData.username || (userDataAny.display_name) || usernameFromUrl || `user_${index + 1}`,
-            pfp_url: pfpUrl,
-            cast_url: castUrl,
-            task_type: taskType,
-            completed_by: [],
-            created_at: new Date().toISOString(),
-          });
-          console.log(`✅ [ADD-LINKS] [${index + 1}/${baseLinks.length}] Loaded real user data after error: @${userData.username || (userDataAny.display_name)} (FID: ${userData.fid}) [${taskType}]`);
-        } else {
-          linksToAdd.push({
-            id: `add_link_${taskType}_${index + 1}_${baseTimestamp + index}`,
-            user_fid: 0,
-            username: usernameFromUrl || `user_${index + 1}`,
-            pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${castHash}`,
-            cast_url: castUrl,
-            task_type: taskType,
-            completed_by: [],
-            created_at: new Date().toISOString(),
-          });
-          console.log(`⚠️ [ADD-LINKS] [${index + 1}/${baseLinks.length}] Using fallback data due to error for ${castUrl} [${taskType}]`);
-        }
-      }
-      
-      // Задержка между запросами
-      const delay = 500;
-      if (linkIndex < baseLinks.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
+      linksToAdd.push({
+        id: `add_link_${taskType}_${index + 1}_${baseTimestamp + index}`,
+        user_fid: 0,
+        username: `base_user_${index + 1}`,
+        pfp_url: `https://api.dicebear.com/7.x/identicon/svg?seed=base_user_${index + 1}`,
+        cast_url: castUrl,
+        task_type: taskType,
+        token_address: undefined,
+        completed_by: [],
+        created_at: new Date().toISOString(),
+      });
     }
 
     // Добавляем ссылки в Redis (НЕ удаляя существующие)

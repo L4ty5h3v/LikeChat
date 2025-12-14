@@ -66,7 +66,7 @@ npm install
 Создайте файл `.env.local`:
 ```env
 # Neynar API (обязательно)
-NEYNAR_API_KEY=your_neynar_api_key
+# Base-версия: Neynar/Farcaster не используются
 
 # Upstash Redis (для продакшена)
 UPSTASH_REDIS_REST_URL=your_upstash_url
@@ -135,7 +135,7 @@ npm run dev
 - **`pages/index.tsx`** — главная страница (авторизация и выбор активности)
 - **`pages/tasks.tsx`** — страница заданий с автоматической верификацией
 - **`pages/submit.tsx`** — страница публикации ссылок
-- **`lib/neynar.ts`** — интеграция с Neynar API для верификации
+- Base-версия: верификация заданий происходит ончейн через `balanceOf`
 - **`lib/upstash-db.ts`** — работа с базой данных Upstash Redis
 - **`contexts/FarcasterAuthContext.tsx`** — контекст авторизации Farcaster
 
@@ -174,7 +174,6 @@ npm run dev
 
 ### Обязательные
 
-- `NEYNAR_API_KEY` — API ключ Neynar для верификации активности
 
 ### Опциональные (для продакшена)
 
