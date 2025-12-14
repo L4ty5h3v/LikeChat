@@ -38,13 +38,6 @@ export default function Document() {
   return (
     <Html>
       <Head>
-        <meta property="fc:miniapp" content="v1" />
-        <meta property="fc:miniapp:title" content="LikeChat Base" />
-        <meta property="fc:miniapp:image" content={`${baseUrl}/og.png`} />
-        <meta property="fc:miniapp:description" content="Взаимные лайки, рекасты и комментарии в Base" />
-        <meta property="fc:miniapp:button:1" content="Открыть LikeChat" />
-        <meta property="fc:miniapp:button:1:action" content="link" />
-        <meta property="fc:miniapp:button:1:target" content={baseUrl} />
         {isBaseApp && (
           <meta name="base:app_id" content="693c50258a7c4e55fec73fe1" />
         )}

@@ -21,7 +21,7 @@ export default function Chat() {
   useEffect(() => {
     // Проверяем, что код выполняется на клиенте
     if (typeof window !== 'undefined') {
-      const savedUser = localStorage.getItem('farcaster_user');
+      const savedUser = localStorage.getItem('base_user');
 
       if (!savedUser) {
         router.push('/');

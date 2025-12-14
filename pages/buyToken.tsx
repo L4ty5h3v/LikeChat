@@ -5,87 +5,19 @@ import Image from 'next/image';
 import Layout from '@/components/Layout';
 import Button from '@/components/Button';
 import { useAccount, useBalance, useConnect, useBlockNumber } from 'wagmi';
-import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector';
 import { useSwapToken } from '@coinbase/onchainkit/minikit';
 import { getTokenInfo, getTokenSalePriceEth, getMCTAmountForPurchase } from '@/lib/web3';
 import { markTokenPurchased, getUserProgress } from '@/lib/db-config';
 import { formatUnits, parseUnits } from 'viem';
-import type { FarcasterUser } from '@/types';
-import { sendTokenPurchaseNotification } from '@/lib/farcaster-notifications';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
 
 const PURCHASE_AMOUNT_USDC = 0.10; // Покупаем MCT на 0.10 USDC
 const USDC_CONTRACT_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // USDC на Base (6 decimals) - правильный адрес
 const MCT_CONTRACT_ADDRESS = '0x04d388da70c32fc5876981097c536c51c8d3d236'; // MCT Token
 
-// Публиковать cast в Farcaster с tx hash после успешного swap для social proof
-async function publishSwapCastWithTxHash(
-  txHash: string,
-  mctReceived: number,
-  usdcSpent: number,
-  username?: string
-): Promise<{
-  success: boolean;
-  error?: string;
-}> {
-  try {
-    if (typeof window === 'undefined') {
-      return {
-        success: false,
-        error: 'SDK доступен только на клиенте',
-      };
-    }
-
-    const isInFarcasterFrame = window.self !== window.top;
-    if (!isInFarcasterFrame) {
-      console.log('ℹ️ [CAST] Not in Farcaster frame, skipping cast publication');
-      return {
-        success: false,
-        error: 'Not in Farcaster Mini App',
-      };
-    }
-
-    const { sdk } = await import('@farcaster/miniapp-sdk');
-
-    if (!sdk || !sdk.actions) {
-      console.warn('⚠️ [CAST] SDK or actions not available');
-      return {
-        success: false,
-        error: 'SDK actions not available',
-      };
-    }
-
-    // Формируем текст cast с tx hash для social proof
-    const txUrl = `https://basescan.org/tx/${txHash}`;
-    const castText = `❤️ Just swapped ${usdcSpent} USDC for ${mctReceived.toFixed(4)} MCT tokens!\n\n${txUrl}\n\n#MCT #Base #DeFi`;
-
-    // Используем composeCast если доступен, иначе fallback на openUrl
-    if (typeof (sdk.actions as any).composeCast === 'function') {
-      await (sdk.actions as any).composeCast({
-        text: castText,
-        embeds: [txUrl],
-      });
-      console.log('✅ [CAST] Swap cast published via composeCast with tx hash');
-      return { success: true };
-    } else if (sdk.actions.openUrl) {
-      // Fallback: открываем Compose с предзаполненным текстом
-      const farcasterUrl = `https://farcaster.xyz/~/compose?text=${encodeURIComponent(castText)}`;
-      await sdk.actions.openUrl({ url: farcasterUrl });
-      console.log('✅ [CAST] Swap cast compose opened via openUrl with tx hash');
-      return { success: true };
-    }
-
-    return {
-      success: false,
-      error: 'No compose method available',
-    };
-  } catch (error: any) {
-    console.error('❌ [CAST] Error publishing swap cast:', error);
-    return {
-      success: false,
-      error: error?.message || 'Failed to publish cast',
-    };
-  }
+// Base-версия: публикация в Farcaster отключена
+async function publishSwapCastWithTxHash(_txHash: string, _mctReceived: number, _usdcSpent: number, _username?: string) {
+  return { success: true as const };
 }
 
 // Removed: fetchEthUsdPrice() - теперь используем полностью onchain quotes через Uniswap WETH/USDC
@@ -93,7 +25,7 @@ async function publishSwapCastWithTxHash(
 export default function BuyToken() {
   const router = useRouter();
   const { address: walletAddress, isConnected } = useAccount();
-  const { connect, isPending: isConnecting } = useConnect();
+  const { connectAsync, connectors, isPending: isConnecting } = useConnect();
   const [isSwapping, setIsSwapping] = useState(false);
   const [swapInitiatedAt, setSwapInitiatedAt] = useState<number | null>(null);
   const [oldBalanceBeforeSwap, setOldBalanceBeforeSwap] = useState<number | null>(null);
@@ -844,7 +776,11 @@ export default function BuyToken() {
             <div className="mb-6">
               <div className="text-center">
                 <button
-                  onClick={() => connect({ connector: farcasterMiniApp() })}
+                  onClick={async () => {
+                    const connector = connectors?.[0];
+                    if (!connector) return;
+                    await connectAsync({ connector });
+                  }}
                   disabled={isConnecting}
                   className={`btn-gold-glow w-full text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold text-white group ${
                     isConnecting ? 'disabled' : ''
