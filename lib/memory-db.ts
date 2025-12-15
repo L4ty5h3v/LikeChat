@@ -7,6 +7,40 @@ import type { LinkSubmission, UserProgress, TaskType } from '@/types';
 const linkSubmissions: LinkSubmission[] = [];
 const userProgress: Map<number, UserProgress> = new Map();
 
+export async function clearAllLinks(): Promise<number> {
+  const n = linkSubmissions.length;
+  linkSubmissions.length = 0;
+  return n;
+}
+
+export async function seedLinks(entries: Array<{ castUrl: string; tokenAddress: string; username?: string; pfpUrl?: string }>): Promise<{ success: boolean; count: number; error?: string }> {
+  try {
+    const now = Date.now();
+    const usernameFallback = 'svs-smm';
+    const pfpFallback = `https://api.dicebear.com/7.x/identicon/svg?seed=${usernameFallback}`;
+
+    for (let i = 0; i < entries.length; i++) {
+      const e = entries[i];
+      const newLink: LinkSubmission = {
+        id: `seed_${now}_${i}_${Math.random().toString(16).slice(2, 8)}`,
+        user_fid: 0,
+        username: e.username || usernameFallback,
+        pfp_url: e.pfpUrl || pfpFallback,
+        cast_url: e.castUrl,
+        token_address: e.tokenAddress,
+        task_type: 'support',
+        completed_by: [],
+        created_at: new Date(now + i).toISOString(),
+      };
+      linkSubmissions.unshift(newLink);
+    }
+
+    return { success: true, count: entries.length };
+  } catch (error: any) {
+    return { success: false, count: 0, error: error?.message || 'Failed to seed links' };
+  }
+}
+
 // Получить последние 10 ссылок
 export async function getLastTenLinks(taskType?: TaskType): Promise<LinkSubmission[]> {
   // Сортируем все ссылки по дате создания (новые первыми)

@@ -323,6 +323,42 @@ export async function clearAllLinks(): Promise<number> {
   }
 }
 
+export async function seedLinks(
+  entries: Array<{ castUrl: string; tokenAddress: string; username?: string; pfpUrl?: string }>
+): Promise<{ success: boolean; count: number; error?: string }> {
+  if (!redis) {
+    return { success: false, count: 0, error: 'Redis not available' };
+  }
+
+  try {
+    const now = Date.now();
+    const usernameFallback = 'svs-smm';
+    const pfpFallback = `https://api.dicebear.com/7.x/identicon/svg?seed=${usernameFallback}`;
+
+    for (let i = 0; i < entries.length; i++) {
+      const e = entries[i];
+      const newLink: LinkSubmission = {
+        id: `seed_${now}_${i}_${Math.random().toString(36).slice(2, 9)}`,
+        user_fid: 0,
+        username: e.username || usernameFallback,
+        pfp_url: e.pfpUrl || pfpFallback,
+        cast_url: e.castUrl,
+        token_address: e.tokenAddress,
+        task_type: 'support',
+        completed_by: [],
+        created_at: new Date(now + i).toISOString(),
+      };
+
+      await redis.lpush(KEYS.LINKS, JSON.stringify(newLink));
+      await redis.incr(KEYS.TOTAL_LINKS_COUNT);
+    }
+
+    return { success: true, count: entries.length };
+  } catch (error: any) {
+    return { success: false, count: 0, error: error?.message || 'Failed to seed links' };
+  }
+}
+
 // Функция для инициализации начальных ссылок
 export async function initializeLinks(): Promise<{ success: boolean; count: number; error?: string }> {
   if (!redis) {

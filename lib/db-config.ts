@@ -25,6 +25,8 @@ export const submitLink = db.submitLink;
 export const getAllLinks = db.getAllLinks;
 export const deleteLink = db.deleteLink;
 export const subscribeToLinks = db.subscribeToLinks;
+export const clearAllLinks = (db as any).clearAllLinks as undefined | (() => Promise<number>);
+export const seedLinks = (db as any).seedLinks as undefined | ((entries: Array<{ castUrl: string; tokenAddress: string; username?: string; pfpUrl?: string }>) => Promise<{ success: boolean; count: number; error?: string }>);
 export const getAllUsersProgress = USE_UPSTASH ? (upstashDb as any).getAllUsersProgress : undefined;
 // getTotalLinksCount - не используется, удалено для очистки кода
 
