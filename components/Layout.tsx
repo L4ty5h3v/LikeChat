@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
-import type { FarcasterUser } from '@/types';
+import type { BaseUser } from '@/types';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -12,7 +12,7 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children, title = 'Like Chat 💌' }) => {
   const router = useRouter();
-  const [user, setUser] = useState<FarcasterUser | null>(null);
+  const [user, setUser] = useState<BaseUser | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {

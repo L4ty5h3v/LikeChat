@@ -1,6 +1,6 @@
 // Контекст для хранения состояния авторизации (Base)
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import type { FarcasterUser as BaseUser } from '@/types';
+import type { BaseUser } from '@/types';
 
 interface FarcasterAuthContextType {
   user: BaseUser | null;

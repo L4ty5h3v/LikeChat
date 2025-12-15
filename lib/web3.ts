@@ -201,7 +201,7 @@ export async function approveUSDC(
   try {
     const provider = await getProvider();
     if (!provider) {
-      throw new Error('Farcaster Wallet не найден. Откройте приложение в Farcaster Mini App.');
+      throw new Error('Кошелёк не найден. Подключите wallet (Coinbase Wallet/MetaMask) и обновите страницу.');
     }
 
     // Проверяем, что адрес контракта валидный (не пустой и не только пробелы)
@@ -367,7 +367,7 @@ async function buyTokenWithETH(
   // Обрезаем адрес от пробелов и переносов строк
   const cleanContractAddress = saleContractAddress.trim().replace(/[\r\n]/g, '');
   
-  // Используем Base RPC для чтения данных (getCostETH), так как Farcaster Wallet не поддерживает eth_call
+  // Используем Base RPC для чтения данных (getCostETH), чтобы не зависеть от ограничений injected провайдера.
   const baseProvider = getBaseProvider();
   const readContract = new ethers.Contract(cleanContractAddress, TOKEN_SALE_ABI, baseProvider);
   
@@ -375,7 +375,7 @@ async function buyTokenWithETH(
   const costWei: bigint = await readContract.getCostETH(tokenAmount);
   const costEth = ethers.formatEther(costWei);
   
-  // Для записи (покупки) используем signer с Farcaster Wallet
+  // Для записи (покупки) используем signer с injected wallet
   const saleContract = new ethers.Contract(cleanContractAddress, TOKEN_SALE_ABI, signer);
   
   const tokenAmountFormatted = ethers.formatUnits(tokenAmount, tokenDecimals);
@@ -439,14 +439,14 @@ async function buyTokenWithUSDC(
   // Обрезаем адрес от пробелов и переносов строк
   const cleanContractAddress = saleContractAddress.trim().replace(/[\r\n]/g, '');
   
-  // Используем Base RPC для чтения данных (getCostUSDC), так как Farcaster Wallet не поддерживает eth_call
+  // Используем Base RPC для чтения данных (getCostUSDC), чтобы не зависеть от ограничений injected провайдера.
   const baseProvider = getBaseProvider();
   const readContract = new ethers.Contract(cleanContractAddress, TOKEN_SALE_USDC_ABI, baseProvider);
   
   // Получаем стоимость покупки в USDC используя Base RPC
   const costUSDC: bigint = await readContract.getCostUSDC(tokenAmount);
   
-  // Для записи (покупки) используем signer с Farcaster Wallet
+  // Для записи (покупки) используем signer с injected wallet
   const saleContract = new ethers.Contract(cleanContractAddress, TOKEN_SALE_USDC_ABI, signer);
   const costUSDCFormatted = ethers.formatUnits(costUSDC, 6); // USDC имеет 6 decimals
   const tokenAmountFormatted = ethers.formatUnits(tokenAmount, tokenDecimals);
@@ -456,8 +456,8 @@ async function buyTokenWithUSDC(
     throw new Error('Цена покупки возвращает ноль. Проверьте контракт продажи.');
   }
 
-  // Для чтения данных используем Base RPC (Farcaster Wallet не поддерживает eth_call)
-  // Для записи (approve, transfer) используем signer с Farcaster Wallet
+  // Для чтения данных используем Base RPC
+  // Для записи (approve) используем signer с injected wallet
   const usdcContractRead = new ethers.Contract(USDC_CONTRACT_ADDRESS, ERC20_ABI, baseProvider);
   const usdcContract = new ethers.Contract(USDC_CONTRACT_ADDRESS, ERC20_ABI, signer);
   
@@ -527,7 +527,7 @@ async function buyTokenWithUSDC(
 // Проверить баланс токена $MCT
 export async function checkTokenBalance(address: string): Promise<string> {
   try {
-    // Всегда используем Base RPC, так как Farcaster Wallet не поддерживает eth_call
+    // Всегда используем Base RPC
     const provider = getBaseProvider();
     
     const contract = new ethers.Contract(TOKEN_CONTRACT_ADDRESS, ERC20_ABI, provider);
@@ -549,7 +549,7 @@ export async function getTokenInfo(): Promise<{
   decimals: number;
 }> {
   try {
-    // Всегда используем Base RPC, так как Farcaster Wallet не поддерживает eth_call
+    // Всегда используем Base RPC
     const provider = getBaseProvider();
 
     const contract = new ethers.Contract(TOKEN_CONTRACT_ADDRESS, ERC20_ABI, provider);
@@ -577,8 +577,7 @@ export async function getTokenInfo(): Promise<{
   }
 }
 
-// Получить цену 1 MCT в USDC через Uniswap пары MCT/WETH и WETH/USDC (полностью onchain через API)
-// Использует backend API для избежания eth_call в Farcaster Wallet
+// Получить цену 1 MCT в USDC через onchain quote (через backend API)
 async function getMCTPricePerTokenInUSDC(): Promise<number | null> {
   try {
     console.log(`🔍 Fetching MCT price: MCT → WETH → USDC (via API backend)...`);

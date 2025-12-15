@@ -6,19 +6,8 @@ interface LinkCardProps {
   link: LinkSubmission;
 }
 
-import type { TaskType } from '@/types';
-
-const activityIcons: Record<TaskType, string> = {
-  support: '💎',
-  like: '❤️',
-  recast: '🔄',
-};
-
-const activityLabels: Record<TaskType, string> = {
-  support: 'Support',
-  like: 'Like',
-  recast: 'Recast',
-};
+const activityIcon = '💎';
+const activityLabel = 'Support';
 
 const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
   const formatDate = (dateString: string) => {
@@ -54,9 +43,9 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
         
         {/* Иконка активности */}
         <div className="flex items-center gap-2 px-3 py-1 bg-primary bg-opacity-10 rounded-full">
-          <span className="text-xl">{activityIcons[link.task_type]}</span>
+          <span className="text-xl">{activityIcon}</span>
           <span className="text-sm font-medium text-primary">
-            {activityLabels[link.task_type]}
+            {activityLabel}
           </span>
         </div>
       </div>
@@ -71,6 +60,11 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
         >
           {link.cast_url}
         </a>
+        {link.token_address && (
+          <div className="mt-2 text-xs text-gray-600 break-all">
+            Token: <span className="font-mono">{link.token_address}</span>
+          </div>
+        )}
       </div>
 
       {/* Statistics */}

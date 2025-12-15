@@ -155,8 +155,14 @@ export default function TasksPage() {
       await publicClient.waitForTransactionReceipt({ hash: buyHash });
 
       // 3) onchain verify balanceOf > 0
-      await refetchBalances();
-      const newBal = balanceByToken.get(link.token_address.toLowerCase()) ?? 0n;
+      // Важно: не полагаться на состояние balances/refetchBalances (оно обновляется асинхронно).
+      // Читаем баланс напрямую из RPC сразу после покупки.
+      const newBal = await publicClient.readContract({
+        address: link.token_address as Address,
+        abi: erc20Abi,
+        functionName: 'balanceOf',
+        args: [address],
+      });
       if (newBal <= 0n) {
         throw new Error('Покупка прошла, но balanceOf всё ещё 0. Попробуйте обновить страницу через 10-20 сек.');
       }
@@ -169,6 +175,8 @@ export default function TasksPage() {
       });
 
       setCompletedLinkIds((prev) => (prev.includes(link.id) ? prev : [...prev, link.id]));
+      // Обновим кеш балансов для UI (не критично для верификации)
+      refetchBalances();
     } catch (e: any) {
       setErrorByLinkId((p) => ({ ...p, [link.id]: e?.message || 'Ошибка покупки' }));
     } finally {

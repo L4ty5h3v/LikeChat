@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
 import Layout from '@/components/Layout';
-import ActivityButton from '@/components/ActivityButton';
 import Button from '@/components/Button';
 import { setUserActivity } from '@/lib/db-config';
 import type { ActivityType } from '@/types';

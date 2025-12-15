@@ -25,22 +25,18 @@ function generateTestData() {
       'https://base.app/post/0x281b68bb29c5b64194a580da8f678db4831cc1c1',
     ];
     
-    const taskTypes: TaskType[] = ['like', 'recast'];
-    
-    // Создаем по 10 ссылок для каждого типа задачи (всего 30)
-    taskTypes.forEach((taskType, typeIndex) => {
-      baseLinks.forEach((castUrl, linkIndex) => {
-        const index = typeIndex * baseLinks.length + linkIndex;
-        linkSubmissions.push({
-          id: `test-link-${taskType}-${linkIndex + 1}`,
-          user_fid: 1000 + index,
-          username: `user${index + 1}`,
-          pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=user${index + 1}`,
-          cast_url: castUrl,
-          task_type: taskType,
-          completed_by: [],
-          created_at: new Date(Date.now() - index * 60000).toISOString(),
-        });
+    const taskType: TaskType = 'support';
+    baseLinks.forEach((castUrl, linkIndex) => {
+      linkSubmissions.push({
+        id: `test-link-${taskType}-${linkIndex + 1}`,
+        user_fid: 1000 + linkIndex,
+        username: `user${linkIndex + 1}`,
+        pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=user${linkIndex + 1}`,
+        cast_url: castUrl,
+        task_type: taskType,
+        // token_address намеренно не заполняем в демо-данных: адрес зависит от конкретного поста.
+        completed_by: [],
+        created_at: new Date(Date.now() - linkIndex * 60000).toISOString(),
       });
     });
     

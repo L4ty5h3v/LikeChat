@@ -6,23 +6,23 @@
   },
   "miniapp": {
     "version": "1",
-    "name": "Multi Like",
+    "name": "LikeChat Base",
     "homeUrl": "https://likechat-base-app.vercel.app",
     "iconUrl": "https://likechat-base-app.vercel.app/favicon.ico",
     "splashImageUrl": "https://likechat-base-app.vercel.app/images/mrs-crypto.jpg",
     "splashBackgroundColor": "#000000",
     "webhookUrl": "https://likechat-base-app.vercel.app/api/webhook",
-    "subtitle": "Mutual likes and recasts",
-    "description": "A fast, fun way to coordinate likes and recasts on Base.",
+    "subtitle": "Support posts on Base",
+    "description": "Complete tasks by buying post-tokens on Base. Publish after 10 supports + $0.10 MCT.",
     "screenshotUrls": [
       "https://likechat-base-app.vercel.app/images/mrs-crypto.jpg"
     ],
     "primaryCategory": "social",
     "tags": ["baseapp", "miniapp", "social"],
     "heroImageUrl": "https://likechat-base-app.vercel.app/images/mrs-crypto.jpg",
-    "tagline": "Mutual love on Base",
-    "ogTitle": "Multi Like on Base",
-    "ogDescription": "Mutual likes and recasts on Base.",
+    "tagline": "Support on Base",
+    "ogTitle": "LikeChat Base",
+    "ogDescription": "Support posts by buying post-tokens on Base.",
     "ogImageUrl": "https://likechat-base-app.vercel.app/images/mrs-crypto.jpg",
     "noindex": false
   }

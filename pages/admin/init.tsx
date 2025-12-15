@@ -5,7 +5,7 @@ import Button from '@/components/Button';
 
 export default function InitLinks() {
   const [loading, setLoading] = useState(false);
-  const [addLinksLoading, setAddLinksLoading] = useState<{ like?: boolean; recast?: boolean }>({});
+  const [addLinksLoading, setAddLinksLoading] = useState<{ support?: boolean }>({});
   const [result, setResult] = useState<{ success?: boolean; error?: string; message?: string } | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
@@ -61,7 +61,7 @@ export default function InitLinks() {
     }
   };
 
-  const performAddLinks = async (taskType: 'like' | 'recast') => {
+  const performAddLinks = async (taskType: 'support') => {
     setAddLinksLoading({ [taskType]: true });
     setResult(null);
 
@@ -117,7 +117,7 @@ export default function InitLinks() {
             Информация
           </h2>
           <p className="text-gray-600 mb-4">
-            Эта страница позволяет инициализировать систему 20 начальными ссылками (по 10 для каждого типа активности: like, recast).
+            Эта страница позволяет инициализировать систему начальными ссылками (support). Для реальных задач нужен ещё token address (ERC-20, buy()).
           </p>
           <ul className="list-disc list-inside text-gray-600 mb-6 space-y-2">
             <li>https://base.app/post/0x0c9e45b37e2db246d9544689bfbed28bca434be</li>
@@ -159,24 +159,16 @@ export default function InitLinks() {
 
             <div className="border-t pt-4">
               <h3 className="text-lg font-bold text-gray-900 mb-3">
-                Добавить ссылки только для одного типа (без удаления существующих)
+                Добавить ссылки support (без удаления существующих)
               </h3>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3">
                 <Button
-                  onClick={() => performAddLinks('like')}
-                  loading={addLinksLoading.like}
+                  onClick={() => performAddLinks('support')}
+                  loading={addLinksLoading.support}
                   variant="secondary"
                   className="text-base py-3"
                 >
-                  {addLinksLoading.like ? 'Добавление...' : '➕ Добавить 10 ссылок для LIKE'}
-                </Button>
-                <Button
-                  onClick={() => performAddLinks('recast')}
-                  loading={addLinksLoading.recast}
-                  variant="secondary"
-                  className="text-base py-3"
-                >
-                  {addLinksLoading.recast ? 'Добавление...' : '➕ Добавить 10 ссылок для RECAST'}
+                  {addLinksLoading.support ? 'Добавление...' : '➕ Добавить 10 ссылок для SUPPORT'}
                 </Button>
               </div>
             </div>
@@ -217,11 +209,11 @@ export default function InitLinks() {
             ⚠️ Внимание
           </h3>
           <p className="text-yellow-700 mb-2">
-            <strong>Инициализация системы:</strong> Эта операция добавляет 20 начальных ссылок в систему (10 для like, 10 для recast). 
+            <strong>Инициализация системы:</strong> Эта операция добавляет начальные ссылки support.
             Если система уже инициализирована, старые ссылки будут удалены перед добавлением новых.
           </p>
           <p className="text-yellow-700">
-            <strong>Добавление ссылок по типам:</strong> Эти кнопки добавляют 10 ссылок только для указанного типа (like или recast) 
+            <strong>Добавление ссылок:</strong> Эта кнопка добавляет 10 ссылок support
             БЕЗ удаления существующих ссылок. Это безопасный способ заполнить пустые разделы.
           </p>
           <p className="text-yellow-700 mt-2">

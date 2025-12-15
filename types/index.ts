@@ -1,6 +1,6 @@
-// Типы для приложения ЛайкЧат
+// Типы для LikeChat (Base)
 
-export interface FarcasterUser {
+export interface BaseUser {
   fid: number;
   username: string;
   pfp_url: string;
@@ -8,10 +8,9 @@ export interface FarcasterUser {
   address?: string;
 }
 
-// Base-версия: основная активность — поддержка поста покупкой post-token.
-// (Legacy like/recast оставлены временно, пока переписываем tasks/submit; после будут удалены.)
-export type TaskType = 'support' | 'like' | 'recast';
-// Обратная совместимость: ActivityType теперь является алиасом для TaskType
+// Base-версия: единственная активность — поддержка (покупка post-token).
+export type TaskType = 'support';
+// ActivityType — алиас для TaskType (для совместимости импорта)
 export type ActivityType = TaskType;
 
 export interface LinkSubmission {
@@ -43,68 +42,10 @@ export interface UserProgress {
   updated_at: string;
 }
 
-export interface TaskProgress {
-  link_id: string;
-  cast_url: string;
-  cast_hash: string; // ✅ Hash каста для проверки через Neynar API
-  token_address?: string;
-  task_type: TaskType;
-  user_fid_required: number;
-  completed: boolean;
-  verified: boolean;
-  opened?: boolean; // ✅ Отметка о том, что пользователь открыл пост
-  verifying?: boolean; // ✅ Задача проверяется в данный момент
-  error?: boolean; // ✅ Ошибка при проверке (cast не найден и т.д.)
-  username: string;
-  pfp_url: string;
-}
-
 export interface TokenPurchaseData {
   txHash: string;
   amount: string;
   timestamp: number;
   user_address: string;
-}
-
-// Neynar API типы
-export interface NeynarCast {
-  hash: string;
-  author: {
-    fid: number;
-    username: string;
-    pfp_url: string;
-  };
-  text: string;
-  reactions: {
-    likes_count: number;
-    recasts_count: number;
-  };
-}
-
-export interface NeynarReaction {
-  reaction_type: 'like' | 'recast';
-  cast_hash: string;
-  reactor_fid: number;
-}
-
-export interface NeynarComment {
-  hash: string;
-  parent_hash: string;
-  author_fid: number;
-  text: string;
-}
-
-// Диагностика cast для проверки в Neynar Explorer
-export interface CastDiagnostics {
-  castHash: string;
-  isValid: boolean;
-  castFound: boolean;
-  neynarExplorerUrl: string;
-  castData: any | null;
-  reactions: {
-    likes: any[];
-    recasts: any[];
-  };
-  error?: string;
 }
 
