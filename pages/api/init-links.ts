@@ -44,7 +44,7 @@ export default async function handler(
     if (result.success) {
       return res.status(200).json({ 
         success: true,
-        message: `Инициализировано ${result.count} ссылок`,
+        message: `Очищено ${result.count} ссылок`,
         count: result.count
       });
     } else {

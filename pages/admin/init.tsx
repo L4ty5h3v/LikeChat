@@ -5,7 +5,6 @@ import Button from '@/components/Button';
 
 export default function InitLinks() {
   const [loading, setLoading] = useState(false);
-  const [addLinksLoading, setAddLinksLoading] = useState<{ support?: boolean }>({});
   const [result, setResult] = useState<{ success?: boolean; error?: string; message?: string } | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
@@ -49,7 +48,7 @@ export default function InitLinks() {
       }
 
       if (response.ok) {
-        setResult({ success: true, message: data.message || 'Ссылки успешно инициализированы!' });
+        setResult({ success: true, message: data.message || 'Ссылки успешно очищены!' });
       } else {
         setResult({ error: data.error || data.message || `Ошибка при инициализации (${response.status})` });
       }
@@ -61,55 +60,11 @@ export default function InitLinks() {
     }
   };
 
-  const performAddLinks = async (taskType: 'support') => {
-    setAddLinksLoading({ [taskType]: true });
-    setResult(null);
-
-    try {
-      const response = await fetch('/api/add-links', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          taskType,
-          secretKey: '' // Секретный ключ проверяется на сервере
-        }),
-      });
-
-      const text = await response.text();
-      let data;
-      
-      try {
-        data = text ? JSON.parse(text) : {};
-      } catch (parseError) {
-        console.error('JSON parse error:', parseError, 'Response text:', text);
-        setResult({ error: `Ошибка ответа сервера: ${text || 'пустой ответ'}` });
-        setAddLinksLoading({ [taskType]: false });
-        return;
-      }
-
-      if (response.ok) {
-        setResult({ 
-          success: true, 
-          message: data.message || `Успешно добавлено ${data.count || 0} ссылок для типа "${taskType}"!` 
-        });
-      } else {
-        setResult({ error: data.error || data.message || `Ошибка при добавлении ссылок (${response.status})` });
-      }
-    } catch (error: any) {
-      console.error('Add links error:', error);
-      setResult({ error: error.message || 'Неизвестная ошибка' });
-    } finally {
-      setAddLinksLoading({ [taskType]: false });
-    }
-  };
-
   return (
     <Layout title="Инициализация системы">
       <div className="max-w-3xl mx-auto">
         <h1 className="text-3xl font-bold text-gray-900 mb-6">
-          Инициализация начальных ссылок
+          Очистка ссылок
         </h1>
 
         <div className="bg-white rounded-2xl shadow-xl p-8 mb-6">
@@ -117,20 +72,8 @@ export default function InitLinks() {
             Информация
           </h2>
           <p className="text-gray-600 mb-4">
-            Эта страница позволяет инициализировать систему начальными ссылками (support). Для реальных задач нужен ещё token address (ERC-20, buy()).
+            Эта страница очищает ВСЕ ссылки из базы. Список задач будет пустым, пока пользователи не начнут добавлять свои ссылки.
           </p>
-          <ul className="list-disc list-inside text-gray-600 mb-6 space-y-2">
-            <li>https://base.app/post/0x0c9e45b37e2db246d9544689bfbed28bca434be</li>
-            <li>https://base.app/post/0x06ec6e3b5d340f8f7197324a96bf870265e78c2a</li>
-            <li>https://base.app/post/0xfb1f9d9f118290a0657a9d68d6ce0ac09d6d44ba</li>
-            <li>https://base.app/post/0x641593bd41eb199d5e6930e0d519d685ec7a9436</li>
-            <li>https://base.app/post/0xd02763287849293a7a6cdb7104ee5513d318abaf</li>
-            <li>https://base.app/post/0x8409b3edbfb9d07a3cc9dbe53927b33d9b02d9c1</li>
-            <li>https://base.app/post/0xdc51c8f0091d16bb0c7b866b52cdde3457ce848c</li>
-            <li>https://base.app/post/0x2cb6509bc661eb2f08588d8f8de3c4e7d83fdfb5</li>
-            <li>https://base.app/post/0x9a33dc3ee6cf006ce8efe990293f5e38be152ee9</li>
-            <li>https://base.app/post/0x281b68bb29c5b64194a580da8f678db4831cc1c1</li>
-          </ul>
 
           {result && (
             <div className={`p-4 rounded-xl mb-6 ${
@@ -154,24 +97,8 @@ export default function InitLinks() {
               fullWidth
               className="text-lg py-4"
             >
-              {loading ? 'Инициализация...' : 'Инициализировать систему (удаляет все существующие ссылки)'}
+              {loading ? 'Очистка...' : 'Очистить все ссылки (удаляет все существующие ссылки)'}
             </Button>
-
-            <div className="border-t pt-4">
-              <h3 className="text-lg font-bold text-gray-900 mb-3">
-                Добавить ссылки support (без удаления существующих)
-              </h3>
-              <div className="grid grid-cols-1 gap-3">
-                <Button
-                  onClick={() => performAddLinks('support')}
-                  loading={addLinksLoading.support}
-                  variant="secondary"
-                  className="text-base py-3"
-                >
-                  {addLinksLoading.support ? 'Добавление...' : '➕ Добавить 10 ссылок для SUPPORT'}
-                </Button>
-              </div>
-            </div>
           </div>
 
           {/* Модальное окно подтверждения */}
@@ -182,7 +109,7 @@ export default function InitLinks() {
                   Подтверждение
                 </h3>
                 <p className="text-gray-700 mb-6">
-                  Вы уверены, что хотите инициализировать систему начальными ссылками? Это действие нельзя отменить.
+                  Вы уверены, что хотите очистить ВСЕ ссылки? Это действие нельзя отменить.
                 </p>
                 <div className="flex gap-4">
                   <button
@@ -209,12 +136,7 @@ export default function InitLinks() {
             ⚠️ Внимание
           </h3>
           <p className="text-yellow-700 mb-2">
-            <strong>Инициализация системы:</strong> Эта операция добавляет начальные ссылки support.
-            Если система уже инициализирована, старые ссылки будут удалены перед добавлением новых.
-          </p>
-          <p className="text-yellow-700">
-            <strong>Добавление ссылок:</strong> Эта кнопка добавляет 10 ссылок support
-            БЕЗ удаления существующих ссылок. Это безопасный способ заполнить пустые разделы.
+            <strong>Очистка:</strong> эта операция удаляет все ссылки из базы данных.
           </p>
           <p className="text-yellow-700 mt-2">
             Для работы этих действий необходим секретный ключ (установите его в переменную окружения INIT_LINKS_SECRET_KEY на Vercel).

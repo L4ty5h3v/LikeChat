@@ -60,7 +60,7 @@ export default async function handler(
         taskType: taskType
       });
     } else {
-      return res.status(500).json({
+      return res.status(400).json({
         success: false,
         error: result.error || 'Failed to add links',
         taskType: taskType

@@ -73,8 +73,21 @@ export default function TasksPage() {
     }
 
     refresh();
-    const interval = setInterval(() => refresh(), 5000);
-    return () => clearInterval(interval);
+
+    // Убираем polling (страница не должна "дёргаться" каждые 5 секунд).
+    // Обновляем данные только при возврате во вкладку/приложение.
+    const onFocus = () => refresh();
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isInitialized, user?.fid]);
 

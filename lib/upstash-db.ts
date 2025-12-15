@@ -304,8 +304,8 @@ export async function setUserActivity(userFid: number, activity: TaskType): Prom
 }
 
 // Функция для очистки всех ссылок
-async function clearAllLinks(): Promise<void> {
-  if (!redis) return;
+export async function clearAllLinks(): Promise<number> {
+  if (!redis) return 0;
   
   try {
     // Удаляем все элементы из списка
@@ -316,8 +316,10 @@ async function clearAllLinks(): Promise<void> {
     
     // Сбрасываем счетчик
     await redis.set(KEYS.TOTAL_LINKS_COUNT, 0);
+    return typeof listLength === 'number' ? listLength : 0;
   } catch (error) {
     console.error('Error clearing links:', error);
+    return 0;
   }
 }
 
@@ -328,67 +330,10 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
   }
 
   try {
-    // Проверяем, не добавлены ли уже ссылки
-    const existingCount = await getTotalLinksCount();
-    if (existingCount > 0) {
-      // Если ссылки уже есть, очищаем их перед повторной инициализацией
-      await clearAllLinks();
-    }
-
-    // Список начальных ссылок (Base)
-    const baseLinks = [
-      'https://base.app/post/0x0c9e45b37e2db246d9544689bfbed28bca434be',
-      'https://base.app/post/0x06ec6e3b5d340f8f7197324a96bf870265e78c2a',
-      'https://base.app/post/0xfb1f9d9f118290a0657a9d68d6ce0ac09d6d44ba',
-      'https://base.app/post/0x641593bd41eb199d5e6930e0d519d685ec7a9436',
-      'https://base.app/post/0xd02763287849293a7a6cdb7104ee5513d318abaf',
-      'https://base.app/post/0x8409b3edbfb9d07a3cc9dbe53927b33d9b02d9c1',
-      'https://base.app/post/0xdc51c8f0091d16bb0c7b866b52cdde3457ce848c',
-      'https://base.app/post/0x2cb6509bc661eb2f08588d8f8de3c4e7d83fdfb5',
-      'https://base.app/post/0x9a33dc3ee6cf006ce8efe990293f5e38be152ee9',
-      'https://base.app/post/0x281b68bb29c5b64194a580da8f678db4831cc1c1',
-    ];
-
-    // Base: без Neynar. Генерируем тестовые записи только под support.
-    const taskTypes: TaskType[] = ['support'];
-    const baseTimestamp = Date.now();
-    const linksToAdd: LinkSubmission[] = [];
-
-    for (let linkIndex = 0; linkIndex < baseLinks.length; linkIndex++) {
-      const castUrl = baseLinks[linkIndex];
-      const index = linkIndex;
-      linksToAdd.push({
-        id: `init_link_${index + 1}_${baseTimestamp + index}`,
-        user_fid: 0,
-        username: `base_user_${index + 1}`,
-        pfp_url: `https://api.dicebear.com/7.x/identicon/svg?seed=base_user_${index + 1}`,
-        cast_url: castUrl,
-        task_type: 'support',
-        token_address: undefined,
-        completed_by: [],
-        created_at: new Date().toISOString(),
-      });
-    }
-
-    // Добавляем ссылки в Redis (в правильном порядке, первая - последняя)
-    console.log(`📝 Adding ${linksToAdd.length} links to Redis...`);
-    for (let i = 0; i < linksToAdd.length; i++) {
-      const link = linksToAdd[i];
-      console.log(`📝 [${i + 1}/${linksToAdd.length}] Adding link:`, {
-        id: link.id,
-        username: link.username,
-        user_fid: link.user_fid,
-        pfp_url: link.pfp_url,
-        has_pfp: !!link.pfp_url && link.pfp_url !== `https://api.dicebear.com/7.x/avataaars/svg?seed=${link.user_fid || 'hash'}`,
-      });
-      await redis.lpush(KEYS.LINKS, JSON.stringify(link));
-    }
-
-    // Устанавливаем счетчик
-    await redis.set(KEYS.TOTAL_LINKS_COUNT, baseLinks.length * taskTypes.length);
-
-    console.log(`✅ Successfully initialized ${linksToAdd.length} links`);
-    return { success: true, count: linksToAdd.length };
+    // По запросу: НЕ создаём тестовые/стартовые ссылки. Только очищаем.
+    const removed = await clearAllLinks();
+    console.log(`🧹 Cleared links via initializeLinks(): removed=${removed}`);
+    return { success: true, count: removed };
   } catch (error: any) {
     console.error('Error initializing links:', error);
     return { 
@@ -406,54 +351,8 @@ export async function addLinksForTaskType(taskType: TaskType): Promise<{ success
   }
 
   try {
-    // Валидация taskType
-    const validTaskTypes: TaskType[] = ['support'];
-    if (!validTaskTypes.includes(taskType)) {
-      return { success: false, count: 0, error: `Invalid task type: ${taskType}. Must be "support".` };
-    }
-
-    // Список начальных ссылок
-    const baseLinks = [
-      'https://base.app/post/0x0c9e45b37e2db246d9544689bfbed28bca434be',
-      'https://base.app/post/0x06ec6e3b5d340f8f7197324a96bf870265e78c2a',
-      'https://base.app/post/0xfb1f9d9f118290a0657a9d68d6ce0ac09d6d44ba',
-      'https://base.app/post/0x641593bd41eb199d5e6930e0d519d685ec7a9436',
-      'https://base.app/post/0xd02763287849293a7a6cdb7104ee5513d318abaf',
-      'https://base.app/post/0x8409b3edbfb9d07a3cc9dbe53927b33d9b02d9c1',
-      'https://base.app/post/0xdc51c8f0091d16bb0c7b866b52cdde3457ce848c',
-      'https://base.app/post/0x2cb6509bc661eb2f08588d8f8de3c4e7d83fdfb5',
-      'https://base.app/post/0x9a33dc3ee6cf006ce8efe990293f5e38be152ee9',
-      'https://base.app/post/0x281b68bb29c5b64194a580da8f678db4831cc1c1',
-    ];
-
-    const baseTimestamp = Date.now();
-    const linksToAdd: LinkSubmission[] = [];
-    for (let linkIndex = 0; linkIndex < baseLinks.length; linkIndex++) {
-      const castUrl = baseLinks[linkIndex];
-      const index = linkIndex;
-      linksToAdd.push({
-        id: `add_link_${taskType}_${index + 1}_${baseTimestamp + index}`,
-        user_fid: 0,
-        username: `base_user_${index + 1}`,
-        pfp_url: `https://api.dicebear.com/7.x/identicon/svg?seed=base_user_${index + 1}`,
-        cast_url: castUrl,
-        task_type: taskType,
-        token_address: undefined,
-        completed_by: [],
-        created_at: new Date().toISOString(),
-      });
-    }
-
-    // Добавляем ссылки в Redis (НЕ удаляя существующие)
-    console.log(`📝 [ADD-LINKS] Adding ${linksToAdd.length} links for task type "${taskType}" to Redis (existing links preserved)...`);
-    for (let i = 0; i < linksToAdd.length; i++) {
-      const link = linksToAdd[i];
-      await redis.lpush(KEYS.LINKS, JSON.stringify(link));
-      await redis.incr(KEYS.TOTAL_LINKS_COUNT);
-    }
-
-    console.log(`✅ [ADD-LINKS] Successfully added ${linksToAdd.length} links for task type "${taskType}"`);
-    return { success: true, count: linksToAdd.length };
+    // По запросу: отключаем добавление тестовых ссылок.
+    return { success: false, count: 0, error: 'Disabled: seeding links is turned off.' };
   } catch (error: any) {
     console.error(`❌ [ADD-LINKS] Error adding links for task type "${taskType}":`, error);
     return { 

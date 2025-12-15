@@ -7,47 +7,8 @@ import type { LinkSubmission, UserProgress, TaskType } from '@/types';
 const linkSubmissions: LinkSubmission[] = [];
 const userProgress: Map<number, UserProgress> = new Map();
 
-// Генерируем тестовые данные для демонстрации
-function generateTestData() {
-  // Если база пустая, добавляем тестовые ссылки для демонстрации
-  if (linkSubmissions.length === 0) {
-    console.log('📝 [MEMORY-DB] Generating test data...');
-    const baseLinks = [
-      'https://base.app/post/0x0c9e45b37e2db246d9544689bfbed28bca434be',
-      'https://base.app/post/0x06ec6e3b5d340f8f7197324a96bf870265e78c2a',
-      'https://base.app/post/0xfb1f9d9f118290a0657a9d68d6ce0ac09d6d44ba',
-      'https://base.app/post/0x641593bd41eb199d5e6930e0d519d685ec7a9436',
-      'https://base.app/post/0xd02763287849293a7a6cdb7104ee5513d318abaf',
-      'https://base.app/post/0x8409b3edbfb9d07a3cc9dbe53927b33d9b02d9c1',
-      'https://base.app/post/0xdc51c8f0091d16bb0c7b866b52cdde3457ce848c',
-      'https://base.app/post/0x2cb6509bc661eb2f08588d8f8de3c4e7d83fdfb5',
-      'https://base.app/post/0x9a33dc3ee6cf006ce8efe990293f5e38be152ee9',
-      'https://base.app/post/0x281b68bb29c5b64194a580da8f678db4831cc1c1',
-    ];
-    
-    const taskType: TaskType = 'support';
-    baseLinks.forEach((castUrl, linkIndex) => {
-      linkSubmissions.push({
-        id: `test-link-${taskType}-${linkIndex + 1}`,
-        user_fid: 1000 + linkIndex,
-        username: `user${linkIndex + 1}`,
-        pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=user${linkIndex + 1}`,
-        cast_url: castUrl,
-        task_type: taskType,
-        // token_address намеренно не заполняем в демо-данных: адрес зависит от конкретного поста.
-        completed_by: [],
-        created_at: new Date(Date.now() - linkIndex * 60000).toISOString(),
-      });
-    });
-    
-    console.log(`✅ [MEMORY-DB] Generated ${linkSubmissions.length} test links`);
-  }
-}
-
 // Получить последние 10 ссылок
 export async function getLastTenLinks(taskType?: TaskType): Promise<LinkSubmission[]> {
-  generateTestData();
-  
   // Сортируем все ссылки по дате создания (новые первыми)
   const sortedLinks = [...linkSubmissions].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -210,7 +171,6 @@ export async function submitLink(
 
 // Получить все ссылки для чата
 export async function getAllLinks(): Promise<LinkSubmission[]> {
-  generateTestData();
   return linkSubmissions
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 }
@@ -237,7 +197,6 @@ export async function deleteLink(linkId: string): Promise<boolean> {
 
 // Получить общее количество ссылок
 export async function getTotalLinksCount(): Promise<number> {
-  generateTestData();
   return linkSubmissions.length;
 }
 
