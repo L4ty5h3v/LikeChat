@@ -13,6 +13,7 @@
     "check-db": "node scripts/check-db.mjs"
   },
   "dependencies": {
+    "@coinbase/onchainkit": "^1.1.2",
     "@tanstack/react-query": "^5.28.0",
     "@upstash/redis": "^1.35.5",
     "axios": "^1.6.7",

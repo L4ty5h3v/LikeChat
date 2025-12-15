@@ -7,6 +7,7 @@ import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
 import { addressToUserId, shortAddress } from '@/lib/base-user';
 import { resolveNameAndAvatar } from '@/lib/identity';
 import type { Address } from 'viem';
+import { useMiniKit } from '@coinbase/onchainkit/minikit';
 
 /**
  * Для Base: создаём "пользователя" из address (без Farcaster SDK)
@@ -14,6 +15,7 @@ import type { Address } from 'viem';
 export const AuthSync: React.FC = () => {
   const { address, isConnected } = useAccount();
   const { user, setUser } = useFarcasterAuth();
+  const { context: miniKitContext } = useMiniKit();
 
   useEffect(() => {
     const syncUserFromWallet = async () => {
@@ -23,6 +25,32 @@ export const AuthSync: React.FC = () => {
 
       const id = addressToUserId(address);
       const fallbackName = shortAddress(address);
+
+      // 0) Если MiniKit дал user — используем его как источник истины для username/pfp/fid
+      const mkUser: any = (miniKitContext as any)?.user;
+      if (mkUser?.fid) {
+        const mkUsername = (mkUser.username || mkUser.displayName || fallbackName).toString();
+        const mkPfp = (mkUser.pfpUrl || `https://api.dicebear.com/7.x/identicon/svg?seed=${mkUser.fid}`).toString();
+
+        // Не дергаем setUser, если уже синхронизировано
+        if (
+          user?.address?.toLowerCase() === address.toLowerCase() &&
+          user?.fid === Number(mkUser.fid) &&
+          user?.username === mkUsername &&
+          user?.pfp_url === mkPfp
+        ) {
+          return;
+        }
+
+        setUser({
+          fid: Number(mkUser.fid),
+          username: mkUsername,
+          pfp_url: mkPfp,
+          display_name: (mkUser.displayName || mkUsername).toString(),
+          address,
+        });
+        return;
+      }
 
       // Если user уже соответствует текущему адресу и имя уже НЕ fallback — ничего не делаем
       if (user?.address?.toLowerCase() === address.toLowerCase() && user?.username && user.username !== fallbackName) {
@@ -60,7 +88,7 @@ export const AuthSync: React.FC = () => {
     };
 
     syncUserFromWallet();
-  }, [isConnected, address, user, setUser]);
+  }, [isConnected, address, user, setUser, miniKitContext]);
 
   // Также слушаем события disconnect
   useEffect(() => {

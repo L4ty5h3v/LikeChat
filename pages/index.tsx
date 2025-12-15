@@ -476,7 +476,7 @@ export default function Home() {
   };
 
   // Сохранение выбранной активности
-  const handleActivitySelect = (activity: ActivityType) => {
+  const handleActivitySelect = async (activity: ActivityType) => {
     setSelectedActivity(activity);
     localStorage.setItem('selected_activity', activity);
     
@@ -486,10 +486,15 @@ export default function Home() {
     }
     
     // Автоматически переходим на страницу задач после выбора активности
+    // В in-app браузерах иногда router.push может не отрабатывать — добавляем fallback.
     console.log('✅ Activity selected, redirecting to /tasks');
-    setTimeout(() => {
-      router.push('/tasks');
-    }, 500); // Небольшая задержка для плавного перехода
+    try {
+      await router.push('/tasks');
+    } catch (e) {
+      if (typeof window !== 'undefined') {
+        window.location.href = '/tasks';
+      }
+    }
   };
 
   // ⚠️ УДАЛЕНО: handleContinue больше не нужен, так как переход происходит автоматически при выборе активности
@@ -619,7 +624,28 @@ export default function Home() {
                     {user.address ? ` • ${user.address}` : ''}
                   </p>
                 </div>
-                <div className="text-green-500 text-2xl">✓</div>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    className="px-3 py-2 rounded-xl bg-white border border-gray-200 text-gray-900 font-bold text-sm"
+                    onClick={() => {
+                      if (typeof window === 'undefined') return;
+                      const current = user.username || '';
+                      const next = window.prompt('Введите имя профиля (будет видно вместо адреса):', current);
+                      if (!next) return;
+                      const trimmed = next.trim();
+                      if (!trimmed) return;
+                      setUser({
+                        ...user,
+                        username: trimmed,
+                        display_name: trimmed,
+                      });
+                    }}
+                  >
+                    Имя
+                  </button>
+                  <div className="text-green-500 text-2xl">✓</div>
+                </div>
               </div>
 
               {/* Выбор активности */}

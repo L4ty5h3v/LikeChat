@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { WagmiProvider, createConfig, http } from 'wagmi';
 import { base } from 'wagmi/chains';
 import { injected } from 'wagmi/connectors';
+import { OnchainKitProvider } from '@coinbase/onchainkit';
 import { FarcasterAuthProvider } from '@/contexts/FarcasterAuthContext';
 import { AuthSync } from '@/components/AuthSync';
 
@@ -58,10 +59,20 @@ export default function App({ Component, pageProps }: AppProps) {
       </Head>
       <WagmiProvider config={wagmiConfig}>
         <QueryClientProvider client={queryClient}>
-          <FarcasterAuthProvider>
-            <AuthSync />
-            <Component {...pageProps} />
-          </FarcasterAuthProvider>
+          <OnchainKitProvider
+            chain={base}
+            miniKit={{
+              enabled: true,
+              // У нас есть стабильный endpoint; нужен только чтобы библиотека не ходила в /api/notify по умолчанию.
+              notificationProxyUrl: '/api/webhook',
+              autoConnect: false,
+            }}
+          >
+            <FarcasterAuthProvider>
+              <AuthSync />
+              <Component {...pageProps} />
+            </FarcasterAuthProvider>
+          </OnchainKitProvider>
         </QueryClientProvider>
       </WagmiProvider>
     </>
