@@ -11,7 +11,6 @@ interface FortuneUser {
   last_fortune_claim_date?: string;
   total_fortune_claims: number;
   claim_count: number;
-  token_purchased: boolean;
 }
 
 export default function TopFortuneUsers() {
@@ -105,9 +104,6 @@ export default function TopFortuneUsers() {
                             {' | '}
                             Последний клейм: <span className="text-white font-semibold">{user.last_fortune_claim_date}</span>
                           </>
-                        )}
-                        {user.token_purchased && (
-                          <span className="ml-2 text-green-400">✓ Токен куплен</span>
                         )}
                       </div>
                     </div>

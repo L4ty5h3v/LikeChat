@@ -10,7 +10,6 @@ interface FortuneUser {
   last_fortune_claim_date?: string;
   total_fortune_claims: number;
   claim_count: number;
-  token_purchased: boolean;
 }
 
 export default async function handler(
@@ -85,7 +84,6 @@ export default async function handler(
           last_fortune_claim_date: progress.last_fortune_claim_date || undefined,
           total_fortune_claims: progress.total_fortune_claims || claimCount,
           claim_count: claimCount,
-          token_purchased: progress.token_purchased || false,
         });
       }
     }

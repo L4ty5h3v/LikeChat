@@ -13,7 +13,7 @@
     "splashBackgroundColor": "#000000",
     "webhookUrl": "https://likechat-base-app.vercel.app/api/webhook",
     "subtitle": "Support posts on Base",
-    "description": "Complete tasks by buying post-tokens on Base. Publish after 10 supports + $0.10 MCT.",
+    "description": "Complete tasks by buying post-tokens on Base. Publish after 10 supports.",
     "screenshotUrls": [
       "https://likechat-base-app.vercel.app/images/mrs-crypto.jpg"
     ],

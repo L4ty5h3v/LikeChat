@@ -35,7 +35,6 @@ export default function TasksPage() {
 
   const [links, setLinks] = useState<LinkSubmission[]>([]);
   const [completedLinkIds, setCompletedLinkIds] = useState<string[]>([]);
-  const [tokenPurchased, setTokenPurchased] = useState<boolean>(false); // $0.10 MCT куплено
   const [loading, setLoading] = useState(true);
 
   const [buyingLinkId, setBuyingLinkId] = useState<string | null>(null);
@@ -49,7 +48,7 @@ export default function TasksPage() {
 
   const refresh = async () => {
     if (!user?.fid) return;
-    setLoading(true);
+      setLoading(true);
     try {
       const [linksRes, progressRes] = await Promise.all([
         fetch(`/api/tasks?t=${Date.now()}&taskType=support`),
@@ -61,9 +60,8 @@ export default function TasksPage() {
 
       const progress = progressJson.progress || null;
       setCompletedLinkIds(Array.isArray(progress?.completed_links) ? progress.completed_links : []);
-      setTokenPurchased(!!progress?.token_purchased);
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
   };
 
@@ -112,7 +110,7 @@ export default function TasksPage() {
   }, [balances, tokenContracts]);
 
   const completedCount = completedLinkIds.length;
-  const canPublish = completedCount >= 10 && tokenPurchased;
+  const canPublish = completedCount >= 10;
 
   const handleBuy = async (link: LinkSubmission) => {
     if (!isConnected || !address) {
@@ -204,7 +202,7 @@ export default function TasksPage() {
     <Layout title="Tasks - Support">
       <div className="relative min-h-screen overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient bg-300%"></div>
-
+        
         <div className="relative z-10 max-w-6xl mx-auto px-6 py-16">
           <div className="text-center mb-10">
             <h1 className="text-5xl md:text-7xl font-black text-white mb-6 font-display leading-none tracking-tight">
@@ -220,7 +218,7 @@ export default function TasksPage() {
           </div>
 
           <div className="bg-white bg-opacity-95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 mb-8">
-            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4">
               <div className="w-16 h-16 rounded-full overflow-hidden border-4 border-primary shadow-lg">
                 <Image src="/images/mrs-crypto.jpg" alt="Mrs. Crypto" width={64} height={64} className="w-full h-full object-cover" unoptimized />
               </div>
@@ -228,18 +226,14 @@ export default function TasksPage() {
                 <div className="text-gray-900 font-black text-xl">Прогресс</div>
                 <div className="text-gray-600">
                   Куплено пост-токенов: <span className="font-black">{completedCount}</span>/10
-                  {' • '}
-                  MCT куплено: <span className="font-black">{tokenPurchased ? 'ДА' : 'НЕТ'}</span>
                 </div>
               </div>
               {canPublish ? (
                 <Button onClick={() => router.push('/submit')}>Публиковать</Button>
-              ) : tokenPurchased ? (
+              ) : (
                 <Button onClick={() => router.push('/submit')} disabled>
                   Публиковать (нужно 10)
                 </Button>
-              ) : (
-                <Button onClick={() => router.push('/buyToken')}>Купить MCT $0.10</Button>
               )}
             </div>
           </div>
