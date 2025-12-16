@@ -7,9 +7,19 @@ interface LinkCardProps {
 }
 
 const activityIcon = '💎';
-const activityLabel = 'Support';
+const activityLabel = 'Buy';
 
 const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
+  const openPostLink = (url: string) => {
+    if (typeof window === 'undefined') return;
+    // In Base App / in-app WebViews, window.open can be blocked. Prefer same-tab navigation.
+    try {
+      window.location.href = url;
+    } catch {
+      // no-op
+    }
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleString('en-US', {
@@ -74,16 +84,21 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
           <span>Completed: {link.completed_by?.length || 0}</span>
         </div>
         
-        <button
-          onClick={() => window.open(link.cast_url, '_blank')}
+        <a
+          href={link.cast_url}
+          onClick={(e) => {
+            e.preventDefault();
+            openPostLink(link.cast_url);
+          }}
           className="btn-gold-glow px-4 py-2 text-white font-bold text-sm group"
+          rel="noopener noreferrer"
         >
-          {/* Переливающийся эффект */}
+          {/* Per-shimmer effect */}
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-          {/* Внутреннее свечение */}
+          {/* Inner glow */}
           <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
           <span className="relative z-20 drop-shadow-lg">Open</span>
-        </button>
+        </a>
       </div>
     </div>
   );

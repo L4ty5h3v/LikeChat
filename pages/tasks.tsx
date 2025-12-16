@@ -217,6 +217,16 @@ export default function TasksPage() {
     }
   };
 
+  const openPostLink = (url: string) => {
+    if (typeof window === 'undefined') return;
+    // In Base App / in-app WebViews, window.open can be blocked. Prefer same-tab navigation.
+    try {
+      window.location.href = url;
+    } catch {
+      // no-op
+    }
+  };
+
   if (loading) {
     return (
       <Layout title="Tasks">
@@ -305,12 +315,19 @@ export default function TasksPage() {
                             {tokenAddr && <div className="text-xs text-gray-500 break-all mt-1">Token: {tokenAddr}</div>}
                           </div>
                           <div className="flex items-center gap-3">
-                            <button
+                            <a
                               className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-900 font-bold"
-                              onClick={() => window.open(link.cast_url, '_blank', 'noopener,noreferrer')}
+                              href={link.cast_url}
+                              onClick={(e) => {
+                                // Some WebViews ignore target=_blank and/or block window.open.
+                                // Force navigation on click.
+                                e.preventDefault();
+                                openPostLink(link.cast_url);
+                              }}
+                              rel="noopener noreferrer"
                             >
                               Open
-                            </button>
+                            </a>
                             <button
                               className={`px-4 py-2 rounded-xl font-bold text-white ${completed ? 'bg-green-600' : 'bg-gradient-to-r from-primary via-secondary to-accent'}`}
                               onClick={() => handleBuy(link)}
