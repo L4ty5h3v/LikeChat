@@ -1,4 +1,4 @@
-// Tasks page (Base): buy a post-token for $0.01 USDC, onchain verification via balanceOf
+// Tasks page (Base): buy a post-token for $0.05 USDC, onchain verification via balanceOf
 import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
@@ -12,7 +12,7 @@ import { dicebearIdenticonPng, normalizeAvatarUrl } from '@/lib/media';
 import { REQUIRED_BUYS_TO_PUBLISH } from '@/lib/app-config';
 
 const USDC_CONTRACT_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as const;
-const BUY_AMOUNT_USDC = parseUnits('0.01', 6);
+const BUY_AMOUNT_USDC = parseUnits('0.05', 6);
 
 const postTokenBuyAbi = [
   {
@@ -260,7 +260,7 @@ export default function TasksPage() {
               <div className="w-20 h-1 bg-white"></div>
             </div>
             <p className="text-white text-opacity-90 text-lg">
-              Buy a post-token for <span className="font-black text-yellow-300">$0.01</span> on {REQUIRED_BUYS_TO_PUBLISH} posts.
+              Buy a post-token for <span className="font-black text-yellow-300">$0.05</span> on {REQUIRED_BUYS_TO_PUBLISH} posts.
             </p>
           </div>
 
@@ -339,7 +339,7 @@ export default function TasksPage() {
                               onClick={() => handleBuy(link)}
                               disabled={isBuying || completed || !tokenAddr}
                             >
-                              {completed ? 'Done' : isBuying ? 'Buying…' : 'BUY $0.01'}
+                              {completed ? 'Done' : isBuying ? 'Buying…' : 'BUY $0.05'}
                             </button>
                           </div>
                         </div>
