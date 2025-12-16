@@ -7,6 +7,48 @@ import type { LinkSubmission, UserProgress, TaskType } from '@/types';
 const linkSubmissions: LinkSubmission[] = [];
 const userProgress: Map<number, UserProgress> = new Map();
 
+// Default posts to buy (used only in memory DB to avoid an empty app on Vercel when Upstash is not configured).
+// Note: memory DB is ephemeral; these defaults will re-appear after a cold start.
+(() => {
+  try {
+    const now = Date.now();
+    const username = 'svs-smm';
+    const pfp = `https://api.dicebear.com/7.x/identicon/svg?seed=${username}`;
+
+    const defaults: LinkSubmission[] = [
+      {
+        id: `default_${now}_0`,
+        user_fid: 0,
+        username,
+        pfp_url: pfp,
+        cast_url: 'https://base.app/content/EkUKQwoVbmV0d29ya3MvYmFzZS1tYWlubmV0EioweDA2NTkwZWViOWM5MThiYTU3YmFjYjcxZWZlZGRiZTAyNGE0OTk0ZDc',
+        token_address: '0x06590eeb9c918ba57bacb71efeddbe024a4994d7',
+        task_type: 'support',
+        completed_by: [],
+        created_at: new Date(now).toISOString(),
+      },
+      {
+        id: `default_${now}_1`,
+        user_fid: 0,
+        username,
+        pfp_url: pfp,
+        cast_url: 'https://base.app/content/EkUKQwoVbmV0d29ya3MvYmFzZS1tYWlubmV0EioweGMwMjkyZjllODVkYWZiZGU1ZTEyYWIyNWMxYTcxNzEzNjY5YmQ3Y2M',
+        token_address: '0xc0292f9e85dafbde5e12ab25c1a71713669bd7cc',
+        task_type: 'support',
+        completed_by: [],
+        created_at: new Date(now + 1).toISOString(),
+      },
+    ];
+
+    // Put newest first
+    for (let i = defaults.length - 1; i >= 0; i--) {
+      linkSubmissions.unshift(defaults[i]);
+    }
+  } catch {
+    // ignore
+  }
+})();
+
 export async function clearAllLinks(): Promise<number> {
   const n = linkSubmissions.length;
   linkSubmissions.length = 0;
