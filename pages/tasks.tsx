@@ -9,6 +9,7 @@ import type { LinkSubmission } from '@/types';
 import { useAccount, usePublicClient, useReadContracts, useWriteContract } from 'wagmi';
 import { erc20Abi, parseUnits, type Address } from 'viem';
 import { dicebearIdenticonPng, normalizeAvatarUrl } from '@/lib/media';
+import { REQUIRED_BUYS_TO_PUBLISH } from '@/lib/app-config';
 
 const USDC_CONTRACT_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as const;
 const BUY_AMOUNT_USDC = parseUnits('0.01', 6);
@@ -144,7 +145,7 @@ export default function TasksPage() {
     return ids.size;
   }, [completedLinkIds, ownedLinkIds]);
 
-  const canPublish = completedCount >= 10 && hasFid;
+  const canPublish = completedCount >= REQUIRED_BUYS_TO_PUBLISH && hasFid;
 
   const handleBuy = async (link: LinkSubmission) => {
     if (!isConnected || !address) {
@@ -259,7 +260,7 @@ export default function TasksPage() {
               <div className="w-20 h-1 bg-white"></div>
             </div>
             <p className="text-white text-opacity-90 text-lg">
-              Buy a post-token for <span className="font-black text-yellow-300">$0.01</span> on 10 posts.
+              Buy a post-token for <span className="font-black text-yellow-300">$0.01</span> on {REQUIRED_BUYS_TO_PUBLISH} posts.
             </p>
           </div>
 
@@ -271,14 +272,14 @@ export default function TasksPage() {
               <div className="flex-1">
                 <div className="text-gray-900 font-black text-xl">Progress</div>
                 <div className="text-gray-600">
-                  Bought post-tokens: <span className="font-black">{completedCount}</span>/10
+                  Bought post-tokens: <span className="font-black">{completedCount}</span>/{REQUIRED_BUYS_TO_PUBLISH}
                 </div>
               </div>
               {canPublish ? (
                 <Button onClick={() => router.push('/submit')}>Publish</Button>
               ) : (
                 <Button onClick={() => router.push('/submit')} disabled>
-                  {hasFid ? 'Publish (need 10)' : 'Publish (open in Base App)'} 
+                  {hasFid ? `Publish (need ${REQUIRED_BUYS_TO_PUBLISH})` : 'Publish (open in Base App)'} 
                 </Button>
               )}
             </div>

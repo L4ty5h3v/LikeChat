@@ -7,6 +7,7 @@ import Button from '@/components/Button';
 import { getUserProgress, getAllLinks } from '@/lib/db-config';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
 import type { TaskType } from '@/types';
+import { REQUIRED_BUYS_TO_PUBLISH, TASKS_LIMIT } from '@/lib/app-config';
 
 // Base-версия: публикация "каста" через Farcaster SDK отключена
 async function publishCastByActivityType(_taskType: TaskType, _castUrl: string): Promise<{ success: boolean; error?: string }> {
@@ -467,7 +468,7 @@ export default function Submit() {
         
         // Если ошибка связана с недостаточным количеством выполненных заданий
         if (data.completedCount !== undefined && data.requiredCount !== undefined) {
-          const errorMessage = data.error || `You can submit only after completing 10 buys. Completed: ${data.completedCount}/10`;
+          const errorMessage = data.error || `You can submit only after completing ${REQUIRED_BUYS_TO_PUBLISH} buys. Completed: ${data.completedCount}/${REQUIRED_BUYS_TO_PUBLISH}`;
           setError(errorMessage);
           setLoading(false);
           // Редиректим на страницу заданий через 3 секунды
@@ -479,7 +480,7 @@ export default function Submit() {
         
         // Если ошибка связана с недостаточным количеством ссылок от других пользователей
         if (data.otherLinksCount !== undefined && data.requiredCount !== undefined) {
-          const errorMessage = data.error || `You can submit only after 10 other posts are in the queue. Other posts: ${data.otherLinksCount}/10`;
+          const errorMessage = data.error || `You can submit only after ${TASKS_LIMIT} other posts are in the queue. Other posts: ${data.otherLinksCount}/${TASKS_LIMIT}`;
           setError(errorMessage);
           setLoading(false);
           // Редиректим на страницу заданий через 3 секунды
@@ -764,7 +765,7 @@ export default function Submit() {
                 </p>
                 <div className="bg-gradient-to-r from-red-500/10 via-purple-600/10 to-pink-500/10 rounded-2xl p-6 mb-8 border border-red-500/20">
                   <p className="text-base text-gray-700">
-                    <strong>The next 10 users</strong> will buy your post.
+                    <strong>The next {TASKS_LIMIT} users</strong> will buy your post.
                   </p>
                 </div>
                 <Button
@@ -970,7 +971,7 @@ export default function Submit() {
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
                   <span className="text-3xl font-black text-accent">02</span>
-                  <span className="font-bold text-xl">Next 10 users will complete your link</span>
+                  <span className="font-bold text-xl">Next {TASKS_LIMIT} users will complete your post</span>
                 </div>
               </div>
               <div className="space-y-3">

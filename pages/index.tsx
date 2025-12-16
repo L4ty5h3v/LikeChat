@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Layout from '@/components/Layout';
 import Button from '@/components/Button';
 import { dicebearIdenticonPng, normalizeAvatarUrl } from '@/lib/media';
+import { REQUIRED_BUYS_TO_PUBLISH, TASKS_LIMIT } from '@/lib/app-config';
 import { setUserActivity } from '@/lib/db-config';
 import type { ActivityType } from '@/types';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
@@ -659,7 +660,7 @@ export default function Home() {
                   ACCEPT YOUR TASK
                 </h2>
                 <p className="text-base sm:text-xl md:text-2xl text-gray-700 mb-6 sm:mb-8 text-center font-bold px-4">
-                  You will perform this task on all 10 links
+                  You will perform this task on all {TASKS_LIMIT} links
                 </p>
 
                 {/* Стеклянные кнопки активности в стиле glassmorphism */}
@@ -707,13 +708,13 @@ export default function Home() {
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
                   <span className="text-3xl font-black text-accent">02</span>
-                  <span className="font-bold text-xl">Complete tasks on 10 participants links</span>
+                  <span className="font-bold text-xl">Complete tasks on {TASKS_LIMIT} participant links</span>
                 </div>
               </div>
               <div className="space-y-3">
                 <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
                   <span className="text-3xl font-black text-accent">03</span>
-                  <span className="font-bold text-xl">Buy 10 posts</span>
+                  <span className="font-bold text-xl">Buy {REQUIRED_BUYS_TO_PUBLISH} posts</span>
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
                   <span className="text-3xl font-black text-accent">04</span>
