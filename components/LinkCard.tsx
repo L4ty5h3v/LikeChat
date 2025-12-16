@@ -1,6 +1,7 @@
 // Карточка ссылки в ленте
 import React from 'react';
 import type { LinkSubmission } from '@/types';
+import { dicebearIdenticonPng, normalizeAvatarUrl } from '@/lib/media';
 
 interface LinkCardProps {
   link: LinkSubmission;
@@ -36,13 +37,12 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
       <div className="flex items-center gap-3 mb-3">
         {link.pfp_url && (
           <img
-            src={link.pfp_url}
+            src={normalizeAvatarUrl(link.pfp_url) || dicebearIdenticonPng(link.username || link.id, 80)}
             alt={link.username}
             className="w-10 h-10 rounded-full border-2 border-primary"
             onError={(e) => {
-              // Fallback на дефолтный аватар при ошибке загрузки
               const target = e.target as HTMLImageElement;
-              target.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${link.username}`;
+              target.src = dicebearIdenticonPng(link.username || link.id, 80);
             }}
           />
         )}

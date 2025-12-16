@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import Image from 'next/image';
 import Layout from '@/components/Layout';
 import Button from '@/components/Button';
+import { dicebearIdenticonPng, normalizeAvatarUrl } from '@/lib/media';
 import { setUserActivity } from '@/lib/db-config';
 import type { ActivityType } from '@/types';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
@@ -611,9 +612,13 @@ export default function Home() {
               {/* Информация о пользователе */}
               <div className="flex items-center gap-4 mb-8 p-4 bg-gray-50 rounded-xl">
                 <img
-                  src={user.pfp_url}
+                  src={normalizeAvatarUrl(user.pfp_url) || dicebearIdenticonPng(user.address || user.username || String(user.fid), 128)}
                   alt={user.username}
                   className="w-16 h-16 rounded-full border-4 border-primary"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.src = dicebearIdenticonPng(user.address || user.username || String(user.fid), 128);
+                  }}
                 />
                 <div className="flex-1">
                   <h3 className="text-xl font-bold text-gray-900">

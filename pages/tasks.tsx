@@ -8,6 +8,7 @@ import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
 import type { LinkSubmission } from '@/types';
 import { useAccount, usePublicClient, useReadContracts, useWriteContract } from 'wagmi';
 import { erc20Abi, parseUnits, type Address } from 'viem';
+import { dicebearIdenticonPng, normalizeAvatarUrl } from '@/lib/media';
 
 const USDC_CONTRACT_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as const;
 const BUY_AMOUNT_USDC = parseUnits('0.01', 6);
@@ -302,11 +303,15 @@ export default function TasksPage() {
                 return (
                   <div key={link.id} className="bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl shadow-xl p-5 border border-white/30">
                     <div className="flex items-start gap-4">
-                      {link.pfp_url ? (
-                        <img src={link.pfp_url} alt={link.username} className="w-12 h-12 rounded-full border-2 border-primary" />
-                      ) : (
-                        <div className="w-12 h-12 rounded-full bg-gray-200" />
-                      )}
+                      <img
+                        src={normalizeAvatarUrl(link.pfp_url) || dicebearIdenticonPng(link.username || link.id, 96)}
+                        alt={link.username}
+                        className="w-12 h-12 rounded-full border-2 border-primary"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.src = dicebearIdenticonPng(link.username || link.id, 96);
+                        }}
+                      />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-4">
                           <div className="min-w-0">
