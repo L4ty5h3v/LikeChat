@@ -46,22 +46,27 @@ export default function TasksPage() {
     localStorage.setItem('selected_activity', 'support');
   }, []);
 
+  const hasFid = typeof user?.fid === 'number' && Number.isFinite(user.fid) && user.fid > 0;
+
   const refresh = async () => {
-    if (!user?.fid) return;
-      setLoading(true);
+    setLoading(true);
     try {
-      const [linksRes, progressRes] = await Promise.all([
-        fetch(`/api/tasks?t=${Date.now()}&taskType=support`),
-        fetch(`/api/user-progress?userFid=${user.fid}&t=${Date.now()}`),
-      ]);
+      // Always load links (they are global, not user-specific)
+      const linksRes = await fetch(`/api/tasks?t=${Date.now()}&taskType=support`);
       const linksJson = await linksRes.json();
-      const progressJson = await progressRes.json();
       setLinks(Array.isArray(linksJson.links) ? linksJson.links : []);
 
-      const progress = progressJson.progress || null;
-      setCompletedLinkIds(Array.isArray(progress?.completed_links) ? progress.completed_links : []);
+      // Load per-user progress only when we have a real fid (MiniKit/Base App)
+      if (hasFid) {
+        const progressRes = await fetch(`/api/user-progress?userFid=${user!.fid}&t=${Date.now()}`);
+        const progressJson = await progressRes.json();
+        const progress = progressJson.progress || null;
+        setCompletedLinkIds(Array.isArray(progress?.completed_links) ? progress.completed_links : []);
+      } else {
+        setCompletedLinkIds([]);
+      }
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
 
@@ -122,8 +127,23 @@ export default function TasksPage() {
     return map;
   }, [balances, tokenContracts]);
 
-  const completedCount = completedLinkIds.length;
-  const canPublish = completedCount >= 10;
+  const ownedLinkIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const l of links) {
+      if (!isAddress(l.token_address)) continue;
+      const bal = balanceByToken.get(l.token_address.toLowerCase()) ?? 0n;
+      if (bal > 0n) ids.add(l.id);
+    }
+    return ids;
+  }, [links, balanceByToken]);
+
+  const completedCount = useMemo(() => {
+    const ids = new Set<string>(completedLinkIds);
+    for (const id of ownedLinkIds) ids.add(id);
+    return ids.size;
+  }, [completedLinkIds, ownedLinkIds]);
+
+  const canPublish = completedCount >= 10 && hasFid;
 
   const handleBuy = async (link: LinkSubmission) => {
     if (!isConnected || !address) {
@@ -179,11 +199,13 @@ export default function TasksPage() {
       }
 
       // 4) mark completed in DB
-      await fetch('/api/mark-completed', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userFid: user?.fid, linkId: link.id }),
-      });
+      if (hasFid) {
+        await fetch('/api/mark-completed', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userFid: user?.fid, linkId: link.id }),
+        });
+      }
 
       setCompletedLinkIds((prev) => (prev.includes(link.id) ? prev : [...prev, link.id]));
       // Обновим кеш балансов для UI (не критично для верификации)
@@ -245,7 +267,7 @@ export default function TasksPage() {
                 <Button onClick={() => router.push('/submit')}>Publish</Button>
               ) : (
                 <Button onClick={() => router.push('/submit')} disabled>
-                  Publish (need 10)
+                  {hasFid ? 'Publish (need 10)' : 'Publish (open in Base App)'} 
                 </Button>
               )}
             </div>
