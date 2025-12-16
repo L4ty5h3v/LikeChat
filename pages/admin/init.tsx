@@ -50,19 +50,19 @@ export default function InitLinks() {
         data = text ? JSON.parse(text) : {};
       } catch (parseError) {
         console.error('JSON parse error:', parseError, 'Response text:', text);
-        setResult({ error: `Ошибка ответа сервера: ${text || 'пустой ответ'}` });
+        setResult({ error: `Server response error: ${text || 'empty response'}` });
         setLoading(false);
         return;
       }
 
       if (response.ok) {
-        setResult({ success: true, message: data.message || 'Ссылки успешно очищены!' });
+        setResult({ success: true, message: data.message || 'Links cleared successfully!' });
       } else {
-        setResult({ error: data.error || data.message || `Ошибка при инициализации (${response.status})` });
+        setResult({ error: data.error || data.message || `Init error (${response.status})` });
       }
     } catch (error: any) {
       console.error('Init error:', error);
-      setResult({ error: error.message || 'Неизвестная ошибка' });
+      setResult({ error: error.message || 'Unknown error' });
     } finally {
       setLoading(false);
     }
@@ -96,7 +96,7 @@ export default function InitLinks() {
     try {
       const links = parseSeedInput(seedInput);
       if (links.length === 0) {
-        setSeedResult({ error: 'Не найдено ни одной строки формата: <url> <tokenAddress>' });
+        setSeedResult({ error: 'No valid lines found. Format: <url> <tokenAddress>' });
         setSeedLoading(false);
         return;
       }
@@ -119,7 +119,7 @@ export default function InitLinks() {
         data = text ? JSON.parse(text) : {};
       } catch (parseError) {
         console.error('JSON parse error:', parseError, 'Response text:', text);
-        setSeedResult({ error: `Ошибка ответа сервера: ${text || 'пустой ответ'}` });
+        setSeedResult({ error: `Server response error: ${text || 'empty response'}` });
         setSeedLoading(false);
         return;
       }
@@ -129,48 +129,48 @@ export default function InitLinks() {
         const removed = typeof data.removed === 'number' ? data.removed : undefined;
         const message =
           added != null
-            ? `Готово: добавлено ${added}${removed != null ? `, удалено ${removed}` : ''}`
-            : 'Ссылки успешно загружены';
+            ? `Done: added ${added}${removed != null ? `, removed ${removed}` : ''}`
+            : 'Links seeded successfully';
         setSeedResult({ success: true, message });
       } else {
-        setSeedResult({ error: data.error || data.message || `Ошибка при загрузке (${response.status})` });
+        setSeedResult({ error: data.error || data.message || `Seed error (${response.status})` });
       }
     } catch (error: any) {
       console.error('Seed error:', error);
-      setSeedResult({ error: error.message || 'Неизвестная ошибка' });
+      setSeedResult({ error: error.message || 'Unknown error' });
     } finally {
       setSeedLoading(false);
     }
   };
 
   return (
-    <Layout title="Инициализация системы">
+    <Layout title="Admin">
       <div className="max-w-3xl mx-auto">
         <h1 className="text-3xl font-bold text-gray-900 mb-6">
-          Очистка ссылок
+          Admin tools
         </h1>
 
         <div className="bg-white rounded-2xl shadow-xl p-8 mb-6">
           <h2 className="text-xl font-bold text-gray-900 mb-4">
-            Секретный ключ (если включён на Vercel)
+            Secret key (if enabled on Vercel)
           </h2>
           <p className="text-gray-600 mb-4">
-            Если на Vercel задан <code className="px-2 py-1 bg-gray-100 rounded">INIT_LINKS_SECRET_KEY</code>, введи его сюда. Если ключ не задан — можно оставить пустым.
+            If Vercel has <code className="px-2 py-1 bg-gray-100 rounded">INIT_LINKS_SECRET_KEY</code> set, enter it here. Otherwise, leave empty.
           </p>
           <input
             value={secretKey}
             onChange={(e) => setSecretKey(e.target.value)}
-            placeholder="INIT_LINKS_SECRET_KEY (опционально)"
+            placeholder="INIT_LINKS_SECRET_KEY (optional)"
             className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary focus:outline-none"
           />
         </div>
 
         <div className="bg-white rounded-2xl shadow-xl p-8 mb-6">
           <h2 className="text-xl font-bold text-gray-900 mb-4">
-            Засеять ссылки (Support посты)
+            Seed links (posts to buy)
           </h2>
           <p className="text-gray-600 mb-4">
-            Формат: одна строка = <code className="px-2 py-1 bg-gray-100 rounded">&lt;url&gt; &lt;tokenAddress&gt;</code>. По умолчанию уже вставлены 2 ссылки, которые ты присылала.
+            Format: one line = <code className="px-2 py-1 bg-gray-100 rounded">&lt;url&gt; &lt;tokenAddress&gt;</code>.
           </p>
 
           {seedResult && (
@@ -195,7 +195,7 @@ export default function InitLinks() {
               className="h-5 w-5"
             />
             <span className="text-gray-800 font-semibold">
-              Заменить весь список (удалить старые ссылки и оставить только эти)
+              Replace entire list (delete old links and keep only these)
             </span>
           </label>
 
@@ -214,17 +214,17 @@ export default function InitLinks() {
               fullWidth
               className="text-lg py-4"
             >
-              {seedLoading ? 'Загрузка...' : 'Засеять ссылки'}
+              {seedLoading ? 'Seeding...' : 'Seed links'}
             </Button>
           </div>
         </div>
 
         <div className="bg-white rounded-2xl shadow-xl p-8 mb-6">
           <h2 className="text-xl font-bold text-gray-900 mb-4">
-            Информация
+            Clear links
           </h2>
           <p className="text-gray-600 mb-4">
-            Эта страница очищает ВСЕ ссылки из базы. Список задач будет пустым, пока пользователи не начнут добавлять свои ссылки.
+            This will remove ALL links from the database. Tasks will be empty until you seed or users add new posts.
           </p>
 
           {result && (
@@ -249,7 +249,7 @@ export default function InitLinks() {
               fullWidth
               className="text-lg py-4"
             >
-              {loading ? 'Очистка...' : 'Очистить все ссылки (удаляет все существующие ссылки)'}
+              {loading ? 'Clearing...' : 'Clear all links (deletes everything)'}
             </Button>
           </div>
 
@@ -258,23 +258,23 @@ export default function InitLinks() {
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
               <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 max-w-md w-full mx-4">
                 <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">
-                  Подтверждение
+                  Confirmation
                 </h3>
                 <p className="text-gray-700 mb-6">
-                  Вы уверены, что хотите очистить ВСЕ ссылки? Это действие нельзя отменить.
+                  Are you sure you want to clear ALL links? This cannot be undone.
                 </p>
                 <div className="flex gap-4">
                   <button
                     onClick={() => setShowConfirmModal(false)}
                     className="flex-1 px-6 py-3 bg-gray-200 text-gray-800 font-bold rounded-xl hover:bg-gray-300 transition-colors"
                   >
-                    Отмена
+                    Cancel
                   </button>
                   <button
                     onClick={handleConfirm}
                     className="flex-1 px-6 py-3 bg-gradient-to-r from-primary to-accent text-white font-bold rounded-xl hover:opacity-90 transition-opacity"
                   >
-                    Подтвердить
+                    Confirm
                   </button>
                 </div>
               </div>
@@ -285,13 +285,13 @@ export default function InitLinks() {
 
         <div className="bg-yellow-50 border-2 border-yellow-300 rounded-2xl p-6 mb-6">
           <h3 className="text-lg font-bold text-yellow-800 mb-2">
-            ⚠️ Внимание
+            ⚠️ Important
           </h3>
           <p className="text-yellow-700 mb-2">
-            <strong>Очистка:</strong> эта операция удаляет все ссылки из базы данных.
+            <strong>Clear:</strong> this deletes all links from the database.
           </p>
           <p className="text-yellow-700 mt-2">
-            Для работы этих действий необходим секретный ключ (установите его в переменную окружения INIT_LINKS_SECRET_KEY на Vercel).
+            If you enable protection, set <code className="px-1 py-0.5 bg-yellow-100 rounded">INIT_LINKS_SECRET_KEY</code> on Vercel.
           </p>
         </div>
       </div>

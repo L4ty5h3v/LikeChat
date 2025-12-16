@@ -19,7 +19,7 @@ export default async function handler(
     if (!secretKey || secretKey !== requiredSecretKey) {
       return res.status(401).json({ 
         error: 'Unauthorized',
-        message: 'Секретный ключ не указан или неверен. Установите INIT_LINKS_SECRET_KEY в Vercel или введите правильный ключ.'
+        message: 'Secret key is missing or invalid. Set INIT_LINKS_SECRET_KEY on Vercel or provide the correct key.'
       });
     }
   }
@@ -44,13 +44,13 @@ export default async function handler(
     if (result.success) {
       return res.status(200).json({ 
         success: true,
-        message: `Очищено ${result.count} ссылок`,
+        message: `Cleared ${result.count} links`,
         count: result.count
       });
     } else {
       return res.status(400).json({ 
         success: false,
-        error: result.error || 'Ошибка при инициализации',
+        error: result.error || 'Initialization error',
         count: result.count || 0
       });
     }

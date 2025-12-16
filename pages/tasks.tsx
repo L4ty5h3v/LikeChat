@@ -1,4 +1,4 @@
-// Страница задач (Base): купить post-token на $0.01 USDC, проверка только onchain через balanceOf
+// Tasks page (Base): buy a post-token for $0.01 USDC, onchain verification via balanceOf
 import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
@@ -40,7 +40,7 @@ export default function TasksPage() {
   const [buyingLinkId, setBuyingLinkId] = useState<string | null>(null);
   const [errorByLinkId, setErrorByLinkId] = useState<Record<string, string>>({});
 
-  // Всегда работаем в режиме support
+  // Always operate in "support" mode (buy posts)
   useEffect(() => {
     if (typeof window === 'undefined') return;
     localStorage.setItem('selected_activity', 'support');
@@ -127,19 +127,19 @@ export default function TasksPage() {
 
   const handleBuy = async (link: LinkSubmission) => {
     if (!isConnected || !address) {
-      setErrorByLinkId((p) => ({ ...p, [link.id]: 'Сначала подключите кошелёк.' }));
+      setErrorByLinkId((p) => ({ ...p, [link.id]: 'Connect your wallet first.' }));
       return;
     }
     if (chainId && chainId !== 8453) {
-      setErrorByLinkId((p) => ({ ...p, [link.id]: 'Переключите сеть на Base (8453).' }));
+      setErrorByLinkId((p) => ({ ...p, [link.id]: 'Switch network to Base (8453).' }));
       return;
     }
     if (!isAddress(link.token_address)) {
-      setErrorByLinkId((p) => ({ ...p, [link.id]: 'У поста нет корректного token address.' }));
+      setErrorByLinkId((p) => ({ ...p, [link.id]: 'This post has an invalid token address.' }));
       return;
     }
     if (!publicClient) {
-      setErrorByLinkId((p) => ({ ...p, [link.id]: 'Public client не доступен.' }));
+      setErrorByLinkId((p) => ({ ...p, [link.id]: 'Public client is not available.' }));
       return;
     }
 
@@ -175,7 +175,7 @@ export default function TasksPage() {
         args: [address],
       });
       if (newBal <= 0n) {
-        throw new Error('Покупка прошла, но balanceOf всё ещё 0. Попробуйте обновить страницу через 10-20 сек.');
+        throw new Error('Buy succeeded, but balance is still 0. Please refresh in 10–20 seconds.');
       }
 
       // 4) mark completed in DB
@@ -189,7 +189,7 @@ export default function TasksPage() {
       // Обновим кеш балансов для UI (не критично для верификации)
       refetchBalances();
     } catch (e: any) {
-      setErrorByLinkId((p) => ({ ...p, [link.id]: e?.message || 'Ошибка покупки' }));
+      setErrorByLinkId((p) => ({ ...p, [link.id]: e?.message || 'Buy error' }));
     } finally {
       setBuyingLinkId(null);
     }
@@ -212,21 +212,21 @@ export default function TasksPage() {
   }
 
   return (
-    <Layout title="Tasks - Support">
+    <Layout title="Buy Posts">
       <div className="relative min-h-screen overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient bg-300%"></div>
         
         <div className="relative z-10 max-w-6xl mx-auto px-6 py-16">
           <div className="text-center mb-10">
             <h1 className="text-5xl md:text-7xl font-black text-white mb-6 font-display leading-none tracking-tight">
-              SUPPORT
+              BUY POSTS
             </h1>
             <div className="flex items-center justify-center gap-4 mb-6">
               <div className="w-20 h-1 bg-white"></div>
               <div className="w-20 h-1 bg-white"></div>
             </div>
             <p className="text-white text-opacity-90 text-lg">
-              Купите post-token на <span className="font-black text-yellow-300">$0.01</span> для 10 постов.
+              Buy a post-token for <span className="font-black text-yellow-300">$0.01</span> on 10 posts.
             </p>
           </div>
 
@@ -236,16 +236,16 @@ export default function TasksPage() {
                 <Image src="/images/mrs-crypto.jpg" alt="Mrs. Crypto" width={64} height={64} className="w-full h-full object-cover" unoptimized />
               </div>
               <div className="flex-1">
-                <div className="text-gray-900 font-black text-xl">Прогресс</div>
+                <div className="text-gray-900 font-black text-xl">Progress</div>
                 <div className="text-gray-600">
-                  Куплено пост-токенов: <span className="font-black">{completedCount}</span>/10
+                  Bought post-tokens: <span className="font-black">{completedCount}</span>/10
                 </div>
               </div>
               {canPublish ? (
-                <Button onClick={() => router.push('/submit')}>Публиковать</Button>
+                <Button onClick={() => router.push('/submit')}>Publish</Button>
               ) : (
                 <Button onClick={() => router.push('/submit')} disabled>
-                  Публиковать (нужно 10)
+                  Publish (need 10)
                 </Button>
               )}
             </div>
@@ -255,8 +255,8 @@ export default function TasksPage() {
             {links.length === 0 ? (
               <div className="text-center py-12 bg-white bg-opacity-10 backdrop-blur-md rounded-2xl border border-white/30 shadow-2xl">
                 <div className="text-6xl mb-4">📋</div>
-                <h3 className="text-2xl font-bold text-white mb-2">Нет заданий</h3>
-                <p className="text-white text-opacity-80">Пока никто не добавил посты.</p>
+                <h3 className="text-2xl font-bold text-white mb-2">No tasks yet</h3>
+                <p className="text-white text-opacity-80">No one has added posts yet.</p>
               </div>
             ) : (
               links.map((link) => {
@@ -287,14 +287,14 @@ export default function TasksPage() {
                               className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-900 font-bold"
                               onClick={() => window.open(link.cast_url, '_blank', 'noopener,noreferrer')}
                             >
-                              Открыть
+                              Open
                             </button>
                             <button
                               className={`px-4 py-2 rounded-xl font-bold text-white ${completed ? 'bg-green-600' : 'bg-gradient-to-r from-primary via-secondary to-accent'}`}
                               onClick={() => handleBuy(link)}
                               disabled={isBuying || completed || !tokenAddr}
                             >
-                              {completed ? 'Готово' : isBuying ? 'Покупка…' : 'Buy $0.01'}
+                              {completed ? 'Done' : isBuying ? 'Buying…' : 'BUY $0.01'}
                             </button>
                           </div>
                         </div>

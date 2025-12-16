@@ -33,7 +33,7 @@ export default async function handler(
   try {
     const limit = parseInt(req.query.limit as string) || 20;
     
-    console.log('🔍 Получаю данные всех пользователей...');
+    console.log('🔍 Fetching all users progress...');
     
     // Получаем всех пользователей
     if (!getAllUsersProgress) {
@@ -51,7 +51,7 @@ export default async function handler(
         success: true,
         users: [],
         total: 0,
-        message: 'Пользователи не найдены'
+        message: 'No users found'
       });
     }
     
@@ -104,7 +104,7 @@ export default async function handler(
       total_claims: usersWithClaims.reduce((sum, u) => sum + u.claim_count, 0),
     });
   } catch (error: any) {
-    console.error('❌ Ошибка при получении топ пользователей:', error);
+    console.error('❌ Error fetching top users:', error);
     return res.status(500).json({
       success: false,
       error: 'Failed to get top fortune users',

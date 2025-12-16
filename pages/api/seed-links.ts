@@ -25,7 +25,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(401).json({
         success: false,
         error: 'Unauthorized',
-        message: 'Секретный ключ не указан или неверен. Установите INIT_LINKS_SECRET_KEY в Vercel или передайте secretKey.',
+        message: 'Secret key is missing or invalid. Set INIT_LINKS_SECRET_KEY on Vercel or pass secretKey.',
       });
     }
   }

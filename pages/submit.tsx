@@ -353,9 +353,10 @@ export default function Submit() {
   };
 
   const validateUrl = (url: string): boolean => {
-    // Проверка формата URL Farcaster
-    const urlPattern = /^https?:\/\/(farcaster\.xyz)\/.+/i;
-    return urlPattern.test(url);
+    const trimmed = (url || '').trim();
+    // Base posts are usually shared as base.app/content/... (or base.app/post/...).
+    const urlPattern = /^https?:\/\/(www\.)?base\.app\/(content|post)\/.+/i;
+    return urlPattern.test(trimmed);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -376,7 +377,7 @@ export default function Submit() {
     // Проверяем наличие user из контекста
     if (!user) {
       console.error('❌ [SUBMIT] User is null in context!');
-      setError('Ошибка: данные пользователя не найдены. Пожалуйста, авторизуйтесь заново.');
+      setError('Error: user data not found. Please authorize again.');
       router.push('/');
       return;
     }
@@ -388,14 +389,14 @@ export default function Submit() {
         hasCastUrl: !!castUrl,
         hasTokenAddress: !!tokenAddress,
       });
-      setError('Заполните все обязательные поля');
+      setError('Please fill in all required fields');
       return;
     }
     
     // ⚠️ ПРОВЕРКА FID: Убеждаемся, что fid существует и валиден
     if (!user.fid || typeof user.fid !== 'number') {
       console.error('❌ [SUBMIT] Invalid or missing user.fid:', user.fid);
-      setError('Ошибка: не найден FID пользователя. Попробуйте перезагрузить страницу.');
+      setError('Error: missing user id. Please refresh and try again.');
       return;
     }
     
@@ -408,7 +409,7 @@ export default function Submit() {
 
     // Валидация URL
     if (!validateUrl(castUrl)) {
-      setError('Please enter a valid cast link');
+      setError('Please enter a valid Base post link');
       return;
     }
 
@@ -466,7 +467,7 @@ export default function Submit() {
         
         // Если ошибка связана с недостаточным количеством выполненных заданий
         if (data.completedCount !== undefined && data.requiredCount !== undefined) {
-          const errorMessage = data.error || `Вы можете отправить свою ссылку только после выполнения 10 заданий. Выполнено: ${data.completedCount}/10`;
+          const errorMessage = data.error || `You can submit only after completing 10 buys. Completed: ${data.completedCount}/10`;
           setError(errorMessage);
           setLoading(false);
           // Редиректим на страницу заданий через 3 секунды
@@ -478,7 +479,7 @@ export default function Submit() {
         
         // Если ошибка связана с недостаточным количеством ссылок от других пользователей
         if (data.otherLinksCount !== undefined && data.requiredCount !== undefined) {
-          const errorMessage = data.error || `Вы можете отправить свою ссылку только после того, как в чат было отправлено 10 других ссылок. Отправлено другими пользователями: ${data.otherLinksCount}/10`;
+          const errorMessage = data.error || `You can submit only after 10 other posts are in the queue. Other posts: ${data.otherLinksCount}/10`;
           setError(errorMessage);
           setLoading(false);
           // Редиректим на страницу заданий через 3 секунды
@@ -690,12 +691,16 @@ export default function Submit() {
       
       const errorMessage = err.message || 'An error occurred';
       setError(errorMessage);
-      setLoading(false); // Разблокируем форму только при ошибке
-      
-      // Если ошибка связана с недостаточным количеством выполненных заданий или ссылок от других пользователей, редиректим на /tasks
-      if (errorMessage.includes('10 заданий') || errorMessage.includes('10 других ссылок') || 
-          errorMessage.includes('completedCount') || errorMessage.includes('otherLinksCount') || 
-          errorMessage.includes('других пользователей')) {
+      setLoading(false); // Unlock the form only on error
+
+      // If error indicates missing prerequisites, redirect user to /tasks
+      if (
+        errorMessage.includes('complet') || // "complete/completed/completing"
+        errorMessage.includes('Completed:') ||
+        errorMessage.includes('Other posts') ||
+        errorMessage.includes('completedCount') ||
+        errorMessage.includes('otherLinksCount')
+      ) {
         setTimeout(() => {
           router.push('/tasks');
         }, 3000);
@@ -759,7 +764,7 @@ export default function Submit() {
                 </p>
                 <div className="bg-gradient-to-r from-red-500/10 via-purple-600/10 to-pink-500/10 rounded-2xl p-6 mb-8 border border-red-500/20">
                   <p className="text-base text-gray-700">
-                    <strong>The next 10 users</strong> who choose the same task will perform that task on your cast.
+                    <strong>The next 10 users</strong> will buy your post.
                   </p>
                 </div>
                 <Button
@@ -803,7 +808,7 @@ export default function Submit() {
 
 
   return (
-    <Layout title="Multi Like - Add Your Link">
+    <Layout title="Multi Buy - Add Your Post">
       {/* Hero Section с градиентом */}
       <div className="relative min-h-screen overflow-hidden">
         {/* Анимированный градиент фон */}
@@ -822,7 +827,7 @@ export default function Submit() {
                   PUBLISH
                 </span>
                 <span className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-white">
-                  LINK
+                  POST
                 </span>
               </h1>
             </div>
@@ -846,10 +851,10 @@ export default function Submit() {
               <div className="w-10 sm:w-20 h-1 bg-white"></div>
             </div>
             <p className="text-xl sm:text-3xl md:text-4xl text-white font-bold mb-4 tracking-wide px-4">
-              <span className="text-white">🚀</span> ADD YOUR LINK <span className="text-white">🚀</span>
+              <span className="text-white">🚀</span> ADD YOUR POST <span className="text-white">🚀</span>
             </p>
             <p className="text-lg text-white text-opacity-90 max-w-2xl mx-auto">
-              Share your link for mutual support
+              Add link to post you want to sell
             </p>
           </div>
 
@@ -863,10 +868,10 @@ export default function Submit() {
               </p>
               <div className="flex items-center gap-3 text-primary font-bold text-xl">
                 <span className="text-3xl">💎</span>
-                <span>SUPPORT</span>
+                <span>BUY $0.01</span>
               </div>
               <p className="text-sm text-gray-600 mt-3">
-                Other users will perform this task on your link
+                Other users will buy your post
               </p>
             </div>
 
@@ -883,12 +888,12 @@ export default function Submit() {
                   id="castUrl"
                   value={castUrl}
                   onChange={(e) => setCastUrl(e.target.value)}
-                  placeholder="https://base.app/post/..."
+                  placeholder="https://base.app/content/..."
                   className="w-full px-6 py-4 border-2 border-gray-300 rounded-xl focus:border-primary focus:outline-none transition-colors text-lg"
                   required
                 />
                 <p className="text-sm text-gray-500 mt-2">
-                  Example: https://base.app/post/0x...
+                  Example: https://base.app/content/...
                 </p>
               </div>
 
@@ -909,7 +914,7 @@ export default function Submit() {
                   required
                 />
                 <p className="text-sm text-gray-500 mt-2">
-                  Адрес контракта токена поста для покупки на $0.01
+                  Post token contract address used to buy for $0.01
                 </p>
               </div>
 
@@ -944,7 +949,7 @@ export default function Submit() {
                     <span>PUBLISHING...</span>
                   </div>
                 ) : (
-                  '🚀 ADD YOUR LINK'
+                  '🚀 ADD YOUR POST'
                 )}
                 </span>
               </button>
@@ -975,7 +980,7 @@ export default function Submit() {
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
                   <span className="text-3xl font-black text-accent">04</span>
-                  <span className="font-bold text-xl">You get mutual support from community</span>
+                  <span className="font-bold text-xl">You get multiple buyers</span>
                 </div>
               </div>
             </div>

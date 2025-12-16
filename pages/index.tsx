@@ -73,7 +73,7 @@ export default function Home() {
       // Base: подключаем кошелёк через wagmi (без Farcaster SDK)
       const connector = connectors?.[0];
       if (!connector) {
-        throw new Error('Нет доступных коннекторов кошелька. Установите Coinbase Wallet или MetaMask.');
+        throw new Error('No wallet connectors available. Please install Coinbase Wallet or MetaMask.');
       }
       await connectAsync({ connector });
       setSuccess(true);
@@ -458,7 +458,7 @@ export default function Home() {
       
       setErrorModal({
         show: true,
-        message: `Ошибка при авторизации: ${error?.message || 'Неизвестная ошибка'}\n\nПроверьте консоль браузера для деталей.`
+        message: `Authorization error: ${error?.message || 'Unknown error'}\n\nCheck the browser console for details.`
       });
       setSuccess(false);
       return; // Явно выходим из функции
@@ -500,7 +500,7 @@ export default function Home() {
   // ⚠️ УДАЛЕНО: handleContinue больше не нужен, так как переход происходит автоматически при выборе активности
 
   return (
-    <Layout title="Multi Like - Authorization">
+    <Layout title="Multi Buy - Authorization">
       {/* Hero Section с градиентом */}
       <div className="relative min-h-screen overflow-hidden">
         {/* Анимированный градиент фон */}
@@ -522,7 +522,7 @@ export default function Home() {
                   MULTI
                 </span>
                 <span className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-white">
-                  LIKE
+                  BUY
                 </span>
             </h1>
             </div>
@@ -550,7 +550,7 @@ export default function Home() {
               <span className="text-white">♡</span> MUTUAL LOVE FROM MRS. CRYPTO <span className="text-white">♡</span>
             </p>
             <p className="text-lg text-white text-opacity-90 max-w-2xl mx-auto">
-              Complete tasks to get collective support
+              Complete tasks to get multiple buyers
             </p>
           </div>
 
@@ -631,7 +631,7 @@ export default function Home() {
                     onClick={() => {
                       if (typeof window === 'undefined') return;
                       const current = user.username || '';
-                      const next = window.prompt('Введите имя профиля (будет видно вместо адреса):', current);
+                      const next = window.prompt('Enter a profile name (shown instead of your address):', current);
                       if (!next) return;
                       const trimmed = next.trim();
                       if (!trimmed) return;
@@ -642,7 +642,7 @@ export default function Home() {
                       });
                     }}
                   >
-                    Имя
+                    Name
                   </button>
                   <div className="text-green-500 text-2xl">✓</div>
                 </div>
@@ -651,7 +651,7 @@ export default function Home() {
               {/* Выбор активности */}
               <div>
                 <h2 className="text-4xl md:text-5xl font-black text-gray-900 mb-4 text-center font-display">
-                  SELECT TASK TYPE
+                  ACCEPT YOUR TASK
                 </h2>
                 <p className="text-base sm:text-xl md:text-2xl text-gray-700 mb-6 sm:mb-8 text-center font-bold px-4">
                   You will perform this task on all 10 links
@@ -672,7 +672,7 @@ export default function Home() {
                     <div className="flex items-center justify-between relative z-20">
                       <div className="flex items-center gap-2 sm:gap-3">
                         <span className="text-2xl sm:text-3xl drop-shadow-lg">💎</span>
-                        <span className="drop-shadow-lg">SUPPORT</span>
+                        <span className="drop-shadow-lg">BUY</span>
                       </div>
                       <div className="text-xl sm:text-2xl drop-shadow-lg">$0.01</div>
                     </div>
@@ -698,7 +698,7 @@ export default function Home() {
               <div className="space-y-3">
                 <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
                   <span className="text-3xl font-black text-accent">01</span>
-                  <span className="font-bold text-xl">Select task type</span>
+                  <span className="font-bold text-xl">Accept your task</span>
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
                   <span className="text-3xl font-black text-accent">02</span>
@@ -708,16 +708,16 @@ export default function Home() {
               <div className="space-y-3">
                 <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
                   <span className="text-3xl font-black text-accent">03</span>
-                  <span className="font-bold text-xl">Complete 10 supports</span>
+                  <span className="font-bold text-xl">Buy 10 posts</span>
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
                   <span className="text-3xl font-black text-accent">04</span>
-                  <span className="font-bold text-xl">Add link to a cast you want to promote</span>
+                  <span className="font-bold text-xl">Add link to post you want to sell</span>
                 </div>
               </div>
               <div className="flex items-center justify-center gap-3 p-3 bg-gradient-to-r from-accent to-secondary rounded-xl col-span-1 md:col-span-2 text-center">
                 <span className="text-3xl">💎</span>
-                <span className="font-bold text-xl">Get mutual support!</span>
+                <span className="font-bold text-xl">Get multiple buyers</span>
               </div>
             </div>
           </div>
