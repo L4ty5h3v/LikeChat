@@ -8,7 +8,7 @@ import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
 import type { LinkSubmission } from '@/types';
 import { useAccount, usePublicClient, useReadContracts, useWriteContract } from 'wagmi';
 import { erc20Abi, parseEther, parseUnits, type Address } from 'viem';
-import { dicebearIdenticonPng, normalizeAvatarUrl } from '@/lib/media';
+import { dicebearIdenticonPng, fallbackAvatarDataUri, normalizeAvatarUrl } from '@/lib/media';
 import { REQUIRED_BUYS_TO_PUBLISH } from '@/lib/app-config';
 
 const USDC_CONTRACT_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as const;
@@ -26,6 +26,26 @@ const postTokenBuyAbi = [
 
 function isAddress(value?: string): value is Address {
   return !!value && /^0x[a-fA-F0-9]{40}$/.test(value);
+}
+
+function compactUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    // base.app/content/... is very long; show a compact host+path prefix
+    const path = (u.pathname || '/').replace(/\/{2,}/g, '/');
+    const compact = `${u.host}${path}`;
+    // Show only the beginning (avoid tall cards from long URLs)
+    return compact.length > 48 ? `${compact.slice(0, 48)}…` : compact;
+  } catch {
+    return url;
+  }
+}
+
+function shortHex(addr: string): string {
+  if (!addr) return '';
+  const a = addr.toString();
+  if (a.length <= 12) return a;
+  return `${a.slice(0, 6)}…${a.slice(-4)}`;
 }
 
 export default function TasksPage() {
@@ -336,23 +356,31 @@ export default function TasksPage() {
                 const err = errorByLinkId[link.id];
 
                 return (
-                  <div key={link.id} className="bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl shadow-xl p-5 border border-white/30">
-                    <div className="flex items-start gap-4">
+                  <div key={link.id} className="bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl shadow-xl p-4 border border-white/30">
+                    <div className="flex items-start gap-3">
                       <img
-                        src={normalizeAvatarUrl(link.pfp_url) || dicebearIdenticonPng(link.username || link.id, 96)}
-                        alt={link.username}
-                        className="w-12 h-12 rounded-full border-2 border-primary"
+                        src={normalizeAvatarUrl(link.pfp_url) || fallbackAvatarDataUri(link.username || link.id, 96)}
+                        alt={link.username || 'avatar'}
+                        className="w-10 h-10 rounded-full border-2 border-primary"
+                        referrerPolicy="no-referrer"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
-                          target.src = dicebearIdenticonPng(link.username || link.id, 96);
+                          // Prefer offline SVG fallback (works when external hosts are blocked)
+                          target.src = fallbackAvatarDataUri(link.username || link.id, 96);
                         }}
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-4">
                           <div className="min-w-0">
                             <div className="font-black text-gray-900 truncate">@{link.username}</div>
-                            <div className="text-xs text-gray-600 break-all">{link.cast_url}</div>
-                            {tokenAddr && <div className="text-xs text-gray-500 break-all mt-1">Token: {tokenAddr}</div>}
+                            <div className="text-xs text-gray-600 truncate max-w-[240px] sm:max-w-[420px]" title={link.cast_url}>
+                              {compactUrl(link.cast_url)}
+                            </div>
+                            {tokenAddr && (
+                              <div className="text-xs text-gray-500 truncate mt-1" title={tokenAddr}>
+                                Token: {shortHex(tokenAddr)}
+                              </div>
+                            )}
                           </div>
                           <div className="flex items-center gap-3">
                             <a

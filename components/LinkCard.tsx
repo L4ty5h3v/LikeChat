@@ -1,7 +1,7 @@
 // Карточка ссылки в ленте
 import React from 'react';
 import type { LinkSubmission } from '@/types';
-import { dicebearIdenticonPng, normalizeAvatarUrl } from '@/lib/media';
+import { fallbackAvatarDataUri, normalizeAvatarUrl } from '@/lib/media';
 
 interface LinkCardProps {
   link: LinkSubmission;
@@ -31,21 +31,30 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
     });
   };
 
+  const compactUrl = (url: string) => {
+    try {
+      const u = new URL(url);
+      const path = (u.pathname || '/').replace(/\/{2,}/g, '/');
+      return `${u.host}${path}`;
+    } catch {
+      return url;
+    }
+  };
+
   return (
     <div className="bg-white rounded-xl border-2 border-gray-200 p-5 hover:shadow-lg transition-all duration-300">
       {/* Заголовок с пользователем */}
       <div className="flex items-center gap-3 mb-3">
-        {link.pfp_url && (
-          <img
-            src={normalizeAvatarUrl(link.pfp_url) || dicebearIdenticonPng(link.username || link.id, 80)}
-            alt={link.username}
-            className="w-10 h-10 rounded-full border-2 border-primary"
-            onError={(e) => {
-              const target = e.target as HTMLImageElement;
-              target.src = dicebearIdenticonPng(link.username || link.id, 80);
-            }}
-          />
-        )}
+        <img
+          src={normalizeAvatarUrl(link.pfp_url) || fallbackAvatarDataUri(link.username || link.id, 80)}
+          alt={link.username || 'avatar'}
+          className="w-10 h-10 rounded-full border-2 border-primary"
+          referrerPolicy="no-referrer"
+          onError={(e) => {
+            const target = e.target as HTMLImageElement;
+            target.src = fallbackAvatarDataUri(link.username || link.id, 80);
+          }}
+        />
         <div className="flex-1">
           <h3 className="font-bold text-gray-900">@{link.username}</h3>
           <p className="text-xs text-gray-500">{formatDate(link.created_at)}</p>
@@ -66,9 +75,10 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
           href={link.cast_url}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-primary hover:underline break-all text-sm"
+          className="text-primary hover:underline truncate block text-sm"
+          title={link.cast_url}
         >
-          {link.cast_url}
+          {compactUrl(link.cast_url)}
         </a>
         {link.token_address && (
           <div className="mt-2 text-xs text-gray-600 break-all">

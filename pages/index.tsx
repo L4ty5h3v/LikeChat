@@ -4,7 +4,7 @@ import { useRouter } from 'next/router';
 import Image from 'next/image';
 import Layout from '@/components/Layout';
 import Button from '@/components/Button';
-import { dicebearIdenticonPng, normalizeAvatarUrl } from '@/lib/media';
+import { fallbackAvatarDataUri, normalizeAvatarUrl } from '@/lib/media';
 import { REQUIRED_BUYS_TO_PUBLISH, TASKS_LIMIT } from '@/lib/app-config';
 import { setUserActivity } from '@/lib/db-config';
 import type { ActivityType } from '@/types';
@@ -60,13 +60,13 @@ export default function Home() {
   // Авторизация через Base (кошелек в Base App)
   const handleConnect = async () => {
     if (loading) return;
-
+    
     // Очищаем старые данные перед подключением
     if (typeof window !== 'undefined') {
       localStorage.removeItem('base_user');
       setUser(null);
     }
-
+    
     setErrorModal({ show: false, message: '' });
     setSuccess(false);
     setLoading(true);
@@ -613,12 +613,13 @@ export default function Home() {
               {/* Информация о пользователе */}
               <div className="flex items-center gap-4 mb-8 p-4 bg-gray-50 rounded-xl">
                 <img
-                  src={normalizeAvatarUrl(user.pfp_url) || dicebearIdenticonPng(user.address || user.username || String(user.fid), 128)}
+                  src={normalizeAvatarUrl(user.pfp_url) || fallbackAvatarDataUri(user.address || user.username || String(user.fid), 128)}
                   alt={user.username}
                   className="w-16 h-16 rounded-full border-4 border-primary"
+                  referrerPolicy="no-referrer"
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
-                    target.src = dicebearIdenticonPng(user.address || user.username || String(user.fid), 128);
+                    target.src = fallbackAvatarDataUri(user.address || user.username || String(user.fid), 128);
                   }}
                 />
                 <div className="flex-1">
@@ -650,7 +651,7 @@ export default function Home() {
                   >
                     Name
                   </button>
-                  <div className="text-green-500 text-2xl">✓</div>
+                <div className="text-green-500 text-2xl">✓</div>
                 </div>
               </div>
 
@@ -670,7 +671,7 @@ export default function Home() {
                     onClick={() => handleActivitySelect('support')}
                     className={`btn-gold-glow px-4 sm:px-8 py-4 sm:py-6 text-white font-bold text-base sm:text-lg group ${
                       selectedActivity === 'support'
-                        ? 'shadow-2xl shadow-purple-500/50 ring-4 ring-purple-500/30'
+                        ? 'shadow-2xl shadow-purple-500/50 ring-4 ring-purple-500/30' 
                         : ''
                     }`}
                   >

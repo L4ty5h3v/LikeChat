@@ -6,7 +6,7 @@ import { useAccount } from 'wagmi';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
 import { addressToUserId, shortAddress } from '@/lib/base-user';
 import { resolveNameAndAvatar } from '@/lib/identity';
-import { dicebearIdenticonPng, normalizeAvatarUrl } from '@/lib/media';
+import { fallbackAvatarDataUri, normalizeAvatarUrl } from '@/lib/media';
 import type { Address } from 'viem';
 import { useMiniKit } from '@coinbase/onchainkit/minikit';
 
@@ -33,7 +33,7 @@ export const AuthSync: React.FC = () => {
         const mkUsername = (mkUser.username || mkUser.displayName || fallbackName).toString();
         const mkPfp =
           normalizeAvatarUrl(mkUser.pfpUrl) ||
-          dicebearIdenticonPng(String(mkUser.fid), 128);
+          fallbackAvatarDataUri(String(mkUser.fid), 128);
 
         // Не дергаем setUser, если уже синхронизировано
         if (
@@ -69,7 +69,7 @@ export const AuthSync: React.FC = () => {
       setUser({
         fid: id,
         username: fallbackName,
-        pfp_url: dicebearIdenticonPng(address, 128),
+        pfp_url: fallbackAvatarDataUri(address, 128),
         display_name: fallbackName,
         address,
       });
@@ -85,7 +85,7 @@ export const AuthSync: React.FC = () => {
         fid: id,
         username: name,
         display_name: name,
-        pfp_url: normalizeAvatarUrl(avatarUrl) || dicebearIdenticonPng(address, 128),
+        pfp_url: normalizeAvatarUrl(avatarUrl) || fallbackAvatarDataUri(address, 128),
         address,
       });
     };
