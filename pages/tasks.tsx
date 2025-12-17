@@ -7,7 +7,7 @@ import Button from '@/components/Button';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
 import type { LinkSubmission } from '@/types';
 import { useAccount, usePublicClient, useReadContracts, useWriteContract } from 'wagmi';
-import { erc20Abi, parseUnits, type Address } from 'viem';
+import { erc20Abi, parseEther, parseUnits, type Address } from 'viem';
 import { dicebearIdenticonPng, normalizeAvatarUrl } from '@/lib/media';
 import { REQUIRED_BUYS_TO_PUBLISH } from '@/lib/app-config';
 
@@ -169,6 +169,26 @@ export default function TasksPage() {
     setBuyingLinkId(link.id);
 
     try {
+      // 0) Preflight: user needs Base ETH for gas + 0.05 USDC for the purchase
+      const [ethBalance, usdcBalance] = await Promise.all([
+        publicClient.getBalance({ address }),
+        publicClient.readContract({
+          address: USDC_CONTRACT_ADDRESS,
+          abi: erc20Abi,
+          functionName: 'balanceOf',
+          args: [address],
+        }),
+      ]);
+
+      // Two transactions (approve + buy) usually require some ETH for gas
+      const minGasEth = parseEther('0.0002');
+      if (ethBalance < minGasEth) {
+        throw new Error('Not enough Base ETH for gas. Add a little ETH on Base and try again.');
+      }
+      if (usdcBalance < BUY_AMOUNT_USDC) {
+        throw new Error('Not enough USDC. You need at least $0.05 USDC on Base.');
+      }
+
       // 1) approve USDC (if needed) -> spender = tokenAddress
       const allowance = await publicClient.readContract({
         address: USDC_CONTRACT_ADDRESS,

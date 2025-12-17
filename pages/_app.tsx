@@ -2,13 +2,15 @@ import '@/styles/globals.css';
 import type { AppProps } from 'next/app';
 import Head from 'next/head';
 import { useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { WagmiProvider, createConfig, http } from 'wagmi';
 import { base } from 'wagmi/chains';
 import { injected } from 'wagmi/connectors';
 import { OnchainKitProvider } from '@coinbase/onchainkit';
 import { FarcasterAuthProvider } from '@/contexts/FarcasterAuthContext';
-import { AuthSync } from '@/components/AuthSync';
+
+const AuthSyncNoSSR = dynamic(() => import('@/components/AuthSync').then((m) => m.AuthSync), { ssr: false });
 
 const queryClient = new QueryClient();
 
@@ -69,7 +71,7 @@ export default function App({ Component, pageProps }: AppProps) {
             }}
           >
             <FarcasterAuthProvider>
-              <AuthSync />
+              <AuthSyncNoSSR />
               <Component {...pageProps} />
             </FarcasterAuthProvider>
           </OnchainKitProvider>
