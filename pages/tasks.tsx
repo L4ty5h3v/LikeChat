@@ -169,14 +169,23 @@ export default function TasksPage() {
     setBuyingLinkId(link.id);
 
     try {
-      // 1) approve USDC -> spender = tokenAddress
-      const approveHash = await writeContractAsync({
+      // 1) approve USDC (if needed) -> spender = tokenAddress
+      const allowance = await publicClient.readContract({
         address: USDC_CONTRACT_ADDRESS,
         abi: erc20Abi,
-        functionName: 'approve',
-        args: [link.token_address as Address, BUY_AMOUNT_USDC],
+        functionName: 'allowance',
+        args: [address, link.token_address as Address],
       });
-      await publicClient.waitForTransactionReceipt({ hash: approveHash });
+
+      if (allowance < BUY_AMOUNT_USDC) {
+        const approveHash = await writeContractAsync({
+          address: USDC_CONTRACT_ADDRESS,
+          abi: erc20Abi,
+          functionName: 'approve',
+          args: [link.token_address as Address, BUY_AMOUNT_USDC],
+        });
+        await publicClient.waitForTransactionReceipt({ hash: approveHash });
+      }
 
       // 2) buy() on post token
       const buyHash = await writeContractAsync({
@@ -213,7 +222,12 @@ export default function TasksPage() {
       // Обновим кеш балансов для UI (не критично для верификации)
       refetchBalances();
     } catch (e: any) {
-      setErrorByLinkId((p) => ({ ...p, [link.id]: e?.message || 'Buy error' }));
+      const raw = (e?.shortMessage || e?.message || 'Buy error').toString();
+      const msg =
+        raw.toLowerCase().includes('user rejected') || raw.toLowerCase().includes('rejected the request')
+          ? 'Transaction cancelled in wallet.'
+          : raw;
+      setErrorByLinkId((p) => ({ ...p, [link.id]: msg }));
     } finally {
       setBuyingLinkId(null);
     }
