@@ -8,7 +8,7 @@ import Avatar from '@/components/Avatar';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
 import type { LinkSubmission } from '@/types';
 import { useAccount, usePublicClient, useReadContracts, useWriteContract } from 'wagmi';
-import { erc20Abi, parseEther, parseUnits, type Address } from 'viem';
+import { erc20Abi, formatEther, parseUnits, type Address } from 'viem';
 import { REQUIRED_BUYS_TO_PUBLISH } from '@/lib/app-config';
 
 const USDC_CONTRACT_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as const;
@@ -200,11 +200,6 @@ export default function TasksPage() {
         }),
       ]);
 
-      // Two transactions (approve + buy) usually require some ETH for gas
-      const minGasEth = parseEther('0.0002');
-      if (ethBalance < minGasEth) {
-        throw new Error('Not enough Base ETH for gas. Add a little ETH on Base and try again.');
-      }
       if (usdcBalance < BUY_AMOUNT_USDC) {
         throw new Error('Not enough USDC. You need at least $0.05 USDC on Base.');
       }
@@ -216,6 +211,44 @@ export default function TasksPage() {
         functionName: 'allowance',
         args: [address, link.token_address as Address],
       });
+
+      // Estimate gas needs to avoid Coinbase Wallet "transaction generation error" when ETH gas is too low.
+      // We estimate approve (only if needed) + buy, then compare against current ETH balance.
+      try {
+        const fees = await publicClient.estimateFeesPerGas();
+        const maxFeePerGas = fees.maxFeePerGas ?? fees.gasPrice;
+
+        let gasApprove = 0n;
+        if (allowance < BUY_AMOUNT_USDC) {
+          gasApprove = await publicClient.estimateContractGas({
+            address: USDC_CONTRACT_ADDRESS,
+            abi: erc20Abi,
+            functionName: 'approve',
+            args: [link.token_address as Address, BUY_AMOUNT_USDC],
+            account: address,
+          });
+        }
+
+        const gasBuy = await publicClient.estimateContractGas({
+          address: link.token_address as Address,
+          abi: postTokenBuyAbi,
+          functionName: 'buy',
+          args: [],
+          account: address,
+        });
+
+        // Add safety multiplier for EIP-1559 spikes
+        const gasTotal = gasApprove + gasBuy;
+        const needed = (gasTotal * maxFeePerGas * 15n) / 10n; // 1.5x
+
+        if (ethBalance < needed) {
+          throw new Error(
+            `Not enough Base ETH for gas. Need about ${formatEther(needed)} ETH (you have ${formatEther(ethBalance)} ETH).`
+          );
+        }
+      } catch (estErr) {
+        // If estimation fails, don't block; wallet can still try.
+      }
 
       if (allowance < BUY_AMOUNT_USDC) {
         const approveHash = await writeContractAsync({
