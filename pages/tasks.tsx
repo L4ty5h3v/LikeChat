@@ -68,6 +68,21 @@ export default function TasksPage() {
     localStorage.setItem('selected_activity', 'support');
   }, []);
 
+  // Cache buster for in-app WebViews: ensure we don't get stuck on an old cached HTML/JS bundle.
+  // Only runs once per URL (adds ?v=... if missing).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const u = new URL(window.location.href);
+      if (!u.searchParams.has('v')) {
+        u.searchParams.set('v', Date.now().toString());
+        window.location.replace(u.toString());
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
   const hasFid = typeof user?.fid === 'number' && Number.isFinite(user.fid) && user.fid > 0;
 
   const refresh = async () => {

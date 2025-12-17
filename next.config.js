@@ -1,6 +1,20 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  async headers() {
+    // Base App / in-app WebViews can aggressively cache HTML. Force no-store for key pages
+    // so users always get the latest build (new chunk hashes).
+    const noStore = [
+      { key: 'Cache-Control', value: 'no-store, no-cache, must-revalidate, proxy-revalidate' },
+      { key: 'Pragma', value: 'no-cache' },
+      { key: 'Expires', value: '0' },
+    ];
+
+    return [
+      { source: '/', headers: noStore },
+      { source: '/tasks', headers: noStore },
+    ];
+  },
   webpack: (config) => {
     // wagmi/connectors может подтягивать MetaMask SDK, который пытается импортировать RN storage.
     // Для web-сборки это не нужно — просто отключаем резолв этого модуля.
