@@ -50,7 +50,7 @@ export default function Chat() {
             <h1 className="text-4xl font-bold text-gray-900 mb-2 flex items-center gap-3">
               Feed <span className="text-4xl">💎</span>
             </h1>
-            <p className="text-gray-600">Latest posts to buy (buy $0.05)</p>
+            <p className="text-gray-600">Latest posts to buy (buy $0.10)</p>
           </div>
           <div className="flex gap-3">
             <Button onClick={() => router.push('/tasks')}>Tasks</Button>

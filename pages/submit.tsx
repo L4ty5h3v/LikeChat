@@ -869,7 +869,7 @@ export default function Submit() {
               </p>
               <div className="flex items-center gap-3 text-primary font-bold text-xl">
                 <span className="text-3xl">💎</span>
-                <span>BUY $0.05</span>
+                <span>BUY $0.10</span>
               </div>
               <p className="text-sm text-gray-600 mt-3">
                 Other users will buy your post
@@ -915,7 +915,7 @@ export default function Submit() {
                   required
                 />
                 <p className="text-sm text-gray-500 mt-2">
-                  Post token contract address used to buy for $0.05
+                  Post token contract address used to buy for $0.10
                 </p>
               </div>
 

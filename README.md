@@ -2,7 +2,7 @@
 
 **LikeChat: Support posts on Base**
 
-Base Mini App: users complete tasks by buying a post-token for **$0.05 USDC** (onchain verification via `balanceOf`). Publishing is available after **5 buys**.
+Base Mini App: users complete tasks by buying a post-token for **$0.10 USDC** (onchain verification via `balanceOf`). Publishing is available after **5 buys**.
 
 ## 📋 Описание
 
@@ -11,7 +11,7 @@ LikeChat Base — это приложение для взаимной подде
 ### Основные возможности
 
 - 🔐 **Авторизация** — подключение кошелька через wagmi (Base mainnet 8453)
-- 💎 **Buy tasks** — button `Buy $0.05` (approve USDC → `buy()` → verify `balanceOf`)
+- 💎 **Buy tasks** — button `Buy $0.10` (approve USDC → `buy()` → verify `balanceOf`)
 - 🔗 **Публикация поста** — при добавлении ссылки требуется `Token address (ERC-20, buy())`
 
 ## 🚀 Технологии
@@ -130,7 +130,7 @@ npm run dev
 
 ### Ключевая логика (Base)
 
-- **Buy task**: approve **0.05 USDC** → `buy()` on the post-token → verify `balanceOf(address) > 0`
+- **Buy task**: approve **0.10 USDC** → `buy()` on the post-token → verify `balanceOf(address) > 0`
 - **Gate на публикацию**: нужно **10** выполненных support
 
 ## 🔐 Безопасность

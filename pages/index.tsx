@@ -678,7 +678,7 @@ export default function Home() {
                         <span className="text-2xl sm:text-3xl drop-shadow-lg">💎</span>
                         <span className="drop-shadow-lg">BUY</span>
                       </div>
-                      <div className="text-xl sm:text-2xl drop-shadow-lg">$0.05</div>
+                      <div className="text-xl sm:text-2xl drop-shadow-lg">$0.10</div>
                     </div>
                     {selectedActivity === 'support' && (
                       <div className="absolute -top-2 -right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center shadow-lg z-20">

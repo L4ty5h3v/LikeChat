@@ -1,4 +1,4 @@
-// Tasks page (Base): buy a post-token for $0.05 USDC, onchain verification via balanceOf
+// Tasks page (Base): buy a post-token for BUY_AMOUNT_USDC_DISPLAY, onchain verification via balanceOf
 import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
@@ -9,10 +9,10 @@ import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
 import type { LinkSubmission } from '@/types';
 import { useAccount, usePublicClient, useReadContracts, useWriteContract } from 'wagmi';
 import { erc20Abi, formatEther, parseUnits, type Address } from 'viem';
-import { REQUIRED_BUYS_TO_PUBLISH } from '@/lib/app-config';
+import { BUY_AMOUNT_USDC_DECIMAL, BUY_AMOUNT_USDC_DISPLAY, REQUIRED_BUYS_TO_PUBLISH } from '@/lib/app-config';
 
 const USDC_CONTRACT_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as const;
-const BUY_AMOUNT_USDC = parseUnits('0.05', 6);
+const BUY_AMOUNT_USDC = parseUnits(BUY_AMOUNT_USDC_DECIMAL, 6);
 
 const postTokenBuyAbi = [
   {
@@ -190,7 +190,7 @@ export default function TasksPage() {
     setBuyingLinkId(link.id);
 
     try {
-      // 0) Preflight: user needs Base ETH for gas + 0.05 USDC for the purchase
+      // 0) Preflight: user needs Base ETH for gas + BUY_AMOUNT_USDC_DISPLAY USDC for the purchase
       const [ethBalance, usdcBalance] = await Promise.all([
         publicClient.getBalance({ address }),
         publicClient.readContract({
@@ -202,7 +202,7 @@ export default function TasksPage() {
       ]);
 
       if (usdcBalance < BUY_AMOUNT_USDC) {
-        throw new Error('Not enough USDC. You need at least $0.05 USDC on Base.');
+        throw new Error(`Not enough USDC. You need at least ${BUY_AMOUNT_USDC_DISPLAY} USDC on Base.`);
       }
 
       // 1) approve USDC (if needed) -> spender = tokenAddress
@@ -214,7 +214,7 @@ export default function TasksPage() {
       });
 
       // Estimate gas + simulate buy() to catch common failures before opening the wallet UI.
-      // If buy() reverts in simulation (price > $0.05, invalid token contract, etc), Coinbase Wallet often shows
+      // If buy() reverts in simulation (price > BUY_AMOUNT_USDC_DISPLAY, invalid token contract, etc), Coinbase Wallet often shows
       // a generic "transaction generation error". We surface a useful message instead.
       try {
         const fees = await publicClient.estimateFeesPerGas();
@@ -255,7 +255,7 @@ export default function TasksPage() {
         // If we got a revert/simulation error, block and show it (otherwise user will see generic wallet error).
         if (lower.includes('revert') || lower.includes('execution reverted') || lower.includes('simulation')) {
           throw new Error(
-            'This token buy() failed to simulate. Possible reasons: token price is higher than $0.05, token address is not a compatible contract, or your USDC allowance/balance is insufficient on Base.'
+            `This token buy() failed to simulate. Possible reasons: token price is higher than ${BUY_AMOUNT_USDC_DISPLAY}, token address is not a compatible contract, or your USDC allowance/balance is insufficient on Base.`
           );
         }
         // Otherwise ignore estimation failures (RPC hiccups) and let the wallet attempt.
@@ -358,7 +358,7 @@ export default function TasksPage() {
               <div className="w-20 h-1 bg-white"></div>
             </div>
             <p className="text-white text-opacity-90 text-lg">
-              Buy a post-token for <span className="font-black text-yellow-300">$0.05</span> on {REQUIRED_BUYS_TO_PUBLISH} posts.
+              Buy a post-token for <span className="font-black text-yellow-300">{BUY_AMOUNT_USDC_DISPLAY}</span> on {REQUIRED_BUYS_TO_PUBLISH} posts.
             </p>
           </div>
 
@@ -441,7 +441,7 @@ export default function TasksPage() {
                               onClick={() => handleBuy(link)}
                               disabled={isBuying || completed || !tokenAddr}
                             >
-                              {completed ? 'Done' : isBuying ? 'Buying…' : 'BUY $0.05'}
+                              {completed ? 'Done' : isBuying ? 'Buying…' : `BUY ${BUY_AMOUNT_USDC_DISPLAY}`}
                             </button>
                           </div>
                         </div>
