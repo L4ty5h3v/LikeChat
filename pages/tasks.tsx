@@ -172,7 +172,8 @@ export default function TasksPage() {
       setErrorByLinkId((p) => ({ ...p, [link.id]: 'Connect your wallet first.' }));
       return;
     }
-    if (chainId && chainId !== 8453) {
+    // In some WebViews chainId can be undefined; treat it as NOT Base to avoid generating broken txs.
+    if (chainId !== 8453) {
       setErrorByLinkId((p) => ({ ...p, [link.id]: 'Switch network to Base (8453).' }));
       return;
     }
@@ -212,8 +213,9 @@ export default function TasksPage() {
         args: [address, link.token_address as Address],
       });
 
-      // Estimate gas needs to avoid Coinbase Wallet "transaction generation error" when ETH gas is too low.
-      // We estimate approve (only if needed) + buy, then compare against current ETH balance.
+      // Estimate gas + simulate buy() to catch common failures before opening the wallet UI.
+      // If buy() reverts in simulation (price > $0.05, invalid token contract, etc), Coinbase Wallet often shows
+      // a generic "transaction generation error". We surface a useful message instead.
       try {
         const fees = await publicClient.estimateFeesPerGas();
         const maxFeePerGas = fees.maxFeePerGas ?? fees.gasPrice;
@@ -229,6 +231,7 @@ export default function TasksPage() {
           });
         }
 
+        // First, simulate/estimate buy() — if it reverts, we can show a clear error.
         const gasBuy = await publicClient.estimateContractGas({
           address: link.token_address as Address,
           abi: postTokenBuyAbi,
@@ -246,8 +249,16 @@ export default function TasksPage() {
             `Not enough Base ETH for gas. Need about ${formatEther(needed)} ETH (you have ${formatEther(ethBalance)} ETH).`
           );
         }
-      } catch (estErr) {
-        // If estimation fails, don't block; wallet can still try.
+      } catch (estErr: any) {
+        const m = (estErr?.shortMessage || estErr?.message || '').toString();
+        const lower = m.toLowerCase();
+        // If we got a revert/simulation error, block and show it (otherwise user will see generic wallet error).
+        if (lower.includes('revert') || lower.includes('execution reverted') || lower.includes('simulation')) {
+          throw new Error(
+            'This token buy() failed to simulate. Possible reasons: token price is higher than $0.05, token address is not a compatible contract, or your USDC allowance/balance is insufficient on Base.'
+          );
+        }
+        // Otherwise ignore estimation failures (RPC hiccups) and let the wallet attempt.
       }
 
       if (allowance < BUY_AMOUNT_USDC) {
