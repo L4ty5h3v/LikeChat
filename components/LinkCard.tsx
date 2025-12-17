@@ -1,7 +1,7 @@
 // Карточка ссылки в ленте
 import React from 'react';
 import type { LinkSubmission } from '@/types';
-import { fallbackAvatarDataUri, normalizeAvatarUrl } from '@/lib/media';
+import Avatar from '@/components/Avatar';
 
 interface LinkCardProps {
   link: LinkSubmission;
@@ -45,15 +45,12 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
     <div className="bg-white rounded-xl border-2 border-gray-200 p-5 hover:shadow-lg transition-all duration-300">
       {/* Заголовок с пользователем */}
       <div className="flex items-center gap-3 mb-3">
-        <img
-          src={normalizeAvatarUrl(link.pfp_url) || fallbackAvatarDataUri(link.username || link.id, 80)}
+        <Avatar
+          url={link.pfp_url}
+          seed={link.username || link.id}
+          size={40}
           alt={link.username || 'avatar'}
-          className="w-10 h-10 rounded-full border-2 border-primary"
-          referrerPolicy="no-referrer"
-          onError={(e) => {
-            const target = e.target as HTMLImageElement;
-            target.src = fallbackAvatarDataUri(link.username || link.id, 80);
-          }}
+          className="rounded-full object-cover border-2 border-primary"
         />
         <div className="flex-1">
           <h3 className="font-bold text-gray-900">@{link.username}</h3>

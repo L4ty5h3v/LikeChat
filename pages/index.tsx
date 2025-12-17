@@ -4,7 +4,7 @@ import { useRouter } from 'next/router';
 import Image from 'next/image';
 import Layout from '@/components/Layout';
 import Button from '@/components/Button';
-import { fallbackAvatarDataUri, normalizeAvatarUrl } from '@/lib/media';
+import Avatar from '@/components/Avatar';
 import { REQUIRED_BUYS_TO_PUBLISH, TASKS_LIMIT } from '@/lib/app-config';
 import { setUserActivity } from '@/lib/db-config';
 import type { ActivityType } from '@/types';
@@ -612,15 +612,12 @@ export default function Home() {
             <div>
               {/* Информация о пользователе */}
               <div className="flex items-center gap-4 mb-8 p-4 bg-gray-50 rounded-xl">
-                <img
-                  src={normalizeAvatarUrl(user.pfp_url) || fallbackAvatarDataUri(user.address || user.username || String(user.fid), 128)}
+                <Avatar
+                  url={user.pfp_url}
+                  seed={user.address || user.username || String(user.fid)}
+                  size={64}
                   alt={user.username}
-                  className="w-16 h-16 rounded-full border-4 border-primary"
-                  referrerPolicy="no-referrer"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.src = fallbackAvatarDataUri(user.address || user.username || String(user.fid), 128);
-                  }}
+                  className="rounded-full object-cover border-4 border-primary"
                 />
                 <div className="flex-1">
                   <h3 className="text-xl font-bold text-gray-900">

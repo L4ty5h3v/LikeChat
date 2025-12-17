@@ -4,11 +4,11 @@ import { useRouter } from 'next/router';
 import Image from 'next/image';
 import Layout from '@/components/Layout';
 import Button from '@/components/Button';
+import Avatar from '@/components/Avatar';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
 import type { LinkSubmission } from '@/types';
 import { useAccount, usePublicClient, useReadContracts, useWriteContract } from 'wagmi';
 import { erc20Abi, parseEther, parseUnits, type Address } from 'viem';
-import { dicebearIdenticonPng, fallbackAvatarDataUri, normalizeAvatarUrl } from '@/lib/media';
 import { REQUIRED_BUYS_TO_PUBLISH } from '@/lib/app-config';
 
 const USDC_CONTRACT_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as const;
@@ -358,16 +358,12 @@ export default function TasksPage() {
                 return (
                   <div key={link.id} className="bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl shadow-xl p-4 border border-white/30">
                     <div className="flex items-start gap-3">
-                      <img
-                        src={normalizeAvatarUrl(link.pfp_url) || fallbackAvatarDataUri(link.username || link.id, 96)}
+                      <Avatar
+                        url={link.pfp_url}
+                        seed={link.username || link.id}
+                        size={40}
                         alt={link.username || 'avatar'}
-                        className="w-10 h-10 rounded-full border-2 border-primary"
-                        referrerPolicy="no-referrer"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          // Prefer offline SVG fallback (works when external hosts are blocked)
-                          target.src = fallbackAvatarDataUri(link.username || link.id, 96);
-                        }}
+                        className="rounded-full object-cover border-2 border-primary"
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-4">
