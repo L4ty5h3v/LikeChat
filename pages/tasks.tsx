@@ -7,9 +7,10 @@ import Button from '@/components/Button';
 import Avatar from '@/components/Avatar';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
 import type { LinkSubmission } from '@/types';
-import { useAccount, usePublicClient, useReadContracts, useWriteContract } from 'wagmi';
-import { erc20Abi, formatEther, parseUnits, type Address } from 'viem';
+import { useAccount, usePublicClient, useReadContracts } from 'wagmi';
+import { erc20Abi, parseEther, parseUnits, type Address } from 'viem';
 import { BUY_AMOUNT_USDC_DECIMAL, BUY_AMOUNT_USDC_DISPLAY, REQUIRED_BUYS_TO_PUBLISH } from '@/lib/app-config';
+import { useSwapToken, useIsInMiniApp } from '@coinbase/onchainkit/minikit';
 
 const USDC_CONTRACT_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as const;
 const BUY_AMOUNT_USDC = parseUnits(BUY_AMOUNT_USDC_DECIMAL, 6);
@@ -53,7 +54,9 @@ export default function TasksPage() {
   const { user, isInitialized } = useFarcasterAuth();
   const { address, isConnected, chainId } = useAccount();
   const publicClient = usePublicClient();
-  const { writeContractAsync } = useWriteContract();
+  // const { writeContractAsync } = useWriteContract();
+  const { swapTokenAsync } = useSwapToken();
+  const isInMiniApp = useIsInMiniApp();
 
   const [links, setLinks] = useState<LinkSubmission[]>([]);
   const [completedLinkIds, setCompletedLinkIds] = useState<string[]>([]);
@@ -200,12 +203,16 @@ export default function TasksPage() {
       setErrorByLinkId((p) => ({ ...p, [link.id]: 'Public client is not available.' }));
       return;
     }
+    if (!isInMiniApp) {
+      setErrorByLinkId((p) => ({ ...p, [link.id]: 'Open this mini-app inside Base App to buy.' }));
+      return;
+    }
 
     setErrorByLinkId((p) => ({ ...p, [link.id]: '' }));
     setBuyingLinkId(link.id);
 
     try {
-      // 0) Preflight: user needs Base ETH for gas + BUY_AMOUNT_USDC_DISPLAY USDC for the purchase
+      // Preflight: user needs Base ETH for gas + BUY_AMOUNT_USDC_DISPLAY USDC for the swap
       const [ethBalance, usdcBalance] = await Promise.all([
         publicClient.getBalance({ address }),
         publicClient.readContract({
@@ -219,86 +226,41 @@ export default function TasksPage() {
       if (usdcBalance < BUY_AMOUNT_USDC) {
         throw new Error(`Not enough USDC. You need at least ${BUY_AMOUNT_USDC_DISPLAY} USDC on Base.`);
       }
-
-      // 1) approve USDC (if needed) -> spender = tokenAddress
-      const allowance = await publicClient.readContract({
-        address: USDC_CONTRACT_ADDRESS,
-        abi: erc20Abi,
-        functionName: 'allowance',
-        args: [address, link.token_address as Address],
-      });
-
-      // Important: many post-tokens revert in buy() if USDC allowance is 0.
-      // So we MUST approve first (and wait for confirmation) before attempting any buy() simulation.
-      const needsApprove = allowance < BUY_AMOUNT_USDC;
-      if (needsApprove) {
-        const approveHash = await writeContractAsync({
-          address: USDC_CONTRACT_ADDRESS,
-          abi: erc20Abi,
-          functionName: 'approve',
-          args: [link.token_address as Address, BUY_AMOUNT_USDC],
-        });
-        await publicClient.waitForTransactionReceipt({ hash: approveHash });
+      // Very lightweight gas check (swap UI will estimate precisely)
+      if (ethBalance < parseEther('0.00001')) {
+        throw new Error('Not enough Base ETH for gas. Please add a little ETH on Base.');
       }
 
-      // Estimate gas + simulate buy() to catch common failures before opening the wallet UI.
-      // If buy() reverts in simulation (price > BUY_AMOUNT_USDC_DISPLAY, invalid token contract, etc), Coinbase Wallet often shows
-      // a generic "transaction generation error". We surface a useful message instead.
-      try {
-        const fees = await publicClient.estimateFeesPerGas();
-        const maxFeePerGas = fees.maxFeePerGas ?? fees.gasPrice;
-
-        const gasBuy = await publicClient.estimateContractGas({
-          address: link.token_address as Address,
-          abi: postTokenBuyAbi,
-          functionName: 'buy',
-          args: [],
-          account: address,
-        });
-
-        // Add safety multiplier for EIP-1559 spikes
-        const needed = (gasBuy * maxFeePerGas * 15n) / 10n; // 1.5x
-
-        if (ethBalance < needed) {
-          throw new Error(
-            `Not enough Base ETH for gas. Need about ${formatEther(needed)} ETH (you have ${formatEther(ethBalance)} ETH).`
-          );
-        }
-      } catch (estErr: any) {
-        const m = (estErr?.shortMessage || estErr?.message || '').toString();
-        const lower = m.toLowerCase();
-        // If we got a revert/simulation error, block and show it (otherwise user will see generic wallet error).
-        if (lower.includes('revert') || lower.includes('execution reverted') || lower.includes('simulation')) {
-          throw new Error(
-            `This token buy() failed to simulate. Possible reasons: token price is higher than ${BUY_AMOUNT_USDC_DISPLAY}, token address is not a compatible contract, or your USDC allowance/balance is insufficient on Base.`
-          );
-        }
-        // Otherwise ignore estimation failures (RPC hiccups) and let the wallet attempt.
-      }
-
-      // 2) buy() on post token
-      const buyHash = await writeContractAsync({
-        address: link.token_address as Address,
-        abi: postTokenBuyAbi,
-        functionName: 'buy',
-        args: [],
+      // BUY flow for Base App tokens:
+      // base.app tokens are typically purchased via Swap (USDC -> token), not via token.buy().
+      // So we open the swap form pre-selected; then we verify balanceOf after the user returns.
+      await swapTokenAsync({
+        sellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`,
+        buyToken: `eip155:8453/erc20:${link.token_address as Address}`,
+        sellAmount: BUY_AMOUNT_USDC.toString(), // 0.10 USDC = "100000"
       });
-      await publicClient.waitForTransactionReceipt({ hash: buyHash });
 
-      // 3) onchain verify balanceOf > 0
+      // After swap UI opens, user can cancel or complete.
+      // Poll for balance for up to ~45s to auto-mark if completed.
       // Важно: не полагаться на состояние balances/refetchBalances (оно обновляется асинхронно).
-      // Читаем баланс напрямую из RPC сразу после покупки.
-      const newBal = await publicClient.readContract({
-        address: link.token_address as Address,
-        abi: erc20Abi,
-        functionName: 'balanceOf',
-        args: [address],
-      });
+      // Читаем баланс напрямую из RPC после swap.
+      let newBal = 0n;
+      const started = Date.now();
+      while (Date.now() - started < 45_000) {
+        await new Promise((r) => setTimeout(r, 2500));
+        newBal = await publicClient.readContract({
+          address: link.token_address as Address,
+          abi: erc20Abi,
+          functionName: 'balanceOf',
+          args: [address],
+        });
+        if (newBal > 0n) break;
+      }
       if (newBal <= 0n) {
-        throw new Error('Buy succeeded, but balance is still 0. Please refresh in 10–20 seconds.');
+        throw new Error('Swap opened. Complete the swap in wallet, then return here and refresh the page.');
       }
 
-      // 4) mark completed in DB
+      // mark completed in DB
       if (hasFid) {
         await fetch('/api/mark-completed', {
           method: 'POST',
