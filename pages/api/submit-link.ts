@@ -1,6 +1,9 @@
 // API endpoint для публикации ссылки
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { submitLink, getAllLinks, getUserProgress } from '@/lib/db-config';
+import { isTokenTradableCached } from '@/lib/tradable';
+import { parseUnits } from 'viem';
+import { BUY_AMOUNT_USDC_DECIMAL } from '@/lib/app-config';
 
 export default async function handler(
   req: NextApiRequest,
@@ -50,6 +53,17 @@ export default async function handler(
       taskType: finalTaskType,
       tokenAddress,
     });
+
+    // Validate that token has a swap route / liquidity (otherwise tasks become unbuyable in Base Trade).
+    const usdcAmountIn = parseUnits(BUY_AMOUNT_USDC_DECIMAL, 6);
+    const tradable = await isTokenTradableCached(tokenAddress, usdcAmountIn);
+    if (!tradable) {
+      return res.status(400).json({
+        success: false,
+        error:
+          'This token is not tradable for the required amount (no liquidity/route). Please publish another post-token.',
+      });
+    }
 
     const result = await submitLink(
       userFid,
