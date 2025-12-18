@@ -228,6 +228,19 @@ export default function TasksPage() {
         args: [address, link.token_address as Address],
       });
 
+      // Important: many post-tokens revert in buy() if USDC allowance is 0.
+      // So we MUST approve first (and wait for confirmation) before attempting any buy() simulation.
+      const needsApprove = allowance < BUY_AMOUNT_USDC;
+      if (needsApprove) {
+        const approveHash = await writeContractAsync({
+          address: USDC_CONTRACT_ADDRESS,
+          abi: erc20Abi,
+          functionName: 'approve',
+          args: [link.token_address as Address, BUY_AMOUNT_USDC],
+        });
+        await publicClient.waitForTransactionReceipt({ hash: approveHash });
+      }
+
       // Estimate gas + simulate buy() to catch common failures before opening the wallet UI.
       // If buy() reverts in simulation (price > BUY_AMOUNT_USDC_DISPLAY, invalid token contract, etc), Coinbase Wallet often shows
       // a generic "transaction generation error". We surface a useful message instead.
@@ -235,18 +248,6 @@ export default function TasksPage() {
         const fees = await publicClient.estimateFeesPerGas();
         const maxFeePerGas = fees.maxFeePerGas ?? fees.gasPrice;
 
-        let gasApprove = 0n;
-        if (allowance < BUY_AMOUNT_USDC) {
-          gasApprove = await publicClient.estimateContractGas({
-            address: USDC_CONTRACT_ADDRESS,
-            abi: erc20Abi,
-            functionName: 'approve',
-            args: [link.token_address as Address, BUY_AMOUNT_USDC],
-            account: address,
-          });
-        }
-
-        // First, simulate/estimate buy() — if it reverts, we can show a clear error.
         const gasBuy = await publicClient.estimateContractGas({
           address: link.token_address as Address,
           abi: postTokenBuyAbi,
@@ -256,8 +257,7 @@ export default function TasksPage() {
         });
 
         // Add safety multiplier for EIP-1559 spikes
-        const gasTotal = gasApprove + gasBuy;
-        const needed = (gasTotal * maxFeePerGas * 15n) / 10n; // 1.5x
+        const needed = (gasBuy * maxFeePerGas * 15n) / 10n; // 1.5x
 
         if (ethBalance < needed) {
           throw new Error(
@@ -274,16 +274,6 @@ export default function TasksPage() {
           );
         }
         // Otherwise ignore estimation failures (RPC hiccups) and let the wallet attempt.
-      }
-
-      if (allowance < BUY_AMOUNT_USDC) {
-        const approveHash = await writeContractAsync({
-          address: USDC_CONTRACT_ADDRESS,
-          abi: erc20Abi,
-          functionName: 'approve',
-          args: [link.token_address as Address, BUY_AMOUNT_USDC],
-        });
-        await publicClient.waitForTransactionReceipt({ hash: approveHash });
       }
 
       // 2) buy() on post token
