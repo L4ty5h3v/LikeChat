@@ -64,6 +64,7 @@ export default function TasksPage() {
 
   const [buyingLinkId, setBuyingLinkId] = useState<string | null>(null);
   const [errorByLinkId, setErrorByLinkId] = useState<Record<string, string>>({});
+  const [noticeByLinkId, setNoticeByLinkId] = useState<Record<string, string>>({});
 
   // Always operate in "support" mode (buy posts)
   useEffect(() => {
@@ -209,6 +210,7 @@ export default function TasksPage() {
     }
 
     setErrorByLinkId((p) => ({ ...p, [link.id]: '' }));
+    setNoticeByLinkId((p) => ({ ...p, [link.id]: '' }));
     setBuyingLinkId(link.id);
 
     try {
@@ -233,12 +235,16 @@ export default function TasksPage() {
 
       // BUY flow for Base App tokens:
       // base.app tokens are typically purchased via Swap (USDC -> token), not via token.buy().
-      // So we open the swap form pre-selected; then we verify balanceOf after the user returns.
+      // So we open the swap form pre-selected; some wallets may not prefill the amount, user may need to type it.
       await swapTokenAsync({
         sellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`,
         buyToken: `eip155:8453/erc20:${link.token_address as Address}`,
         sellAmount: BUY_AMOUNT_USDC.toString(), // 0.10 USDC = "100000"
       });
+      setNoticeByLinkId((p) => ({
+        ...p,
+        [link.id]: `Открылся Trade. Если сумма пустая — введи ${BUY_AMOUNT_USDC_DISPLAY} USDC вручную и нажми «Торговать сейчас». Если пишет «Ошибка, попробуйте еще раз» — скорее всего у токена нет ликвидности/маршрута.`,
+      }));
 
       // After swap UI opens, user can cancel or complete.
       // Poll for balance for up to ~45s to auto-mark if completed.
@@ -257,7 +263,9 @@ export default function TasksPage() {
         if (newBal > 0n) break;
       }
       if (newBal <= 0n) {
-        throw new Error('Swap opened. Complete the swap in wallet, then return here and refresh the page.');
+        throw new Error(
+          `Сделай swap в Trade (если сумма не подставилась — введи ${BUY_AMOUNT_USDC_DISPLAY} вручную), затем вернись сюда и обнови страницу.`
+        );
       }
 
       // mark completed in DB
@@ -413,6 +421,9 @@ export default function TasksPage() {
                           </div>
                         </div>
 
+                        {noticeByLinkId[link.id] && (
+                          <div className="mt-3 text-sm text-blue-700 font-bold">{noticeByLinkId[link.id]}</div>
+                        )}
                         {err && <div className="mt-3 text-sm text-red-600 font-bold">{err}</div>}
                       </div>
                     </div>
