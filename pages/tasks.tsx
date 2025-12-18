@@ -221,10 +221,8 @@ export default function TasksPage() {
       setErrorByLinkId((p) => ({ ...p, [link.id]: 'Public client is not available.' }));
       return;
     }
-    if (!isInMiniApp) {
-      setErrorByLinkId((p) => ({ ...p, [link.id]: 'Open this mini-app inside Base App to buy.' }));
-      return;
-    }
+    // Note: isInMiniApp can be undefined/false-positive in some Base App WebViews.
+    // Don't hard-block on it; attempt to open Trade and handle errors gracefully.
 
     setErrorByLinkId((p) => ({ ...p, [link.id]: '' }));
     setNoticeByLinkId((p) => ({ ...p, [link.id]: '' }));
