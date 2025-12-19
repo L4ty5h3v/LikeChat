@@ -49,23 +49,6 @@ function shortHex(addr: string): string {
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
 }
 
-function dexScreenerUrl(tokenAddress: string): string {
-  return `https://dexscreener.com/base/${tokenAddress}`;
-}
-
-function uniswapSwapUrl(tokenAddress: string): string {
-  // Works in most browsers; if Base Trade can't build a route, Uniswap might still work.
-  // Note: Uniswap expects token addresses for ERC20s (USDC address is safe to use as inputCurrency).
-  const params = new URLSearchParams({
-    chain: 'base',
-    inputCurrency: USDC_CONTRACT_ADDRESS,
-    outputCurrency: tokenAddress,
-    exactField: 'input',
-    exactAmount: BUY_AMOUNT_USDC_DECIMAL,
-  });
-  return `https://app.uniswap.org/swap?${params.toString()}`;
-}
-
 export default function TasksPage() {
   const router = useRouter();
   const { user, isInitialized } = useFarcasterAuth();
@@ -248,29 +231,6 @@ export default function TasksPage() {
         throw new Error('Not enough Base ETH for gas. Please add a little ETH on Base.');
       }
 
-      // Preflight: check if Uniswap V3 route exists for this amount.
-      // This doesn't guarantee the swap will succeed in Base Trade (tax / blocked transfers can still revert),
-      // but it prevents obvious "no liquidity / no route" cases.
-      try {
-        const r = await fetch('/api/tradable', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tokenAddress: link.token_address, usdcAmountDecimal: BUY_AMOUNT_USDC_DECIMAL }),
-        });
-        const j = await r.json();
-        if (j?.success && j?.tradable === false) {
-          throw new Error(
-            `This token has no swap route/liquidity for ${BUY_AMOUNT_USDC_DISPLAY}. Try another post-token.`
-          );
-        }
-      } catch (preflightErr: any) {
-        // If the preflight itself fails (RPC hiccup), do not block the user; only block when we are confident it's untradable.
-        const msg = (preflightErr?.message || '').toString();
-        if (msg.toLowerCase().includes('no swap route') || msg.toLowerCase().includes('no swap route/liquidity')) {
-          throw preflightErr;
-        }
-      }
-
       // BUY flow for Base App tokens:
       // base.app tokens are typically purchased via Swap (USDC -> token), not via token.buy().
       // So we open the swap form pre-selected; some wallets may not prefill the amount, user may need to type it.
@@ -281,7 +241,7 @@ export default function TasksPage() {
       });
       setNoticeByLinkId((p) => ({
         ...p,
-        [link.id]: `Trade opened. If the amount is empty, type ${BUY_AMOUNT_USDC_DISPLAY} USDC manually and tap “Trade now”. If you see “Try again”, this token may have no route/liquidity or may be blocked.`,
+        [link.id]: `Trade opened. If the amount is empty, type ${BUY_AMOUNT_USDC_DISPLAY} USDC manually and tap “Trade now”.`,
       }));
 
       // After swap UI opens, user can cancel or complete.
@@ -323,9 +283,7 @@ export default function TasksPage() {
       const lower = raw.toLowerCase();
       const msg = lower.includes('user rejected') || lower.includes('rejected the request')
         ? 'Transaction cancelled in wallet.'
-        : lower.includes('try again')
-          ? 'Base Trade could not build this swap. This token may have no route/liquidity or may be blocked.'
-          : raw;
+        : raw;
       setErrorByLinkId((p) => ({ ...p, [link.id]: msg }));
     } finally {
       setBuyingLinkId(null);
@@ -334,12 +292,25 @@ export default function TasksPage() {
 
   const openPostLink = (url: string) => {
     if (typeof window === 'undefined') return;
-    // In Base App / in-app WebViews, window.open can be blocked. Prefer same-tab navigation.
+    // In Base App / in-app WebViews, some navigation methods are blocked/ignored.
+    // Try a few approaches from most to least "browser-native".
+    try {
+      window.location.assign(url);
+      return;
+    } catch {}
     try {
       window.location.href = url;
-    } catch {
-      // no-op
-    }
+      return;
+    } catch {}
+    try {
+      const a = document.createElement('a');
+      a.href = url;
+      a.target = '_self';
+      a.rel = 'noopener noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch {}
   };
 
   if (loading) {
@@ -437,31 +408,7 @@ export default function TasksPage() {
                               </div>
                             )}
                             {tokenAddr && (
-                              <div className="mt-2 flex items-center gap-2">
-                                <a
-                                  className="text-xs font-bold text-gray-700 underline"
-                                  href={dexScreenerUrl(tokenAddr)}
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    openPostLink(dexScreenerUrl(tokenAddr));
-                                  }}
-                                  rel="noopener noreferrer"
-                                >
-                                  DexScreener
-                                </a>
-                                <span className="text-gray-300">•</span>
-                                <a
-                                  className="text-xs font-bold text-gray-700 underline"
-                                  href={uniswapSwapUrl(tokenAddr)}
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    openPostLink(uniswapSwapUrl(tokenAddr));
-                                  }}
-                                  rel="noopener noreferrer"
-                                >
-                                  Try Uniswap
-                                </a>
-                              </div>
+                              <div className="mt-2" />
                             )}
                           </div>
                           <div className="flex items-center gap-3">
@@ -469,12 +416,14 @@ export default function TasksPage() {
                               className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-900 font-bold"
                               href={link.cast_url}
                               onClick={(e) => {
-                                // Some WebViews ignore target=_blank and/or block window.open.
-                                // Force navigation on click.
+                                // Some WebViews ignore / block <a> navigation.
+                                // Force navigation via JS to maximize compatibility.
                                 e.preventDefault();
+                                e.stopPropagation();
                                 openPostLink(link.cast_url);
                               }}
                               rel="noopener noreferrer"
+                              target="_self"
                             >
                               Open
                             </a>
