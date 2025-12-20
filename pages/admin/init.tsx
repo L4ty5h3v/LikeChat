@@ -70,20 +70,29 @@ export default function InitLinks() {
 
   const parseSeedInput = (
     input: string
-  ): Array<{ castUrl: string; tokenAddress: string }> => {
+  ): Array<{ castUrl?: string; tokenAddress: string }> => {
     const lines = input
       .split('\n')
       .map((l) => l.trim())
       .filter(Boolean);
 
-    const links: Array<{ castUrl: string; tokenAddress: string }> = [];
+    const isAddress = (value?: string) => !!value && /^0x[a-fA-F0-9]{40}$/.test(value);
+
+    const links: Array<{ castUrl?: string; tokenAddress: string }> = [];
     for (const line of lines) {
-      // поддержка формата "url address" (пробел/таб/запятая)
+      // поддержка формата:
+      // - "<tokenAddress>"
+      // - "<url> <tokenAddress>" (пробел/таб/запятая)
       const parts = line.split(/[\s,]+/).filter(Boolean);
-      if (parts.length < 2) continue;
-      const castUrl = parts[0];
-      const tokenAddress = parts[1];
-      links.push({ castUrl, tokenAddress });
+      if (parts.length === 1 && isAddress(parts[0])) {
+        links.push({ tokenAddress: parts[0] });
+        continue;
+      }
+      if (parts.length >= 2) {
+        const castUrl = parts[0];
+        const tokenAddress = parts[1];
+        links.push({ castUrl, tokenAddress });
+      }
     }
 
     return links;
@@ -96,7 +105,7 @@ export default function InitLinks() {
     try {
       const links = parseSeedInput(seedInput);
       if (links.length === 0) {
-        setSeedResult({ error: 'No valid lines found. Format: <url> <tokenAddress>' });
+        setSeedResult({ error: 'No valid lines found. Format: <tokenAddress> OR <url> <tokenAddress>' });
         setSeedLoading(false);
         return;
       }
@@ -170,7 +179,8 @@ export default function InitLinks() {
             Seed links (posts to buy)
           </h2>
           <p className="text-gray-600 mb-4">
-            Format: one line = <code className="px-2 py-1 bg-gray-100 rounded">&lt;url&gt; &lt;tokenAddress&gt;</code>.
+            Format: one line = <code className="px-2 py-1 bg-gray-100 rounded">&lt;tokenAddress&gt;</code> OR{' '}
+            <code className="px-2 py-1 bg-gray-100 rounded">&lt;url&gt; &lt;tokenAddress&gt;</code>.
           </p>
 
           {seedResult && (
