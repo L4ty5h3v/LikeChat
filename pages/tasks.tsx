@@ -451,6 +451,8 @@ export default function TasksPage() {
               </div>
             ) : (
               links.map((link) => {
+                const postUrl = (link.cast_url || '').trim();
+                const hasPostUrl = postUrl.startsWith('http');
                 const tokenAddr = isAddress(link.token_address) ? link.token_address : undefined;
                 const bal = tokenAddr ? balanceByToken.get(tokenAddr.toLowerCase()) ?? 0n : 0n;
                 const owned = bal > 0n;
@@ -473,9 +475,6 @@ export default function TasksPage() {
                         <div className="flex items-center justify-between gap-4">
                           <div className="min-w-0">
                             <div className="font-black text-gray-900 truncate">@{link.username}</div>
-                            <div className="text-xs text-gray-600 truncate max-w-[240px] sm:max-w-[420px]" title={link.cast_url}>
-                              {compactUrl(link.cast_url)}
-                            </div>
                             {tokenAddr && (
                               <div className="text-xs text-gray-500 truncate mt-1" title={tokenAddr}>
                                 Token: {shortHex(tokenAddr)}
@@ -486,27 +485,29 @@ export default function TasksPage() {
                             )}
                           </div>
                           <div className="flex items-center gap-3">
-                            <a
-                              className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-900 font-bold"
-                              href={link.cast_url}
-                              onClick={(e) => {
-                                // Do NOT navigate the current WebView (keeps user inside the app).
-                                e.preventDefault();
-                                e.stopPropagation();
-                                const ok = openPostLink(link.cast_url);
-                                if (!ok) {
-                                  try {
-                                    window.prompt('Copy link:', link.cast_url);
-                                  } catch {
-                                    // ignore
+                            {hasPostUrl && (
+                              <a
+                                className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-900 font-bold"
+                                href={postUrl}
+                                onClick={(e) => {
+                                  // Do NOT navigate the current WebView (keeps user inside the app).
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  const ok = openPostLink(postUrl);
+                                  if (!ok) {
+                                    try {
+                                      window.prompt('Copy link:', postUrl);
+                                    } catch {
+                                      // ignore
+                                    }
                                   }
-                                }
-                              }}
-                              rel="noopener noreferrer"
-                              target="_blank"
-                            >
-                              Read the post
-                            </a>
+                                }}
+                                rel="noopener noreferrer"
+                                target="_blank"
+                              >
+                                Read the post
+                              </a>
+                            )}
                             <button
                               className={`px-4 py-2 rounded-xl font-bold text-white ${
                                 completed ? 'bg-green-600 cursor-not-allowed opacity-90' : 'bg-gradient-to-r from-primary via-secondary to-accent'

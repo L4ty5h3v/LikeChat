@@ -36,17 +36,20 @@ export default async function handler(
       console.error('❌ [SUBMIT-LINK] No taskType provided and no selected_task in DB!');
     }
 
-    if (!userFid || !username || !castUrl || !finalTaskType || !tokenAddress) {
+    // Critical UX: Base App may not provide a canonical "tokenized post" URL.
+    // Allow publishing with tokenAddress only; castUrl is optional.
+    const safeCastUrl = (castUrl || '').toString().trim();
+    if (!userFid || !username || !finalTaskType || !tokenAddress) {
       return res.status(400).json({ 
         success: false,
-        error: 'Missing required fields: userFid, username, castUrl, taskType (or activityType), tokenAddress.' 
+        error: 'Missing required fields: userFid, username, taskType (or activityType), tokenAddress.' 
       });
     }
 
     console.log('📝 API /submit-link: Submitting link:', {
       userFid,
       username,
-      castUrl: castUrl.substring(0, 50) + '...',
+      castUrl: safeCastUrl ? safeCastUrl.substring(0, 50) + '...' : 'EMPTY (optional)',
       taskType: finalTaskType,
       tokenAddress,
     });
@@ -55,7 +58,7 @@ export default async function handler(
       userFid,
       username,
       pfpUrl || '',
-      castUrl,
+      safeCastUrl,
       finalTaskType,
       tokenAddress
     );

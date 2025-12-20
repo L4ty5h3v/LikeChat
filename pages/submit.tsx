@@ -57,7 +57,6 @@ export default function Submit() {
   const [loading, setLoading] = useState(false);
   const { user, isLoading: authLoading, isInitialized } = useFarcasterAuth();
   const [activity, setActivity] = useState<TaskType | null>(null);
-  const [castUrl, setCastUrl] = useState('');
   const [tokenAddress, setTokenAddress] = useState('');
   const [error, setError] = useState('');
   const [canSubmit, setCanSubmit] = useState(true); // Публикация разрешена всегда
@@ -372,7 +371,7 @@ export default function Submit() {
         hasPfp: !!user.pfp_url,
       } : 'NULL',
       activity,
-      castUrl: castUrl ? castUrl.substring(0, 50) + '...' : 'EMPTY',
+      castUrl: 'REMOVED',
     });
     
     // Проверяем наличие user из контекста
@@ -383,11 +382,11 @@ export default function Submit() {
       return;
     }
     
-    if (!activity || !castUrl || !tokenAddress) {
+    if (!activity || !tokenAddress) {
       console.error('❌ [SUBMIT] Missing required data:', {
         hasUser: !!user,
         hasActivity: !!activity,
-        hasCastUrl: !!castUrl,
+        hasCastUrl: false,
         hasTokenAddress: !!tokenAddress,
       });
       setError('Please fill in all required fields');
@@ -408,11 +407,8 @@ export default function Submit() {
 
     setError('');
 
-    // Валидация URL
-    if (!validateUrl(castUrl)) {
-      setError('Please enter a valid Base post link');
-      return;
-    }
+    // Critical UX: Base App doesn't provide a clear tokenized-post URL.
+    // Publishing requires only token address.
 
     setLoading(true);
 
@@ -425,7 +421,7 @@ export default function Submit() {
         userFid: user.fid,
         username: user.username,
         pfpUrl: user.pfp_url || '',
-        castUrl: castUrl,
+        castUrl: '', // removed from UI; keep field for backward compatibility
         taskType: activity, // Используем taskType вместо activityType для ясности
         activityType: activity, // Оставляем для обратной совместимости
         tokenAddress,
@@ -439,7 +435,7 @@ export default function Submit() {
       
       console.log('📝 [SUBMIT] Submitting link via API...', {
         ...submissionData,
-        castUrl: castUrl.substring(0, 50) + '...',
+        castUrl: 'EMPTY (removed)',
       });
 
       const response = await fetch('/api/submit-link', {
@@ -617,7 +613,6 @@ export default function Submit() {
         });
         
         // Очищаем форму, чтобы предотвратить повторную отправку
-        setCastUrl('');
         setTokenAddress('');
         setError('');
         
@@ -879,27 +874,6 @@ export default function Submit() {
             <form onSubmit={handleSubmit}>
               <div className="mb-6">
                 <label
-                  htmlFor="castUrl"
-                  className="block text-lg font-bold text-gray-900 mb-3"
-                >
-                  Link to your post:
-                </label>
-                <input
-                  type="url"
-                  id="castUrl"
-                  value={castUrl}
-                  onChange={(e) => setCastUrl(e.target.value)}
-                  placeholder="https://base.app/content/..."
-                  className="w-full px-6 py-4 border-2 border-gray-300 rounded-xl focus:border-primary focus:outline-none transition-colors text-lg"
-                  required
-                />
-                <p className="text-sm text-gray-500 mt-2">
-                  Example: https://base.app/content/...
-                </p>
-              </div>
-
-              <div className="mb-6">
-                <label
                   htmlFor="tokenAddress"
                   className="block text-lg font-bold text-gray-900 mb-3"
                 >
@@ -930,17 +904,17 @@ export default function Submit() {
 
               <button
                 type="submit"
-                disabled={loading || !castUrl}
+                disabled={loading || !tokenAddress}
                 className={`btn-gold-glow w-full text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold text-white group ${
-                  loading || !castUrl ? 'disabled' : ''
+                  loading || !tokenAddress ? 'disabled' : ''
                 }`}
               >
                 {/* Переливающийся эффект */}
-                {!loading && castUrl && (
+                {!loading && tokenAddress && (
                   <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
                 )}
                 {/* Внутреннее свечение */}
-                {!loading && castUrl && (
+                {!loading && tokenAddress && (
                   <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
                 )}
                 <span className="relative z-20 drop-shadow-lg">

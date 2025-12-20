@@ -42,16 +42,6 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
     });
   };
 
-  const compactUrl = (url: string) => {
-    try {
-      const u = new URL(url);
-      const path = (u.pathname || '/').replace(/\/{2,}/g, '/');
-      return `${u.host}${path}`;
-    } catch {
-      return url;
-    }
-  };
-
   return (
     <div className="bg-white rounded-xl border-2 border-gray-200 p-5 hover:shadow-lg transition-all duration-300">
       {/* Заголовок с пользователем */}
@@ -77,23 +67,14 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
         </div>
       </div>
 
-      {/* Ссылка */}
-      <div className="bg-gray-50 rounded-lg p-3 mb-3">
-        <a
-          href={link.cast_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-primary hover:underline truncate block text-sm"
-          title={link.cast_url}
-        >
-          {compactUrl(link.cast_url)}
-        </a>
-        {link.token_address && (
-          <div className="mt-2 text-xs text-gray-600 break-all">
+      {/* Token */}
+      {link.token_address && (
+        <div className="bg-gray-50 rounded-lg p-3 mb-3">
+          <div className="text-xs text-gray-600 break-all">
             Token: <span className="font-mono">{link.token_address}</span>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Statistics */}
       <div className="flex items-center justify-between text-sm text-gray-600">
@@ -102,29 +83,34 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
           <span>Completed: {link.completed_by?.length || 0}</span>
         </div>
         
-        <a
-          href={link.cast_url}
-          onClick={(e) => {
-            e.preventDefault();
-            const ok = openPostLink(link.cast_url);
-            if (!ok) {
-              try {
-                window.prompt('Copy link:', link.cast_url);
-              } catch {
-                // ignore
+        {!!link.cast_url && link.cast_url.trim().startsWith('http') ? (
+          <a
+            href={link.cast_url}
+            onClick={(e) => {
+              e.preventDefault();
+              const url = link.cast_url.trim();
+              const ok = openPostLink(url);
+              if (!ok) {
+                try {
+                  window.prompt('Copy link:', url);
+                } catch {
+                  // ignore
+                }
               }
-            }
-          }}
-          className="btn-gold-glow px-4 py-2 text-white font-bold text-sm group"
-          rel="noopener noreferrer"
-          target="_blank"
-        >
-          {/* Per-shimmer effect */}
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-          {/* Inner glow */}
-          <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
-          <span className="relative z-20 drop-shadow-lg">Read the post</span>
-        </a>
+            }}
+            className="btn-gold-glow px-4 py-2 text-white font-bold text-sm group"
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            {/* Per-shimmer effect */}
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+            {/* Inner glow */}
+            <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
+            <span className="relative z-20 drop-shadow-lg">Read the post</span>
+          </a>
+        ) : (
+          <span className="text-xs text-gray-500 font-bold">No post link</span>
+        )}
       </div>
     </div>
   );
