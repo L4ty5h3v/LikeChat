@@ -11,14 +11,25 @@ const activityIcon = '💎';
 const activityLabel = 'Buy';
 
 const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
-  const openPostLink = (url: string) => {
-    if (typeof window === 'undefined') return;
-    // In Base App / in-app WebViews, window.open can be blocked. Prefer same-tab navigation.
+  const openPostLink = (url: string): boolean => {
+    if (typeof window === 'undefined') return false;
+    // Keep the app state: do NOT navigate the current WebView.
     try {
-      window.location.href = url;
-    } catch {
-      // no-op
-    }
+      const w = window.open(url, '_blank', 'noopener,noreferrer');
+      if (w) return true;
+    } catch {}
+    try {
+      const a = document.createElement('a');
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      return true;
+    } catch {}
+    return false;
   };
 
   const formatDate = (dateString: string) => {
@@ -95,10 +106,18 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
           href={link.cast_url}
           onClick={(e) => {
             e.preventDefault();
-            openPostLink(link.cast_url);
+            const ok = openPostLink(link.cast_url);
+            if (!ok) {
+              try {
+                window.prompt('Copy link:', link.cast_url);
+              } catch {
+                // ignore
+              }
+            }
           }}
           className="btn-gold-glow px-4 py-2 text-white font-bold text-sm group"
           rel="noopener noreferrer"
+          target="_blank"
         >
           {/* Per-shimmer effect */}
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>

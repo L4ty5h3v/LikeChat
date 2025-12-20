@@ -205,6 +205,36 @@ export default function TasksPage() {
     return ids.size;
   }, [completedLinkIds, ownedLinkIds]);
 
+  // Clean UI: if a post is already DONE/BOUGHT, remove any lingering notices/errors.
+  useEffect(() => {
+    const completed = new Set<string>(completedLinkIds);
+    for (const id of ownedLinkIds) completed.add(id);
+
+    setNoticeByLinkId((prev) => {
+      let changed = false;
+      const next: Record<string, string> = { ...prev };
+      for (const id of completed) {
+        if (next[id]) {
+          delete next[id];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+
+    setErrorByLinkId((prev) => {
+      let changed = false;
+      const next: Record<string, string> = { ...prev };
+      for (const id of completed) {
+        if (next[id]) {
+          delete next[id];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [completedLinkIds, ownedLinkIds]);
+
   const canPublish = completedCount >= REQUIRED_BUYS_TO_PUBLISH && hasFid;
 
   const handleBuy = async (link: LinkSubmission) => {
@@ -234,6 +264,7 @@ export default function TasksPage() {
     setBuyingLinkId(link.id);
 
     try {
+      setNoticeByLinkId((p) => ({ ...p, [link.id]: 'Opening Trade…' }));
       // Preflight: user needs BUY_AMOUNT_USDC_DISPLAY USDC for the swap.
       // Gas is usually paid in Base ETH; in Base App it can sometimes be paid in USDC (wallet feature).
       const [ethBalance, usdcBalance] = await Promise.all([
@@ -268,7 +299,7 @@ export default function TasksPage() {
       });
       setNoticeByLinkId((p) => ({
         ...p,
-        [link.id]: `Trade opened. If the amount is empty, type ${BUY_AMOUNT_USDC_DISPLAY} USDC and confirm. Return here — status will update automatically.`,
+        [link.id]: `Waiting for confirmation… If the amount is empty, type ${BUY_AMOUNT_USDC_DISPLAY} USDC and confirm.`,
       }));
 
       // After swap UI opens, user can cancel or complete.
@@ -305,41 +336,50 @@ export default function TasksPage() {
       setCompletedLinkIds((prev) => (prev.includes(link.id) ? prev : [...prev, link.id]));
       // Обновим кеш балансов для UI (не критично для верификации)
       refetchBalances();
+      // Clean UI after success
       setErrorByLinkId((p) => ({ ...p, [link.id]: '' }));
-      setNoticeByLinkId((p) => ({ ...p, [link.id]: 'Transaction confirmed. Post supported ✅' }));
+      setNoticeByLinkId((p) => {
+        const next = { ...p };
+        delete next[link.id];
+        return next;
+      });
     } catch (e: any) {
       const raw = (e?.shortMessage || e?.message || 'Buy error').toString();
       const lower = raw.toLowerCase();
       const msg = lower.includes('user rejected') || lower.includes('rejected the request')
         ? 'Transaction cancelled in wallet.'
         : raw;
+      setNoticeByLinkId((p) => {
+        const next = { ...p };
+        delete next[link.id];
+        return next;
+      });
       setErrorByLinkId((p) => ({ ...p, [link.id]: msg }));
     } finally {
       setBuyingLinkId(null);
     }
   };
 
-  const openPostLink = (url: string) => {
-    if (typeof window === 'undefined') return;
-    // In Base App / in-app WebViews, some navigation methods are blocked/ignored.
-    // Try a few approaches from most to least "browser-native".
+  const openPostLink = (url: string): boolean => {
+    if (typeof window === 'undefined') return false;
+    // Important UX: do NOT navigate the current WebView (it kicks the user out of the app).
+    // Prefer opening in an in-app browser / new tab.
     try {
-      window.location.assign(url);
-      return;
-    } catch {}
-    try {
-      window.location.href = url;
-      return;
+      const w = window.open(url, '_blank', 'noopener,noreferrer');
+      if (w) return true;
     } catch {}
     try {
       const a = document.createElement('a');
       a.href = url;
-      a.target = '_self';
+      a.target = '_blank';
       a.rel = 'noopener noreferrer';
+      a.style.display = 'none';
       document.body.appendChild(a);
       a.click();
       a.remove();
+      return true;
     } catch {}
+    return false;
   };
 
   if (loading) {
@@ -393,7 +433,7 @@ export default function TasksPage() {
                 </div>
               </div>
               {canPublish ? (
-                <Button onClick={() => router.push('/submit')}>Publish</Button>
+                <Button onClick={() => router.push('/submit')}>👉 Add your post</Button>
               ) : (
                 <Button onClick={() => router.push('/submit')} disabled>
                   {hasFid ? `Publish (need ${REQUIRED_BUYS_TO_PUBLISH})` : 'Publish (open in Base App)'} 
@@ -450,14 +490,20 @@ export default function TasksPage() {
                               className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-900 font-bold"
                               href={link.cast_url}
                               onClick={(e) => {
-                                // Some WebViews ignore / block <a> navigation.
-                                // Force navigation via JS to maximize compatibility.
+                                // Do NOT navigate the current WebView (keeps user inside the app).
                                 e.preventDefault();
                                 e.stopPropagation();
-                                openPostLink(link.cast_url);
+                                const ok = openPostLink(link.cast_url);
+                                if (!ok) {
+                                  try {
+                                    window.prompt('Copy link:', link.cast_url);
+                                  } catch {
+                                    // ignore
+                                  }
+                                }
                               }}
                               rel="noopener noreferrer"
-                              target="_self"
+                              target="_blank"
                             >
                               Read the post
                             </a>
@@ -473,10 +519,10 @@ export default function TasksPage() {
                           </div>
                         </div>
 
-                        {noticeByLinkId[link.id] && (
+                        {!completed && noticeByLinkId[link.id] && (
                           <div className="mt-3 text-sm text-blue-700 font-bold">{noticeByLinkId[link.id]}</div>
                         )}
-                        {err && <div className="mt-3 text-sm text-red-600 font-bold">{err}</div>}
+                        {!completed && err && <div className="mt-3 text-sm text-red-600 font-bold">{err}</div>}
                       </div>
                     </div>
                   </div>
