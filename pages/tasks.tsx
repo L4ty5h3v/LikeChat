@@ -459,7 +459,7 @@ export default function TasksPage() {
                               rel="noopener noreferrer"
                               target="_self"
                             >
-                              Open
+                              Read the post
                             </a>
                             <button
                               className={`px-4 py-2 rounded-xl font-bold text-white ${
