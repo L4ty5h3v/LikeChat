@@ -344,7 +344,8 @@ export default function TasksPage() {
               <div className="w-20 h-1 bg-white"></div>
             </div>
             <p className="text-white text-opacity-90 text-lg">
-              Buy a post-token for <span className="font-black text-yellow-300">{BUY_AMOUNT_USDC_DISPLAY}</span> on {REQUIRED_BUYS_TO_PUBLISH} posts.
+              Buy {REQUIRED_BUYS_TO_PUBLISH} tokenized posts for{' '}
+              <span className="font-black text-yellow-300">{BUY_AMOUNT_USDC_DISPLAY}</span> each.
             </p>
           </div>
 

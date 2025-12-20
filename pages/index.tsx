@@ -11,6 +11,13 @@ import type { ActivityType } from '@/types';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
 import { useAccount, useConnect } from 'wagmi';
 
+function shortHex(addr: string): string {
+  if (!addr) return '';
+  const a = addr.toString();
+  if (a.length <= 12) return a;
+  return `${a.slice(0, 6)}…${a.slice(-4)}`;
+}
+
 export default function Home() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -623,9 +630,16 @@ export default function Home() {
                   <h3 className="text-xl font-bold text-gray-900">
                     @{user.username}
                   </h3>
-                  <p className="text-sm text-gray-600">
-                    ID: {user.fid}
-                    {user.address ? ` • ${user.address}` : ''}
+                  <p className="text-sm text-gray-600 truncate">
+                    <span className="whitespace-nowrap">ID: {user.fid}</span>
+                    {user.address ? (
+                      <>
+                        <span className="mx-1">•</span>
+                        <span className="font-mono" title={user.address}>
+                          {shortHex(user.address)}
+                        </span>
+                      </>
+                    ) : null}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
