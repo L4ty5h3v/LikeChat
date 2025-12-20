@@ -508,7 +508,7 @@ export default function TasksPage() {
                                 rel="noopener noreferrer"
                                 target="_blank"
                               >
-                                Read the post
+                                Открыть пост
                               </a>
                             )}
                             <button

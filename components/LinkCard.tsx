@@ -111,10 +111,10 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
             {/* Inner glow */}
             <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
-            <span className="relative z-20 drop-shadow-lg">Read the post</span>
+            <span className="relative z-20 drop-shadow-lg">Открыть пост</span>
           </a>
           ) : (
-          <span className="text-xs text-gray-500 font-bold">No post link</span>
+          <span className="text-xs text-gray-500 font-bold">Нет ссылки на пост</span>
           );
         })()}
       </div>
