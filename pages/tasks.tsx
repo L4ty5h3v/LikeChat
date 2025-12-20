@@ -128,9 +128,24 @@ export default function TasksPage() {
 
     // Убираем polling (страница не должна "дёргаться" каждые 5 секунд).
     // Обновляем данные только при возврате во вкладку/приложение.
-    const onFocus = () => refresh();
+    const onFocus = () => {
+      refresh();
+      // also resync on-chain balances (BOUGHT state) after wallet redirect
+      try {
+        refetchBalances();
+      } catch {
+        // ignore
+      }
+    };
     const onVisibility = () => {
-      if (document.visibilityState === 'visible') refresh();
+      if (document.visibilityState === 'visible') {
+        refresh();
+        try {
+          refetchBalances();
+        } catch {
+          // ignore
+        }
+      }
     };
 
     window.addEventListener('focus', onFocus);
@@ -141,7 +156,7 @@ export default function TasksPage() {
       document.removeEventListener('visibilitychange', onVisibility);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isInitialized, user?.fid]);
+  }, [isInitialized, user?.fid, refetchBalances]);
 
   const tokenContracts = useMemo(() => {
     if (!effectiveAddress) return [];
@@ -253,7 +268,7 @@ export default function TasksPage() {
       });
       setNoticeByLinkId((p) => ({
         ...p,
-        [link.id]: `Trade opened. If the amount is empty, type ${BUY_AMOUNT_USDC_DISPLAY} USDC manually and tap “Trade now”.`,
+        [link.id]: `Trade opened. If the amount is empty, type ${BUY_AMOUNT_USDC_DISPLAY} USDC and confirm. Return here — status will update automatically.`,
       }));
 
       // After swap UI opens, user can cancel or complete.
@@ -274,7 +289,7 @@ export default function TasksPage() {
       }
       if (newBal <= 0n) {
         throw new Error(
-          `Complete the swap in Trade (if amount is empty, type ${BUY_AMOUNT_USDC_DISPLAY} manually), then return here and refresh.`
+          `If you completed the swap in Trade, return here — we’ll update the status automatically. If you haven’t confirmed yet, finish the swap in Trade.`
         );
       }
 
@@ -290,6 +305,8 @@ export default function TasksPage() {
       setCompletedLinkIds((prev) => (prev.includes(link.id) ? prev : [...prev, link.id]));
       // Обновим кеш балансов для UI (не критично для верификации)
       refetchBalances();
+      setErrorByLinkId((p) => ({ ...p, [link.id]: '' }));
+      setNoticeByLinkId((p) => ({ ...p, [link.id]: 'Transaction confirmed. Post supported ✅' }));
     } catch (e: any) {
       const raw = (e?.shortMessage || e?.message || 'Buy error').toString();
       const lower = raw.toLowerCase();
