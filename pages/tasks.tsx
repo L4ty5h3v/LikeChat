@@ -88,6 +88,12 @@ export default function TasksPage() {
   }, []);
 
   const hasFid = typeof user?.fid === 'number' && Number.isFinite(user.fid) && user.fid > 0;
+  const effectiveAddress: Address | undefined = useMemo(() => {
+    if (address && isAddress(address)) return address;
+    const ua = user?.address;
+    if (typeof ua === 'string' && isAddress(ua)) return ua as Address;
+    return undefined;
+  }, [address, user?.address]);
 
   const refresh = async () => {
     setLoading(true);
@@ -138,21 +144,21 @@ export default function TasksPage() {
   }, [isInitialized, user?.fid]);
 
   const tokenContracts = useMemo(() => {
-    if (!address) return [];
+    if (!effectiveAddress) return [];
     return links
       .filter((l) => isAddress(l.token_address))
       .map((l) => ({
         address: l.token_address as Address,
         abi: erc20Abi,
         functionName: 'balanceOf' as const,
-        args: [address] as const,
+        args: [effectiveAddress] as const,
       }));
-  }, [links, address]);
+  }, [links, effectiveAddress]);
 
   const { data: balances, refetch: refetchBalances } = useReadContracts({
     contracts: tokenContracts,
     query: {
-      enabled: !!address && tokenContracts.length > 0,
+      enabled: !!effectiveAddress && tokenContracts.length > 0,
     },
   });
 
@@ -187,12 +193,13 @@ export default function TasksPage() {
   const canPublish = completedCount >= REQUIRED_BUYS_TO_PUBLISH && hasFid;
 
   const handleBuy = async (link: LinkSubmission) => {
-    if (!isConnected || !address) {
+    const addr = effectiveAddress;
+    if (!addr) {
       setErrorByLinkId((p) => ({ ...p, [link.id]: 'Connect your wallet first.' }));
       return;
     }
-    // In some WebViews chainId can be undefined; treat it as NOT Base to avoid generating broken txs.
-    if (chainId !== 8453) {
+    // In some WebViews chainId can be undefined; only block when we *know* it's not Base.
+    if (chainId && chainId !== 8453) {
       setErrorByLinkId((p) => ({ ...p, [link.id]: 'Switch network to Base (8453).' }));
       return;
     }
@@ -212,23 +219,28 @@ export default function TasksPage() {
     setBuyingLinkId(link.id);
 
     try {
-      // Preflight: user needs Base ETH for gas + BUY_AMOUNT_USDC_DISPLAY USDC for the swap
+      // Preflight: user needs BUY_AMOUNT_USDC_DISPLAY USDC for the swap.
+      // Gas is usually paid in Base ETH; in Base App it can sometimes be paid in USDC (wallet feature).
       const [ethBalance, usdcBalance] = await Promise.all([
-        publicClient.getBalance({ address }),
+        publicClient.getBalance({ address: addr }),
         publicClient.readContract({
           address: USDC_CONTRACT_ADDRESS,
           abi: erc20Abi,
           functionName: 'balanceOf',
-          args: [address],
+          args: [addr],
         }),
       ]);
 
       if (usdcBalance < BUY_AMOUNT_USDC) {
         throw new Error(`Not enough USDC. You need at least ${BUY_AMOUNT_USDC_DISPLAY} USDC on Base.`);
       }
-      // Very lightweight gas check (swap UI will estimate precisely)
+      // Gas UX: warn early, but don't hard-block (Base App may support paying gas in USDC).
       if (ethBalance < parseEther('0.00001')) {
-        throw new Error('Not enough Base ETH for gas. Please add a little ETH on Base.');
+        setNoticeByLinkId((p) => ({
+          ...p,
+          [link.id]:
+            'Note: network fee (gas) is usually paid in Base ETH. In Base App you may be able to pay gas in USDC—if you see that option in the confirmation screen.',
+        }));
       }
 
       // BUY flow for Base App tokens:
@@ -256,7 +268,7 @@ export default function TasksPage() {
           address: link.token_address as Address,
           abi: erc20Abi,
           functionName: 'balanceOf',
-          args: [address],
+          args: [addr],
         });
         if (newBal > 0n) break;
       }
@@ -347,6 +359,9 @@ export default function TasksPage() {
               Buy {REQUIRED_BUYS_TO_PUBLISH} tokenized posts for{' '}
               <span className="font-black text-yellow-300">{BUY_AMOUNT_USDC_DISPLAY}</span> each.
             </p>
+            <p className="text-white text-opacity-75 text-sm mt-3">
+              Gas fee: usually paid in Base ETH. In the Base app you may be able to pay gas in USDC (if you see that option in the confirmation screen).
+            </p>
           </div>
 
           <div className="bg-white bg-opacity-95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 mb-8">
@@ -382,7 +397,8 @@ export default function TasksPage() {
                 const tokenAddr = isAddress(link.token_address) ? link.token_address : undefined;
                 const bal = tokenAddr ? balanceByToken.get(tokenAddr.toLowerCase()) ?? 0n : 0n;
                 const owned = bal > 0n;
-                const completed = completedLinkIds.includes(link.id) || owned;
+                const completedByProgress = completedLinkIds.includes(link.id);
+                const completed = completedByProgress || owned;
                 const isBuying = buyingLinkId === link.id;
                 const err = errorByLinkId[link.id];
 
@@ -429,11 +445,13 @@ export default function TasksPage() {
                               Open
                             </a>
                             <button
-                              className={`px-4 py-2 rounded-xl font-bold text-white ${completed ? 'bg-green-600' : 'bg-gradient-to-r from-primary via-secondary to-accent'}`}
+                              className={`px-4 py-2 rounded-xl font-bold text-white ${
+                                completed ? 'bg-green-600 cursor-not-allowed opacity-90' : 'bg-gradient-to-r from-primary via-secondary to-accent'
+                              }`}
                               onClick={() => handleBuy(link)}
                               disabled={isBuying || completed || !tokenAddr}
                             >
-                              {completed ? 'Done' : isBuying ? 'Buying…' : `BUY ${BUY_AMOUNT_USDC_DISPLAY}`}
+                              {completed ? (owned ? 'BOUGHT' : 'DONE') : isBuying ? 'Buying…' : `BUY ${BUY_AMOUNT_USDC_DISPLAY}`}
                             </button>
                           </div>
                         </div>
