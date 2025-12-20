@@ -2,6 +2,7 @@
 import React from 'react';
 import type { LinkSubmission } from '@/types';
 import Avatar from '@/components/Avatar';
+import { baseAppContentUrlFromTokenAddress } from '@/lib/base-content';
 
 interface LinkCardProps {
   link: LinkSubmission;
@@ -83,12 +84,16 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
           <span>Completed: {link.completed_by?.length || 0}</span>
         </div>
         
-        {!!link.cast_url && link.cast_url.trim().startsWith('http') ? (
+        {(() => {
+          const direct = (link.cast_url || '').trim();
+          const generated = link.token_address ? baseAppContentUrlFromTokenAddress(link.token_address) : null;
+          const url = (direct.startsWith('http') ? direct : generated) || '';
+          const has = url.startsWith('http');
+          return has ? (
           <a
-            href={link.cast_url}
+            href={url}
             onClick={(e) => {
               e.preventDefault();
-              const url = link.cast_url.trim();
               const ok = openPostLink(url);
               if (!ok) {
                 try {
@@ -108,9 +113,10 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
             <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
             <span className="relative z-20 drop-shadow-lg">Read the post</span>
           </a>
-        ) : (
+          ) : (
           <span className="text-xs text-gray-500 font-bold">No post link</span>
-        )}
+          );
+        })()}
       </div>
     </div>
   );

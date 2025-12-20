@@ -11,6 +11,7 @@ import { useAccount, usePublicClient, useReadContracts } from 'wagmi';
 import { erc20Abi, parseEther, parseUnits, type Address } from 'viem';
 import { BUY_AMOUNT_USDC_DECIMAL, BUY_AMOUNT_USDC_DISPLAY, REQUIRED_BUYS_TO_PUBLISH } from '@/lib/app-config';
 import { useSwapToken, useIsInMiniApp } from '@coinbase/onchainkit/minikit';
+import { baseAppContentUrlFromTokenAddress } from '@/lib/base-content';
 
 const USDC_CONTRACT_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as const;
 const BUY_AMOUNT_USDC = parseUnits(BUY_AMOUNT_USDC_DECIMAL, 6);
@@ -451,9 +452,11 @@ export default function TasksPage() {
               </div>
             ) : (
               links.map((link) => {
-                const postUrl = (link.cast_url || '').trim();
-                const hasPostUrl = postUrl.startsWith('http');
                 const tokenAddr = isAddress(link.token_address) ? link.token_address : undefined;
+                const postUrl = ((link.cast_url || '').trim().startsWith('http')
+                  ? (link.cast_url || '').trim()
+                  : (tokenAddr ? baseAppContentUrlFromTokenAddress(tokenAddr) : null)) || '';
+                const hasPostUrl = postUrl.startsWith('http');
                 const bal = tokenAddr ? balanceByToken.get(tokenAddr.toLowerCase()) ?? 0n : 0n;
                 const owned = bal > 0n;
                 const completedByProgress = completedLinkIds.includes(link.id);

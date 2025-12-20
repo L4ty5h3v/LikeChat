@@ -1,6 +1,7 @@
 // API endpoint для публикации ссылки
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { submitLink, getAllLinks, getUserProgress } from '@/lib/db-config';
+import { baseAppContentUrlFromTokenAddress, isHexAddress } from '@/lib/base-content';
 
 export default async function handler(
   req: NextApiRequest,
@@ -38,12 +39,18 @@ export default async function handler(
 
     // Critical UX: Base App may not provide a canonical "tokenized post" URL.
     // Allow publishing with tokenAddress only; castUrl is optional.
-    const safeCastUrl = (castUrl || '').toString().trim();
+    let safeCastUrl = (castUrl || '').toString().trim();
     if (!userFid || !username || !finalTaskType || !tokenAddress) {
       return res.status(400).json({ 
         success: false,
         error: 'Missing required fields: userFid, username, taskType (or activityType), tokenAddress.' 
       });
+    }
+    // If URL is missing, generate a deterministic Base content URL from the token address.
+    // This makes the app fully usable even when Base App doesn't surface a clear "tokenized post" link.
+    const tokenAddr = tokenAddress.toString().trim();
+    if (!safeCastUrl && isHexAddress(tokenAddr)) {
+      safeCastUrl = baseAppContentUrlFromTokenAddress(tokenAddr) || '';
     }
 
     console.log('📝 API /submit-link: Submitting link:', {
@@ -51,7 +58,7 @@ export default async function handler(
       username,
       castUrl: safeCastUrl ? safeCastUrl.substring(0, 50) + '...' : 'EMPTY (optional)',
       taskType: finalTaskType,
-      tokenAddress,
+      tokenAddress: tokenAddr,
     });
 
     const result = await submitLink(
@@ -60,7 +67,7 @@ export default async function handler(
       pfpUrl || '',
       safeCastUrl,
       finalTaskType,
-      tokenAddress
+      tokenAddr
     );
 
     if (!result) {
