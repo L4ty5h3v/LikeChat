@@ -96,6 +96,25 @@ export default function TasksPage() {
     return undefined;
   }, [address, user?.address]);
 
+  const tokenContracts = useMemo(() => {
+    if (!effectiveAddress) return [];
+    return links
+      .filter((l) => isAddress(l.token_address))
+      .map((l) => ({
+        address: l.token_address as Address,
+        abi: erc20Abi,
+        functionName: 'balanceOf' as const,
+        args: [effectiveAddress] as const,
+      }));
+  }, [links, effectiveAddress]);
+
+  const { data: balances, refetch: refetchBalances } = useReadContracts({
+    contracts: tokenContracts,
+    query: {
+      enabled: !!effectiveAddress && tokenContracts.length > 0,
+    },
+  });
+
   const refresh = async () => {
     setLoading(true);
     try {
@@ -158,25 +177,6 @@ export default function TasksPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isInitialized, user?.fid, refetchBalances]);
-
-  const tokenContracts = useMemo(() => {
-    if (!effectiveAddress) return [];
-    return links
-      .filter((l) => isAddress(l.token_address))
-      .map((l) => ({
-        address: l.token_address as Address,
-        abi: erc20Abi,
-        functionName: 'balanceOf' as const,
-        args: [effectiveAddress] as const,
-      }));
-  }, [links, effectiveAddress]);
-
-  const { data: balances, refetch: refetchBalances } = useReadContracts({
-    contracts: tokenContracts,
-    query: {
-      enabled: !!effectiveAddress && tokenContracts.length > 0,
-    },
-  });
 
   const balanceByToken = useMemo(() => {
     const map = new Map<string, bigint>();
@@ -423,7 +423,7 @@ export default function TasksPage() {
           </div>
 
           <div className="bg-white bg-opacity-95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 mb-8">
-              <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4">
               <div className="w-16 h-16 rounded-full overflow-hidden border-4 border-primary shadow-lg">
                 <Image src="/images/mrs-crypto.jpg" alt="Mrs. Crypto" width={64} height={64} className="w-full h-full object-cover" unoptimized />
               </div>
@@ -483,9 +483,7 @@ export default function TasksPage() {
                                 Token: {shortHex(tokenAddr)}
                               </div>
                             )}
-                            {tokenAddr && (
-                              <div className="mt-2" />
-                            )}
+                            {tokenAddr && <div className="mt-2" />}
                           </div>
                           <div className="flex items-center gap-3">
                             {hasPostUrl && (
@@ -513,7 +511,9 @@ export default function TasksPage() {
                             )}
                             <button
                               className={`px-4 py-2 rounded-xl font-bold text-white ${
-                                completed ? 'bg-green-600 cursor-not-allowed opacity-90' : 'bg-gradient-to-r from-primary via-secondary to-accent'
+                                completed
+                                  ? 'bg-green-600 cursor-not-allowed opacity-90'
+                                  : 'bg-gradient-to-r from-primary via-secondary to-accent'
                               }`}
                               onClick={() => handleBuy(link)}
                               disabled={isBuying || completed || !tokenAddr}
