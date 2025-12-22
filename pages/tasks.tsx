@@ -61,7 +61,10 @@ export default function TasksPage() {
 
   const [links, setLinks] = useState<LinkSubmission[]>([]);
   const [completedLinkIds, setCompletedLinkIds] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+  // UX: show full-screen loader only on the very first load.
+  // Background refreshes (focus/visibility) should NOT blank the whole page (causes "jitter").
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const [buyingLinkId, setBuyingLinkId] = useState<string | null>(null);
   const [errorByLinkId, setErrorByLinkId] = useState<Record<string, string>>({});
@@ -115,25 +118,40 @@ export default function TasksPage() {
     },
   });
 
-  const refresh = async () => {
-    setLoading(true);
+  const refresh = async (opts?: { silent?: boolean }) => {
+    const silent = !!opts?.silent;
+    if (!silent) setInitialLoading(true);
+    else setRefreshing(true);
     try {
       // Always load links (they are global, not user-specific)
       const linksRes = await fetch(`/api/tasks?t=${Date.now()}&taskType=support`);
       const linksJson = await linksRes.json();
-      setLinks(Array.isArray(linksJson.links) ? linksJson.links : []);
+      const nextLinks: LinkSubmission[] = Array.isArray(linksJson.links) ? linksJson.links : [];
+      setLinks((prev) => {
+        if (prev.length === nextLinks.length && prev.every((p, i) => p.id === nextLinks[i]?.id)) {
+          return prev;
+        }
+        return nextLinks;
+      });
 
       // Load per-user progress only when we have a real fid (MiniKit/Base App)
       if (hasFid) {
         const progressRes = await fetch(`/api/user-progress?userFid=${user!.fid}&t=${Date.now()}`);
         const progressJson = await progressRes.json();
         const progress = progressJson.progress || null;
-        setCompletedLinkIds(Array.isArray(progress?.completed_links) ? progress.completed_links : []);
+        const nextCompleted: string[] = Array.isArray(progress?.completed_links) ? progress.completed_links : [];
+        setCompletedLinkIds((prev) => {
+          if (prev.length === nextCompleted.length && prev.every((p, i) => p === nextCompleted[i])) {
+            return prev;
+          }
+          return nextCompleted;
+        });
       } else {
-        setCompletedLinkIds([]);
+        setCompletedLinkIds((prev) => (prev.length ? [] : prev));
       }
     } finally {
-      setLoading(false);
+      setInitialLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -149,7 +167,7 @@ export default function TasksPage() {
     // Убираем polling (страница не должна "дёргаться" каждые 5 секунд).
     // Обновляем данные только при возврате во вкладку/приложение.
     const onFocus = () => {
-      refresh();
+      refresh({ silent: true });
       // also resync on-chain balances (BOUGHT state) after wallet redirect
       try {
         refetchBalances();
@@ -159,7 +177,7 @@ export default function TasksPage() {
     };
     const onVisibility = () => {
       if (document.visibilityState === 'visible') {
-        refresh();
+        refresh({ silent: true });
         try {
           refetchBalances();
         } catch {
@@ -328,8 +346,8 @@ export default function TasksPage() {
       // mark completed in DB
       if (hasFid) {
         await fetch('/api/mark-completed', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userFid: user?.fid, linkId: link.id }),
         });
       }
@@ -383,7 +401,7 @@ export default function TasksPage() {
     return false;
   };
 
-  if (loading) {
+  if (initialLoading) {
     return (
       <Layout title="Tasks">
         <div className="relative min-h-screen overflow-hidden">
@@ -423,16 +441,17 @@ export default function TasksPage() {
           </div>
 
           <div className="bg-white bg-opacity-95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 mb-8">
-            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4">
               <div className="w-16 h-16 rounded-full overflow-hidden border-4 border-primary shadow-lg">
                 <Image src="/images/mrs-crypto.jpg" alt="Mrs. Crypto" width={64} height={64} className="w-full h-full object-cover" unoptimized />
-              </div>
+                </div>
               <div className="flex-1">
                 <div className="text-gray-900 font-black text-xl">Progress</div>
                 <div className="text-gray-600">
                   Bought post-tokens: <span className="font-black">{completedCount}</span>/{REQUIRED_BUYS_TO_PUBLISH}
-                </div>
               </div>
+                {refreshing && <div className="text-xs text-gray-500 mt-1">Syncing…</div>}
+            </div>
               {canPublish ? (
                 <Button onClick={() => router.push('/submit')}>👉 Add your post</Button>
               ) : (
@@ -484,7 +503,7 @@ export default function TasksPage() {
                               </div>
                             )}
                             {tokenAddr && <div className="mt-2" />}
-                          </div>
+          </div>
                           <div className="flex items-center gap-3">
                             {hasPostUrl && (
                               <a
@@ -519,7 +538,7 @@ export default function TasksPage() {
                               disabled={isBuying || completed || !tokenAddr}
                             >
                               {completed ? (owned ? 'BOUGHT' : 'DONE') : isBuying ? 'Buying…' : `BUY ${BUY_AMOUNT_USDC_DISPLAY}`}
-                            </button>
+            </button>
                           </div>
                         </div>
 
@@ -527,8 +546,8 @@ export default function TasksPage() {
                           <div className="mt-3 text-sm text-blue-700 font-bold">{noticeByLinkId[link.id]}</div>
                         )}
                         {!completed && err && <div className="mt-3 text-sm text-red-600 font-bold">{err}</div>}
-                      </div>
-                    </div>
+                </div>
+              </div>
                   </div>
                 );
               })
