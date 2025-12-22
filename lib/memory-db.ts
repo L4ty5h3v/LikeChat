@@ -2,6 +2,7 @@
 // Позже заменим на Upstash Redis
 
 import type { LinkSubmission, UserProgress, TaskType } from '@/types';
+import { baseAppContentUrlFromTokenAddress } from '@/lib/base-content';
 
 // In-memory storage
 const linkSubmissions: LinkSubmission[] = [];
@@ -15,63 +16,28 @@ const userProgress: Map<number, UserProgress> = new Map();
     const username = 'svs-smm';
     const pfp = `https://api.dicebear.com/7.x/identicon/svg?seed=${username}`;
 
-    const defaults: LinkSubmission[] = [
-      {
-        id: `default_${now}_0`,
-        user_fid: 0,
-        username,
-        pfp_url: pfp,
-        cast_url: 'https://base.app/content/EkUKQwoVbmV0d29ya3MvYmFzZS1tYWlubmV0EioweDA2NTkwZWViOWM5MThiYTU3YmFjYjcxZWZlZGRiZTAyNGE0OTk0ZDc',
-        token_address: '0x06590eeb9c918ba57bacb71efeddbe024a4994d7',
-        task_type: 'support',
-        completed_by: [],
-        created_at: new Date(now).toISOString(),
-      },
-      {
-        id: `default_${now}_1`,
-        user_fid: 0,
-        username,
-        pfp_url: pfp,
-        cast_url: 'https://base.app/content/EkUKQwoVbmV0d29ya3MvYmFzZS1tYWlubmV0EioweGMwMjkyZjllODVkYWZiZGU1ZTEyYWIyNWMxYTcxNzEzNjY5YmQ3Y2M',
-        token_address: '0xc0292f9e85dafbde5e12ab25c1a71713669bd7cc',
-        task_type: 'support',
-        completed_by: [],
-        created_at: new Date(now + 1).toISOString(),
-      },
-      {
-        id: `default_${now}_2`,
-        user_fid: 0,
-        username,
-        pfp_url: pfp,
-        cast_url: 'https://base.app/content/EkUKQwoVbmV0d29ya3MvYmFzZS1tYWlubmV0EioweGUyNTg1MmY4OGY4NWQxY2RjMzA0NzM2NjllZDcxOTUyY2VkNjAzZmE',
-        token_address: '0xe25852f88f85d1cdc30473669ed71952ced603fa',
-        task_type: 'support',
-        completed_by: [],
-        created_at: new Date(now + 2).toISOString(),
-      },
-      {
-        id: `default_${now}_3`,
-        user_fid: 0,
-        username,
-        pfp_url: pfp,
-        cast_url: 'https://base.app/content/EkUKQwoVbmV0d29ya3MvYmFzZS1tYWlubmV0EioweDNkNjRkNzBkYjM1NWUzNmM3NGNjZWYzMDgwOTc5ZGE5ODE2NWU2YzQ',
-        token_address: '0x3d64d70db355e36c74ccef3080979da98165e6c4',
-        task_type: 'support',
-        completed_by: [],
-        created_at: new Date(now + 3).toISOString(),
-      },
-      {
-        id: `default_${now}_4`,
-        user_fid: 0,
-        username,
-        pfp_url: pfp,
-        cast_url: 'https://base.app/content/EkUKQwoVbmV0d29ya3MvYmFzZS1tYWlubmV0EioweDg2ZGU3OTIyMmYyYjZmNTA1ZWU5YzZhZTg0YWRjNzg2N2RhZjM5MDY',
-        token_address: '0x86de79222f2b6f505ee9c6ae84adc7867daf3906',
-        task_type: 'support',
-        completed_by: [],
-        created_at: new Date(now + 4).toISOString(),
-      },
-    ];
+    // In serverless environments without Upstash, memory storage isn't shared between functions.
+    // So we keep a deterministic default list that always shows up on cold start.
+    const defaultTokenAddresses = [
+      // User-provided tokens (Dec 2025) — keep only these (remove older defaults).
+      '0x5df8fd1a995f6ebb325ce1dffa785ec6109fa19a',
+      '0x6335f4352517952eb0cbdaa0d1ae756c7802d97f',
+      '0x82827d9e803388ac433c6c173c274f784e1675d0',
+      '0x8ab5918fc6f9a14f2671d5bd7143e5c930ace970',
+      '0xa82113814b25594e6b97b7c4ee3930a16796508d',
+    ] as const;
+
+    const defaults: LinkSubmission[] = defaultTokenAddresses.map((token_address, idx) => ({
+      id: `default_${now}_${idx}`,
+      user_fid: 0,
+      username,
+      pfp_url: pfp,
+      cast_url: baseAppContentUrlFromTokenAddress(token_address) || '',
+      token_address,
+      task_type: 'support',
+      completed_by: [],
+      created_at: new Date(now + idx).toISOString(),
+    }));
 
     // Put newest first
     for (let i = defaults.length - 1; i >= 0; i--) {
@@ -88,7 +54,9 @@ export async function clearAllLinks(): Promise<number> {
   return n;
 }
 
-export async function seedLinks(entries: Array<{ castUrl: string; tokenAddress: string; username?: string; pfpUrl?: string }>): Promise<{ success: boolean; count: number; error?: string }> {
+export async function seedLinks(
+  entries: Array<{ castUrl?: string; tokenAddress: string; username?: string; pfpUrl?: string }>
+): Promise<{ success: boolean; count: number; error?: string }> {
   try {
     const now = Date.now();
     const usernameFallback = 'svs-smm';
@@ -96,13 +64,17 @@ export async function seedLinks(entries: Array<{ castUrl: string; tokenAddress: 
 
     for (let i = 0; i < entries.length; i++) {
       const e = entries[i];
+      const tokenAddress = (e.tokenAddress || '').toString().trim();
+      const direct = (e.castUrl || '').toString().trim();
+      const generated = baseAppContentUrlFromTokenAddress(tokenAddress) || '';
+      const castUrl = direct.startsWith('http') ? direct : generated;
       const newLink: LinkSubmission = {
         id: `seed_${now}_${i}_${Math.random().toString(16).slice(2, 8)}`,
         user_fid: 0,
         username: e.username || usernameFallback,
         pfp_url: e.pfpUrl || pfpFallback,
-        cast_url: e.castUrl,
-        token_address: e.tokenAddress,
+        cast_url: castUrl,
+        token_address: tokenAddress,
         task_type: 'support',
         completed_by: [],
         created_at: new Date(now + i).toISOString(),

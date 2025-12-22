@@ -1,5 +1,6 @@
 import { Redis } from '@upstash/redis';
 import type { LinkSubmission, UserProgress, TaskType } from '@/types';
+import { baseAppContentUrlFromTokenAddress } from '@/lib/base-content';
 
 // Инициализация Redis клиента
 let redis: Redis | null = null;
@@ -324,7 +325,7 @@ export async function clearAllLinks(): Promise<number> {
 }
 
 export async function seedLinks(
-  entries: Array<{ castUrl: string; tokenAddress: string; username?: string; pfpUrl?: string }>
+  entries: Array<{ castUrl?: string; tokenAddress: string; username?: string; pfpUrl?: string }>
 ): Promise<{ success: boolean; count: number; error?: string }> {
   if (!redis) {
     return { success: false, count: 0, error: 'Redis not available' };
@@ -337,13 +338,17 @@ export async function seedLinks(
 
     for (let i = 0; i < entries.length; i++) {
       const e = entries[i];
+      const tokenAddress = (e.tokenAddress || '').toString().trim();
+      const direct = (e.castUrl || '').toString().trim();
+      const generated = baseAppContentUrlFromTokenAddress(tokenAddress) || '';
+      const castUrl = direct.startsWith('http') ? direct : generated;
       const newLink: LinkSubmission = {
         id: `seed_${now}_${i}_${Math.random().toString(36).slice(2, 9)}`,
         user_fid: 0,
         username: e.username || usernameFallback,
         pfp_url: e.pfpUrl || pfpFallback,
-        cast_url: e.castUrl,
-        token_address: e.tokenAddress,
+        cast_url: castUrl,
+        token_address: tokenAddress,
         task_type: 'support',
         completed_by: [],
         created_at: new Date(now + i).toISOString(),
