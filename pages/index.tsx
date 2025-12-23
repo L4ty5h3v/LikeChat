@@ -10,6 +10,7 @@ import { setUserActivity } from '@/lib/db-config';
 import type { ActivityType } from '@/types';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
 import { useAccount, useConnect } from 'wagmi';
+import { isHexAddress } from '@/lib/base-content';
 
 function shortHex(addr: string): string {
   if (!addr) return '';
@@ -55,7 +56,7 @@ export default function Home() {
         });
       }
       
-    const savedActivity = localStorage.getItem('selected_activity');
+      const savedActivity = localStorage.getItem('selected_activity');
     // user загружается из контекста (localStorage base_user) + из wagmi (AuthSync)
     
     if (savedActivity) {
@@ -63,6 +64,20 @@ export default function Home() {
       }
     }
   }, []);
+
+  // If user is already authorized and has a saved activity, auto-return to tasks.
+  // This helps when the user comes back from Base App flows (trade/content) and re-opens the miniapp.
+  useEffect(() => {
+    if (!user) return;
+    if (typeof window === 'undefined') return;
+    const savedActivity = localStorage.getItem('selected_activity');
+    if (savedActivity) {
+      router.push('/tasks').catch(() => {
+        window.location.href = '/tasks';
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.fid]);
 
   // Авторизация через Base (кошелек в Base App)
   const handleConnect = async () => {
@@ -630,39 +645,25 @@ export default function Home() {
                   <h3 className="text-xl font-bold text-gray-900">
                     @{user.username}
                   </h3>
-                  <p className="text-sm text-gray-600 truncate">
-                    <span className="whitespace-nowrap">ID: {user.fid}</span>
-                    {user.address ? (
-                      <>
-                        <span className="mx-1">•</span>
-                        <span className="font-mono" title={user.address}>
-                          {shortHex(user.address)}
-                        </span>
-                      </>
-                    ) : null}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    className="px-3 py-2 rounded-xl bg-white border border-gray-200 text-gray-900 font-bold text-sm"
-                    onClick={() => {
-                      if (typeof window === 'undefined') return;
-                      const current = user.username || '';
-                      const next = window.prompt('Enter a profile name (shown instead of your address):', current);
-                      if (!next) return;
-                      const trimmed = next.trim();
-                      if (!trimmed) return;
-                      setUser({
-                        ...user,
-                        username: trimmed,
-                        display_name: trimmed,
-                      });
-                    }}
-                  >
-                    Name
-                  </button>
-                <div className="text-green-500 text-2xl">✓</div>
+                  {isHexAddress(user.address) ? (
+                    <p className="text-sm text-gray-600 truncate">
+                      <span className="font-mono" title={user.address}>
+                        {shortHex(user.address)}
+                      </span>
+                      <button
+                        type="button"
+                        className="ml-2 inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs font-bold text-gray-800 hover:bg-gray-50"
+                        title="Copy address"
+                        onClick={() => {
+                          if (typeof navigator === 'undefined') return;
+                          if (!navigator.clipboard) return;
+                          navigator.clipboard.writeText(user.address).catch(() => {});
+                        }}
+                      >
+                        Copy
+                      </button>
+                    </p>
+                  ) : null}
                 </div>
               </div>
 
@@ -672,7 +673,7 @@ export default function Home() {
                   ACCEPT YOUR TASK
                 </h2>
                 <p className="text-base sm:text-xl md:text-2xl text-gray-700 mb-6 sm:mb-8 text-center font-bold px-4">
-                  You will perform this task on all {TASKS_LIMIT} links
+                  You will perform that task on all {TASKS_LIMIT} links
                 </p>
 
                 {/* Стеклянные кнопки активности в стиле glassmorphism */}
@@ -720,7 +721,7 @@ export default function Home() {
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
                   <span className="text-3xl font-black text-accent">02</span>
-                  <span className="font-bold text-xl">Complete tasks on {TASKS_LIMIT} participant links</span>
+                  <span className="font-bold text-xl">Complete task on {TASKS_LIMIT} participants links</span>
                 </div>
               </div>
               <div className="space-y-3">

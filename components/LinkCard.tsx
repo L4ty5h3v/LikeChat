@@ -3,6 +3,7 @@ import React from 'react';
 import type { LinkSubmission } from '@/types';
 import Avatar from '@/components/Avatar';
 import { baseAppContentUrlFromTokenAddress } from '@/lib/base-content';
+import InAppBrowserModal from '@/components/InAppBrowserModal';
 
 interface LinkCardProps {
   link: LinkSubmission;
@@ -12,25 +13,12 @@ const activityIcon = '💎';
 const activityLabel = 'Buy';
 
 const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
-  const openPostLink = (url: string): boolean => {
-    if (typeof window === 'undefined') return false;
-    // Keep the app state: do NOT navigate the current WebView.
-    try {
-      const w = window.open(url, '_blank', 'noopener,noreferrer');
-      if (w) return true;
-    } catch {}
-    try {
-      const a = document.createElement('a');
-      a.href = url;
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      return true;
-    } catch {}
-    return false;
+  const [postModalUrl, setPostModalUrl] = React.useState<string | null>(null);
+
+  const openPostInModal = (url: string) => {
+    const u = (url || '').trim();
+    if (!u.startsWith('http')) return;
+    setPostModalUrl(u);
   };
 
   const formatDate = (dateString: string) => {
@@ -90,34 +78,29 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
           const url = (direct.startsWith('http') ? direct : generated) || '';
           const has = url.startsWith('http');
           return has ? (
-          <a
-            href={url}
+          <button
+            type="button"
             onClick={(e) => {
               e.preventDefault();
-              const ok = openPostLink(url);
-              if (!ok) {
-                try {
-                  window.prompt('Copy link:', url);
-                } catch {
-                  // ignore
-                }
-              }
+              openPostInModal(url);
             }}
             className="btn-gold-glow px-4 py-2 text-white font-bold text-sm group"
-            rel="noopener noreferrer"
-            target="_blank"
           >
             {/* Per-shimmer effect */}
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
             {/* Inner glow */}
             <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
             <span className="relative z-20 drop-shadow-lg">Read the post</span>
-          </a>
+          </button>
           ) : (
           <span className="text-xs text-gray-500 font-bold">Нет ссылки на пост</span>
           );
         })()}
       </div>
+
+      {postModalUrl ? (
+        <InAppBrowserModal url={postModalUrl} title="Read the post" onClose={() => setPostModalUrl(null)} />
+      ) : null}
     </div>
   );
 };

@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Layout from '@/components/Layout';
 import Button from '@/components/Button';
 import Avatar from '@/components/Avatar';
+import InAppBrowserModal from '@/components/InAppBrowserModal';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
 import type { LinkSubmission } from '@/types';
 import { useAccount, usePublicClient, useReadContracts } from 'wagmi';
@@ -69,6 +70,7 @@ export default function TasksPage() {
   const [buyingLinkId, setBuyingLinkId] = useState<string | null>(null);
   const [errorByLinkId, setErrorByLinkId] = useState<Record<string, string>>({});
   const [noticeByLinkId, setNoticeByLinkId] = useState<Record<string, string>>({});
+  const [postModalUrl, setPostModalUrl] = useState<string | null>(null);
 
   // Always operate in "support" mode (buy posts)
   useEffect(() => {
@@ -379,26 +381,10 @@ export default function TasksPage() {
     }
   };
 
-  const openPostLink = (url: string): boolean => {
-    if (typeof window === 'undefined') return false;
-    // Important UX: do NOT navigate the current WebView (it kicks the user out of the app).
-    // Prefer opening in an in-app browser / new tab.
-    try {
-      const w = window.open(url, '_blank', 'noopener,noreferrer');
-      if (w) return true;
-    } catch {}
-    try {
-      const a = document.createElement('a');
-      a.href = url;
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      return true;
-    } catch {}
-    return false;
+  const openPostInModal = (url: string) => {
+    const u = (url || '').trim();
+    if (!u.startsWith('http')) return;
+    setPostModalUrl(u);
   };
 
   if (initialLoading) {
@@ -506,27 +492,17 @@ export default function TasksPage() {
           </div>
                           <div className="flex items-center gap-3">
                             {hasPostUrl && (
-                              <a
+                              <button
+                                type="button"
                                 className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-900 font-bold"
-                                href={postUrl}
                                 onClick={(e) => {
-                                  // Do NOT navigate the current WebView (keeps user inside the app).
                                   e.preventDefault();
                                   e.stopPropagation();
-                                  const ok = openPostLink(postUrl);
-                                  if (!ok) {
-                                    try {
-                                      window.prompt('Copy link:', postUrl);
-                                    } catch {
-                                      // ignore
-                                    }
-                                  }
+                                  openPostInModal(postUrl);
                                 }}
-                                rel="noopener noreferrer"
-                                target="_blank"
                               >
                                 Read the post
-                              </a>
+                              </button>
                             )}
                             <button
                               className={`px-4 py-2 rounded-xl font-bold text-white ${
@@ -555,6 +531,10 @@ export default function TasksPage() {
           </div>
         </div>
       </div>
+
+      {postModalUrl ? (
+        <InAppBrowserModal url={postModalUrl} title="Read the post" onClose={() => setPostModalUrl(null)} />
+      ) : null}
     </Layout>
   );
 }
