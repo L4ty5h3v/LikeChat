@@ -708,7 +708,7 @@ export default function Submit() {
   // Если показывается поздравление, показываем полноэкранную страницу с поздравлением
   if (showSuccessModal) {
     return (
-      <Layout title="Congratulations!">
+      <Layout title="Success!">
         {/* Hero Section с градиентом */}
         <div className="relative min-h-screen overflow-hidden">
           {/* Анимированный градиент фон */}
@@ -723,9 +723,7 @@ export default function Submit() {
             <div className="text-center mb-16">
               <div className="relative -mt-2 sm:mt-0">
                 <h1 className="text-white mb-12 sm:mb-24 leading-none flex items-center justify-center gap-4 sm:gap-8 px-4 sm:px-16">
-                  <span className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-white">
-                    SUCCESS
-                  </span>
+                  <span className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-white">Success!</span>
                 </h1>
               </div>
 
@@ -752,7 +750,7 @@ export default function Submit() {
             {/* Модная карточка поздравления */}
             <div className="bg-white bg-opacity-95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 sm:p-12 mb-12 border border-white border-opacity-20 mt-6 sm:mt-12">
               <div className="text-center">
-                <h2 className="text-4xl sm:text-5xl font-black bg-gradient-to-r from-red-500 via-purple-600 to-pink-500 bg-clip-text text-transparent mb-4">
+                <h2 className="text-4xl sm:text-5xl font-black bg-gradient-to-r from-red-500 via-purple-600 to-pink-500 bg-clip-text text-transparent mb-4 leading-tight break-words px-1 overflow-visible">
                   Congratulations!
                 </h2>
                 <p className="text-2xl sm:text-3xl text-gray-800 font-bold mb-8">
@@ -760,7 +758,7 @@ export default function Submit() {
                 </p>
                 <div className="bg-gradient-to-r from-red-500/10 via-purple-600/10 to-pink-500/10 rounded-2xl p-6 mb-8 border border-red-500/20">
                   <p className="text-base text-gray-700">
-                    <strong>The next {TASKS_LIMIT} users</strong> will buy your post.
+                    <strong>The next 4 users</strong> will buy your post.
                   </p>
                 </div>
                 <Button
@@ -859,16 +857,12 @@ export default function Submit() {
 
             {/* Информация о выбранной активности */}
             <div className="bg-gradient-to-r from-primary/10 via-secondary/10 to-accent/10 rounded-xl p-6 mb-6 border border-primary/20">
-              <p className="text-sm text-gray-700 mb-3 font-semibold">
-                Selected task:
-              </p>
-              <div className="flex items-center gap-3 text-primary font-bold text-xl">
+              <p className="text-sm text-gray-700 mb-3 font-semibold">You accepted task:</p>
+              <div className="flex items-center gap-3 text-primary font-bold text-xl flex-wrap">
                 <span className="text-3xl">💎</span>
                 <span>BUY $0.10</span>
+                <span className="text-gray-600 font-semibold">– Other users will buy your post</span>
               </div>
-              <p className="text-sm text-gray-600 mt-3">
-                Other users will buy your post
-              </p>
             </div>
 
             <form onSubmit={handleSubmit}>
@@ -877,7 +871,7 @@ export default function Submit() {
                   htmlFor="tokenAddress"
                   className="block text-lg font-bold text-gray-900 mb-3"
                 >
-                  Token address (ERC-20, buy()):
+                  Your tokenized post ERC-20 address
                 </label>
                 <input
                   type="text"
@@ -888,9 +882,6 @@ export default function Submit() {
                   className="w-full px-6 py-4 border-2 border-gray-300 rounded-xl focus:border-primary focus:outline-none transition-colors text-lg"
                   required
                 />
-                <p className="text-sm text-gray-500 mt-2">
-                  Post token contract address used to buy for $0.10
-                </p>
               </div>
 
               {error && (
@@ -945,7 +936,7 @@ export default function Submit() {
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
                   <span className="text-3xl font-black text-accent">02</span>
-                  <span className="font-bold text-xl">Next {TASKS_LIMIT} users will complete your post</span>
+                  <span className="font-bold text-xl">The next 4 users will buy your post</span>
                 </div>
               </div>
               <div className="space-y-3">
