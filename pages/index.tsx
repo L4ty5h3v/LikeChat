@@ -657,7 +657,9 @@ export default function Home() {
                         onClick={() => {
                           if (typeof navigator === 'undefined') return;
                           if (!navigator.clipboard) return;
-                          navigator.clipboard.writeText(user.address).catch(() => {});
+                            const addr = user.address;
+                            if (!addr) return;
+                            navigator.clipboard.writeText(addr).catch(() => {});
                         }}
                       >
                         Copy
