@@ -226,6 +226,19 @@ export default function TasksPage() {
     return ids.size;
   }, [completedLinkIds, ownedLinkIds]);
 
+  const remainingToBuyCount = useMemo(() => {
+    let c = 0;
+    for (const l of links) {
+      if (!isAddress(l.token_address)) continue;
+      const bal = balanceByToken.get(l.token_address.toLowerCase()) ?? 0n;
+      const owned = bal > 0n;
+      const completedByProgress = completedLinkIds.includes(l.id);
+      const completed = completedByProgress || owned;
+      if (!completed) c++;
+    }
+    return c;
+  }, [links, balanceByToken, completedLinkIds]);
+
   // Clean UI: if a post is already DONE/BOUGHT, remove any lingering notices/errors.
   useEffect(() => {
     const completed = new Set<string>(completedLinkIds);
@@ -447,6 +460,15 @@ export default function TasksPage() {
               )}
             </div>
           </div>
+
+          {links.length > 0 && remainingToBuyCount === 0 && (
+            <div className="bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl shadow-xl p-4 mb-6 border border-white/30">
+              <div className="text-gray-900 font-black">You completed this batch ✅</div>
+              <div className="text-gray-700 text-sm mt-1">
+                You can’t repeat buys on the same posts. Please wait until <span className="font-bold">{REQUIRED_BUYS_TO_PUBLISH} new links</span> appear.
+              </div>
+            </div>
+          )}
 
           <div className="space-y-4">
             {links.length === 0 ? (

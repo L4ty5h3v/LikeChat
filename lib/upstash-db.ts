@@ -1,6 +1,7 @@
 import { Redis } from '@upstash/redis';
 import type { LinkSubmission, UserProgress, TaskType } from '@/types';
 import { baseAppContentUrlFromTokenAddress } from '@/lib/base-content';
+import { TASKS_LIMIT } from '@/lib/app-config';
 
 // Инициализация Redis клиента
 let redis: Redis | null = null;
@@ -164,9 +165,17 @@ export async function submitLink(
 
     // Добавляем ссылку в начало списка (сериализуем в JSON)
     await redis.lpush(KEYS.LINKS, JSON.stringify(newLink));
+
+    // Keep queue bounded: always keep only TASKS_LIMIT newest links.
+    await redis.ltrim(KEYS.LINKS, 0, TASKS_LIMIT - 1);
     
     // Обновляем счетчик
-    await redis.incr(KEYS.TOTAL_LINKS_COUNT);
+    try {
+      const len = await redis.llen(KEYS.LINKS);
+      await redis.set(KEYS.TOTAL_LINKS_COUNT, typeof len === 'number' ? len : TASKS_LIMIT);
+    } catch {
+      await redis.incr(KEYS.TOTAL_LINKS_COUNT);
+    }
 
     console.log(`✅ Link published successfully:`, {
       id: newLink.id,

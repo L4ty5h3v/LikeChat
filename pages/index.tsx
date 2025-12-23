@@ -37,25 +37,6 @@ export default function Home() {
     
     // Проверяем localStorage только на клиенте
     if (typeof window !== 'undefined') {
-      // ⚠️ КРИТИЧЕСКИ ВАЖНО: Очищаем link_published флаг при загрузке главной страницы
-      // Это позволяет пользователю начать новый цикл публикации
-      // Делаем это СРАЗУ при монтировании компонента, до любой другой логики
-      const linkPublishedFlag = sessionStorage.getItem('link_published') || localStorage.getItem('link_published');
-      if (linkPublishedFlag === 'true') {
-        console.log('🧹 [INDEX] Clearing link_published flag on home page mount (new cycle can start)', {
-          sessionStorage: sessionStorage.getItem('link_published'),
-          localStorage: localStorage.getItem('link_published'),
-          timestamp: new Date().toISOString(),
-        });
-        sessionStorage.removeItem('link_published');
-        localStorage.removeItem('link_published');
-        console.log('✅ [INDEX] Flag cleared - new publication cycle can start', {
-          sessionStorageAfter: sessionStorage.getItem('link_published'),
-          localStorageAfter: localStorage.getItem('link_published'),
-          timestamp: new Date().toISOString(),
-        });
-      }
-      
       const savedActivity = localStorage.getItem('selected_activity');
     // user загружается из контекста (localStorage base_user) + из wagmi (AuthSync)
     

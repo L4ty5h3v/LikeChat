@@ -2,6 +2,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { submitLink, getAllLinks, getUserProgress } from '@/lib/db-config';
 import { baseAppContentUrlFromTokenAddress, isHexAddress } from '@/lib/base-content';
+import { REQUIRED_BUYS_TO_PUBLISH } from '@/lib/app-config';
 
 export default async function handler(
   req: NextApiRequest,
@@ -19,9 +20,14 @@ export default async function handler(
   try {
     let { userFid, username, pfpUrl, castUrl, activityType, taskType, tokenAddress } = req.body;
     
+    const fidNum = typeof userFid === 'number' ? userFid : parseInt(userFid, 10);
+    if (!Number.isFinite(fidNum) || fidNum <= 0) {
+      return res.status(400).json({ success: false, error: 'Invalid userFid.' });
+    }
+
     // ⚠️ КРИТИЧНО: ВАЖНО использовать selected_task из БД как основной источник истины
     // Получаем selected_task из прогресса пользователя, чтобы гарантировать правильный тип
-    const progress = await getUserProgress(Number(userFid));
+    const progress = await getUserProgress(fidNum);
     const taskTypeFromDb = progress?.selected_task;
     
     // Поддержка как activityType (старое), так и taskType (новое)
@@ -45,6 +51,31 @@ export default async function handler(
         success: false,
         error: 'Missing required fields: userFid, username, taskType (or activityType), tokenAddress.' 
       });
+    }
+
+    // Enforce prerequisite: user must complete REQUIRED_BUYS_TO_PUBLISH buys before publishing.
+    const completedCount = Array.isArray(progress?.completed_links) ? progress!.completed_links.length : 0;
+    if (completedCount < REQUIRED_BUYS_TO_PUBLISH) {
+      return res.status(403).json({
+        success: false,
+        error: `You can submit only after completing ${REQUIRED_BUYS_TO_PUBLISH} buys.`,
+        completedCount,
+        requiredCount: REQUIRED_BUYS_TO_PUBLISH,
+      });
+    }
+
+    // Block double-submit (server-side)
+    try {
+      const allLinks = await getAllLinks();
+      const alreadyPublished = allLinks.some((l) => l.user_fid === fidNum);
+      if (alreadyPublished) {
+        return res.status(409).json({
+          success: false,
+          error: 'You already added your post. Please wait until new tasks appear.',
+        });
+      }
+    } catch {
+      // ignore: fall back to client-side flag/redirect
     }
     // If URL is missing, generate a deterministic Base content URL from the token address.
     // This makes the app fully usable even when Base App doesn't surface a clear "tokenized post" link.

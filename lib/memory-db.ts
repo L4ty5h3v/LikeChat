@@ -3,6 +3,7 @@
 
 import type { LinkSubmission, UserProgress, TaskType } from '@/types';
 import { baseAppContentUrlFromTokenAddress } from '@/lib/base-content';
+import { TASKS_LIMIT } from '@/lib/app-config';
 
 // In-memory storage
 const linkSubmissions: LinkSubmission[] = [];
@@ -80,6 +81,11 @@ export async function seedLinks(
         created_at: new Date(now + i).toISOString(),
       };
       linkSubmissions.unshift(newLink);
+    }
+
+    // Keep queue bounded: always keep only TASKS_LIMIT newest links (per spec: exactly 5 tasks at a time).
+    if (linkSubmissions.length > TASKS_LIMIT) {
+      linkSubmissions.length = TASKS_LIMIT;
     }
 
     return { success: true, count: entries.length };
@@ -231,6 +237,11 @@ export async function submitLink(
   
   // Добавляем ссылку в начало массива (новые первыми)
   linkSubmissions.unshift(newLink);
+
+  // Keep queue bounded: always keep only TASKS_LIMIT newest links.
+  if (linkSubmissions.length > TASKS_LIMIT) {
+    linkSubmissions.length = TASKS_LIMIT;
+  }
   
   console.log(`✅ Link published successfully (memory-db):`, {
     id: newLink.id,

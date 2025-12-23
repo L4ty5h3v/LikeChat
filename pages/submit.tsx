@@ -348,8 +348,32 @@ export default function Submit() {
       return;
     }
 
-    // Публикация ссылки разрешена всегда (все задания уже проверены)
-    setCanSubmit(true);
+    // Require: user must complete REQUIRED_BUYS_TO_PUBLISH buys before publishing.
+    try {
+      const progressRes = await fetch(`/api/user-progress?userFid=${userFid}&t=${Date.now()}`);
+      const progressJson = await progressRes.json();
+      const completedCount = Array.isArray(progressJson?.progress?.completed_links)
+        ? progressJson.progress.completed_links.length
+        : 0;
+
+      if (completedCount < REQUIRED_BUYS_TO_PUBLISH) {
+        setCanSubmit(false);
+        setError(`You need to buy ${REQUIRED_BUYS_TO_PUBLISH} posts first. Progress: ${completedCount}/${REQUIRED_BUYS_TO_PUBLISH}.`);
+        setTimeout(() => {
+          router.replace('/tasks');
+        }, 1500);
+        return;
+      }
+
+      setCanSubmit(true);
+    } catch (e: any) {
+      // Fail safe: do not allow submit if we cannot verify progress.
+      setCanSubmit(false);
+      setError('Unable to verify progress. Please return to tasks and try again.');
+      setTimeout(() => {
+        router.replace('/tasks');
+      }, 1500);
+    }
   };
 
   const validateUrl = (url: string): boolean => {
