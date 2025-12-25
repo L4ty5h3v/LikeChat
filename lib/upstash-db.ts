@@ -1,7 +1,7 @@
 import { Redis } from '@upstash/redis';
 import type { LinkSubmission, UserProgress, TaskType } from '@/types';
 import { baseAppContentUrlFromTokenAddress } from '@/lib/base-content';
-import { TASKS_LIMIT } from '@/lib/app-config';
+import { REQUIRED_BUYS_TO_PUBLISH, TASKS_LIMIT } from '@/lib/app-config';
 
 // Инициализация Redis клиента
 let redis: Redis | null = null;
@@ -271,9 +271,10 @@ export async function markLinkCompleted(userFid: number, linkId: string): Promis
     const updatedCompletedLinks = [...progress.completed_links];
     if (!updatedCompletedLinks.includes(linkId)) {
       updatedCompletedLinks.push(linkId);
+      const capped = updatedCompletedLinks.slice(-REQUIRED_BUYS_TO_PUBLISH);
       
       await upsertUserProgress(userFid, {
-        completed_links: updatedCompletedLinks,
+        completed_links: capped,
       });
     }
   } catch (error) {

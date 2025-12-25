@@ -332,10 +332,18 @@ export default function TasksPage() {
   }, [links, balanceByToken]);
 
   const completedCount = useMemo(() => {
-    const ids = new Set<string>(completedLinkIds);
-    for (const id of ownedLinkIds) ids.add(id);
-    return ids.size;
-  }, [completedLinkIds, ownedLinkIds]);
+    // Count progress only within the current batch (the 5 links shown on screen),
+    // and never show more than REQUIRED_BUYS_TO_PUBLISH.
+    const currentIds = new Set<string>(links.map((l) => l.id));
+    const ids = new Set<string>();
+    for (const id of completedLinkIds) {
+      if (currentIds.has(id)) ids.add(id);
+    }
+    for (const id of ownedLinkIds) {
+      if (currentIds.has(id)) ids.add(id);
+    }
+    return Math.min(ids.size, REQUIRED_BUYS_TO_PUBLISH);
+  }, [completedLinkIds, ownedLinkIds, links]);
 
   const remainingToBuyCount = useMemo(() => {
     let c = 0;

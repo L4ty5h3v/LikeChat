@@ -3,7 +3,7 @@
 
 import type { LinkSubmission, UserProgress, TaskType } from '@/types';
 import { baseAppContentUrlFromTokenAddress } from '@/lib/base-content';
-import { TASKS_LIMIT } from '@/lib/app-config';
+import { REQUIRED_BUYS_TO_PUBLISH, TASKS_LIMIT } from '@/lib/app-config';
 
 // In-memory storage
 const linkSubmissions: LinkSubmission[] = [];
@@ -184,8 +184,9 @@ export async function markLinkCompleted(userFid: number, linkId: string): Promis
   if (!progress) return;
   
   if (!progress.completed_links.includes(linkId)) {
+    const next = [...progress.completed_links, linkId].slice(-REQUIRED_BUYS_TO_PUBLISH);
     await upsertUserProgress(userFid, {
-      completed_links: [...progress.completed_links, linkId],
+      completed_links: next,
     });
   }
 }
