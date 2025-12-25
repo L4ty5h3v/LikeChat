@@ -63,8 +63,8 @@ export async function getLastTenLinks(taskType?: TaskType): Promise<LinkSubmissi
       console.log(`📊 Total links: ${parsedLinks.length}, Filtered: ${filteredLinks.length} (strict filtering - no mixing)`);
     }
     
-    // Берем первые 10 ссылок после фильтрации (может быть меньше 10, если нет достаточного количества)
-    const result = filteredLinks.slice(0, 10);
+    // Берем только TASKS_LIMIT ссылок (по ТЗ: ровно 5 задач одновременно)
+    const result = filteredLinks.slice(0, TASKS_LIMIT);
     
     // Логируем данные для диагностики
     console.log(`📖 Loaded ${result.length} links from Redis${taskType ? ` (filtered by ${taskType})` : ' (all tasks)'}:`, 
@@ -364,7 +364,17 @@ export async function seedLinks(
       };
 
       await redis.lpush(KEYS.LINKS, JSON.stringify(newLink));
-      await redis.incr(KEYS.TOTAL_LINKS_COUNT);
+    }
+
+    // Keep queue bounded: always keep only TASKS_LIMIT newest links.
+    await redis.ltrim(KEYS.LINKS, 0, TASKS_LIMIT - 1);
+
+    // Update counter to actual length (best-effort).
+    try {
+      const len = await redis.llen(KEYS.LINKS);
+      await redis.set(KEYS.TOTAL_LINKS_COUNT, typeof len === 'number' ? len : TASKS_LIMIT);
+    } catch {
+      // ignore
     }
 
     return { success: true, count: entries.length };

@@ -21,11 +21,11 @@ const userProgress: Map<number, UserProgress> = new Map();
     // So we keep a deterministic default list that always shows up on cold start.
     const defaultTokenAddresses = [
       // User-provided tokens (Dec 2025) — keep only these (remove older defaults).
-      '0x5df8fd1a995f6ebb325ce1dffa785ec6109fa19a',
-      '0x6335f4352517952eb0cbdaa0d1ae756c7802d97f',
-      '0x82827d9e803388ac433c6c173c274f784e1675d0',
-      '0x8ab5918fc6f9a14f2671d5bd7143e5c930ace970',
-      '0xa82113814b25594e6b97b7c4ee3930a16796508d',
+      '0xb25794a1b293f02dbee29b89e4894920cd2e436f',
+      '0xb51def45156d4b7dbe9971946663bdfeb85a2484',
+      '0x4e13900909df354dd6787139731bf8bcf3d966c9',
+      '0xc223e91104c57b4fea7875423dd555a8f3e46aac',
+      '0x81e2e00f2a15305636dda33c2f8ba9e397b2b0f1',
     ] as const;
 
     const defaults: LinkSubmission[] = defaultTokenAddresses.map((token_address, idx) => ({
@@ -110,8 +110,8 @@ export async function getLastTenLinks(taskType?: TaskType): Promise<LinkSubmissi
     console.log(`📊 [MEMORY-DB] Total links: ${sortedLinks.length}, Filtered: ${filteredLinks.length}`);
   }
   
-  // Берем первые 10 ссылок (может быть меньше 10, если нет достаточного количества)
-  return filteredLinks.slice(0, 10);
+  // Берем только TASKS_LIMIT ссылок (по ТЗ: ровно 5 задач одновременно)
+  return filteredLinks.slice(0, TASKS_LIMIT);
 }
 
 // Получить прогресс пользователя
