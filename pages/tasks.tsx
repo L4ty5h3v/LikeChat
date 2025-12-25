@@ -1,5 +1,5 @@
 // Tasks page (Base): buy a post-token for BUY_AMOUNT_USDC_DISPLAY, onchain verification via balanceOf
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
 import Layout from '@/components/Layout';
@@ -16,6 +16,24 @@ import { baseAppContentUrlFromTokenAddress } from '@/lib/base-content';
 
 const USDC_CONTRACT_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as const;
 const BUY_AMOUNT_USDC = parseUnits(BUY_AMOUNT_USDC_DECIMAL, 6);
+
+function buildBaseAppSwapUrl(opts: { inputToken: Address; outputToken: Address; exactAmount: string; returnUrl?: string }): string {
+  const u = new URL('https://base.app/swap');
+  // Best-effort Uniswap-like params. Unknown params are typically ignored.
+  u.searchParams.set('inputCurrency', opts.inputToken);
+  u.searchParams.set('outputCurrency', opts.outputToken);
+  u.searchParams.set('exactField', 'input');
+  u.searchParams.set('exactAmount', opts.exactAmount);
+  if (opts.returnUrl) {
+    // Different hosts use different names; include a few common ones.
+    u.searchParams.set('returnUrl', opts.returnUrl);
+    u.searchParams.set('redirectUrl', opts.returnUrl);
+    u.searchParams.set('redirect_uri', opts.returnUrl);
+  }
+  return u.toString();
+}
+
+const PENDING_SWAP_KEY = 'mtb_pending_swap_v1';
 
 const postTokenBuyAbi = [
   {
@@ -71,6 +89,7 @@ export default function TasksPage() {
   const [errorByLinkId, setErrorByLinkId] = useState<Record<string, string>>({});
   const [noticeByLinkId, setNoticeByLinkId] = useState<Record<string, string>>({});
   const [postModalUrl, setPostModalUrl] = useState<string | null>(null);
+  const handledReturnRef = useRef(false);
 
   // Always operate in "support" mode (buy posts)
   useEffect(() => {
@@ -157,6 +176,96 @@ export default function TasksPage() {
     }
   };
 
+  const markCompleted = useCallback(
+    async (linkId: string) => {
+      if (hasFid) {
+        await fetch('/api/mark-completed', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userFid: user?.fid, linkId }),
+        });
+      }
+      setCompletedLinkIds((prev) => (prev.includes(linkId) ? prev : [...prev, linkId]));
+      try {
+        refetchBalances();
+      } catch {
+        // ignore
+      }
+      setErrorByLinkId((p) => ({ ...p, [linkId]: '' }));
+      setNoticeByLinkId((p) => {
+        const next = { ...p };
+        delete next[linkId];
+        return next;
+      });
+    },
+    [hasFid, refetchBalances, user?.fid]
+  );
+
+  const syncPendingSwap = useCallback(async () => {
+    if (typeof window === 'undefined') return;
+    if (!publicClient) return;
+    const addr = effectiveAddress;
+    if (!addr) return;
+
+    const raw = window.sessionStorage.getItem(PENDING_SWAP_KEY);
+    if (!raw) return;
+
+    let pending: { linkId: string; tokenAddress: string; startedAt: number } | null = null;
+    try {
+      pending = JSON.parse(raw);
+    } catch {
+      pending = null;
+    }
+    if (!pending?.linkId || !pending?.tokenAddress) {
+      window.sessionStorage.removeItem(PENDING_SWAP_KEY);
+      return;
+    }
+
+    if (!isAddress(pending.tokenAddress)) {
+      window.sessionStorage.removeItem(PENDING_SWAP_KEY);
+      return;
+    }
+
+    try {
+      const balNow = await publicClient.readContract({
+        address: pending.tokenAddress as Address,
+        abi: erc20Abi,
+        functionName: 'balanceOf',
+        args: [addr],
+      });
+      if (balNow > 0n) {
+        window.sessionStorage.removeItem(PENDING_SWAP_KEY);
+        await markCompleted(pending.linkId);
+        return;
+      }
+    } catch {
+      // ignore and continue to best-effort polling
+    }
+
+    setRefreshing(true);
+    setNoticeByLinkId((p) => ({ ...p, [pending.linkId]: 'Welcome back — syncing your purchase…' }));
+    try {
+      let newBal = 0n;
+      const started = Date.now();
+      while (Date.now() - started < 60_000) {
+        await new Promise((r) => setTimeout(r, 2500));
+        newBal = await publicClient.readContract({
+          address: pending.tokenAddress as Address,
+          abi: erc20Abi,
+          functionName: 'balanceOf',
+          args: [addr],
+        });
+        if (newBal > 0n) break;
+      }
+      if (newBal > 0n) {
+        window.sessionStorage.removeItem(PENDING_SWAP_KEY);
+        await markCompleted(pending.linkId);
+      }
+    } finally {
+      setRefreshing(false);
+    }
+  }, [effectiveAddress, markCompleted, publicClient]);
+
   useEffect(() => {
     if (!isInitialized) return;
     if (!user) {
@@ -176,6 +285,7 @@ export default function TasksPage() {
       } catch {
         // ignore
       }
+      syncPendingSwap();
     };
     const onVisibility = () => {
       if (document.visibilityState === 'visible') {
@@ -185,6 +295,7 @@ export default function TasksPage() {
         } catch {
           // ignore
         }
+        syncPendingSwap();
       }
     };
 
@@ -196,7 +307,7 @@ export default function TasksPage() {
       document.removeEventListener('visibilitychange', onVisibility);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isInitialized, user?.fid, refetchBalances]);
+  }, [isInitialized, user?.fid, refetchBalances, syncPendingSwap]);
 
   const balanceByToken = useMemo(() => {
     const map = new Map<string, bigint>();
@@ -326,6 +437,35 @@ export default function TasksPage() {
       // BUY flow for Base App tokens:
       // base.app tokens are typically purchased via Swap (USDC -> token), not via token.buy().
       // So we open the swap form pre-selected; some wallets may not prefill the amount, user may need to type it.
+      // UX requirement: after each buy, user must be able to return to this app on the same Tasks screen.
+      // Prefer opening Trade in a new tab/in-app browser (closing it returns here without losing state).
+      let openedExternal = false;
+      if (typeof window !== 'undefined') {
+        const returnUrl = `${window.location.origin}/tasks?fromTrade=1&linkId=${encodeURIComponent(link.id)}`;
+        window.sessionStorage.setItem(
+          PENDING_SWAP_KEY,
+          JSON.stringify({ linkId: link.id, tokenAddress: link.token_address, startedAt: Date.now() })
+        );
+        const swapUrl = buildBaseAppSwapUrl({
+          inputToken: USDC_CONTRACT_ADDRESS,
+          outputToken: link.token_address as Address,
+          exactAmount: BUY_AMOUNT_USDC_DECIMAL,
+          returnUrl,
+        });
+        const w = window.open(swapUrl, '_blank', 'noopener,noreferrer');
+        openedExternal = !!w;
+      }
+
+      if (openedExternal) {
+        setNoticeByLinkId((p) => ({
+          ...p,
+          [link.id]: `Trade opened. Complete the swap, then return here — we’ll sync the status automatically.`,
+        }));
+        // We can't await the trade; we sync on focus/visibility when the user returns.
+        return;
+      }
+
+      // Fallback: use MiniKit action if the WebView blocks opening new tabs.
       await swapTokenAsync({
         sellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`,
         buyToken: `eip155:8453/erc20:${link.token_address as Address}`,
@@ -358,25 +498,10 @@ export default function TasksPage() {
         );
       }
 
-      // mark completed in DB
-      if (hasFid) {
-        await fetch('/api/mark-completed', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userFid: user?.fid, linkId: link.id }),
-        });
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.removeItem(PENDING_SWAP_KEY);
       }
-
-      setCompletedLinkIds((prev) => (prev.includes(link.id) ? prev : [...prev, link.id]));
-      // Обновим кеш балансов для UI (не критично для верификации)
-      refetchBalances();
-      // Clean UI after success
-      setErrorByLinkId((p) => ({ ...p, [link.id]: '' }));
-      setNoticeByLinkId((p) => {
-        const next = { ...p };
-        delete next[link.id];
-        return next;
-      });
+      await markCompleted(link.id);
     } catch (e: any) {
       const raw = (e?.shortMessage || e?.message || 'Buy error').toString();
       const lower = raw.toLowerCase();
@@ -393,6 +518,36 @@ export default function TasksPage() {
       setBuyingLinkId(null);
     }
   };
+
+  // If Trade returned the user to the app (or they re-opened the app), auto-sync and scroll to the relevant card.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (handledReturnRef.current) return;
+
+    const hasPending = !!window.sessionStorage.getItem(PENDING_SWAP_KEY);
+    const u = new URL(window.location.href);
+    const linkId = u.searchParams.get('linkId');
+    const fromTrade = u.searchParams.get('fromTrade');
+
+    if (!hasPending && !fromTrade) return;
+
+    handledReturnRef.current = true;
+
+    if (linkId) {
+      setTimeout(() => {
+        const el = document.getElementById(`link-${linkId}`);
+        el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }, 150);
+    }
+
+    syncPendingSwap();
+
+    if (fromTrade) {
+      u.searchParams.delete('fromTrade');
+      u.searchParams.delete('linkId');
+      window.history.replaceState({}, '', `${u.pathname}${u.search}${u.hash}`);
+    }
+  }, [syncPendingSwap, links.length]);
 
   const openPostInModal = (url: string) => {
     const u = (url || '').trim();
@@ -492,7 +647,11 @@ export default function TasksPage() {
                 const err = errorByLinkId[link.id];
 
                 return (
-                  <div key={link.id} className="bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl shadow-xl p-4 border border-white/30">
+                  <div
+                    key={link.id}
+                    id={`link-${link.id}`}
+                    className="bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl shadow-xl p-4 border border-white/30"
+                  >
                     <div className="flex items-start gap-3">
                       <Avatar
                         url={link.pfp_url}
