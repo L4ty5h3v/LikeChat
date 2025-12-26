@@ -34,6 +34,39 @@ function buildBaseAppSwapUrl(opts: { inputToken: Address; outputToken: Address; 
 }
 
 const PENDING_SWAP_KEY = 'mtb_pending_swap_v1';
+const PENDING_SWAP_POLL_MS = 2500;
+const POST_TX_TIMEOUT_MS = 120_000;
+
+async function sleep(ms: number) {
+  await new Promise((r) => setTimeout(r, ms));
+}
+
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit & { timeoutMs?: number } = {}) {
+  const timeoutMs = init.timeoutMs ?? 10_000;
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const { timeoutMs: _ignored, ...rest } = init;
+    return await fetch(input, { ...rest, signal: ctrl.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function retry<T>(fn: () => Promise<T>, opts?: { retries?: number; baseDelayMs?: number }) {
+  const retries = opts?.retries ?? 3;
+  const baseDelayMs = opts?.baseDelayMs ?? 450;
+  let lastErr: unknown = null;
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastErr = e;
+      await sleep(baseDelayMs * Math.pow(2, i));
+    }
+  }
+  throw lastErr;
+}
 
 const postTokenBuyAbi = [
   {
@@ -176,18 +209,82 @@ export default function TasksPage() {
     }
   };
 
+  const waitForPurchaseConfirmation = useCallback(
+    async (opts: { tokenAddress: Address; buyer: Address; txHash?: `0x${string}`; linkId: string }) => {
+      if (!publicClient) return { ok: false as const, reason: 'no_public_client' as const };
+      const { tokenAddress, buyer, txHash, linkId } = opts;
+
+      // 1) If we have a tx hash, wait for receipt (best signal that swap finished).
+      if (txHash) {
+        try {
+          await publicClient.waitForTransactionReceipt({
+            hash: txHash,
+            confirmations: 1,
+            timeout: POST_TX_TIMEOUT_MS,
+          });
+        } catch {
+          // Fall back to polling balance.
+        }
+      }
+
+      // 2) Poll balance until it becomes > 0 (onchain source of truth).
+      const started = Date.now();
+      while (Date.now() - started < POST_TX_TIMEOUT_MS) {
+        try {
+          const bal = await publicClient.readContract({
+            address: tokenAddress,
+            abi: erc20Abi,
+            functionName: 'balanceOf',
+            args: [buyer],
+          });
+          if (typeof bal === 'bigint' && bal > 0n) {
+            return { ok: true as const, balance: bal };
+          }
+        } catch {
+          // ignore and retry
+        }
+
+        // Ping wagmi balances to update card UI ASAP.
+        try {
+          refetchBalances?.();
+        } catch {
+          // ignore
+        }
+
+        setNoticeByLinkId((p) => ({ ...p, [linkId]: 'Waiting for confirmation…' }));
+        await sleep(PENDING_SWAP_POLL_MS);
+      }
+
+      return { ok: false as const, reason: 'timeout' as const };
+    },
+    [publicClient, refetchBalances]
+  );
+
   const markCompleted = useCallback(
     async (linkId: string) => {
-      if (hasFid) {
-        await fetch('/api/mark-completed', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userFid: user?.fid, linkId }),
-        });
-      }
+      // Optimistic UI: never block BOUGHT state on network / API failures.
       setCompletedLinkIds((prev) => (prev.includes(linkId) ? prev : [...prev, linkId]));
+
+      if (hasFid) {
+        try {
+          await retry(async () => {
+            const res = await fetchWithTimeout('/api/mark-completed', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ userFid: user?.fid, linkId }),
+              timeoutMs: 10_000,
+            });
+            if (!res.ok) throw new Error(`mark-completed failed: ${res.status}`);
+            return true;
+          }, { retries: 3, baseDelayMs: 500 });
+        } catch {
+          // Keep the app usable; server sync can happen later.
+          setNoticeByLinkId((p) => ({ ...p, [linkId]: 'Saved locally. We’ll sync when connection is stable.' }));
+        }
+      }
+
       try {
-        refetchBalances();
+        refetchBalances?.();
       } catch {
         // ignore
       }
@@ -226,45 +323,30 @@ export default function TasksPage() {
       return;
     }
 
-    try {
-      const balNow = await publicClient.readContract({
-        address: pending.tokenAddress as Address,
-        abi: erc20Abi,
-        functionName: 'balanceOf',
-        args: [addr],
-      });
-      if (balNow > 0n) {
-        window.sessionStorage.removeItem(PENDING_SWAP_KEY);
-        await markCompleted(pending.linkId);
-        return;
-      }
-    } catch {
-      // ignore and continue to best-effort polling
-    }
-
     setRefreshing(true);
     setNoticeByLinkId((p) => ({ ...p, [pending.linkId]: 'Welcome back — syncing your purchase…' }));
     try {
-      let newBal = 0n;
-      const started = Date.now();
-      while (Date.now() - started < 60_000) {
-        await new Promise((r) => setTimeout(r, 2500));
-        newBal = await publicClient.readContract({
-          address: pending.tokenAddress as Address,
-          abi: erc20Abi,
-          functionName: 'balanceOf',
-          args: [addr],
-        });
-        if (newBal > 0n) break;
-      }
-      if (newBal > 0n) {
+      const r = await waitForPurchaseConfirmation({
+        tokenAddress: pending.tokenAddress as Address,
+        buyer: addr,
+        linkId: pending.linkId,
+      });
+      if (r.ok) {
         window.sessionStorage.removeItem(PENDING_SWAP_KEY);
         await markCompleted(pending.linkId);
+        try {
+          await refresh({ silent: true });
+        } catch {
+          // ignore
+        }
+      } else {
+        // keep pending, user might still be in progress
+        setNoticeByLinkId((p) => ({ ...p, [pending.linkId]: 'Still syncing… if you just confirmed, wait a bit.' }));
       }
     } finally {
       setRefreshing(false);
     }
-  }, [effectiveAddress, markCompleted, publicClient]);
+  }, [effectiveAddress, markCompleted, publicClient, refresh, waitForPurchaseConfirmation]);
 
   useEffect(() => {
     if (!isInitialized) return;
@@ -442,74 +524,55 @@ export default function TasksPage() {
         }));
       }
 
-      // BUY flow for Base App tokens:
-      // base.app tokens are typically purchased via Swap (USDC -> token), not via token.buy().
-      // So we open the swap form pre-selected; some wallets may not prefill the amount, user may need to type it.
-      // UX requirement: after each buy, user must be able to return to this app on the same Tasks screen.
-      // Prefer opening Trade in a new tab/in-app browser (closing it returns here without losing state).
-      let openedExternal = false;
+      // Prefer MiniKit swap flow: it keeps the user in the MTB app context (wallet sheet),
+      // then we verify onchain and immediately flip the button to BOUGHT.
       if (typeof window !== 'undefined') {
-        const returnUrl = `${window.location.origin}/tasks?fromTrade=1&linkId=${encodeURIComponent(link.id)}`;
         window.sessionStorage.setItem(
           PENDING_SWAP_KEY,
           JSON.stringify({ linkId: link.id, tokenAddress: link.token_address, startedAt: Date.now() })
         );
-        const swapUrl = buildBaseAppSwapUrl({
-          inputToken: USDC_CONTRACT_ADDRESS,
-          outputToken: link.token_address as Address,
-          exactAmount: BUY_AMOUNT_USDC_DECIMAL,
-          returnUrl,
-        });
-        const w = window.open(swapUrl, '_blank', 'noopener,noreferrer');
-        openedExternal = !!w;
       }
 
-      if (openedExternal) {
-        setNoticeByLinkId((p) => ({
-          ...p,
-          [link.id]: `Trade opened. Complete the swap, then return here — we’ll sync the status automatically.`,
-        }));
-        // We can't await the trade; we sync on focus/visibility when the user returns.
-        return;
-      }
-
-      // Fallback: use MiniKit action if the WebView blocks opening new tabs.
-      await swapTokenAsync({
+      const result: any = await swapTokenAsync({
         sellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`,
         buyToken: `eip155:8453/erc20:${link.token_address as Address}`,
         sellAmount: BUY_AMOUNT_USDC.toString(), // 0.10 USDC = "100000"
       });
+
+      const maybeHash =
+        (result?.transactionHash as `0x${string}` | undefined) ||
+        (result?.txHash as `0x${string}` | undefined) ||
+        (result?.hash as `0x${string}` | undefined);
+
       setNoticeByLinkId((p) => ({
         ...p,
         [link.id]: `Waiting for confirmation… If the amount is empty, type ${BUY_AMOUNT_USDC_DISPLAY} USDC and confirm.`,
       }));
 
-      // After swap UI opens, user can cancel or complete.
-      // Poll for balance for up to ~45s to auto-mark if completed.
-      // Важно: не полагаться на состояние balances/refetchBalances (оно обновляется асинхронно).
-      // Читаем баланс напрямую из RPC после swap.
-      let newBal = 0n;
-      const started = Date.now();
-      while (Date.now() - started < 45_000) {
-        await new Promise((r) => setTimeout(r, 2500));
-        newBal = await publicClient.readContract({
-          address: link.token_address as Address,
-          abi: erc20Abi,
-          functionName: 'balanceOf',
-          args: [addr],
-        });
-        if (newBal > 0n) break;
-      }
-      if (newBal <= 0n) {
-        throw new Error(
-          `If you completed the swap in Trade, return here — we’ll update the status automatically. If you haven’t confirmed yet, finish the swap in Trade.`
-        );
-      }
+      const confirmed = await waitForPurchaseConfirmation({
+        tokenAddress: link.token_address as Address,
+        buyer: addr,
+        txHash: maybeHash,
+        linkId: link.id,
+      });
 
-      if (typeof window !== 'undefined') {
-        window.sessionStorage.removeItem(PENDING_SWAP_KEY);
+      if (confirmed.ok) {
+        if (typeof window !== 'undefined') {
+          window.sessionStorage.removeItem(PENDING_SWAP_KEY);
+        }
+        await markCompleted(link.id);
+        try {
+          await refresh({ silent: true });
+        } catch {
+          // ignore
+        }
+      } else {
+        // Don't error-hard: user may still be confirming, or RPC is lagging.
+        setNoticeByLinkId((p) => ({
+          ...p,
+          [link.id]: 'Swap opened. After confirming, stay on this screen — we’ll sync automatically.',
+        }));
       }
-      await markCompleted(link.id);
     } catch (e: any) {
       const raw = (e?.shortMessage || e?.message || 'Buy error').toString();
       const lower = raw.toLowerCase();
