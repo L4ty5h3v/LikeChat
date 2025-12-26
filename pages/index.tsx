@@ -46,19 +46,8 @@ export default function Home() {
     }
   }, []);
 
-  // If user is already authorized and has a saved activity, auto-return to tasks.
-  // This helps when the user comes back from Base App flows (trade/content) and re-opens the miniapp.
-  useEffect(() => {
-    if (!user) return;
-    if (typeof window === 'undefined') return;
-    const savedActivity = localStorage.getItem('selected_activity');
-    if (savedActivity) {
-      router.push('/tasks').catch(() => {
-        window.location.href = '/tasks';
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.fid]);
+  // Intentionally NO auto-redirect to /tasks.
+  // The app should always start on this welcome/intro screen; navigation to tasks should be user-driven.
 
   // Авторизация через Base (кошелек в Base App)
   const handleConnect = async () => {
