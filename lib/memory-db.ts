@@ -21,11 +21,11 @@ const userProgress: Map<number, UserProgress> = new Map();
     // So we keep a deterministic default list that always shows up on cold start.
     const defaultTokenAddresses = [
       // User-provided tokens (Dec 2025) — keep only these (remove older defaults).
-      '0xb25794a1b293f02dbee29b89e4894920cd2e436f',
-      '0xb51def45156d4b7dbe9971946663bdfeb85a2484',
-      '0x4e13900909df354dd6787139731bf8bcf3d966c9',
-      '0xc223e91104c57b4fea7875423dd555a8f3e46aac',
-      '0x81e2e00f2a15305636dda33c2f8ba9e397b2b0f1',
+      '0xf45d09963807f7a80aa164eab5da1488dafccdb8',
+      '0x657275c7a7b0ce6fa82d79d6aae36a536af6084e',
+      '0xfa81fea4854f0ead4462aa9dff783f742ff79721',
+      '0x46ceb7dc97ca354c7a23d581c6d392c0e7fcaf76',
+      '0xe69ecebbee60e4ce04cd6a38a9a897082605368b',
     ] as const;
 
     const defaults: LinkSubmission[] = defaultTokenAddresses.map((token_address, idx) => ({

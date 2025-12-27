@@ -14,8 +14,11 @@ export default function InitLinks() {
   const [seedReplace, setSeedReplace] = useState(true);
   const [seedInput, setSeedInput] = useState(
     [
-      'https://base.app/content/EkUKQwoVbmV0d29ya3MvYmFzZS1tYWlubmV0EioweDA2NTkwZWViOWM5MThiYTU3YmFjYjcxZWZlZGRiZTAyNGE0OTk0ZDc 0x06590eeb9c918ba57bacb71efeddbe024a4994d7',
-      'https://base.app/content/EkUKQwoVbmV0d29ya3MvYmFzZS1tYWlubmV0EioweGMwMjkyZjllODVkYWZiZGU1ZTEyYWIyNWMxYTcxNzEzNjY5YmQ3Y2M 0xc0292f9e85dafbde5e12ab25c1a71713669bd7cc',
+      '0xf45d09963807f7a80aa164eab5da1488dafccdb8',
+      '0x657275c7a7b0ce6fa82d79d6aae36a536af6084e',
+      '0xfa81fea4854f0ead4462aa9dff783f742ff79721',
+      '0x46ceb7dc97ca354c7a23d581c6d392c0e7fcaf76',
+      '0xe69ecebbee60e4ce04cd6a38a9a897082605368b',
     ].join('\n')
   );
 
