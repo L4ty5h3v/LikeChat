@@ -590,40 +590,48 @@ export default function TasksPage() {
         );
       }
 
-      // IMPORTANT UX: users must return to MTB after purchase.
-      // In some Base WebViews, MiniKit swap can leave the user on Trade with no return.
-      // So we use base.app/swap with an explicit returnUrl back to /tasks.
-      if (typeof window !== 'undefined') {
-        const returnUrl = (() => {
+      // Buy flow:
+      // - In Base MiniApp: use MiniKit swap (keeps user in-app and returns automatically).
+      // - Outside Base MiniApp: DO NOT navigate away (it opens "Download Base App" and user gets stuck).
+      if (!isInMiniApp) {
+        // Best effort: open Base swap in a NEW tab, and keep MTB page visible.
+        // Also show a clear message that buying requires Base App.
+        if (typeof window !== 'undefined') {
+          const returnUrl = (() => {
+            try {
+              const u = new URL(window.location.href);
+              u.pathname = '/tasks';
+              u.searchParams.set('fromTrade', '1');
+              u.searchParams.set('linkId', link.id);
+              return u.toString();
+            } catch {
+              return '/tasks?fromTrade=1&linkId=' + encodeURIComponent(link.id);
+            }
+          })();
+
+          const swapUrl = buildBaseAppSwapUrl({
+            inputToken: USDC_CONTRACT_ADDRESS,
+            outputToken: link.token_address as Address,
+            exactAmount: BUY_AMOUNT_USDC_DECIMAL, // "0.10"
+            returnUrl,
+          });
+
+          setNoticeByLinkId((p) => ({
+            ...p,
+            [link.id]: 'To buy, open MTB inside the Base App. This browser cannot open the swap in-app.',
+          }));
+
           try {
-            const u = new URL(window.location.href);
-            u.pathname = '/tasks';
-            u.searchParams.set('fromTrade', '1');
-            u.searchParams.set('linkId', link.id);
-            return u.toString();
+            window.open(swapUrl, '_blank', 'noopener,noreferrer');
           } catch {
-            return '/tasks?fromTrade=1&linkId=' + encodeURIComponent(link.id);
+            // ignore
           }
-        })();
+        }
 
-        const swapUrl = buildBaseAppSwapUrl({
-          inputToken: USDC_CONTRACT_ADDRESS,
-          outputToken: link.token_address as Address,
-          exactAmount: BUY_AMOUNT_USDC_DECIMAL, // "0.10"
-          returnUrl,
-        });
-
-        setNoticeByLinkId((p) => ({
-          ...p,
-          [link.id]: 'Confirm the swap — we will return you to the purchase screen automatically…',
-        }));
-
-        // Navigate in the same WebView so the returnUrl redirect brings the user back full-screen.
-        window.location.assign(swapUrl);
+        setBuyingLinkId(null);
         return;
       }
 
-      // Fallback (should rarely run): try MiniKit swap if window is unavailable.
       const result: any = await swapTokenAsync({
         sellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`,
         buyToken: `eip155:8453/erc20:${link.token_address as Address}`,

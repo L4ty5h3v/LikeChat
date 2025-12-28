@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { dicebearIdenticonPng, normalizeAvatarUrl } from '@/lib/media';
+import { normalizeAvatarUrl } from '@/lib/media';
 
 type AvatarProps = {
   url?: string | null;
@@ -18,76 +18,86 @@ function hashToHue(seed: string): number {
   return hash % 360;
 }
 
+function proxyUrl(src: string): string {
+  const s = (src || '').trim();
+  if (!s) return '';
+  if (s.startsWith('/')) return s;
+  if (s.startsWith('http://') || s.startsWith('https://')) {
+    return `/api/avatar-proxy?url=${encodeURIComponent(s)}`;
+  }
+  return s;
+}
+
 export default function Avatar({ url, seed, size, className, alt }: AvatarProps) {
   const [primaryErrored, setPrimaryErrored] = useState(false);
-  const [fallbackErrored, setFallbackErrored] = useState(false);
+  const [imgLoaded, setImgLoaded] = useState(false);
 
-  const primarySrc = useMemo(() => normalizeAvatarUrl(url), [url]);
-  const fallbackSrc = useMemo(() => dicebearIdenticonPng(seed, Math.max(48, size * 2)), [seed, size]);
-  const letter = useMemo(() => (seed || 'U').trim().slice(0, 1).toUpperCase() || 'U', [seed]);
+  const primarySrcRaw = useMemo(() => normalizeAvatarUrl(url), [url]);
+  const primarySrc = useMemo(() => (primarySrcRaw ? proxyUrl(primarySrcRaw) : ''), [primarySrcRaw]);
   const hue = useMemo(() => hashToHue(seed), [seed]);
 
   // If URL changes, retry primary first.
   useEffect(() => {
     setPrimaryErrored(false);
-    setFallbackErrored(false);
-  }, [primarySrc]);
+    setImgLoaded(false);
+  }, [primarySrcRaw]);
 
-  // 1) Try primary URL (pfpUrl, ipfs, arweave, etc.)
-  if (primarySrc && !primaryErrored) {
-    return (
+  // Always render IMAGE (no letters). Local placeholder stays visible if remote avatar can't load.
+  const placeholderSrc = '/images/mrs-crypto.jpg';
+  const showPrimary = !!primarySrc && !primaryErrored;
+
+  return (
+    <div
+      aria-label={alt || 'avatar'}
+      className={className}
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        background: `hsl(${hue}, 30%, 92%)`,
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
       <img
-        src={primarySrc}
-        alt={alt || 'avatar'}
-        className={className}
+        src={placeholderSrc}
+        alt="avatar placeholder"
         width={size}
         height={size}
         referrerPolicy="no-referrer"
-        onError={() => setPrimaryErrored(true)}
-      />
-    );
-  }
-
-  // 2) Fallback: always-https identicon (works in strict WebViews better than data: URLs)
-  if (!fallbackErrored) {
-    return (
-      <img
-        src={fallbackSrc}
-        alt={alt || 'avatar'}
-        className={className}
-        width={size}
-        height={size}
-        referrerPolicy="no-referrer"
-        onError={() => setFallbackErrored(true)}
-      />
-    );
-  }
-
-  // 3) Last resort: colored letter (no network)
-  {
-    return (
-      <div
-        aria-label={alt || 'avatar'}
-        className={className}
         style={{
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          background: `hsl(${hue}, 70%, 45%)`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'rgba(255,255,255,0.92)',
-          fontWeight: 800,
-          fontSize: Math.floor(size * 0.44),
-          lineHeight: 1,
-          userSelect: 'none',
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          opacity: showPrimary && imgLoaded ? 0 : 1,
+          transition: 'opacity 120ms ease',
         }}
-      >
-        {letter}
-      </div>
-    );
-  }
+      />
+
+      {showPrimary ? (
+        <img
+          src={primarySrc}
+          alt={alt || 'avatar'}
+          width={size}
+          height={size}
+          referrerPolicy="no-referrer"
+          onLoad={() => setImgLoaded(true)}
+          onError={() => setPrimaryErrored(true)}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            opacity: imgLoaded ? 1 : 0,
+            transition: 'opacity 120ms ease',
+          }}
+        />
+      ) : null}
+    </div>
+  );
 }
 
 
