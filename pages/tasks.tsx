@@ -123,6 +123,12 @@ export default function TasksPage() {
   const [noticeByLinkId, setNoticeByLinkId] = useState<Record<string, string>>({});
   const [postModalUrl, setPostModalUrl] = useState<string | null>(null);
   const handledReturnRef = useRef(false);
+  const refreshStateRef = useRef<{ inFlight: boolean; queued: boolean; queuedSilent: boolean }>({
+    inFlight: false,
+    queued: false,
+    queuedSilent: true,
+  });
+  const refreshingDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Always operate in "support" mode (buy posts)
   useEffect(() => {
@@ -161,42 +167,92 @@ export default function TasksPage() {
     },
   });
 
-  const refresh = async (opts?: { silent?: boolean }) => {
-    const silent = !!opts?.silent;
-    if (!silent) setInitialLoading(true);
-    else setRefreshing(true);
-    try {
-      // Always load links (they are global, not user-specific)
-      const linksRes = await fetch(`/api/tasks?t=${Date.now()}&taskType=support`);
-      const linksJson = await linksRes.json();
-      const nextLinks: LinkSubmission[] = Array.isArray(linksJson.links) ? linksJson.links : [];
-      setLinks((prev) => {
-        if (prev.length === nextLinks.length && prev.every((p, i) => p.id === nextLinks[i]?.id)) {
-          return prev;
-        }
-        return nextLinks;
-      });
+  const refreshInternal = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      const silent = !!opts?.silent;
 
-      // Load per-user progress only when we have a real fid (MiniKit/Base App)
-      if (hasFid) {
-        const progressRes = await fetch(`/api/user-progress?userFid=${user!.fid}&t=${Date.now()}`);
-        const progressJson = await progressRes.json();
-        const progress = progressJson.progress || null;
-        const nextCompleted: string[] = Array.isArray(progress?.completed_links) ? progress.completed_links : [];
-        setCompletedLinkIds((prev) => {
-          if (prev.length === nextCompleted.length && prev.every((p, i) => p === nextCompleted[i])) {
+      // Avoid flicker: show "Syncing…" only if refresh actually takes a moment.
+      if (!silent) {
+        setInitialLoading(true);
+      } else {
+        if (refreshingDelayRef.current) clearTimeout(refreshingDelayRef.current);
+        refreshingDelayRef.current = setTimeout(() => setRefreshing(true), 200);
+      }
+
+      try {
+        // Always load links (they are global, not user-specific)
+        const linksRes = await fetch(`/api/tasks?t=${Date.now()}&taskType=support`);
+        const linksJson = await linksRes.json();
+        const nextLinks: LinkSubmission[] = Array.isArray(linksJson.links) ? linksJson.links : [];
+        setLinks((prev) => {
+          if (prev.length === nextLinks.length && prev.every((p, i) => p.id === nextLinks[i]?.id)) {
             return prev;
           }
-          return nextCompleted;
+          return nextLinks;
         });
-      } else {
-        setCompletedLinkIds((prev) => (prev.length ? [] : prev));
+
+        // Load per-user progress only when we have a real fid (MiniKit/Base App)
+        if (hasFid) {
+          const progressRes = await fetch(`/api/user-progress?userFid=${user!.fid}&t=${Date.now()}`);
+          const progressJson = await progressRes.json();
+          const progress = progressJson.progress || null;
+          const nextCompleted: string[] = Array.isArray(progress?.completed_links) ? progress.completed_links : [];
+          setCompletedLinkIds((prev) => {
+            if (prev.length === nextCompleted.length && prev.every((p, i) => p === nextCompleted[i])) {
+              return prev;
+            }
+            return nextCompleted;
+          });
+        } else {
+          setCompletedLinkIds((prev) => (prev.length ? [] : prev));
+        }
+      } finally {
+        if (refreshingDelayRef.current) {
+          clearTimeout(refreshingDelayRef.current);
+          refreshingDelayRef.current = null;
+        }
+        setInitialLoading(false);
+        setRefreshing(false);
       }
-    } finally {
-      setInitialLoading(false);
-      setRefreshing(false);
-    }
-  };
+    },
+    [hasFid, user?.fid]
+  );
+
+  const requestRefresh = useCallback(
+    (opts?: { silent?: boolean }) => {
+      const silent = !!opts?.silent;
+      const st = refreshStateRef.current;
+
+      // Collapse bursts from WebView focus/visibility events into at most 1 extra refresh.
+      if (st.inFlight) {
+        st.queued = true;
+        st.queuedSilent = st.queuedSilent && silent;
+        return;
+      }
+
+      st.inFlight = true;
+      st.queued = false;
+      st.queuedSilent = true;
+
+      void (async () => {
+        try {
+          let nextSilent = silent;
+          // eslint-disable-next-line no-constant-condition
+          while (true) {
+            await refreshInternal({ silent: nextSilent });
+            const s = refreshStateRef.current;
+            if (!s.queued) break;
+            nextSilent = s.queuedSilent;
+            s.queued = false;
+            s.queuedSilent = true;
+          }
+        } finally {
+          refreshStateRef.current.inFlight = false;
+        }
+      })();
+    },
+    [refreshInternal]
+  );
 
   const waitForPurchaseConfirmation = useCallback(
     async (opts: { tokenAddress: Address; buyer: Address; txHash?: `0x${string}`; linkId: string }) => {
@@ -324,7 +380,7 @@ export default function TasksPage() {
         window.sessionStorage.removeItem(PENDING_SWAP_KEY);
         await markCompleted(pending.linkId);
         try {
-          await refresh({ silent: true });
+          requestRefresh({ silent: true });
         } catch {
           // ignore
         }
@@ -335,7 +391,7 @@ export default function TasksPage() {
     } finally {
       setRefreshing(false);
     }
-  }, [effectiveAddress, markCompleted, publicClient, refresh, waitForPurchaseConfirmation]);
+  }, [effectiveAddress, markCompleted, publicClient, requestRefresh, waitForPurchaseConfirmation]);
 
   useEffect(() => {
     if (!isInitialized) return;
@@ -344,12 +400,12 @@ export default function TasksPage() {
       return;
     }
 
-    refresh();
+    requestRefresh();
 
     // Убираем polling (страница не должна "дёргаться" каждые 5 секунд).
     // Обновляем данные только при возврате во вкладку/приложение.
     const onFocus = () => {
-      refresh({ silent: true });
+      requestRefresh({ silent: true });
       // also resync on-chain balances (BOUGHT state) after wallet redirect
       try {
         refetchBalances();
@@ -360,7 +416,7 @@ export default function TasksPage() {
     };
     const onVisibility = () => {
       if (document.visibilityState === 'visible') {
-        refresh({ silent: true });
+        requestRefresh({ silent: true });
         try {
           refetchBalances();
         } catch {
@@ -378,7 +434,7 @@ export default function TasksPage() {
       document.removeEventListener('visibilitychange', onVisibility);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isInitialized, user?.fid, refetchBalances, syncPendingSwap]);
+  }, [isInitialized, user?.fid, refetchBalances, syncPendingSwap, requestRefresh]);
 
   const balanceByToken = useMemo(() => {
     const map = new Map<string, bigint>();
@@ -551,7 +607,7 @@ export default function TasksPage() {
         }
         await markCompleted(link.id);
         try {
-          await refresh({ silent: true });
+          requestRefresh({ silent: true });
         } catch {
           // ignore
         }
@@ -664,7 +720,8 @@ export default function TasksPage() {
                 <div className="text-gray-600">
                   Bought post-tokens: <span className="font-black">{completedCount}</span>/{REQUIRED_BUYS_TO_PUBLISH}
               </div>
-                {refreshing && <div className="text-xs text-gray-500 mt-1">Syncing…</div>}
+                {/* Reserve space to avoid layout shift when "Syncing…" appears/disappears */}
+                <div className="text-xs text-gray-500 mt-1 min-h-[16px]">{refreshing ? 'Syncing…' : ''}</div>
             </div>
               {canPublish ? (
                 <Button onClick={() => router.push('/submit')}>👉 Add your post</Button>
