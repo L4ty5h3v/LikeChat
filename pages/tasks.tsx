@@ -130,20 +130,9 @@ export default function TasksPage() {
     localStorage.setItem('selected_activity', 'support');
   }, []);
 
-  // Cache buster for in-app WebViews: ensure we don't get stuck on an old cached HTML/JS bundle.
-  // Only runs once per URL (adds ?v=... if missing).
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      const u = new URL(window.location.href);
-      if (!u.searchParams.has('v')) {
-        u.searchParams.set('v', Date.now().toString());
-        window.location.replace(u.toString());
-      }
-    } catch {
-      // ignore
-    }
-  }, []);
+  // NOTE: Do not force-reload via `window.location.replace()` for cache-busting.
+  // In in-app WebViews it causes visible "jitter" (the page reloads right after opening).
+  // We rely on `Cache-Control: no-store` headers in `next.config.js` + build hashes instead.
 
   const hasFid = typeof user?.fid === 'number' && Number.isFinite(user.fid) && user.fid > 0;
   const effectiveAddress: Address | undefined = useMemo(() => {
