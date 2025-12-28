@@ -68,6 +68,17 @@ async function retry<T>(fn: () => Promise<T>, opts?: { retries?: number; baseDel
   throw lastErr;
 }
 
+function getSessionStorageSafe(): Storage | null {
+  // Some environments / WebViews can throw on sessionStorage access.
+  try {
+    const g: any = globalThis as any;
+    const ss = g?.sessionStorage as Storage | undefined;
+    return ss || null;
+  } catch {
+    return null;
+  }
+}
+
 const postTokenBuyAbi = [
   {
     type: 'function',
@@ -344,12 +355,12 @@ export default function TasksPage() {
   );
 
   const syncPendingSwap = useCallback(async () => {
-    if (typeof window === 'undefined') return;
     if (!publicClient) return;
     const addr = effectiveAddress;
     if (!addr) return;
 
-    const raw = window.sessionStorage.getItem(PENDING_SWAP_KEY);
+    const ss = getSessionStorageSafe();
+    const raw = ss?.getItem(PENDING_SWAP_KEY);
     if (!raw) return;
 
     let pending: { linkId: string; tokenAddress: string; startedAt: number } | null = null;
@@ -359,12 +370,12 @@ export default function TasksPage() {
       pending = null;
     }
     if (!pending?.linkId || !pending?.tokenAddress) {
-      window.sessionStorage.removeItem(PENDING_SWAP_KEY);
+      ss?.removeItem(PENDING_SWAP_KEY);
       return;
     }
 
     if (!isAddress(pending.tokenAddress)) {
-      window.sessionStorage.removeItem(PENDING_SWAP_KEY);
+      ss?.removeItem(PENDING_SWAP_KEY);
       return;
     }
 
@@ -377,7 +388,7 @@ export default function TasksPage() {
         linkId: pending.linkId,
       });
       if (r.ok) {
-        window.sessionStorage.removeItem(PENDING_SWAP_KEY);
+        ss?.removeItem(PENDING_SWAP_KEY);
         await markCompleted(pending.linkId);
         try {
           requestRefresh({ silent: true });
@@ -571,8 +582,9 @@ export default function TasksPage() {
 
       // Prefer MiniKit swap flow: it keeps the user in the MTB app context (wallet sheet),
       // then we verify onchain and immediately flip the button to BOUGHT.
-      if (typeof window !== 'undefined') {
-        window.sessionStorage.setItem(
+      {
+        const ss = getSessionStorageSafe();
+        ss?.setItem(
           PENDING_SWAP_KEY,
           JSON.stringify({ linkId: link.id, tokenAddress: link.token_address, startedAt: Date.now() })
         );
@@ -636,9 +648,7 @@ export default function TasksPage() {
       });
 
       if (confirmed.ok) {
-        if (typeof window !== 'undefined') {
-          window.sessionStorage.removeItem(PENDING_SWAP_KEY);
-        }
+        getSessionStorageSafe()?.removeItem(PENDING_SWAP_KEY);
         await markCompleted(link.id);
         try {
           requestRefresh({ silent: true });
@@ -671,10 +681,11 @@ export default function TasksPage() {
 
   // If Trade returned the user to the app (or they re-opened the app), auto-sync and scroll to the relevant card.
   useEffect(() => {
-    if (typeof window === 'undefined') return;
     if (handledReturnRef.current) return;
 
-    const hasPending = !!window.sessionStorage.getItem(PENDING_SWAP_KEY);
+    const ss = getSessionStorageSafe();
+    const hasPending = !!ss?.getItem(PENDING_SWAP_KEY);
+    if (typeof window === 'undefined') return;
     const u = new URL(window.location.href);
     const linkId = u.searchParams.get('linkId');
     const fromTrade = u.searchParams.get('fromTrade');
