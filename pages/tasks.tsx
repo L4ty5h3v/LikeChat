@@ -19,11 +19,27 @@ const BUY_AMOUNT_USDC = parseUnits(BUY_AMOUNT_USDC_DECIMAL, 6);
 
 function buildBaseAppSwapUrl(opts: { inputToken: Address; outputToken: Address; exactAmount: string; returnUrl?: string }): string {
   const u = new URL('https://base.app/swap');
-  // Best-effort Uniswap-like params. Unknown params are typically ignored.
+  // Best-effort params: Base App has supported multiple param styles over time.
+  // We include a few common variants so it doesn't silently fall back to ETH.
+  //
+  // Style A (Uniswap-like)
   u.searchParams.set('inputCurrency', opts.inputToken);
   u.searchParams.set('outputCurrency', opts.outputToken);
   u.searchParams.set('exactField', 'input');
   u.searchParams.set('exactAmount', opts.exactAmount);
+  u.searchParams.set('chainId', '8453');
+  u.searchParams.set('network', 'base');
+  //
+  // Style B (MiniKit-like)
+  u.searchParams.set('sellToken', `eip155:8453/erc20:${opts.inputToken}`);
+  u.searchParams.set('buyToken', `eip155:8453/erc20:${opts.outputToken}`);
+  // sellAmount in base units (USDC = 6 decimals)
+  try {
+    const sellAmount = parseUnits(opts.exactAmount, 6).toString();
+    u.searchParams.set('sellAmount', sellAmount);
+  } catch {
+    // ignore
+  }
   if (opts.returnUrl) {
     // Different hosts use different names; include a few common ones.
     u.searchParams.set('returnUrl', opts.returnUrl);
@@ -590,53 +606,74 @@ export default function TasksPage() {
         );
       }
 
-      // Buy flow:
-      // - In Base MiniApp: use MiniKit swap (keeps user in-app and returns automatically).
-      // - Outside Base MiniApp: DO NOT navigate away (it opens "Download Base App" and user gets stuck).
-      if (!isInMiniApp) {
-        // Best effort: open Base swap in a NEW tab, and keep MTB page visible.
-        // Also show a clear message that buying requires Base App.
-        if (typeof window !== 'undefined') {
-          const returnUrl = (() => {
-            try {
-              const u = new URL(window.location.href);
-              u.pathname = '/tasks';
-              u.searchParams.set('fromTrade', '1');
-              u.searchParams.set('linkId', link.id);
-              return u.toString();
-            } catch {
-              return '/tasks?fromTrade=1&linkId=' + encodeURIComponent(link.id);
-            }
-          })();
+      const returnUrl =
+        typeof window === 'undefined'
+          ? undefined
+          : (() => {
+              try {
+                const u = new URL(window.location.href);
+                u.pathname = '/tasks';
+                u.searchParams.set('fromTrade', '1');
+                u.searchParams.set('linkId', link.id);
+                return u.toString();
+              } catch {
+                return '/tasks?fromTrade=1&linkId=' + encodeURIComponent(link.id);
+              }
+            })();
 
-          const swapUrl = buildBaseAppSwapUrl({
-            inputToken: USDC_CONTRACT_ADDRESS,
-            outputToken: link.token_address as Address,
-            exactAmount: BUY_AMOUNT_USDC_DECIMAL, // "0.10"
-            returnUrl,
-          });
-
-          setNoticeByLinkId((p) => ({
-            ...p,
-            [link.id]: 'To buy, open MTB inside the Base App. This browser cannot open the swap in-app.',
-          }));
-
-          try {
-            window.open(swapUrl, '_blank', 'noopener,noreferrer');
-          } catch {
-            // ignore
-          }
+      const openSwapFallback = () => {
+        if (typeof window === 'undefined') return;
+        const swapUrl = buildBaseAppSwapUrl({
+          inputToken: USDC_CONTRACT_ADDRESS,
+          outputToken: link.token_address as Address,
+          exactAmount: BUY_AMOUNT_USDC_DECIMAL, // "0.10"
+          returnUrl,
+        });
+        setNoticeByLinkId((p) => ({
+          ...p,
+          [link.id]: 'To buy, open MTB inside the Base App. This browser cannot open the swap in-app.',
+        }));
+        try {
+          window.open(swapUrl, '_blank', 'noopener,noreferrer');
+        } catch {
+          // ignore
         }
+      };
 
+      // Buy flow:
+      // - Prefer MiniKit swap flow whenever possible (even if isInMiniApp mis-detects).
+      // - Fall back to base.app/swap if MiniKit is unavailable.
+      if (!swapTokenAsync) {
+        openSwapFallback();
         setBuyingLinkId(null);
         return;
       }
 
-      const result: any = await swapTokenAsync({
-        sellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`,
-        buyToken: `eip155:8453/erc20:${link.token_address as Address}`,
-        sellAmount: BUY_AMOUNT_USDC.toString(), // 0.10 USDC = "100000"
-      });
+      let result: any;
+      try {
+        result = await swapTokenAsync({
+          sellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`,
+          buyToken: `eip155:8453/erc20:${link.token_address as Address}`,
+          sellAmount: BUY_AMOUNT_USDC.toString(), // 0.10 USDC = "100000"
+        });
+      } catch (err: any) {
+        const raw = (err?.shortMessage || err?.message || '').toString();
+        const lower = raw.toLowerCase();
+        // When not in Base App / MiniKit context, swapTokenAsync typically errors.
+        if (
+          lower.includes('minikit') ||
+          lower.includes('not in') ||
+          lower.includes('unsupported') ||
+          lower.includes('not available') ||
+          lower.includes('cannot') ||
+          lower.includes('window is not defined')
+        ) {
+          openSwapFallback();
+          setBuyingLinkId(null);
+          return;
+        }
+        throw err;
+      }
 
       const maybeHash =
         (result?.transactionHash as `0x${string}` | undefined) ||
