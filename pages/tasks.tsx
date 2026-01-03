@@ -50,6 +50,7 @@ function buildBaseAppSwapUrl(opts: { inputToken: Address; outputToken: Address; 
 }
 
 const PENDING_SWAP_KEY = 'mtb_pending_swap_v1';
+const FULLSCREEN_OPENED_AT_KEY = 'mtb_fullscreen_opened_at_v1';
 const PENDING_SWAP_POLL_MS = 2500;
 const POST_TX_TIMEOUT_MS = 120_000;
 
@@ -149,6 +150,7 @@ export default function TasksPage() {
   const [errorByLinkId, setErrorByLinkId] = useState<Record<string, string>>({});
   const [noticeByLinkId, setNoticeByLinkId] = useState<Record<string, string>>({});
   const [postModalUrl, setPostModalUrl] = useState<string | null>(null);
+  const [expandHint, setExpandHint] = useState(false);
   const handledReturnRef = useRef(false);
   const refreshStateRef = useRef<{ inFlight: boolean; queued: boolean; queuedSilent: boolean }>({
     inFlight: false,
@@ -233,7 +235,7 @@ export default function TasksPage() {
         } else {
           setCompletedLinkIds((prev) => (prev.length ? [] : prev));
         }
-      } finally {
+    } finally {
         if (refreshingDelayRef.current) {
           clearTimeout(refreshingDelayRef.current);
           refreshingDelayRef.current = null;
@@ -254,8 +256,8 @@ export default function TasksPage() {
       if (st.inFlight) {
         st.queued = true;
         st.queuedSilent = st.queuedSilent && silent;
-        return;
-      }
+      return;
+    }
 
       st.inFlight = true;
       st.queued = false;
@@ -341,8 +343,8 @@ export default function TasksPage() {
         try {
           await retry(async () => {
             const res = await fetchWithTimeout('/api/mark-completed', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ userFid: user?.fid, linkId }),
               timeoutMs: 10_000,
             });
@@ -411,7 +413,7 @@ export default function TasksPage() {
         } catch {
           // ignore
         }
-      } else {
+          } else {
         // keep pending, user might still be in progress
         setNoticeByLinkId((p) => ({ ...p, [pending.linkId]: 'Still syncing… if you just confirmed, wait a bit.' }));
       }
@@ -700,7 +702,7 @@ export default function TasksPage() {
         } catch {
           // ignore
         }
-      } else {
+            } else {
         // Don't error-hard: user may still be confirming, or RPC is lagging.
         setNoticeByLinkId((p) => ({
           ...p,
@@ -734,13 +736,33 @@ export default function TasksPage() {
     const u = new URL(window.location.href);
     const linkId = u.searchParams.get('linkId');
     const fromTrade = u.searchParams.get('fromTrade');
+    const fs = u.searchParams.get('fs');
 
     if (!hasPending && !fromTrade) return;
+
+    // Best-effort: some hosts return the miniapp in a "collapsed" state after a swap.
+    // If supported, request the host to open MTB full-screen. This is not guaranteed
+    // (host-controlled), so we also show a one-tap fallback button.
+    if (fs !== '1') {
+      const lastOpenedAt = Number(ss?.getItem(FULLSCREEN_OPENED_AT_KEY) || '0');
+      const now = Date.now();
+      if (now - lastOpenedAt > 8000) {
+        ss?.setItem(FULLSCREEN_OPENED_AT_KEY, String(now));
+        const fsUrl = new URL(window.location.href);
+        fsUrl.searchParams.set('fs', '1');
+        void requestFullscreen(fsUrl.toString()).then((ok) => {
+          if (!ok) {
+            setExpandHint(true);
+            setTimeout(() => setExpandHint(false), 7000);
+          }
+        });
+      }
+    }
 
     handledReturnRef.current = true;
 
     if (linkId) {
-      setTimeout(() => {
+          setTimeout(() => {
         const el = document.getElementById(`link-${linkId}`);
         el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
       }, 150);
@@ -751,15 +773,42 @@ export default function TasksPage() {
     if (fromTrade) {
       u.searchParams.delete('fromTrade');
       u.searchParams.delete('linkId');
+      u.searchParams.delete('fs');
       window.history.replaceState({}, '', `${u.pathname}${u.search}${u.hash}`);
     }
-  }, [syncPendingSwap, links.length]);
+  }, [syncPendingSwap, links.length, requestFullscreen]);
 
   const openPostInModal = (url: string) => {
     const u = (url || '').trim();
     if (!u.startsWith('http')) return;
     setPostModalUrl(u);
   };
+
+  const requestFullscreen = useCallback(
+    async (targetUrl?: string) => {
+      if (typeof window === 'undefined') return false;
+      const url = (targetUrl || window.location.href || '').toString();
+      if (!url.startsWith('http')) return false;
+      try {
+        const { sdk } = await import('@farcaster/miniapp-sdk');
+        const inMini = await sdk.isInMiniApp().catch(() => false);
+        if (!inMini) return false;
+        // Some hosts use "ready" to bring the miniapp to the foreground; safe to call repeatedly.
+        await sdk.actions.ready().catch(() => {});
+        try {
+          await sdk.actions.openMiniApp({ url });
+          return true;
+        } catch {
+          // Fall back to openUrl if openMiniApp isn't supported by the host.
+          await sdk.actions.openUrl({ url });
+          return true;
+        }
+      } catch {
+        return false;
+      }
+    },
+    []
+  );
 
   if (initialLoading) {
     return (
@@ -783,6 +832,21 @@ export default function TasksPage() {
         <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient bg-300%"></div>
         
         <div className="relative z-10 max-w-6xl mx-auto px-6 py-16">
+          {expandHint ? (
+            <div className="fixed bottom-4 left-4 right-4 z-[200] flex justify-center pointer-events-none">
+              <button
+                type="button"
+                className="pointer-events-auto px-5 py-3 rounded-2xl bg-black/85 text-white font-black shadow-2xl border border-white/20 backdrop-blur-md"
+                onClick={() => {
+                  setExpandHint(false);
+                  void requestFullscreen();
+                }}
+              >
+                Open MTB full screen
+              </button>
+            </div>
+          ) : null}
+
           <div className="text-center mb-10">
             <h1 className="text-5xl md:text-7xl font-black text-white mb-6 font-display leading-none tracking-tight">
               BUY POSTS
@@ -801,10 +865,10 @@ export default function TasksPage() {
           </div>
 
           <div className="bg-white bg-opacity-95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 mb-8">
-              <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4">
               <div className="w-16 h-16 rounded-full overflow-hidden border-4 border-primary shadow-lg">
                 <Image src="/images/mrs-crypto.jpg" alt="Mrs. Crypto" width={64} height={64} className="w-full h-full object-cover" unoptimized />
-                </div>
+              </div>
               <div className="flex-1">
                 <div className="text-gray-900 font-black text-xl">Progress</div>
                 <div className="text-gray-600">
@@ -820,16 +884,16 @@ export default function TasksPage() {
                   {hasFid ? `Publish (need ${REQUIRED_BUYS_TO_PUBLISH})` : 'Publish (open in Base App)'} 
                 </Button>
               )}
-            </div>
           </div>
+        </div>
 
           {links.length > 0 && remainingToBuyCount === 0 && (
             <div className="bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl shadow-xl p-4 mb-6 border border-white/30">
               <div className="text-gray-900 font-black">You completed this batch ✅</div>
               <div className="text-gray-700 text-sm mt-1">
                 You can’t repeat buys on the same posts. Please wait until <span className="font-bold">{REQUIRED_BUYS_TO_PUBLISH} new links</span> appear.
+                </div>
               </div>
-            </div>
           )}
 
           <div className="space-y-4">
@@ -880,7 +944,7 @@ export default function TasksPage() {
           </div>
                           <div className="flex items-center gap-3">
                             {hasPostUrl && (
-                              <button
+            <button
                                 type="button"
                                 className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-900 font-bold"
                                 onClick={(e) => {
