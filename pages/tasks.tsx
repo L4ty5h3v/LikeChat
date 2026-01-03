@@ -17,6 +17,8 @@ import { baseAppContentUrlFromTokenAddress } from '@/lib/base-content';
 const USDC_CONTRACT_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as const;
 const BUY_AMOUNT_USDC = parseUnits(BUY_AMOUNT_USDC_DECIMAL, 6);
 
+const OWNED_CACHE_KEY = 'mtb_owned_token_addrs_v1';
+
 function buildBaseAppSwapUrl(opts: { inputToken: Address; outputToken: Address; exactAmount: string; returnUrl?: string }): string {
   const u = new URL('https://base.app/swap');
   // Best-effort params: Base App has supported multiple param styles over time.
@@ -96,6 +98,17 @@ function getSessionStorageSafe(): Storage | null {
   }
 }
 
+function getLocalStorageSafe(): Storage | null {
+  // Some environments / WebViews can throw on localStorage access.
+  try {
+    const g: any = globalThis as any;
+    const ls = g?.localStorage as Storage | undefined;
+    return ls || null;
+  } catch {
+    return null;
+  }
+}
+
 const postTokenBuyAbi = [
   {
     type: 'function',
@@ -151,6 +164,8 @@ export default function TasksPage() {
   const [noticeByLinkId, setNoticeByLinkId] = useState<Record<string, string>>({});
   const [postModalUrl, setPostModalUrl] = useState<string | null>(null);
   const [expandHint, setExpandHint] = useState(false);
+  // Sticky "owned" cache: prevents BUY/BOUGHT flicker on initial load while balances are still loading.
+  const [stickyOwnedTokenAddrs, setStickyOwnedTokenAddrs] = useState<Set<string>>(() => new Set());
   const handledReturnRef = useRef(false);
   const refreshStateRef = useRef<{ inFlight: boolean; queued: boolean; queuedSilent: boolean }>({
     inFlight: false,
@@ -195,6 +210,38 @@ export default function TasksPage() {
       enabled: !!effectiveAddress && tokenContracts.length > 0,
     },
   });
+
+  // Hydrate sticky-owned cache from localStorage once.
+  useEffect(() => {
+    const ls = getLocalStorageSafe();
+    const raw = ls?.getItem(OWNED_CACHE_KEY);
+    if (!raw) return;
+    try {
+      const arr = JSON.parse(raw);
+      if (!Array.isArray(arr)) return;
+      const next = new Set<string>();
+      for (const v of arr) {
+        if (typeof v === 'string' && /^0x[a-fA-F0-9]{40}$/.test(v)) next.add(v.toLowerCase());
+      }
+      if (next.size) setStickyOwnedTokenAddrs(next);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // Persist sticky-owned cache to localStorage.
+  useEffect(() => {
+    const ls = getLocalStorageSafe();
+    if (!ls) return;
+    try {
+      const arr = Array.from(stickyOwnedTokenAddrs);
+      // Keep it small/bounded.
+      const bounded = arr.slice(-64);
+      ls.setItem(OWNED_CACHE_KEY, JSON.stringify(bounded));
+    } catch {
+      // ignore
+    }
+  }, [stickyOwnedTokenAddrs]);
 
   const refreshInternal = useCallback(
     async (opts?: { silent?: boolean }) => {
@@ -477,15 +524,49 @@ export default function TasksPage() {
     return map;
   }, [balances, tokenContracts]);
 
+  // Whenever wagmi balances confirm ownership, add to sticky cache.
+  useEffect(() => {
+    if (!balances || tokenContracts.length === 0) return;
+    const newlyOwned: string[] = [];
+    tokenContracts.forEach((c, idx) => {
+      const r: any = balances[idx];
+      const v = r?.result;
+      if (typeof v === 'bigint' && v > 0n) newlyOwned.push(c.address.toLowerCase());
+    });
+    if (!newlyOwned.length) return;
+    setStickyOwnedTokenAddrs((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+      for (const a of newlyOwned) {
+        if (!next.has(a)) {
+          next.add(a);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [balances, tokenContracts]);
+
+  const isOwnedByTokenAddr = useCallback(
+    (tokenAddr?: string) => {
+      if (!tokenAddr || !isAddress(tokenAddr)) return false;
+      const key = tokenAddr.toLowerCase();
+      if (stickyOwnedTokenAddrs.has(key)) return true;
+      const bal = balanceByToken.get(key);
+      // Important: if bal is undefined (not loaded yet), don't treat it as 0.
+      return typeof bal === 'bigint' && bal > 0n;
+    },
+    [stickyOwnedTokenAddrs, balanceByToken]
+  );
+
   const ownedLinkIds = useMemo(() => {
     const ids = new Set<string>();
     for (const l of links) {
       if (!isAddress(l.token_address)) continue;
-      const bal = balanceByToken.get(l.token_address.toLowerCase()) ?? 0n;
-      if (bal > 0n) ids.add(l.id);
+      if (isOwnedByTokenAddr(l.token_address)) ids.add(l.id);
     }
     return ids;
-  }, [links, balanceByToken]);
+  }, [links, isOwnedByTokenAddr]);
 
   const completedCount = useMemo(() => {
     // Count progress only within the current batch (the 5 links shown on screen),
@@ -505,14 +586,13 @@ export default function TasksPage() {
     let c = 0;
     for (const l of links) {
       if (!isAddress(l.token_address)) continue;
-      const bal = balanceByToken.get(l.token_address.toLowerCase()) ?? 0n;
-      const owned = bal > 0n;
+      const owned = isOwnedByTokenAddr(l.token_address);
       const completedByProgress = completedLinkIds.includes(l.id);
       const completed = completedByProgress || owned;
       if (!completed) c++;
     }
     return c;
-  }, [links, balanceByToken, completedLinkIds]);
+  }, [links, completedLinkIds, isOwnedByTokenAddr]);
 
   // Clean UI: if a post is already DONE/BOUGHT, remove any lingering notices/errors.
   useEffect(() => {
@@ -696,13 +776,19 @@ export default function TasksPage() {
 
       if (confirmed.ok) {
         getSessionStorageSafe()?.removeItem(PENDING_SWAP_KEY);
+        // Sticky-owned: flip BOUGHT immediately and avoid flicker even if RPC is laggy.
+        setStickyOwnedTokenAddrs((prev) => {
+          const next = new Set(prev);
+          next.add((link.token_address as string).toLowerCase());
+          return next;
+        });
         await markCompleted(link.id);
         try {
           requestRefresh({ silent: true });
         } catch {
           // ignore
         }
-            } else {
+                } else {
         // Don't error-hard: user may still be confirming, or RPC is lagging.
         setNoticeByLinkId((p) => ({
           ...p,
@@ -865,10 +951,10 @@ export default function TasksPage() {
           </div>
 
           <div className="bg-white bg-opacity-95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 mb-8">
-            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4">
               <div className="w-16 h-16 rounded-full overflow-hidden border-4 border-primary shadow-lg">
                 <Image src="/images/mrs-crypto.jpg" alt="Mrs. Crypto" width={64} height={64} className="w-full h-full object-cover" unoptimized />
-              </div>
+                </div>
               <div className="flex-1">
                 <div className="text-gray-900 font-black text-xl">Progress</div>
                 <div className="text-gray-600">
@@ -885,7 +971,7 @@ export default function TasksPage() {
                 </Button>
               )}
           </div>
-        </div>
+          </div>
 
           {links.length > 0 && remainingToBuyCount === 0 && (
             <div className="bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl shadow-xl p-4 mb-6 border border-white/30">
@@ -910,8 +996,7 @@ export default function TasksPage() {
                   ? (link.cast_url || '').trim()
                   : (tokenAddr ? baseAppContentUrlFromTokenAddress(tokenAddr) : null)) || '';
                 const hasPostUrl = postUrl.startsWith('http');
-                const bal = tokenAddr ? balanceByToken.get(tokenAddr.toLowerCase()) ?? 0n : 0n;
-                const owned = bal > 0n;
+                const owned = tokenAddr ? isOwnedByTokenAddr(tokenAddr) : false;
                 const completedByProgress = completedLinkIds.includes(link.id);
                 const completed = completedByProgress || owned;
                 const isBuying = buyingLinkId === link.id;
