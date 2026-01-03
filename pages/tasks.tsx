@@ -812,6 +812,32 @@ export default function TasksPage() {
     }
   };
 
+  const requestFullscreen = useCallback(
+    async (targetUrl?: string) => {
+      if (typeof window === 'undefined') return false;
+      const url = (targetUrl || window.location.href || '').toString();
+      if (!url.startsWith('http')) return false;
+      try {
+        const { sdk } = await import('@farcaster/miniapp-sdk');
+        const inMini = await sdk.isInMiniApp().catch(() => false);
+        if (!inMini) return false;
+        // Some hosts use "ready" to bring the miniapp to the foreground; safe to call repeatedly.
+        await sdk.actions.ready().catch(() => {});
+        try {
+          await sdk.actions.openMiniApp({ url });
+          return true;
+        } catch {
+          // Fall back to openUrl if openMiniApp isn't supported by the host.
+          await sdk.actions.openUrl({ url });
+          return true;
+        }
+      } catch {
+        return false;
+      }
+    },
+    []
+  );
+
   // If Trade returned the user to the app (or they re-opened the app), auto-sync and scroll to the relevant card.
   useEffect(() => {
     if (handledReturnRef.current) return;
@@ -848,7 +874,7 @@ export default function TasksPage() {
     handledReturnRef.current = true;
 
     if (linkId) {
-          setTimeout(() => {
+      setTimeout(() => {
         const el = document.getElementById(`link-${linkId}`);
         el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
       }, 150);
@@ -869,32 +895,6 @@ export default function TasksPage() {
     if (!u.startsWith('http')) return;
     setPostModalUrl(u);
   };
-
-  const requestFullscreen = useCallback(
-    async (targetUrl?: string) => {
-      if (typeof window === 'undefined') return false;
-      const url = (targetUrl || window.location.href || '').toString();
-      if (!url.startsWith('http')) return false;
-      try {
-        const { sdk } = await import('@farcaster/miniapp-sdk');
-        const inMini = await sdk.isInMiniApp().catch(() => false);
-        if (!inMini) return false;
-        // Some hosts use "ready" to bring the miniapp to the foreground; safe to call repeatedly.
-        await sdk.actions.ready().catch(() => {});
-        try {
-          await sdk.actions.openMiniApp({ url });
-          return true;
-        } catch {
-          // Fall back to openUrl if openMiniApp isn't supported by the host.
-          await sdk.actions.openUrl({ url });
-          return true;
-        }
-      } catch {
-        return false;
-      }
-    },
-    []
-  );
 
   if (initialLoading) {
     return (
