@@ -164,6 +164,7 @@ export default function TasksPage() {
   const [noticeByLinkId, setNoticeByLinkId] = useState<Record<string, string>>({});
   const [postModalUrl, setPostModalUrl] = useState<string | null>(null);
   const [expandHint, setExpandHint] = useState(false);
+  const [publishHint, setPublishHint] = useState<string>('');
   // Sticky "owned" cache: prevents BUY/BOUGHT flicker on initial load while balances are still loading.
   const [stickyOwnedTokenAddrs, setStickyOwnedTokenAddrs] = useState<Set<string>>(() => new Set());
   const handledReturnRef = useRef(false);
@@ -568,9 +569,17 @@ export default function TasksPage() {
     return ids;
   }, [links, isOwnedByTokenAddr]);
 
-  const completedCount = useMemo(() => {
-    // Count progress only within the current batch (the 5 links shown on screen),
-    // and never show more than REQUIRED_BUYS_TO_PUBLISH.
+  const completedCountOverall = useMemo(() => {
+    // Eligibility/progress towards publishing is based on the user's overall progress
+    // (server-stored completed_links) + local optimistic updates, capped at REQUIRED_BUYS_TO_PUBLISH.
+    const ids = new Set<string>();
+    for (const id of completedLinkIds) ids.add(id);
+    for (const id of ownedLinkIds) ids.add(id); // best-effort: if balance shows ownership, count it too.
+    return Math.min(ids.size, REQUIRED_BUYS_TO_PUBLISH);
+  }, [completedLinkIds, ownedLinkIds]);
+
+  const completedCountBatch = useMemo(() => {
+    // UI hint: count progress only within the current batch (the 5 links shown on screen).
     const currentIds = new Set<string>(links.map((l) => l.id));
     const ids = new Set<string>();
     for (const id of completedLinkIds) {
@@ -624,7 +633,21 @@ export default function TasksPage() {
     });
   }, [completedLinkIds, ownedLinkIds]);
 
-  const canPublish = completedCount >= REQUIRED_BUYS_TO_PUBLISH && hasFid;
+  const canPublish = completedCountOverall >= REQUIRED_BUYS_TO_PUBLISH && hasFid;
+
+  const handlePublishClick = useCallback(() => {
+    if (canPublish) {
+      void router.push('/submit').catch(() => {
+        if (typeof window !== 'undefined') window.location.assign('/submit');
+      });
+      return;
+    }
+    const msg = !hasFid
+      ? 'Publish is available only inside Base / Farcaster MiniApp.'
+      : `You need to buy ${REQUIRED_BUYS_TO_PUBLISH} posts first. Progress: ${completedCountOverall}/${REQUIRED_BUYS_TO_PUBLISH}.`;
+    setPublishHint(msg);
+    setTimeout(() => setPublishHint(''), 6000);
+  }, [canPublish, router, hasFid, completedCountOverall]);
 
   const handleBuy = async (link: LinkSubmission) => {
     const addr = effectiveAddress;
@@ -874,7 +897,7 @@ export default function TasksPage() {
     handledReturnRef.current = true;
 
     if (linkId) {
-      setTimeout(() => {
+          setTimeout(() => {
         const el = document.getElementById(`link-${linkId}`);
         el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
       }, 150);
@@ -958,18 +981,15 @@ export default function TasksPage() {
               <div className="flex-1">
                 <div className="text-gray-900 font-black text-xl">Progress</div>
                 <div className="text-gray-600">
-                  Bought post-tokens: <span className="font-black">{completedCount}</span>/{REQUIRED_BUYS_TO_PUBLISH}
+                  Bought post-tokens: <span className="font-black">{completedCountOverall}</span>/{REQUIRED_BUYS_TO_PUBLISH}
               </div>
                 {/* Reserve space to avoid layout shift when "Syncing…" appears/disappears */}
                 <div className="text-xs text-gray-500 mt-1 min-h-[16px]">{refreshing ? 'Syncing…' : ''}</div>
+                {publishHint ? <div className="text-xs text-red-600 mt-1">{publishHint}</div> : null}
             </div>
-              {canPublish ? (
-                <Button onClick={() => router.push('/submit')}>👉 Add your post</Button>
-              ) : (
-                <Button onClick={() => router.push('/submit')} disabled>
-                  {hasFid ? `Publish (need ${REQUIRED_BUYS_TO_PUBLISH})` : 'Publish (open in Base App)'} 
-                </Button>
-              )}
+              <Button onClick={handlePublishClick}>
+                {canPublish ? '👉 Add your post' : hasFid ? `Publish (need ${REQUIRED_BUYS_TO_PUBLISH})` : 'Publish (open in Base App)'}
+              </Button>
           </div>
           </div>
 

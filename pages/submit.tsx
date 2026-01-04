@@ -64,60 +64,19 @@ export default function Submit() {
   const [publishedLinkId, setPublishedLinkId] = useState<string | null>(null);
 
 
-  // ⚠️ БЛОКИРОВКА НАВИГАЦИИ: Проверяем флаг при монтировании и блокируем навигацию назад
+  // IMPORTANT: do NOT block entering /submit based on a client-side flag.
+  // In WebViews it can get stuck and make the page look "unclickable" (instant redirect back).
+  // We rely on server-side checks in /api/submit-link (403/409) instead.
   useEffect(() => {
-    // Если показывается поздравление, не делаем редирект - пользователь должен остаться на странице
-    if (showSuccessModal) {
-      console.log('✅ [SUBMIT] Success modal is showing, skipping redirect check');
-      return;
+    if (showSuccessModal) return;
+    if (typeof window === 'undefined') return;
+    try {
+      sessionStorage.removeItem('link_published');
+      localStorage.removeItem('link_published');
+    } catch {
+      // ignore
     }
-    
-    // Проверяем флаг при монтировании компонента
-    if (typeof window !== 'undefined') {
-      const sessionFlag = sessionStorage.getItem('link_published');
-      const localFlag = localStorage.getItem('link_published');
-      
-      if (sessionFlag === 'true' || localFlag === 'true') {
-        console.log('🚫 [SUBMIT] Component mounted but link already published - redirecting to /tasks', {
-          sessionFlag,
-          localFlag,
-          timestamp: new Date().toISOString(),
-        });
-        // Редиректим на страницу задач, а не на главную
-        router.replace('/tasks');
-        return; // Прерываем выполнение эффекта
-      }
-    }
-
-    // Используем beforePopState для блокировки навигации назад
-    const handleBeforePopState = (state: any) => {
-      if (typeof window !== 'undefined') {
-        const sessionFlag = sessionStorage.getItem('link_published');
-        const localFlag = localStorage.getItem('link_published');
-        
-        if (sessionFlag === 'true' || localFlag === 'true') {
-          console.log('🚫 [SUBMIT] Browser back navigation blocked - link already published', {
-            sessionFlag,
-            localFlag,
-            timestamp: new Date().toISOString(),
-          });
-          // Редиректим на страницу задач
-          router.replace('/tasks');
-          return false; // Блокируем навигацию назад
-        }
-      }
-      
-      return true; // Разрешаем навигацию
-    };
-
-    // Устанавливаем обработчик для блокировки навигации назад
-    router.beforePopState(handleBeforePopState);
-
-    return () => {
-      // Очищаем обработчик при размонтировании
-      router.beforePopState(() => true);
-    };
-  }, [router, showSuccessModal]); // Добавляем showSuccessModal в зависимости
+  }, [showSuccessModal]);
 
   // ⚠️ СЛУШАТЕЛЬ STORAGE: Отслеживаем изменения в localStorage/sessionStorage из других вкладок/сессий
   useEffect(() => {

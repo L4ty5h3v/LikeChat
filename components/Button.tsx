@@ -44,11 +44,11 @@ const Button: React.FC<ButtonProps> = ({
       onClick={onClick}
       disabled={disabled || loading}
       style={getBackgroundStyle()}
-      className={`${baseStyles} ${variantStyles[variant]} ${widthStyles} ${className} ${disabled || loading ? 'disabled' : ''}`}
+      className={`relative overflow-hidden group ${baseStyles} ${variantStyles[variant]} ${widthStyles} ${className} ${disabled || loading ? 'disabled' : ''}`}
     >
       {/* Переливающийся градиент поверх */}
       {!disabled && !loading && (
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 z-10"></div>
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 z-10"></div>
       )}
       {loading ? (
         <div className="flex items-center justify-center gap-2 relative z-20">
