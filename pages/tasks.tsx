@@ -152,6 +152,8 @@ export default function TasksPage() {
   const { swapTokenAsync } = useSwapToken();
   const { isInMiniApp } = useIsInMiniApp();
 
+  const [dbInfo, setDbInfo] = useState<{ type: string; persistent: boolean } | null>(null);
+
   const [links, setLinks] = useState<LinkSubmission[]>([]);
   const [completedLinkIds, setCompletedLinkIds] = useState<string[]>([]);
   // UX: show full-screen loader only on the very first load.
@@ -174,6 +176,22 @@ export default function TasksPage() {
     queuedSilent: true,
   });
   const refreshingDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const r = await fetch('/api/db-info', { cache: 'no-store' as any });
+        const j = await r.json();
+        if (!cancelled && j?.db) setDbInfo(j.db);
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Always operate in "support" mode (buy posts)
   useEffect(() => {
@@ -1022,6 +1040,11 @@ export default function TasksPage() {
                 <div className="text-gray-600">
                   Bought post-tokens: <span className="font-black">{completedCountOverall}</span>/{REQUIRED_BUYS_TO_PUBLISH}
               </div>
+                {dbInfo && dbInfo.persistent === false ? (
+                  <div className="mt-2 text-xs font-bold text-red-700">
+                    Demo mode: database is not persistent. New published posts may not appear after reopening.
+                  </div>
+                ) : null}
                 {/* Reserve space to avoid layout shift when "Syncing…" appears/disappears */}
                 <div className="text-xs text-gray-500 mt-1 min-h-[16px]">{refreshing ? 'Syncing…' : ''}</div>
                 {publishHint ? <div className="text-xs text-red-600 mt-1">{publishHint}</div> : null}
