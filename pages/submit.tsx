@@ -112,6 +112,33 @@ export default function Submit() {
         : 0;
 
       if (completedCount < REQUIRED_BUYS_TO_PUBLISH) {
+        // Fallback: if DB progress is missing (common when Upstash isn't configured),
+        // verify buys onchain using the connected wallet.
+        const wallet = (address || (user as any)?.address || '').toString().trim();
+        if (wallet) {
+          try {
+            const vr = await fetch('/api/verify-buys', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ walletAddress: wallet, taskType: activity || 'support' }),
+            });
+            const vj = await vr.json();
+            const verified = typeof vj?.verifiedOnchainCount === 'number' ? vj.verifiedOnchainCount : 0;
+            if (vr.ok && vj?.success && verified >= REQUIRED_BUYS_TO_PUBLISH) {
+              setCanSubmit(true);
+              setError('');
+              return;
+            }
+            setCanSubmit(false);
+            setError(
+              `You need to buy ${REQUIRED_BUYS_TO_PUBLISH} posts first. Progress: ${completedCount}/${REQUIRED_BUYS_TO_PUBLISH}.`
+            );
+            return;
+          } catch {
+            // fall through to default error below
+          }
+        }
+
         setCanSubmit(false);
         setError(`You need to buy ${REQUIRED_BUYS_TO_PUBLISH} posts first. Progress: ${completedCount}/${REQUIRED_BUYS_TO_PUBLISH}.`);
         return;
