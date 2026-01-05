@@ -37,12 +37,14 @@ const Layout: React.FC<LayoutProps> = ({ children, title = APP_NAME }) => {
   return (
     <>
       <Head>
-        <title>{title}</title>
+        <title>{APP_NAME}</title>
         <meta name="description" content="Mutual love from Mrs. Crypto" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="application-name" content={APP_NAME} />
         <meta name="apple-mobile-web-app-title" content={APP_NAME} />
         <meta property="og:site_name" content={APP_NAME} />
+        <meta property="og:title" content={APP_NAME} />
+        <meta name="twitter:title" content={APP_NAME} />
         
         <meta property="og:type" content="website" />
         

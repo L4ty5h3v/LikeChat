@@ -6,23 +6,23 @@
   },
   "miniapp": {
     "version": "1",
-    "name": "LikeChat Base",
+    "name": "MULTI BUY",
     "homeUrl": "https://likechat-base-app.vercel.app",
     "iconUrl": "https://likechat-base-app.vercel.app/favicon.ico",
     "splashImageUrl": "https://likechat-base-app.vercel.app/images/mrs-crypto.jpg",
     "splashBackgroundColor": "#000000",
     "webhookUrl": "https://likechat-base-app.vercel.app/api/webhook",
-    "subtitle": "Support posts on Base",
-    "description": "Complete tasks by buying post-tokens on Base. Publish after 10 supports.",
+    "subtitle": "Buy posts on Base",
+    "description": "Complete tasks by buying post-tokens on Base. Publish after 5 buys.",
     "screenshotUrls": [
       "https://likechat-base-app.vercel.app/images/mrs-crypto.jpg"
     ],
     "primaryCategory": "social",
     "tags": ["baseapp", "miniapp", "social"],
     "heroImageUrl": "https://likechat-base-app.vercel.app/images/mrs-crypto.jpg",
-    "tagline": "Support on Base",
-    "ogTitle": "LikeChat Base",
-    "ogDescription": "Support posts by buying post-tokens on Base.",
+    "tagline": "MULTI BUY",
+    "ogTitle": "MULTI BUY",
+    "ogDescription": "Buy post-tokens on Base.",
     "ogImageUrl": "https://likechat-base-app.vercel.app/images/mrs-crypto.jpg",
     "noindex": false
   }
