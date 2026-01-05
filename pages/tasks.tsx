@@ -635,6 +635,45 @@ export default function TasksPage() {
 
   const canPublish = completedCountOverall >= REQUIRED_BUYS_TO_PUBLISH && hasFid;
 
+  // If tokens are already owned (onchain) but server progress wasn't recorded (e.g. earlier network/WebView issues),
+  // proactively sync those completions so /submit and server-side eligibility match what the user sees in the UI.
+  const syncingOwnedToServerRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!hasFid) return;
+    if (!user?.fid) return;
+    if (!links?.length) return;
+
+    const alreadyCompleted = new Set(completedLinkIds);
+    const inFlight = syncingOwnedToServerRef.current;
+
+    const candidates: string[] = [];
+    for (const l of links) {
+      if (candidates.length >= REQUIRED_BUYS_TO_PUBLISH) break;
+      if (!l?.id) continue;
+      if (alreadyCompleted.has(l.id)) continue;
+      if (inFlight.has(l.id)) continue;
+      if (!isAddress(l.token_address)) continue;
+      if (!isOwnedByTokenAddr(l.token_address)) continue;
+      candidates.push(l.id);
+    }
+
+    // Cap to remaining slots so completed_links never grows beyond REQUIRED_BUYS_TO_PUBLISH.
+    const remaining = Math.max(0, REQUIRED_BUYS_TO_PUBLISH - alreadyCompleted.size);
+    const toSync = candidates.slice(0, remaining);
+    if (!toSync.length) return;
+
+    for (const id of toSync) inFlight.add(id);
+    void (async () => {
+      try {
+        for (const id of toSync) {
+          await markCompleted(id);
+        }
+      } finally {
+        for (const id of toSync) inFlight.delete(id);
+      }
+    })();
+  }, [hasFid, user?.fid, links, completedLinkIds, isOwnedByTokenAddr, markCompleted]);
+
   const handlePublishClick = useCallback(() => {
     if (canPublish) {
       void router.push('/submit').catch(() => {
@@ -1053,7 +1092,7 @@ export default function TasksPage() {
                             {tokenAddr && <div className="mt-2" />}
           </div>
                           <div className="flex items-center gap-3">
-                            <button
+            <button
                               className={`px-4 py-2 rounded-xl font-bold text-white ${
                                 completed
                                   ? 'bg-green-600 cursor-not-allowed opacity-90'
