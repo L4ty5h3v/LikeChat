@@ -621,6 +621,11 @@ export default function TasksPage() {
     return c;
   }, [links, completedLinkIds, isOwnedByTokenAddr]);
 
+  const isWrongNetwork = useMemo(() => {
+    // In some WebViews chainId can be undefined; only treat as wrong when we *know* it's not Base.
+    return !!(isConnected && chainId && chainId !== 8453);
+  }, [isConnected, chainId]);
+
   // Clean UI: if a post is already DONE/BOUGHT, remove any lingering notices/errors.
   useEffect(() => {
     const completed = new Set<string>(completedLinkIds);
@@ -1040,6 +1045,11 @@ export default function TasksPage() {
                 <div className="text-gray-600">
                   Bought post-tokens: <span className="font-black">{completedCountOverall}</span>/{REQUIRED_BUYS_TO_PUBLISH}
               </div>
+                {isWrongNetwork ? (
+                  <div className="mt-2 text-xs font-bold text-red-700">
+                    Wrong network. Please switch to Base (8453).
+                  </div>
+                ) : null}
                 {dbInfo && dbInfo.persistent === false ? (
                   <div className="mt-2 text-xs font-bold text-red-700">
                     Demo mode: database is not persistent. New published posts may not appear after reopening.

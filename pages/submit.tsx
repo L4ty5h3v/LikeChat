@@ -56,7 +56,7 @@ export default function Submit() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const { user, isInitialized } = useFarcasterAuth();
-  const { address } = useAccount();
+  const { address, chainId, isConnected } = useAccount();
   const [activity, setActivity] = useState<TaskType | null>(null);
   const [tokenAddress, setTokenAddress] = useState('');
   const [error, setError] = useState('');
@@ -137,6 +137,13 @@ export default function Submit() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Network guard: publishing is for Base.
+    // In some WebViews chainId can be undefined; only block when we *know* it's not Base.
+    if (isConnected && chainId && chainId !== 8453) {
+      setError('Switch network to Base (8453) and try again.');
+      return;
+    }
+
     // ⚠️ ДЕТАЛЬНАЯ ПРОВЕРКА: Проверяем наличие всех необходимых данных
     console.log('🔍 [SUBMIT] Starting submission process...');
     console.log('🔍 [SUBMIT] User data:', {
@@ -199,7 +206,8 @@ export default function Submit() {
         taskType: activity, // Используем taskType вместо activityType для ясности
         activityType: activity, // Оставляем для обратной совместимости
         tokenAddress,
-        walletAddress: address || '',
+        // Wallet is needed for onchain verification fallback (when DB is not persistent).
+        walletAddress: (address || (user as any)?.address || '').toString(),
       };
       
       console.log('📝 [SUBMIT] Publishing link with taskType:', {
