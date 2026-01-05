@@ -582,9 +582,15 @@ export default function Submit() {
                 <input
                   type="text"
                   id="tokenAddress"
+                  name="erc20_token_address"
                   value={tokenAddress}
                   onChange={(e) => setTokenAddress(e.target.value)}
                   placeholder="0x..."
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  inputMode="text"
                   className="w-full px-6 py-4 border-2 border-gray-300 rounded-xl focus:border-primary focus:outline-none transition-colors text-lg"
                   required
                 />
