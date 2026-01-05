@@ -4,7 +4,6 @@ import { useRouter } from 'next/router';
 import Image from 'next/image';
 import Layout from '@/components/Layout';
 import Button from '@/components/Button';
-import { getUserProgress, getAllLinks } from '@/lib/db-config';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
 import type { TaskType } from '@/types';
 import { REQUIRED_BUYS_TO_PUBLISH, TASKS_LIMIT } from '@/lib/app-config';
@@ -64,249 +63,30 @@ export default function Submit() {
   const [publishedLinkId, setPublishedLinkId] = useState<string | null>(null);
 
 
-  // IMPORTANT: do NOT block entering /submit based on a client-side flag.
-  // In WebViews it can get stuck and make the page look "unclickable" (instant redirect back).
+  // IMPORTANT: Do not use a client-side "link_published" flag.
+  // It can get stuck in WebViews and incorrectly block publishing.
   // We rely on server-side checks in /api/submit-link (403/409) instead.
+
   useEffect(() => {
     if (showSuccessModal) return;
-    if (typeof window === 'undefined') return;
-    try {
-      sessionStorage.removeItem('link_published');
-      localStorage.removeItem('link_published');
-    } catch {
-      // ignore
-    }
-  }, [showSuccessModal]);
+    if (!isInitialized) return;
 
-  // ⚠️ СЛУШАТЕЛЬ STORAGE: Отслеживаем изменения в localStorage/sessionStorage из других вкладок/сессий
-  useEffect(() => {
-    // Если показывается поздравление, не делаем редирект - пользователь должен остаться на странице
-    if (showSuccessModal) {
-      console.log('✅ [SUBMIT] Success modal is showing, skipping storage event checks');
-      return;
-    }
-    
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'link_published' && e.newValue === 'true') {
-        console.log('🔔 [SUBMIT] Storage event detected - link_published changed to true:', {
-          key: e.key,
-          oldValue: e.oldValue,
-          newValue: e.newValue,
-          url: e.url,
-          timestamp: new Date().toISOString(),
-        });
-        
-        // Если флаг установлен - редиректим на главную
-        setTimeout(() => {
-          const finalCheck = sessionStorage.getItem('link_published') || localStorage.getItem('link_published');
-          console.log('🔔 [SUBMIT] Storage event - final check before redirect:', {
-            finalCheck,
-            timestamp: new Date().toISOString(),
-          });
-          if (finalCheck === 'true') {
-            router.replace('/tasks');
-          }
-        }, 100);
-      }
-    };
-
-    // Также проверяем изменения в sessionStorage (хотя storage event не срабатывает для sessionStorage)
-    // Но мы можем проверить периодически
-    const checkStorageInterval = setInterval(() => {
-      // Если показывается поздравление, не делаем редирект
-      if (showSuccessModal) {
-        clearInterval(checkStorageInterval);
-        return;
-      }
-      
-      const sessionFlag = sessionStorage.getItem('link_published');
-      const localFlag = localStorage.getItem('link_published');
-      
-      if (sessionFlag === 'true' || localFlag === 'true') {
-        console.log('🔔 [SUBMIT] Periodic storage check - link_published detected:', {
-          sessionFlag,
-          localFlag,
-          timestamp: new Date().toISOString(),
-        });
-        clearInterval(checkStorageInterval);
-        setTimeout(() => router.replace('/tasks'), 100);
-      }
-    }, 500); // Проверяем каждые 500ms
-
-    window.addEventListener('storage', handleStorageChange);
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      clearInterval(checkStorageInterval);
-    };
-  }, [router, showSuccessModal]); // Добавляем showSuccessModal в зависимости
-
-  useEffect(() => {
-    // Если показывается поздравление, не делаем редирект - пользователь должен остаться на странице
-    if (showSuccessModal) {
-      console.log('✅ [SUBMIT] Success modal is showing, skipping auth and redirect checks');
-      return;
-    }
-    
-    console.log('🔍 [SUBMIT] Component mounted, checking auth...', {
-      hasUser: !!user,
-      userFid: user?.fid,
-      authLoading,
-      isInitialized,
-    });
-    
-    // Проверяем, что код выполняется на клиенте
+    // Base-версия: активность всегда support
     if (typeof window !== 'undefined') {
-      // ⚠️ КРИТИЧЕСКИ ВАЖНО: Проверяем link_published В САМОМ НАЧАЛЕ
-      // Это предотвращает зацикливание редиректов, даже если модальное окно закрылось некорректно
-      // Проверяем ОБА хранилища для надежности
-      const useEffectMountEventId = logEvent('🔍 [SUBMIT]', {
-        action: 'useEffect on mount - checking storage',
-        sessionStorage: sessionStorage.getItem('link_published'),
-        localStorage: localStorage.getItem('link_published'),
-        sessionStorageRaw: sessionStorage.getItem('link_published'),
-        localStorageRaw: localStorage.getItem('link_published'),
-        allSessionKeys: Object.keys(sessionStorage),
-        allLocalKeys: Object.keys(localStorage).filter(k => k.includes('link') || k.includes('published')),
-      });
-      
-      const sessionFlag = sessionStorage.getItem('link_published');
-      const localFlag = localStorage.getItem('link_published');
-      
-      // Если флаг установлен в ЛЮБОМ хранилище - редиректим на /tasks
-      if (sessionFlag === 'true' || localFlag === 'true') {
-        console.log('✅ [SUBMIT] Link already published, redirecting to /tasks');
-        setTimeout(() => {
-          router.replace('/tasks');
-        }, 100);
-        return; // Выходим сразу, не выполняя дальнейшие проверки
-      }
-      
-      // Ждём инициализации авторизации
-      if (!isInitialized) {
-        console.log('⏳ [SUBMIT] Waiting for auth initialization...');
-        return;
-      }
-      
-      // Проверяем наличие user
-      if (!user || !user.fid) {
-        console.error('❌ [SUBMIT] No user found, redirecting to home...');
-        router.push('/');
-        return;
-      }
-      
-      // Base-версия: активность всегда support
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('selected_activity', 'support');
-      }
-      setActivity('support');
-      
-      // ⚠️ ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: Проверяем в БД, не опубликована ли уже ссылка
-      // Это предотвращает зацикливание редиректов даже если флаг sessionStorage не установлен
-      checkIfLinkAlreadyPublished(user.fid).then((linkPublished) => {
-        // Еще раз проверяем флаг (на случай если он установился пока выполнялся запрос)
-        const flagCheckSession = sessionStorage.getItem('link_published');
-        const flagCheckLocal = localStorage.getItem('link_published');
-        if (flagCheckSession === 'true' || flagCheckLocal === 'true' || linkPublished) {
-          console.log('✅ [SUBMIT] User already published a link, redirecting to /tasks:', {
-            flagCheckSession,
-            flagCheckLocal,
-            linkPublished,
-          });
-          // Устанавливаем флаг в ОБА хранилища для надежности
-          if (typeof window !== 'undefined') {
-            sessionStorage.setItem('link_published', 'true');
-            localStorage.setItem('link_published', 'true');
-          }
-          // ⚠️ ВАЖНО: Редиректим на /tasks, а не на главную, чтобы пользователь остался на странице задач
-          setTimeout(() => {
-            const finalCheckSession = sessionStorage.getItem('link_published');
-            const finalCheckLocal = localStorage.getItem('link_published');
-            console.log('🔍 [SUBMIT] RIGHT BEFORE redirect to /tasks (checkIfLinkAlreadyPublished, 100ms delay):', {
-              finalCheckSession,
-              finalCheckLocal,
-              timestamp: new Date().toISOString(),
-              delay: '100ms',
-            });
-            router.replace('/tasks');
-          }, 100);
-          return;
-        }
-        // Только если ссылка еще не опубликована - проверяем прогресс
-        checkProgress(user.fid);
-      }).catch((error) => {
-        console.error('❌ [SUBMIT] Error checking published link:', error);
-        // Перед продолжением проверяем флаг еще раз
-        const flagCheckSession = sessionStorage.getItem('link_published');
-        const flagCheckLocal = localStorage.getItem('link_published');
-        if (flagCheckSession === 'true' || flagCheckLocal === 'true') {
-          console.log('✅ [SUBMIT] Link published flag detected after error, redirecting to /tasks:', {
-            flagCheckSession,
-            flagCheckLocal,
-          });
-          // ⚠️ ВАЖНО: Редиректим на /tasks, а не на главную
-          setTimeout(() => {
-            const finalCheckSession = sessionStorage.getItem('link_published');
-            const finalCheckLocal = localStorage.getItem('link_published');
-            console.log('🔍 [SUBMIT] RIGHT BEFORE redirect to /tasks (error handler, 100ms delay):', {
-              finalCheckSession,
-              finalCheckLocal,
-              timestamp: new Date().toISOString(),
-              delay: '100ms',
-            });
-            router.replace('/tasks');
-          }, 100);
-          return;
-        }
-        // В случае ошибки продолжаем с проверкой прогресса
-        checkProgress(user.fid);
-      });
+      localStorage.setItem('selected_activity', 'support');
     }
-  }, [router, user, authLoading, isInitialized, showSuccessModal]); // Добавляем showSuccessModal в зависимости
-  
-  // Функция для проверки, опубликована ли уже ссылка пользователем
-  const checkIfLinkAlreadyPublished = async (userFid: number): Promise<boolean> => {
-    try {
-      const allLinks = await getAllLinks();
-      const userHasPublishedLink = allLinks.some((link) => link.user_fid === userFid);
-      console.log(`🔍 [SUBMIT] Check if link already published for user ${userFid}: ${userHasPublishedLink}`);
-      return userHasPublishedLink;
-    } catch (error) {
-      console.error('❌ [SUBMIT] Error checking if link published:', error);
-      return false;
+    setActivity('support');
+
+    if (!user || !user.fid) {
+      setCanSubmit(false);
+      setError('Publish is available only inside Base / Farcaster MiniApp. Please open the app there and try again.');
+      return;
     }
-  };
+
+    void checkProgress(user.fid);
+  }, [user, isInitialized, showSuccessModal]);
 
   const checkProgress = async (userFid: number) => {
-    // Если показывается поздравление, не делаем редирект - пользователь должен остаться на странице
-    if (showSuccessModal) {
-      console.log('✅ [SUBMIT] Success modal is showing, skipping checkProgress redirect');
-      return;
-    }
-    
-    // Упрощенная проверка: только проверяем, не опубликована ли уже ссылка
-    if (typeof window !== 'undefined') {
-      const sessionFlag = sessionStorage.getItem('link_published');
-      const localFlag = localStorage.getItem('link_published');
-      if (sessionFlag === 'true' || localFlag === 'true') {
-        console.log('✅ [SUBMIT] Link already published, redirecting to /tasks');
-        router.replace('/tasks');
-        return;
-      }
-    }
-
-    // Проверка: ссылка уже опубликована
-    const linkAlreadyPublished = await checkIfLinkAlreadyPublished(userFid);
-    if (linkAlreadyPublished) {
-      console.log('✅ [SUBMIT] Link already published, redirecting to /tasks');
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem('link_published', 'true');
-        localStorage.setItem('link_published', 'true');
-      }
-      router.replace('/tasks');
-      return;
-    }
-
     // Require: user must complete REQUIRED_BUYS_TO_PUBLISH buys before publishing.
     try {
       const progressRes = await fetch(`/api/user-progress?userFid=${userFid}&t=${Date.now()}`);
@@ -318,9 +98,6 @@ export default function Submit() {
       if (completedCount < REQUIRED_BUYS_TO_PUBLISH) {
         setCanSubmit(false);
         setError(`You need to buy ${REQUIRED_BUYS_TO_PUBLISH} posts first. Progress: ${completedCount}/${REQUIRED_BUYS_TO_PUBLISH}.`);
-        setTimeout(() => {
-          router.replace('/tasks');
-        }, 1500);
         return;
       }
 
@@ -329,9 +106,6 @@ export default function Submit() {
       // Fail safe: do not allow submit if we cannot verify progress.
       setCanSubmit(false);
       setError('Unable to verify progress. Please return to tasks and try again.');
-      setTimeout(() => {
-        router.replace('/tasks');
-      }, 1500);
     }
   };
 
@@ -361,7 +135,6 @@ export default function Submit() {
     if (!user) {
       console.error('❌ [SUBMIT] User is null in context!');
       setError('Error: user data not found. Please authorize again.');
-      router.push('/');
       return;
     }
     
@@ -450,10 +223,6 @@ export default function Submit() {
           const errorMessage = data.error || `You can submit only after completing ${REQUIRED_BUYS_TO_PUBLISH} buys. Completed: ${data.completedCount}/${REQUIRED_BUYS_TO_PUBLISH}`;
           setError(errorMessage);
           setLoading(false);
-          // Редиректим на страницу заданий через 3 секунды
-          setTimeout(() => {
-            router.push('/tasks');
-          }, 3000);
           return;
         }
         
@@ -462,10 +231,6 @@ export default function Submit() {
           const errorMessage = data.error || `You can submit only after ${TASKS_LIMIT} other posts are in the queue. Other posts: ${data.otherLinksCount}/${TASKS_LIMIT}`;
           setError(errorMessage);
           setLoading(false);
-          // Редиректим на страницу заданий через 3 секунды
-          setTimeout(() => {
-            router.push('/tasks');
-          }, 3000);
           return;
         }
         
@@ -481,119 +246,9 @@ export default function Submit() {
           user_fid: data.link.user_fid,
           cast_url: data.link.cast_url?.substring(0, 50) + '...',
         });
-        
-        // ⚠️ КРИТИЧЕСКИ ВАЖНО: Устанавливаем флаг СРАЗУ после успешного API ответа
-        // ДО любых других операций, включая setState и асинхронные вызовы
-        // Это гарантирует, что флаг будет установлен до возможного редиректа
-        if (typeof window !== 'undefined') {
-          const beforeSetItemEventId = logEvent('⏱️ [SUBMIT]', {
-            action: 'BEFORE setItem',
-            sessionStorageBefore: sessionStorage.getItem('link_published'),
-            localStorageBefore: localStorage.getItem('link_published'),
-          });
-          
-          // Сохраняем в sessionStorage (быстрый доступ)
-          sessionStorage.setItem('link_published', 'true');
-          // Сохраняем в localStorage (сохраняется между табами и более надежен)
-          localStorage.setItem('link_published', 'true');
-          
-          // ⚠️ СИНХРОННАЯ проверка СРАЗУ после setItem (БЕЗ setTimeout!)
-          // Это критически важно для понимания порядка событий
-          const check1 = {
-            session: sessionStorage.getItem('link_published'),
-            local: localStorage.getItem('link_published'),
-          };
-          
-          // Логируем СИНХРОННО сразу после setItem
-          const afterSetItemEventId = logEvent('✅ [SUBMIT]', {
-            action: 'AFTER setItem (SYNCHRONOUS)',
-            check1,
-            check1BothTrue: check1.session === 'true' && check1.local === 'true',
-            sessionStorageType: typeof check1.session,
-            localStorageType: typeof check1.local,
-            sessionStorageEqualsTrue: check1.session === 'true',
-            localStorageEqualsTrue: check1.local === 'true',
-            beforeSetItemEventId,
-          });
-          
-          // Небольшая задержка для проверки persistence после setState
-          // Используем Promise для небольшой задержки без блокировки
-          const checkPromise = new Promise<void>((resolve) => {
-            setTimeout(() => {
-              const check2 = {
-                session: sessionStorage.getItem('link_published'),
-                local: localStorage.getItem('link_published'),
-              };
-              
-              const delayedCheckEventId = logEvent('⏱️ [SUBMIT]', {
-                action: 'Delayed check (10ms after setItem)',
-                check1,
-                check2,
-                check1BothTrue: check1.session === 'true' && check1.local === 'true',
-                check2BothTrue: check2.session === 'true' && check2.local === 'true',
-                beforeSetState: true,
-                afterSetItemEventId,
-              });
-              
-              // КРИТИЧЕСКАЯ ПРОВЕРКА: Убеждаемся, что флаг действительно установлен
-              if (check1.session !== 'true' || check1.local !== 'true') {
-                logEvent('❌ [SUBMIT]', {
-                  action: 'CRITICAL: Flag not set correctly after setItem!',
-                  check1,
-                  check2,
-                  afterSetItemEventId,
-                  delayedCheckEventId,
-                });
-                // Пытаемся установить еще раз
-                sessionStorage.setItem('link_published', 'true');
-                localStorage.setItem('link_published', 'true');
-                const retrySession = sessionStorage.getItem('link_published');
-                const retryLocal = localStorage.getItem('link_published');
-                logEvent('🔄 [SUBMIT]', {
-                  action: 'Retry setItem - checking again',
-                  retrySession,
-                  retryLocal,
-                  retrySessionEqualsTrue: retrySession === 'true',
-                  retryLocalEqualsTrue: retryLocal === 'true',
-                });
-              } else {
-                logEvent('✅ [SUBMIT]', {
-                  action: 'Flag confirmed set correctly in BOTH storages after delay',
-                  delayedCheckEventId,
-                  afterSetItemEventId,
-                });
-              }
-              
-              resolve();
-            }, 10);
-          });
-          
-          // Ждем завершения проверки перед продолжением
-          await checkPromise;
-          
-          sessionStorage.removeItem('redirect_to_submit_done');
-        }
-        
-        // ТЕПЕРЬ устанавливаем state (это может вызвать ре-рендер, но флаг уже установлен)
-        const beforeSetStateEventId = logEvent('⏱️ [SUBMIT]', {
-          action: 'BEFORE setState (setPublishedLinkId, setShowSuccessModal)',
-          flagStatus: {
-            sessionStorage: sessionStorage.getItem('link_published'),
-            localStorage: localStorage.getItem('link_published'),
-          },
-        });
-        
+
         setPublishedLinkId(data.link.id);
         setShowSuccessModal(true);
-        
-        logEvent('✅ [SUBMIT]', {
-          action: 'AFTER setState (setPublishedLinkId, setShowSuccessModal)',
-          flagStatus: {
-            sessionStorage: sessionStorage.getItem('link_published'),
-            localStorage: localStorage.getItem('link_published'),
-          },
-          beforeSetStateEventId,
-        });
         
         // Очищаем форму, чтобы предотвратить повторную отправку
         setTokenAddress('');
@@ -640,17 +295,6 @@ export default function Submit() {
         //   });
         // }
         
-        // Финальная проверка флага после всех операций (но до return)
-        const finalFlagCheckAfterAllOps = {
-          sessionStorage: typeof window !== 'undefined' ? sessionStorage.getItem('link_published') : null,
-          localStorage: typeof window !== 'undefined' ? localStorage.getItem('link_published') : null,
-        };
-        console.log('🔍 [SUBMIT] Final flag check AFTER all operations (before return):', {
-          ...finalFlagCheckAfterAllOps,
-          timestamp: new Date().toISOString(),
-          aboutToReturn: true,
-        });
-        
         // НЕ делаем автоматический редирект - показываем модальное окно с поздравлением
         // Пользователь может выбрать другую активность через кнопку в модальном окне
         // НЕ меняем setLoading(false) здесь - оставляем loading=true чтобы форма была заблокирована
@@ -671,19 +315,6 @@ export default function Submit() {
       const errorMessage = err.message || 'An error occurred';
       setError(errorMessage);
       setLoading(false); // Unlock the form only on error
-
-      // If error indicates missing prerequisites, redirect user to /tasks
-      if (
-        errorMessage.includes('complet') || // "complete/completed/completing"
-        errorMessage.includes('Completed:') ||
-        errorMessage.includes('Other posts') ||
-        errorMessage.includes('completedCount') ||
-        errorMessage.includes('otherLinksCount')
-      ) {
-        setTimeout(() => {
-          router.push('/tasks');
-        }, 3000);
-      }
     }
     // finally блок убран - loading управляется вручную для предотвращения повторной отправки
   };
