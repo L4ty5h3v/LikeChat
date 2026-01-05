@@ -54,10 +54,11 @@ function logEvent(prefix: string, data: any, eventId?: number) {
 export default function Submit() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const { user, isLoading: authLoading, isInitialized } = useFarcasterAuth();
+  const { user, isInitialized } = useFarcasterAuth();
   const [activity, setActivity] = useState<TaskType | null>(null);
   const [tokenAddress, setTokenAddress] = useState('');
   const [error, setError] = useState('');
+  const [isCheckingAccess, setIsCheckingAccess] = useState(true);
   const [canSubmit, setCanSubmit] = useState(true); // Публикация разрешена всегда
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [publishedLinkId, setPublishedLinkId] = useState<string | null>(null);
@@ -66,6 +67,17 @@ export default function Submit() {
   // IMPORTANT: Do not use a client-side "link_published" flag.
   // It can get stuck in WebViews and incorrectly block publishing.
   // We rely on server-side checks in /api/submit-link (403/409) instead.
+
+  // Fail-safe: never let the page spin forever in a WebView.
+  useEffect(() => {
+    if (!isCheckingAccess) return;
+    const t = setTimeout(() => {
+      setIsCheckingAccess(false);
+      setCanSubmit(false);
+      setError((prev) => prev || 'Unable to check access. Please reopen the app inside Base/Farcaster MiniApp and try again.');
+    }, 6000);
+    return () => clearTimeout(t);
+  }, [isCheckingAccess]);
 
   useEffect(() => {
     if (showSuccessModal) return;
@@ -80,6 +92,7 @@ export default function Submit() {
     if (!user || !user.fid) {
       setCanSubmit(false);
       setError('Publish is available only inside Base / Farcaster MiniApp. Please open the app there and try again.');
+      setIsCheckingAccess(false);
       return;
     }
 
@@ -87,6 +100,7 @@ export default function Submit() {
   }, [user, isInitialized, showSuccessModal]);
 
   const checkProgress = async (userFid: number) => {
+    setIsCheckingAccess(true);
     // Require: user must complete REQUIRED_BUYS_TO_PUBLISH buys before publishing.
     try {
       const progressRes = await fetch(`/api/user-progress?userFid=${userFid}&t=${Date.now()}`);
@@ -106,6 +120,8 @@ export default function Submit() {
       // Fail safe: do not allow submit if we cannot verify progress.
       setCanSubmit(false);
       setError('Unable to verify progress. Please return to tasks and try again.');
+    } finally {
+      setIsCheckingAccess(false);
     }
   };
 
@@ -398,7 +414,7 @@ export default function Submit() {
     );
   }
 
-  if (!canSubmit) {
+  if (isCheckingAccess) {
     return (
       <Layout title="Checking Access...">
         <div className="relative min-h-screen overflow-hidden">
@@ -407,6 +423,44 @@ export default function Submit() {
             <div className="text-center">
               <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4" />
               <p className="text-white text-xl font-bold">Checking progress...</p>
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!canSubmit) {
+    return (
+      <Layout title="Add Your Post">
+        <div className="relative min-h-screen overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient bg-300%"></div>
+          <div className="relative z-10 flex items-center justify-center min-h-screen px-6">
+            <div className="bg-white bg-opacity-95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 sm:p-10 border border-white/30 max-w-xl w-full">
+              <div className="text-center">
+                <h2 className="text-2xl sm:text-4xl font-black text-gray-900 mb-4">Can’t publish yet</h2>
+                <p className="text-gray-700 font-bold mb-8">{error || 'Access is not available.'}</p>
+                <div className="flex flex-col gap-3">
+                  <Button
+                    onClick={() => {
+                      setError('');
+                      setIsCheckingAccess(true);
+                      if (user?.fid) void checkProgress(user.fid);
+                    }}
+                    variant="primary"
+                    fullWidth
+                  >
+                    Retry
+                  </Button>
+                  <Button onClick={() => router.push('/tasks')} variant="secondary" fullWidth>
+                    Back to tasks
+                  </Button>
+                </div>
+                <p className="text-xs text-gray-500 mt-6">
+                  Tip: this page requires your Farcaster/Base MiniApp profile (FID). If you opened the site in a regular browser,
+                  please open it inside the Base / Farcaster app.
+                </p>
+              </div>
             </div>
           </div>
         </div>
