@@ -10,7 +10,9 @@ interface LayoutProps {
   title?: string;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, title = 'Like Chat 💌' }) => {
+const APP_NAME = 'MULTI BUY';
+
+const Layout: React.FC<LayoutProps> = ({ children, title = APP_NAME }) => {
   const router = useRouter();
   const [user, setUser] = useState<BaseUser | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -38,6 +40,9 @@ const Layout: React.FC<LayoutProps> = ({ children, title = 'Like Chat 💌' }) =
         <title>{title}</title>
         <meta name="description" content="Mutual love from Mrs. Crypto" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="application-name" content={APP_NAME} />
+        <meta name="apple-mobile-web-app-title" content={APP_NAME} />
+        <meta property="og:site_name" content={APP_NAME} />
         
         <meta property="og:type" content="website" />
         

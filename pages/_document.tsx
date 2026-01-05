@@ -38,6 +38,10 @@ export default function Document() {
   return (
     <Html>
       <Head>
+        <meta name="application-name" content="MULTI BUY" />
+        <meta name="apple-mobile-web-app-title" content="MULTI BUY" />
+        <meta name="theme-color" content="#ef4444" />
+        <link rel="manifest" href="/site.webmanifest" />
         {isBaseApp && (
           <meta name="base:app_id" content="693c50258a7c4e55fec73fe1" />
         )}
