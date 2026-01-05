@@ -1,8 +1,21 @@
 // API endpoint для публикации ссылки
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { submitLink, getAllLinks, getUserProgress } from '@/lib/db-config';
+import { submitLink, getAllLinks, getUserProgress, getLastTenLinks, markLinkCompleted } from '@/lib/db-config';
 import { baseAppContentUrlFromTokenAddress, isHexAddress } from '@/lib/base-content';
 import { REQUIRED_BUYS_TO_PUBLISH } from '@/lib/app-config';
+import { createPublicClient, http, erc20Abi, isAddress as isViemAddress } from 'viem';
+import { base } from 'viem/chains';
+
+const BASE_RPC_URL =
+  process.env.ALCHEMY_BASE_RPC_URL ||
+  process.env.BASE_RPC_URL ||
+  process.env.BASERPCURL ||
+  'https://mainnet.base.org';
+
+const publicClient = createPublicClient({
+  chain: base,
+  transport: http(BASE_RPC_URL, { timeout: 15_000, retryCount: 1, retryDelay: 2_000 }),
+});
 
 export default async function handler(
   req: NextApiRequest,
@@ -18,13 +31,13 @@ export default async function handler(
   res.setHeader('Expires', '0');
 
   try {
-    let { userFid, username, pfpUrl, castUrl, activityType, taskType, tokenAddress } = req.body;
+    let { userFid, username, pfpUrl, castUrl, activityType, taskType, tokenAddress, walletAddress } = req.body;
     
     const fidNum = typeof userFid === 'number' ? userFid : parseInt(userFid, 10);
     if (!Number.isFinite(fidNum) || fidNum <= 0) {
       return res.status(400).json({ success: false, error: 'Invalid userFid.' });
     }
-
+    
     // ⚠️ КРИТИЧНО: ВАЖНО использовать selected_task из БД как основной источник истины
     // Получаем selected_task из прогресса пользователя, чтобы гарантировать правильный тип
     const progress = await getUserProgress(fidNum);
@@ -56,12 +69,48 @@ export default async function handler(
     // Enforce prerequisite: user must complete REQUIRED_BUYS_TO_PUBLISH buys before publishing.
     const completedCount = Array.isArray(progress?.completed_links) ? progress!.completed_links.length : 0;
     if (completedCount < REQUIRED_BUYS_TO_PUBLISH) {
-      return res.status(403).json({
-        success: false,
-        error: `You can submit only after completing ${REQUIRED_BUYS_TO_PUBLISH} buys.`,
-        completedCount,
-        requiredCount: REQUIRED_BUYS_TO_PUBLISH,
-      });
+      // Fallback: when server-side progress isn't available (e.g. MEMORY DB on Vercel),
+      // verify buys onchain by checking the connected wallet balance for the current batch tokens.
+      let verifiedOnchainCount = 0;
+      const wallet = (walletAddress || '').toString().trim();
+      if (isViemAddress(wallet)) {
+        try {
+          const batch = await getLastTenLinks(finalTaskType);
+          // Only consider the current batch, and only tokens that look like ERC-20 addresses.
+          for (const l of batch) {
+            if (verifiedOnchainCount >= REQUIRED_BUYS_TO_PUBLISH) break;
+            const token = (l?.token_address || '').toString().trim();
+            if (!isViemAddress(token)) continue;
+            const bal = await publicClient.readContract({
+              address: token as `0x${string}`,
+              abi: erc20Abi,
+              functionName: 'balanceOf',
+              args: [wallet as `0x${string}`],
+            });
+            if (typeof bal === 'bigint' && bal > 0n) {
+              verifiedOnchainCount += 1;
+              // Best-effort: sync server progress so subsequent checks pass.
+              try {
+                if (l?.id) await markLinkCompleted(fidNum, l.id);
+              } catch {
+                // ignore
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('⚠️ [SUBMIT-LINK] Onchain verification failed:', e);
+        }
+      }
+
+      if (verifiedOnchainCount < REQUIRED_BUYS_TO_PUBLISH) {
+        return res.status(403).json({
+          success: false,
+          error: `You can submit only after completing ${REQUIRED_BUYS_TO_PUBLISH} buys.`,
+          completedCount,
+          verifiedOnchainCount,
+          requiredCount: REQUIRED_BUYS_TO_PUBLISH,
+        });
+      }
     }
 
     // Block double-submit (server-side)
@@ -72,8 +121,8 @@ export default async function handler(
         return res.status(409).json({
           success: false,
           error: 'You already added your post. Please wait until new tasks appear.',
-        });
-      }
+      });
+    }
     } catch {
       // ignore: fall back to client-side flag/redirect
     }

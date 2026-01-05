@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
+import { useAccount } from 'wagmi';
 import Layout from '@/components/Layout';
 import Button from '@/components/Button';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
@@ -55,6 +56,7 @@ export default function Submit() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const { user, isInitialized } = useFarcasterAuth();
+  const { address } = useAccount();
   const [activity, setActivity] = useState<TaskType | null>(null);
   const [tokenAddress, setTokenAddress] = useState('');
   const [error, setError] = useState('');
@@ -197,6 +199,7 @@ export default function Submit() {
         taskType: activity, // Используем taskType вместо activityType для ясности
         activityType: activity, // Оставляем для обратной совместимости
         tokenAddress,
+        walletAddress: address || '',
       };
       
       console.log('📝 [SUBMIT] Publishing link with taskType:', {
