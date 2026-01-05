@@ -1026,7 +1026,12 @@ export default function TasksPage() {
                   <div
                     key={link.id}
                     id={`link-${link.id}`}
-                    className="bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl shadow-xl p-4 border border-white/30"
+                    className={`bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl shadow-xl p-4 border border-white/30 ${
+                      hasPostUrl ? 'cursor-pointer' : ''
+                    }`}
+                    onClick={() => {
+                      if (hasPostUrl) openPostInModal(postUrl);
+                    }}
                   >
                     <div className="flex items-start gap-3">
                       <Avatar
@@ -1048,26 +1053,17 @@ export default function TasksPage() {
                             {tokenAddr && <div className="mt-2" />}
           </div>
                           <div className="flex items-center gap-3">
-                            {hasPostUrl && (
-            <button
-                                type="button"
-                                className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-900 font-bold"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  openPostInModal(postUrl);
-                                }}
-                              >
-                                Read the post
-                              </button>
-                            )}
                             <button
                               className={`px-4 py-2 rounded-xl font-bold text-white ${
                                 completed
                                   ? 'bg-green-600 cursor-not-allowed opacity-90'
                                   : 'bg-gradient-to-r from-primary via-secondary to-accent'
                               }`}
-                              onClick={() => handleBuy(link)}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleBuy(link);
+                              }}
                               disabled={isBuying || completed || !tokenAddr}
                             >
                               {completed ? (owned ? 'BOUGHT' : 'DONE') : isBuying ? 'Buying…' : `BUY ${BUY_AMOUNT_USDC_DISPLAY}`}

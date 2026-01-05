@@ -14,6 +14,10 @@ const activityLabel = 'Buy';
 
 const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
   const [postModalUrl, setPostModalUrl] = React.useState<string | null>(null);
+  const direct = (link.cast_url || '').trim();
+  const generated = link.token_address ? baseAppContentUrlFromTokenAddress(link.token_address) : null;
+  const postUrl = (direct.startsWith('http') ? direct : generated) || '';
+  const hasPostUrl = postUrl.startsWith('http');
 
   const openPostInModal = (url: string) => {
     const u = (url || '').trim();
@@ -32,7 +36,14 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
   };
 
   return (
-    <div className="bg-white rounded-xl border-2 border-gray-200 p-5 hover:shadow-lg transition-all duration-300">
+    <div
+      className={`bg-white rounded-xl border-2 border-gray-200 p-5 hover:shadow-lg transition-all duration-300 ${
+        hasPostUrl ? 'cursor-pointer' : ''
+      }`}
+      onClick={() => {
+        if (hasPostUrl) openPostInModal(postUrl);
+      }}
+    >
       {/* Заголовок с пользователем */}
       <div className="flex items-center gap-3 mb-3">
         <Avatar
@@ -72,30 +83,7 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
           <span>Completed: {link.completed_by?.length || 0}</span>
         </div>
         
-        {(() => {
-          const direct = (link.cast_url || '').trim();
-          const generated = link.token_address ? baseAppContentUrlFromTokenAddress(link.token_address) : null;
-          const url = (direct.startsWith('http') ? direct : generated) || '';
-          const has = url.startsWith('http');
-          return has ? (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              openPostInModal(url);
-            }}
-            className="btn-gold-glow px-4 py-2 text-white font-bold text-sm group"
-          >
-            {/* Per-shimmer effect */}
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-            {/* Inner glow */}
-            <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
-            <span className="relative z-20 drop-shadow-lg">Read the post</span>
-          </button>
-          ) : (
-          <span className="text-xs text-gray-500 font-bold">Нет ссылки на пост</span>
-          );
-        })()}
+        {!hasPostUrl ? <span className="text-xs text-gray-500 font-bold">Нет ссылки на пост</span> : null}
       </div>
 
       {postModalUrl ? (
