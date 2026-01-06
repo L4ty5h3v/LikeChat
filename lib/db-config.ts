@@ -2,11 +2,25 @@
 import * as memoryDb from './memory-db';
 import * as upstashDb from './upstash-db';
 
-// Проверяем наличие переменных окружения Upstash
-const USE_UPSTASH = !!(
-  process.env.UPSTASH_REDIS_REST_URL && 
-  process.env.UPSTASH_REDIS_REST_TOKEN
-);
+function readEnvTrimmed(key: string): string | undefined {
+  const v = process.env[key];
+  if (!v) return undefined;
+  const t = v.trim();
+  return t ? t : undefined;
+}
+
+// Support both "direct Upstash" env vars and Vercel KV (Upstash) integration env vars.
+// Vercel KV typically exposes: KV_REST_API_URL, KV_REST_API_TOKEN.
+const UPSTASH_URL =
+  readEnvTrimmed('UPSTASH_REDIS_REST_URL') ||
+  readEnvTrimmed('KV_REST_API_URL');
+const UPSTASH_TOKEN =
+  readEnvTrimmed('UPSTASH_REDIS_REST_TOKEN') ||
+  readEnvTrimmed('KV_REST_API_TOKEN') ||
+  readEnvTrimmed('KV_REST_API_READ_ONLY_TOKEN');
+
+// Проверяем наличие переменных окружения Upstash (или Vercel KV)
+const USE_UPSTASH = !!(UPSTASH_URL && UPSTASH_TOKEN);
 
 // Выбираем базу данных
 const db = USE_UPSTASH ? upstashDb : memoryDb;
@@ -45,6 +59,22 @@ export const DB_INFO = {
   type: USE_UPSTASH ? 'upstash' : 'memory',
   persistent: USE_UPSTASH,
   realtime: false,
+  // Debug flags (safe to expose): help diagnose missing Vercel env vars without leaking secrets.
+  hasUpstashUrl: !!UPSTASH_URL,
+  hasUpstashToken: !!UPSTASH_TOKEN,
+  upstashUrlSource: readEnvTrimmed('UPSTASH_REDIS_REST_URL')
+    ? 'UPSTASH_REDIS_REST_URL'
+    : readEnvTrimmed('KV_REST_API_URL')
+      ? 'KV_REST_API_URL'
+      : 'none',
+  upstashTokenSource: readEnvTrimmed('UPSTASH_REDIS_REST_TOKEN')
+    ? 'UPSTASH_REDIS_REST_TOKEN'
+    : readEnvTrimmed('KV_REST_API_TOKEN')
+      ? 'KV_REST_API_TOKEN'
+      : readEnvTrimmed('KV_REST_API_READ_ONLY_TOKEN')
+        ? 'KV_REST_API_READ_ONLY_TOKEN'
+        : 'none',
+  vercelEnv: process.env.VERCEL_ENV || process.env.NODE_ENV || 'unknown',
 };
 
 // Логирование в консоль (только на сервере)
@@ -53,7 +83,7 @@ if (typeof window === 'undefined') {
   
   if (!USE_UPSTASH) {
     console.warn('⚠️  Using IN-MEMORY database. Data will be lost on restart!');
-    console.warn('⚠️  Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN for production.');
+    console.warn('⚠️  Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN (or Vercel KV vars KV_REST_API_URL/KV_REST_API_TOKEN) for production.');
   } else {
     console.log('✅ Using Upstash Redis for persistent storage');
   }

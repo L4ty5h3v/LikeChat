@@ -6,17 +6,32 @@ import { REQUIRED_BUYS_TO_PUBLISH, TASKS_LIMIT } from '@/lib/app-config';
 // Инициализация Redis клиента
 let redis: Redis | null = null;
 
+function readEnvTrimmed(key: string): string | undefined {
+  const v = process.env[key];
+  if (!v) return undefined;
+  const t = v.trim();
+  return t ? t : undefined;
+}
+
 // Инициализировать только на сервере
-if (typeof window === 'undefined' && process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
-  // Убираем пробелы и переносы строк из URL и токена
-  const url = process.env.UPSTASH_REDIS_REST_URL.trim();
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN.trim();
+if (typeof window === 'undefined') {
+  // Support both direct Upstash env vars and Vercel KV integration env vars.
+  const url =
+    readEnvTrimmed('UPSTASH_REDIS_REST_URL') ||
+    readEnvTrimmed('KV_REST_API_URL');
+  const token =
+    readEnvTrimmed('UPSTASH_REDIS_REST_TOKEN') ||
+    readEnvTrimmed('KV_REST_API_TOKEN') ||
+    readEnvTrimmed('KV_REST_API_READ_ONLY_TOKEN');
+
+  if (url && token) {
   redis = new Redis({
     url,
     token,
   });
-} else if (typeof window === 'undefined') {
-  console.warn('⚠️ Upstash Redis credentials not found. Using fallback mode.');
+  } else {
+    console.warn('⚠️ Upstash Redis credentials not found. Using fallback mode.');
+  }
 }
 
 // Ключи для Redis
