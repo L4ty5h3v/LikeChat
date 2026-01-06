@@ -60,11 +60,32 @@ async function ensureSeededIfEmpty(): Promise<void> {
 
   seedOncePromise = (async () => {
     try {
-      const len = await redis!.llen(KEYS.LINKS);
-      const n = typeof len === 'number' ? len : 0;
-      if (n > 0) return;
+      // We must handle cases where the list exists but has no "support" tasks,
+      // because /api/tasks uses strict filtering by taskType=support.
+      const raw = await redis!.lrange(KEYS.LINKS, 0, 50);
+      let hasAny = Array.isArray(raw) && raw.length > 0;
+      let hasSupport = false;
 
-      console.log(`🌱 [UPSTASH] Empty links list detected. Seeding ${DEFAULT_SEED_TOKEN_ADDRESSES.length} default tasks...`);
+      if (hasAny) {
+        for (const item of raw) {
+          try {
+            const link = typeof item === 'string' ? JSON.parse(item) : item;
+            if (link?.task_type === 'support') {
+              hasSupport = true;
+              break;
+            }
+          } catch {
+            // ignore per-item parse failures
+          }
+        }
+      }
+
+      // Seed if DB is empty OR has no support queue yet.
+      if (hasAny && hasSupport) return;
+
+      console.log(
+        `🌱 [UPSTASH] ${hasAny ? 'No support tasks found' : 'Empty links list detected'}. Seeding ${DEFAULT_SEED_TOKEN_ADDRESSES.length} default support tasks...`
+      );
       await seedLinks(DEFAULT_SEED_TOKEN_ADDRESSES.map((tokenAddress) => ({ tokenAddress })));
     } catch (e) {
       console.warn('⚠️ [UPSTASH] ensureSeededIfEmpty failed:', e);
