@@ -25,6 +25,21 @@ function readEnvTrimmed(key: string): string | undefined {
   return t ? t : undefined;
 }
 
+function sanitizeNamespace(ns: string): string {
+  return ns.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64);
+}
+
+function getDbNamespace(): string {
+  // Auto-isolate data per Vercel project to allow sharing one Upstash DB safely across multiple projects.
+  const explicit = readEnvTrimmed('LIKECHAT_DB_NAMESPACE');
+  if (explicit) return sanitizeNamespace(explicit);
+  const pid = readEnvTrimmed('VERCEL_PROJECT_ID');
+  if (pid) return sanitizeNamespace(pid);
+  const slug = readEnvTrimmed('VERCEL_GIT_REPO_SLUG');
+  if (slug) return sanitizeNamespace(slug);
+  return 'default';
+}
+
 // Инициализировать только на сервере
 if (typeof window === 'undefined') {
   // Support both direct Upstash env vars and Vercel KV integration env vars.
@@ -47,10 +62,11 @@ if (typeof window === 'undefined') {
 }
 
 // Ключи для Redis
+const KEY_PREFIX = `likechat:${getDbNamespace()}`;
 const KEYS = {
-  LINKS: 'likechat:links',
-  USER_PROGRESS: 'likechat:user_progress',
-  TOTAL_LINKS_COUNT: 'likechat:total_links_count',
+  LINKS: `${KEY_PREFIX}:links`,
+  USER_PROGRESS: `${KEY_PREFIX}:user_progress`,
+  TOTAL_LINKS_COUNT: `${KEY_PREFIX}:total_links_count`,
 };
 
 async function ensureSeededIfEmpty(): Promise<void> {

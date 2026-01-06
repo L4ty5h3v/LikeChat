@@ -9,6 +9,20 @@ function readEnvTrimmed(key: string): string | undefined {
   return t ? t : undefined;
 }
 
+function sanitizeNamespace(ns: string): string {
+  return ns.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64);
+}
+
+function getDbNamespace(): string {
+  const explicit = readEnvTrimmed('LIKECHAT_DB_NAMESPACE');
+  if (explicit) return sanitizeNamespace(explicit);
+  const pid = readEnvTrimmed('VERCEL_PROJECT_ID');
+  if (pid) return sanitizeNamespace(pid);
+  const slug = readEnvTrimmed('VERCEL_GIT_REPO_SLUG');
+  if (slug) return sanitizeNamespace(slug);
+  return 'default';
+}
+
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -42,8 +56,10 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
 
   if (url && token) {
     const redis = new Redis({ url, token });
-    const keyLinks = 'likechat:links';
-    const keyProbe = 'likechat:__health_probe__';
+    const ns = getDbNamespace();
+    const keyPrefix = `likechat:${ns}`;
+    const keyLinks = `${keyPrefix}:links`;
+    const keyProbe = `${keyPrefix}:__health_probe__`;
 
     // Run checks sequentially; any failure is captured in health.upstash.error.
     return (async () => {
