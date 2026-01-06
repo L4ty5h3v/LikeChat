@@ -6,6 +6,18 @@ import { REQUIRED_BUYS_TO_PUBLISH, TASKS_LIMIT } from '@/lib/app-config';
 // Инициализация Redis клиента
 let redis: Redis | null = null;
 
+// Default queue for a fresh Upstash DB (mirrors memory-db defaults).
+// This keeps the app usable immediately after switching from MEMORY -> Upstash.
+const DEFAULT_SEED_TOKEN_ADDRESSES = [
+  '0xf45d09963807f7a80aa164eab5da1488dafccdb8',
+  '0x657275c7a7b0ce6fa82d79d6aae36a536af6084e',
+  '0xfa81fea4854f0ead4462aa9dff783f742ff79721',
+  '0x46ceb7dc97ca354c7a23d581c6d392c0e7fcaf76',
+  '0xe69ecebbee60e4ce04cd6a38a9a897082605368b',
+] as const;
+
+let seedOncePromise: Promise<void> | null = null;
+
 function readEnvTrimmed(key: string): string | undefined {
   const v = process.env[key];
   if (!v) return undefined;
@@ -41,11 +53,35 @@ const KEYS = {
   TOTAL_LINKS_COUNT: 'likechat:total_links_count',
 };
 
+async function ensureSeededIfEmpty(): Promise<void> {
+  if (!redis) return;
+  if (process.env.AUTO_SEED_LINKS === 'false') return;
+  if (seedOncePromise) return seedOncePromise;
+
+  seedOncePromise = (async () => {
+    try {
+      const len = await redis!.llen(KEYS.LINKS);
+      const n = typeof len === 'number' ? len : 0;
+      if (n > 0) return;
+
+      console.log(`🌱 [UPSTASH] Empty links list detected. Seeding ${DEFAULT_SEED_TOKEN_ADDRESSES.length} default tasks...`);
+      await seedLinks(DEFAULT_SEED_TOKEN_ADDRESSES.map((tokenAddress) => ({ tokenAddress })));
+    } catch (e) {
+      console.warn('⚠️ [UPSTASH] ensureSeededIfEmpty failed:', e);
+    }
+  })();
+
+  return seedOncePromise;
+}
+
 // Функции для работы с ссылками
 export async function getLastTenLinks(taskType?: TaskType): Promise<LinkSubmission[]> {
   if (!redis) return [];
   
   try {
+    // If the DB is fresh and empty, seed the default queue once.
+    await ensureSeededIfEmpty();
+
     // Получаем все ссылки (берем больше, чтобы после фильтрации осталось достаточно)
     const allLinks = await redis.lrange(KEYS.LINKS, 0, -1);
     const parsedLinks = allLinks.map((linkStr: any) => {
