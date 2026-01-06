@@ -1,6 +1,6 @@
 // API endpoint для публикации ссылки
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { submitLink, getAllLinks, getUserProgress, getLastTenLinks, markLinkCompleted } from '@/lib/db-config';
+import { submitLink, getAllLinks, getUserProgress, getLastTenLinks, markLinkCompleted, DB_INFO } from '@/lib/db-config';
 import { baseAppContentUrlFromTokenAddress, isHexAddress } from '@/lib/base-content';
 import { REQUIRED_BUYS_TO_PUBLISH } from '@/lib/app-config';
 import { createPublicClient, http, erc20Abi, isAddress as isViemAddress } from 'viem';
@@ -31,6 +31,18 @@ export default async function handler(
   res.setHeader('Expires', '0');
 
   try {
+    // In production on Vercel we must have a persistent DB; otherwise serverless instances will "lose" published links.
+    const isVercel = !!process.env.VERCEL || process.env.VERCEL_ENV === 'production';
+    if (isVercel && !DB_INFO.persistent) {
+      return res.status(503).json({
+        success: false,
+        error:
+          'Database is not persistent (Upstash not configured). Publishing is disabled until UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN are set in Vercel and the project is redeployed.',
+        dbInfo: DB_INFO,
+        hint: 'Open /api/db-info to verify: persistent must be true.',
+      });
+    }
+
     let { userFid, username, pfpUrl, castUrl, activityType, taskType, tokenAddress, walletAddress } = req.body;
     
     const fidNum = typeof userFid === 'number' ? userFid : parseInt(userFid, 10);
@@ -167,7 +179,8 @@ export default async function handler(
 
     return res.status(200).json({ 
       success: true, 
-      link: result 
+      link: result,
+      dbInfo: DB_INFO,
     });
   } catch (error: any) {
     console.error('❌ API /submit-link error:', error);

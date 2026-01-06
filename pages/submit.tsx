@@ -436,13 +436,13 @@ export default function Submit() {
                     // НЕ устанавливаем setShowSuccessModal(false) перед редиректом, чтобы useEffect не сработал
                     setLoading(false);
                     // Редиректим на главную страницу сразу, без задержки
-                    router.replace('/');
+                    router.replace(`/tasks?published=1${publishedLinkId ? `&linkId=${encodeURIComponent(publishedLinkId)}` : ''}`);
                   }}
                   variant="primary"
                   fullWidth
                   className="text-lg py-4"
                 >
-                  Close
+                  Back to tasks
                 </Button>
               </div>
             </div>
