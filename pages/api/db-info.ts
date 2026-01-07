@@ -40,11 +40,16 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   res.setHeader('Expires', '0');
 
   // Optional active health check (safe: no secrets returned)
-  const url = readEnvTrimmed('UPSTASH_REDIS_REST_URL') || readEnvTrimmed('KV_REST_API_URL');
+  const url =
+    readEnvTrimmed('UPSTASH_REDIS_REST_URL') ||
+    readEnvTrimmed('KV_REST_API_URL') ||
+    readEnvTrimmed('STORAGE_REST_API_URL');
   const token =
     readEnvTrimmed('UPSTASH_REDIS_REST_TOKEN') ||
     readEnvTrimmed('KV_REST_API_TOKEN') ||
-    readEnvTrimmed('KV_REST_API_READ_ONLY_TOKEN');
+    readEnvTrimmed('KV_REST_API_READ_ONLY_TOKEN') ||
+    readEnvTrimmed('STORAGE_REST_API_TOKEN') ||
+    readEnvTrimmed('STORAGE_REST_API_READ_ONLY_TOKEN');
 
   const health: any = {
     env: {

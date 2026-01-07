@@ -52,11 +52,14 @@ if (typeof window === 'undefined') {
   // Support both direct Upstash env vars and Vercel KV integration env vars.
   const url =
     readEnvTrimmed('UPSTASH_REDIS_REST_URL') ||
-    readEnvTrimmed('KV_REST_API_URL');
+    readEnvTrimmed('KV_REST_API_URL') ||
+    readEnvTrimmed('STORAGE_REST_API_URL');
   const token =
     readEnvTrimmed('UPSTASH_REDIS_REST_TOKEN') ||
     readEnvTrimmed('KV_REST_API_TOKEN') ||
-    readEnvTrimmed('KV_REST_API_READ_ONLY_TOKEN');
+    readEnvTrimmed('KV_REST_API_READ_ONLY_TOKEN') ||
+    readEnvTrimmed('STORAGE_REST_API_TOKEN') ||
+    readEnvTrimmed('STORAGE_REST_API_READ_ONLY_TOKEN');
 
   if (url && token) {
   redis = new Redis({

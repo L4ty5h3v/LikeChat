@@ -20,11 +20,15 @@ function readEnvTrimmed(key: string): string | undefined {
 // Vercel KV typically exposes: KV_REST_API_URL, KV_REST_API_TOKEN.
 const UPSTASH_URL =
   readEnvTrimmed('UPSTASH_REDIS_REST_URL') ||
-  readEnvTrimmed('KV_REST_API_URL');
+  readEnvTrimmed('KV_REST_API_URL') ||
+  // Some Vercel Storage integrations allow a custom prefix; support the common "STORAGE_*" shape.
+  readEnvTrimmed('STORAGE_REST_API_URL');
 const UPSTASH_TOKEN =
   readEnvTrimmed('UPSTASH_REDIS_REST_TOKEN') ||
   readEnvTrimmed('KV_REST_API_TOKEN') ||
-  readEnvTrimmed('KV_REST_API_READ_ONLY_TOKEN');
+  readEnvTrimmed('KV_REST_API_READ_ONLY_TOKEN') ||
+  readEnvTrimmed('STORAGE_REST_API_TOKEN') ||
+  readEnvTrimmed('STORAGE_REST_API_READ_ONLY_TOKEN');
 
 // Проверяем наличие переменных окружения Upstash (или Vercel KV)
 const USE_UPSTASH = !!(UPSTASH_URL && UPSTASH_TOKEN);
@@ -73,6 +77,8 @@ export const DB_INFO = {
     ? 'UPSTASH_REDIS_REST_URL'
     : readEnvTrimmed('KV_REST_API_URL')
       ? 'KV_REST_API_URL'
+      : readEnvTrimmed('STORAGE_REST_API_URL')
+        ? 'STORAGE_REST_API_URL'
       : 'none',
   upstashTokenSource: readEnvTrimmed('UPSTASH_REDIS_REST_TOKEN')
     ? 'UPSTASH_REDIS_REST_TOKEN'
@@ -80,6 +86,10 @@ export const DB_INFO = {
       ? 'KV_REST_API_TOKEN'
       : readEnvTrimmed('KV_REST_API_READ_ONLY_TOKEN')
         ? 'KV_REST_API_READ_ONLY_TOKEN'
+        : readEnvTrimmed('STORAGE_REST_API_TOKEN')
+          ? 'STORAGE_REST_API_TOKEN'
+          : readEnvTrimmed('STORAGE_REST_API_READ_ONLY_TOKEN')
+            ? 'STORAGE_REST_API_READ_ONLY_TOKEN'
         : 'none',
   vercelEnv: process.env.VERCEL_ENV || process.env.NODE_ENV || 'unknown',
 };
