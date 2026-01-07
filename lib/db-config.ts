@@ -5,7 +5,14 @@ import * as upstashDb from './upstash-db';
 function readEnvTrimmed(key: string): string | undefined {
   const v = process.env[key];
   if (!v) return undefined;
-  const t = v.trim();
+  let t = v.trim();
+  // Vercel env values are sometimes pasted with wrapping quotes; strip them to avoid WRONGPASS/NOPERM confusion.
+  if (
+    (t.startsWith('"') && t.endsWith('"') && t.length >= 2) ||
+    (t.startsWith("'") && t.endsWith("'") && t.length >= 2)
+  ) {
+    t = t.slice(1, -1).trim();
+  }
   return t ? t : undefined;
 }
 

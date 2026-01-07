@@ -21,7 +21,14 @@ let seedOncePromise: Promise<void> | null = null;
 function readEnvTrimmed(key: string): string | undefined {
   const v = process.env[key];
   if (!v) return undefined;
-  const t = v.trim();
+  let t = v.trim();
+  // Values are sometimes pasted with wrapping quotes; strip them to prevent auth errors.
+  if (
+    (t.startsWith('"') && t.endsWith('"') && t.length >= 2) ||
+    (t.startsWith("'") && t.endsWith("'") && t.length >= 2)
+  ) {
+    t = t.slice(1, -1).trim();
+  }
   return t ? t : undefined;
 }
 

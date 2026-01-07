@@ -5,7 +5,14 @@ import { Redis } from '@upstash/redis';
 function readEnvTrimmed(key: string): string | undefined {
   const v = process.env[key];
   if (!v) return undefined;
-  const t = v.trim();
+  let t = v.trim();
+  // Values are sometimes pasted with wrapping quotes; strip them to prevent auth errors (e.g. WRONGPASS).
+  if (
+    (t.startsWith('"') && t.endsWith('"') && t.length >= 2) ||
+    (t.startsWith("'") && t.endsWith("'") && t.length >= 2)
+  ) {
+    t = t.slice(1, -1).trim();
+  }
   return t ? t : undefined;
 }
 
@@ -51,6 +58,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       canWrite: false,
       linksLen: null as null | number,
       error: null as null | string,
+      hint: null as null | string,
     },
   };
 
@@ -93,6 +101,15 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
           // Read-only tokens will fail here.
           health.upstash.canWrite = false;
           if (!health.upstash.error) health.upstash.error = e?.message || String(e);
+        }
+
+        const err = (health.upstash.error || '').toString();
+        if (err.includes('WRONGPASS')) {
+          health.upstash.hint =
+            'Auth failed (WRONGPASS). Verify UPSTASH_REDIS_REST_URL/TOKEN pair matches the same Upstash Redis DB and token is not wrapped in quotes. After updating env vars, Redeploy.';
+        } else if (err.includes('NOPERM') || err.includes('no permissions')) {
+          health.upstash.hint =
+            'Token is read-only (NOPERM). Generate/copy a REST Token with write permissions and update UPSTASH_REDIS_REST_TOKEN, then Redeploy.';
         }
       } catch (e: any) {
         health.upstash.error = e?.message || String(e);
