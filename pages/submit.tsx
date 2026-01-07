@@ -1,5 +1,5 @@
 // Страница публикации ссылки
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
 import { useAccount } from 'wagmi';
@@ -8,6 +8,7 @@ import Button from '@/components/Button';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
 import type { TaskType } from '@/types';
 import { REQUIRED_BUYS_TO_PUBLISH, TASKS_LIMIT } from '@/lib/app-config';
+import { isAddress } from 'viem';
 
 // Base-версия: публикация "каста" через Farcaster SDK отключена
 async function publishCastByActivityType(_taskType: TaskType, _castUrl: string): Promise<{ success: boolean; error?: string }> {
@@ -65,6 +66,41 @@ export default function Submit() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [publishedLinkId, setPublishedLinkId] = useState<string | null>(null);
 
+  // In WebViews wagmi's `address` can be empty even when the wallet is connected.
+  // Use the same "effective address" strategy as /tasks so on-chain verification works reliably.
+  const effectiveAddress = useMemo(() => {
+    if (address && isAddress(address)) return address;
+    const ua = (user as any)?.address;
+    if (typeof ua === 'string' && isAddress(ua)) return ua;
+
+    // Fallback: localStorage base_user may contain address (set by auth flow on /).
+    try {
+      if (typeof window !== 'undefined') {
+        const raw = window.localStorage?.getItem('base_user');
+        if (raw) {
+          const parsed: any = JSON.parse(raw);
+          const la = parsed?.address;
+          if (typeof la === 'string' && isAddress(la)) return la;
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    // Fallback: window.ethereum (non-interactive: eth_accounts)
+    try {
+      if (typeof window !== 'undefined') {
+        const eth = (window as any).ethereum;
+        const sa = eth?.selectedAddress;
+        if (typeof sa === 'string' && isAddress(sa)) return sa;
+      }
+    } catch {
+      // ignore
+    }
+
+    return '';
+  }, [address, user]);
+
 
   // IMPORTANT: Do not use a client-side "link_published" flag.
   // It can get stuck in WebViews and incorrectly block publishing.
@@ -114,7 +150,7 @@ export default function Submit() {
       if (completedCount < REQUIRED_BUYS_TO_PUBLISH) {
         // Fallback: if DB progress is missing (common when Upstash isn't configured),
         // verify buys onchain using the connected wallet.
-        const wallet = (address || (user as any)?.address || '').toString().trim();
+        const wallet = (effectiveAddress || '').toString().trim();
         if (wallet) {
           try {
             const vr = await fetch('/api/verify-buys', {
@@ -234,7 +270,7 @@ export default function Submit() {
         activityType: activity, // Оставляем для обратной совместимости
         tokenAddress,
         // Wallet is needed for onchain verification fallback (when DB is not persistent).
-        walletAddress: (address || (user as any)?.address || '').toString(),
+        walletAddress: (effectiveAddress || '').toString(),
       };
       
       console.log('📝 [SUBMIT] Publishing link with taskType:', {
