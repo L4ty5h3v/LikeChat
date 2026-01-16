@@ -87,60 +87,30 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
           <button
             onClick={onOpen}
             disabled={task.completed && task.verified}
-            className={`btn-gold-glow px-4 py-1.5 font-bold text-sm group ${
-              task.completed && task.verified ? 'disabled cursor-not-allowed' : ''
-            } ${task.verifying ? 'cursor-wait' : ''} ${task.error ? 'animate-pulse' : ''}`}
-            style={
-              task.completed && task.verified
-                ? { 
-                    background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.9), rgba(22, 163, 74, 0.9))',
-                    border: '2px solid rgba(34, 197, 94, 0.8)',
-                    boxShadow: '0 4px 30px rgba(34, 197, 94, 0.4)',
-                  }
-                : task.error && !task.completed
-                ? { 
-                    background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.9), rgba(220, 38, 38, 0.9))',
-                    border: '2px solid rgba(239, 68, 68, 0.8)',
-                    boxShadow: '0 4px 30px rgba(239, 68, 68, 0.4)',
-                  }
-                : task.verifying && !task.opened && !task.completed
-                ? { 
-                    background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.4), rgba(220, 38, 38, 0.4))',
-                    border: '1px solid rgba(255, 255, 255, 0.3)',
-                    boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
-                  }
-                : task.verifying
-                ? { 
-                    background: 'linear-gradient(135deg, rgba(251, 146, 60, 0.4), rgba(249, 115, 22, 0.4))',
-                    border: '1px solid rgba(255, 255, 255, 0.3)',
-                    boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
-                  }
-                : {}
-            }
+            className={`
+              px-4 py-1.5 rounded-lg font-medium text-sm transition-all duration-300
+              ${
+                task.completed && task.verified
+                  ? 'bg-green-500 text-white cursor-not-allowed hover:bg-green-600'
+                  : task.error
+                  ? 'bg-red-500 text-white hover:bg-red-600 hover:shadow-lg'
+                  : task.verifying
+                  ? 'bg-yellow-500 text-white cursor-wait hover:bg-yellow-600'
+                  : task.opened
+                  ? 'bg-blue-500 text-white hover:bg-blue-600 hover:shadow-lg'
+                  : 'bg-gray-500 text-white hover:bg-gray-600 hover:shadow-lg'
+              }
+            `}
           >
-            {/* Переливающийся эффект */}
-            {!task.completed && !task.verified && (
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-            )}
-            {/* Внутреннее свечение */}
-            {!task.completed && !task.verified && (
-              <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
-            )}
-            <span className="relative z-20 text-white drop-shadow-lg">
-              {task.completed && task.verified 
-                ? 'Completed ✓' 
-                : task.error
-                ? task.opened
-                  ? 'Opened ❌'
-                  : 'Not Found'
-                : task.verifying && !task.opened && !task.completed
-                ? 'Not Opened ❌'
-                : task.verifying
-                ? 'In Progress...'
-                : task.opened 
-                ? 'Opened' 
-                : 'Open'}
-            </span>
+            {task.completed && task.verified 
+              ? 'Completed ✓' 
+              : task.error
+              ? 'Error: Action not found'
+              : task.verifying
+              ? 'In Progress...'
+              : task.opened 
+              ? 'Opened' 
+              : 'Open'}
           </button>
         </div>
       </div>
