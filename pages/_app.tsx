@@ -37,13 +37,36 @@ export default function App({ Component, pageProps }: AppProps) {
   }, []);
 
   // Вызываем sdk.actions.ready() для Farcaster Mini App
-  // ⚠️ ВАЖНО: Всегда вызываем ready(), даже если не в iframe - SDK сам определит контекст
+  // ⚠️ КРИТИЧНО: Вызываем ready() как можно раньше, чтобы скрыть заставку
+  // Вызываем синхронно при монтировании, не ждём useEffect
+  if (typeof window !== 'undefined') {
+    // Вызываем сразу, не ждём useEffect
+    (async () => {
+      try {
+        const { sdk } = await import('@farcaster/miniapp-sdk');
+        if (sdk && sdk.actions && typeof sdk.actions.ready === 'function') {
+          await sdk.actions.ready();
+          console.log('✅ [_APP] Farcaster Mini App SDK ready() called immediately');
+        }
+      } catch (error: any) {
+        // Игнорируем ошибки - SDK может быть недоступен
+      }
+    })();
+  }
+
+  // Дублируем вызов в useEffect для надёжности
   useEffect(() => {
     let mounted = true;
     
     const callReady = async () => {
       try {
         if (typeof window === 'undefined' || !mounted) {
+          return;
+        }
+
+        // Проверяем, не был ли уже вызван ready()
+        if ((window as any).__FARCASTER_READY_CALLED__) {
+          console.log('ℹ️ [_APP] ready() already called, skipping');
           return;
         }
 
@@ -55,6 +78,7 @@ export default function App({ Component, pageProps }: AppProps) {
         // Проверяем, что SDK доступен и вызываем ready()
         if (sdk && sdk.actions && typeof sdk.actions.ready === 'function') {
           await sdk.actions.ready();
+          (window as any).__FARCASTER_READY_CALLED__ = true;
           console.log('✅ [_APP] Farcaster Mini App SDK ready() called successfully');
         } else {
           console.warn('⚠️ [_APP] Farcaster Mini App SDK not properly initialized', { sdk });
