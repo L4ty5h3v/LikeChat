@@ -258,8 +258,15 @@ export default function TasksPage() {
       }
 
       try {
-        // Always load links (they are global, not user-specific)
-        const linksRes = await fetch(`/api/tasks?t=${Date.now()}&taskType=support`);
+        // For Farcaster version: load all links (like/recast) or determine taskType from URL/state
+        // For Base version: use 'support'
+        const taskTypeFromUrl = router.query.taskType as string | undefined;
+        const taskTypeFromStorage = typeof window !== 'undefined' ? localStorage.getItem('selected_activity') : null;
+        const taskType = taskTypeFromUrl || taskTypeFromStorage || undefined;
+        
+        // Load links (they are global, not user-specific)
+        const taskTypeParam = taskType ? `&taskType=${taskType}` : '';
+        const linksRes = await fetch(`/api/tasks?t=${Date.now()}${taskTypeParam}`);
         const linksJson = await linksRes.json();
         const nextLinks: LinkSubmission[] = Array.isArray(linksJson.links) ? linksJson.links : [];
         setLinks((prev) => {
@@ -1040,7 +1047,7 @@ export default function TasksPage() {
                 {isWrongNetwork ? (
                   <div className="mt-2 text-xs font-bold text-red-700">
                     Wrong network. Please switch to Base (8453).
-                  </div>
+            </div>
                 ) : null}
                 {/* Reserve space to avoid layout shift when "Syncing…" appears/disappears */}
                 <div className="text-xs text-gray-500 mt-1 min-h-[16px]">{refreshing ? 'Syncing…' : ''}</div>
