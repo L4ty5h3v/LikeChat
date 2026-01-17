@@ -38,78 +38,53 @@ export default function Document() {
               (function() {
                 if (typeof window === 'undefined') return;
                 
-                // Функция для вызова ready()
-                function callReady() {
+                window.__FARCASTER_READY_CALLED__ = false;
+                
+                // Функция для загрузки SDK и вызова ready()
+                async function loadSDKAndCallReady() {
+                  if (window.__FARCASTER_READY_CALLED__) return;
+                  
                   try {
                     // Пробуем через глобальный объект (если SDK уже загружен)
                     if (window.farcaster && window.farcaster.sdk && window.farcaster.sdk.actions && typeof window.farcaster.sdk.actions.ready === 'function') {
-                      window.farcaster.sdk.actions.ready().then(function() {
-                        console.log('✅ [_DOCUMENT] SDK ready() called via global object');
+                      await window.farcaster.sdk.actions.ready();
+                      console.log('✅ [_DOCUMENT] SDK ready() called via global object');
+                      window.__FARCASTER_READY_CALLED__ = true;
+                      return;
+                    }
+                    
+                    // Если глобального объекта нет, пробуем загрузить SDK через динамический импорт
+                    // Используем системный импорт, если доступен (в Next.js это будет работать через webpack)
+                    if (typeof System !== 'undefined' && System.import) {
+                      const sdkModule = await System.import('@farcaster/miniapp-sdk');
+                      if (sdkModule && sdkModule.sdk && sdkModule.sdk.actions && typeof sdkModule.sdk.actions.ready === 'function') {
+                        await sdkModule.sdk.actions.ready();
+                        console.log('✅ [_DOCUMENT] SDK ready() called via System.import');
                         window.__FARCASTER_READY_CALLED__ = true;
-                      }).catch(function(err) {
-                        console.warn('⚠️ [_DOCUMENT] Error calling ready() via global:', err);
-                      });
-                      return true;
+                        return;
+                      }
                     }
                   } catch (e) {
-                    console.warn('⚠️ [_DOCUMENT] Error accessing global SDK:', e);
+                    console.warn('⚠️ [_DOCUMENT] Error loading/calling SDK:', e);
                   }
-                  return false;
                 }
                 
                 // Пытаемся вызвать сразу
-                if (callReady()) return;
+                loadSDKAndCallReady();
                 
-                // Если не получилось, пробуем после загрузки DOM
+                // Также пробуем после загрузки DOM
                 if (document.readyState === 'loading') {
-                  document.addEventListener('DOMContentLoaded', function() {
-                    if (!window.__FARCASTER_READY_CALLED__) {
-                      callReady();
-                    }
-                  });
-                } else {
-                  // DOM уже загружен
-                  callReady();
+                  document.addEventListener('DOMContentLoaded', loadSDKAndCallReady);
                 }
                 
                 // Также пробуем после полной загрузки страницы
-                window.addEventListener('load', function() {
-                  if (!window.__FARCASTER_READY_CALLED__) {
-                    callReady();
-                  }
-                });
+                window.addEventListener('load', loadSDKAndCallReady);
               })();
             `,
           }}
         />
       </Head>
       <body>
-        {/* КРИТИЧНО: Вызываем sdk.actions.ready() как можно раньше, до рендеринга компонентов */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                if (typeof window === 'undefined') return;
-                // Устанавливаем флаг, что ready() должен быть вызван
-                window.__FARCASTER_READY_CALLED__ = false;
-                // Пытаемся вызвать ready() сразу после загрузки страницы
-                window.addEventListener('DOMContentLoaded', function() {
-                  if (window.__FARCASTER_READY_CALLED__) return;
-                  try {
-                    // Проверяем, доступен ли SDK через глобальный объект
-                    if (window.farcaster && window.farcaster.sdk && window.farcaster.sdk.actions && typeof window.farcaster.sdk.actions.ready === 'function') {
-                      window.farcaster.sdk.actions.ready().then(function() {
-                        window.__FARCASTER_READY_CALLED__ = true;
-                      }).catch(function() {});
-                    }
-                  } catch (e) {
-                    // Игнорируем ошибки - SDK будет вызван в _app.tsx
-                  }
-                });
-              })();
-            `,
-          }}
-        />
         <Main />
         <NextScript />
       </body>
