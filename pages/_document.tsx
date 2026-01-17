@@ -31,54 +31,15 @@ export default function Document() {
         <meta property="fc:miniapp:button:1" content="Открыть LikeChat" />
         <meta property="fc:miniapp:button:1:action" content="link" />
         <meta property="fc:miniapp:button:1:target" content={baseUrl} />
-        {/* КРИТИЧНО: Загружаем SDK и вызываем ready() как можно раньше, в <head> */}
+        {/* КРИТИЧНО: Устанавливаем флаг для вызова ready() в _app.tsx */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
                 if (typeof window === 'undefined') return;
-                
                 window.__FARCASTER_READY_CALLED__ = false;
-                
-                // Функция для загрузки SDK и вызова ready()
-                async function loadSDKAndCallReady() {
-                  if (window.__FARCASTER_READY_CALLED__) return;
-                  
-                  try {
-                    // Пробуем через глобальный объект (если SDK уже загружен)
-                    if (window.farcaster && window.farcaster.sdk && window.farcaster.sdk.actions && typeof window.farcaster.sdk.actions.ready === 'function') {
-                      await window.farcaster.sdk.actions.ready();
-                      console.log('✅ [_DOCUMENT] SDK ready() called via global object');
-                      window.__FARCASTER_READY_CALLED__ = true;
-                      return;
-                    }
-                    
-                    // Если глобального объекта нет, пробуем загрузить SDK через динамический импорт
-                    // Используем системный импорт, если доступен (в Next.js это будет работать через webpack)
-                    if (typeof System !== 'undefined' && System.import) {
-                      const sdkModule = await System.import('@farcaster/miniapp-sdk');
-                      if (sdkModule && sdkModule.sdk && sdkModule.sdk.actions && typeof sdkModule.sdk.actions.ready === 'function') {
-                        await sdkModule.sdk.actions.ready();
-                        console.log('✅ [_DOCUMENT] SDK ready() called via System.import');
-                        window.__FARCASTER_READY_CALLED__ = true;
-                        return;
-                      }
-                    }
-                  } catch (e) {
-                    console.warn('⚠️ [_DOCUMENT] Error loading/calling SDK:', e);
-                  }
-                }
-                
-                // Пытаемся вызвать сразу
-                loadSDKAndCallReady();
-                
-                // Также пробуем после загрузки DOM
-                if (document.readyState === 'loading') {
-                  document.addEventListener('DOMContentLoaded', loadSDKAndCallReady);
-                }
-                
-                // Также пробуем после полной загрузки страницы
-                window.addEventListener('load', loadSDKAndCallReady);
+                // Устанавливаем флаг, что нужно вызвать ready() как можно скорее
+                window.__FARCASTER_NEEDS_READY__ = true;
               })();
             `,
           }}

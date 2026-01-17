@@ -38,6 +38,29 @@ export default function App({ Component, pageProps }: AppProps) {
 
   // Вызываем sdk.actions.ready() для Farcaster Mini App
   // ⚠️ КРИТИЧНО: Вызываем ready() как можно раньше, чтобы скрыть заставку
+  // Вызываем синхронно при загрузке модуля, не ждём useEffect
+  if (typeof window !== 'undefined') {
+    // Немедленный вызов при загрузке модуля
+    (async () => {
+      try {
+        // Небольшая задержка для инициализации
+        await new Promise(resolve => setTimeout(resolve, 50));
+        
+        const { sdk } = await import('@farcaster/miniapp-sdk');
+        
+        if (sdk && sdk.actions && typeof sdk.actions.ready === 'function') {
+          await sdk.actions.ready();
+          (window as any).__FARCASTER_READY_CALLED__ = true;
+          console.log('✅ [_APP] Farcaster Mini App SDK ready() called immediately on module load');
+        }
+      } catch (error: any) {
+        // Игнорируем ошибки - SDK будет вызван в useEffect
+        console.log('ℹ️ [_APP] Immediate SDK call failed, will retry in useEffect:', error?.message);
+      }
+    })();
+  }
+
+  // Дублируем вызов в useEffect для надёжности
   useEffect(() => {
     let mounted = true;
     
@@ -54,7 +77,7 @@ export default function App({ Component, pageProps }: AppProps) {
         }
 
         // Небольшая задержка, чтобы дать время SDK загрузиться
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 200));
 
         if (!mounted) return;
 
@@ -67,7 +90,7 @@ export default function App({ Component, pageProps }: AppProps) {
         if (sdk && sdk.actions && typeof sdk.actions.ready === 'function') {
           await sdk.actions.ready();
           (window as any).__FARCASTER_READY_CALLED__ = true;
-          console.log('✅ [_APP] Farcaster Mini App SDK ready() called successfully');
+          console.log('✅ [_APP] Farcaster Mini App SDK ready() called successfully in useEffect');
         } else {
           console.warn('⚠️ [_APP] Farcaster Mini App SDK not properly initialized', { sdk });
         }
