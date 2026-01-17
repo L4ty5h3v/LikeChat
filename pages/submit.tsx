@@ -9,6 +9,8 @@ import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
 import type { TaskType } from '@/types';
 import { REQUIRED_BUYS_TO_PUBLISH, TASKS_LIMIT } from '@/lib/app-config';
 import { isAddress } from 'viem';
+import { baseAppContentUrlFromTokenAddress, tokenAddressFromBaseAppContentUrl } from '@/lib/base-content';
+import { setFlowStep } from '@/lib/flow';
 
 // Base-версия: публикация "каста" через Farcaster SDK отключена
 async function publishCastByActivityType(_taskType: TaskType, _castUrl: string): Promise<{ success: boolean; error?: string }> {
@@ -65,6 +67,7 @@ export default function Submit() {
   const [canSubmit, setCanSubmit] = useState(true); // Публикация разрешена всегда
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [publishedLinkId, setPublishedLinkId] = useState<string | null>(null);
+  const DRAFT_KEY = 'likechat:draft_token_address_v1';
 
   // In WebViews wagmi's `address` can be empty even when the wallet is connected.
   // Use the same "effective address" strategy as /tasks so on-chain verification works reliably.
@@ -136,6 +139,32 @@ export default function Submit() {
 
     void checkProgress(user.fid);
   }, [user, isInitialized, showSuccessModal]);
+
+  // Persist step + draft so users don't lose context when leaving to create a tokenized post / confirm tx.
+  useEffect(() => {
+    setFlowStep('submit');
+    if (typeof window === 'undefined') return;
+    try {
+      const draft = window.localStorage.getItem(DRAFT_KEY);
+      if (draft && !tokenAddress) {
+        // If draft is a Base URL, try to decode to token address.
+        const decoded = tokenAddressFromBaseAppContentUrl(draft);
+        setTokenAddress((decoded || draft).toString());
+      }
+    } catch {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInitialized, user?.fid]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      if (tokenAddress) window.localStorage.setItem(DRAFT_KEY, tokenAddress);
+    } catch {
+      // ignore
+    }
+  }, [tokenAddress]);
 
   const checkProgress = async (userFid: number) => {
     setIsCheckingAccess(true);
@@ -236,6 +265,14 @@ export default function Submit() {
       setError('Please fill in all required fields');
       return;
     }
+
+    // Normalize: allow pasting a Base content URL; decode it to token address.
+    const maybeDecoded = tokenAddressFromBaseAppContentUrl(tokenAddress);
+    const normalizedTokenAddress = (maybeDecoded || tokenAddress).toString().trim().toLowerCase();
+    if (!isAddress(normalizedTokenAddress)) {
+      setError('Please enter a valid ERC-20 token address (0x...) or paste a valid https://base.app/content/... URL.');
+      return;
+    }
     
     // ⚠️ ПРОВЕРКА FID: Убеждаемся, что fid существует и валиден
     if (!user.fid || typeof user.fid !== 'number') {
@@ -268,7 +305,7 @@ export default function Submit() {
         castUrl: '', // removed from UI; keep field for backward compatibility
         taskType: activity, // Используем taskType вместо activityType для ясности
         activityType: activity, // Оставляем для обратной совместимости
-        tokenAddress,
+        tokenAddress: normalizedTokenAddress,
         // Wallet is needed for onchain verification fallback (when DB is not persistent).
         walletAddress: (effectiveAddress || '').toString(),
       };
@@ -339,6 +376,13 @@ export default function Submit() {
 
         setPublishedLinkId(data.link.id);
         setShowSuccessModal(true);
+
+        // Clear draft once published.
+        try {
+          if (typeof window !== 'undefined') window.localStorage.removeItem(DRAFT_KEY);
+        } catch {
+          // ignore
+        }
         
         // Очищаем форму, чтобы предотвратить повторную отправку
         setTokenAddress('');
@@ -613,7 +657,7 @@ export default function Submit() {
                   htmlFor="tokenAddress"
                   className="block text-lg font-bold text-gray-900 mb-3"
                 >
-                  Your tokenized post ERC-20 address
+                  Your tokenized post (ERC-20 address or base.app/content URL)
                 </label>
                 <input
                   type="text"
@@ -621,7 +665,7 @@ export default function Submit() {
                   name="erc20_token_address"
                   value={tokenAddress}
                   onChange={(e) => setTokenAddress(e.target.value)}
-                  placeholder="0x..."
+                  placeholder="0x... or https://base.app/content/..."
                   autoComplete="off"
                   autoCorrect="off"
                   autoCapitalize="none"
@@ -630,6 +674,32 @@ export default function Submit() {
                   className="w-full px-6 py-4 border-2 border-gray-300 rounded-xl focus:border-primary focus:outline-none transition-colors text-lg"
                   required
                 />
+
+                <div className="flex flex-col sm:flex-row gap-3 mt-3">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={async () => {
+                      try {
+                        const text = await navigator.clipboard.readText();
+                        if (text) setTokenAddress(text.trim());
+                      } catch {
+                        setError('Clipboard access is blocked. Paste manually.');
+                      }
+                    }}
+                  >
+                    Paste from clipboard
+                  </Button>
+                </div>
+
+                {isAddress(tokenAddress.trim().toLowerCase() as any) && (
+                  <p className="text-sm text-gray-600 mt-3 break-all">
+                    Base content URL (auto):{' '}
+                    <span className="font-mono">
+                      {baseAppContentUrlFromTokenAddress(tokenAddress.trim().toLowerCase())}
+                    </span>
+                  </p>
+                )}
               </div>
 
               {error && (

@@ -13,6 +13,7 @@ import { erc20Abi, parseEther, parseUnits, type Address } from 'viem';
 import { BUY_AMOUNT_USDC_DECIMAL, BUY_AMOUNT_USDC_DISPLAY, REQUIRED_BUYS_TO_PUBLISH } from '@/lib/app-config';
 import { useSwapToken, useIsInMiniApp } from '@coinbase/onchainkit/minikit';
 import { baseAppContentUrlFromTokenAddress } from '@/lib/base-content';
+import { setFlowStep } from '@/lib/flow';
 
 const USDC_CONTRACT_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as const;
 const BUY_AMOUNT_USDC = parseUnits(BUY_AMOUNT_USDC_DECIMAL, 6);
@@ -477,6 +478,9 @@ export default function TasksPage() {
       return;
     }
 
+    // Persist current step so Base users return to the same screen after swaps / external sheets.
+    setFlowStep('tasks');
+
     requestRefresh();
 
     // Убираем polling (страница не должна "дёргаться" каждые 5 секунд).
@@ -782,11 +786,17 @@ export default function TasksPage() {
           ...p,
           [link.id]: 'To buy, open MTB inside the Base App. This browser cannot open the swap in-app.',
         }));
-        try {
-          window.open(swapUrl, '_blank', 'noopener,noreferrer');
-        } catch {
-          // ignore
-        }
+        // Best-effort: try to open within the Mini App host so user doesn't "drop out".
+        // If that fails, fall back to same-tab navigation (still returns via returnUrl).
+        void requestFullscreen(swapUrl).then((ok) => {
+          if (!ok) {
+            try {
+              window.location.href = swapUrl;
+            } catch {
+              // ignore
+            }
+          }
+        });
       };
 
       // Buy flow:
