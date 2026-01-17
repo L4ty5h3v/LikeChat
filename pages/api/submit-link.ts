@@ -50,6 +50,12 @@ export default async function handler(
       return res.status(400).json({ success: false, error: 'Invalid userFid.' });
     }
     
+    // ✅ ИСКЛЮЧЕНИЕ: Пользователь svs-smm всегда может вносить ссылки без ограничений
+    const isSvsSmm = username && username.toLowerCase() === 'svs-smm';
+    if (isSvsSmm) {
+      console.log('✅ [SUBMIT-LINK] svs-smm user detected - bypassing all checks');
+    }
+    
     // ⚠️ КРИТИЧНО: ВАЖНО использовать selected_task из БД как основной источник истины
     // Получаем selected_task из прогресса пользователя, чтобы гарантировать правильный тип
     const progress = await getUserProgress(fidNum);

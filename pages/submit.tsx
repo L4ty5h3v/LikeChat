@@ -14,7 +14,7 @@ import { setFlowStep } from '@/lib/flow';
 
 // Base-версия: публикация "каста" через Farcaster SDK отключена
 async function publishCastByActivityType(_taskType: TaskType, _castUrl: string): Promise<{ success: boolean; error?: string }> {
-  return { success: true };
+      return { success: true };
 }
 
 // Глобальный счетчик событий для отслеживания порядка выполнения
@@ -78,14 +78,14 @@ export default function Submit() {
 
     // Fallback: localStorage base_user may contain address (set by auth flow on /).
     try {
-      if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined') {
         const raw = window.localStorage?.getItem('base_user');
         if (raw) {
           const parsed: any = JSON.parse(raw);
           const la = parsed?.address;
           if (typeof la === 'string' && isAddress(la)) return la;
-        }
       }
+    }
     } catch {
       // ignore
     }
@@ -123,20 +123,20 @@ export default function Submit() {
   useEffect(() => {
     if (showSuccessModal) return;
     if (!isInitialized) return;
-
+    
     // Base-версия: активность всегда support
     if (typeof window !== 'undefined') {
       localStorage.setItem('selected_activity', 'support');
     }
     setActivity('support');
 
-    if (!user || !user.fid) {
+      if (!user || !user.fid) {
       setCanSubmit(false);
       setError('Publish is available only inside Base / Farcaster MiniApp. Please open the app there and try again.');
       setIsCheckingAccess(false);
-      return;
-    }
-
+        return;
+      }
+      
     void checkProgress(user.fid);
   }, [user, isInitialized, showSuccessModal]);
 
@@ -168,6 +168,16 @@ export default function Submit() {
 
   const checkProgress = async (userFid: number) => {
     setIsCheckingAccess(true);
+    
+    // ✅ ИСКЛЮЧЕНИЕ: Пользователь svs-smm всегда может вносить ссылки без ограничений
+    if (user?.username && user.username.toLowerCase() === 'svs-smm') {
+      console.log('✅ [SUBMIT] svs-smm user detected - bypassing all checks');
+      setCanSubmit(true);
+      setError('');
+      setIsCheckingAccess(false);
+      return;
+    }
+    
     // Require: user must complete REQUIRED_BUYS_TO_PUBLISH buys before publishing.
     try {
       const progressRes = await fetch(`/api/user-progress?userFid=${userFid}&t=${Date.now()}`);
@@ -192,13 +202,13 @@ export default function Submit() {
             if (vr.ok && vj?.success && verified >= REQUIRED_BUYS_TO_PUBLISH) {
               setCanSubmit(true);
               setError('');
-              return;
-            }
+      return;
+    }
             setCanSubmit(false);
             setError(
               `You need to buy ${REQUIRED_BUYS_TO_PUBLISH} posts first. Progress: ${completedCount}/${REQUIRED_BUYS_TO_PUBLISH}.`
             );
-            return;
+        return;
           } catch {
             // fall through to default error below
           }
@@ -206,10 +216,10 @@ export default function Submit() {
 
         setCanSubmit(false);
         setError(`You need to buy ${REQUIRED_BUYS_TO_PUBLISH} posts first. Progress: ${completedCount}/${REQUIRED_BUYS_TO_PUBLISH}.`);
-        return;
-      }
+      return;
+    }
 
-      setCanSubmit(true);
+    setCanSubmit(true);
     } catch (e: any) {
       // Fail safe: do not allow submit if we cannot verify progress.
       setCanSubmit(false);
@@ -235,7 +245,7 @@ export default function Submit() {
       setError('Switch network to Base (8453) and try again.');
       return;
     }
-
+    
     // ⚠️ ДЕТАЛЬНАЯ ПРОВЕРКА: Проверяем наличие всех необходимых данных
     console.log('🔍 [SUBMIT] Starting submission process...');
     console.log('🔍 [SUBMIT] User data:', {
@@ -373,10 +383,10 @@ export default function Submit() {
           user_fid: data.link.user_fid,
           cast_url: data.link.cast_url?.substring(0, 50) + '...',
         });
-
+        
         setPublishedLinkId(data.link.id);
         setShowSuccessModal(true);
-
+        
         // Clear draft once published.
         try {
           if (typeof window !== 'undefined') window.localStorage.removeItem(DRAFT_KEY);
