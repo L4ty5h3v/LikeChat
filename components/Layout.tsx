@@ -10,7 +10,7 @@ interface LayoutProps {
   title?: string;
 }
 
-const APP_NAME = 'MULTI BUY';
+const APP_NAME = 'MULTI LIKE';
 
 const Layout: React.FC<LayoutProps> = ({ children, title = APP_NAME }) => {
   const router = useRouter();

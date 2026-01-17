@@ -598,7 +598,7 @@ export default function Submit() {
 
 
   return (
-    <Layout title="Multi Buy - Add Your Post">
+    <Layout title="MULTI LIKE - Add Your Post">
       {/* Hero Section с градиентом */}
       <div className="relative min-h-screen overflow-hidden">
         {/* Анимированный градиент фон */}
