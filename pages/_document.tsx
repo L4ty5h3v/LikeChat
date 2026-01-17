@@ -33,6 +33,32 @@ export default function Document() {
         <meta property="fc:miniapp:button:1:target" content={baseUrl} />
       </Head>
       <body>
+        {/* КРИТИЧНО: Вызываем sdk.actions.ready() как можно раньше, до рендеринга компонентов */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                if (typeof window === 'undefined') return;
+                // Устанавливаем флаг, что ready() должен быть вызван
+                window.__FARCASTER_READY_CALLED__ = false;
+                // Пытаемся вызвать ready() сразу после загрузки страницы
+                window.addEventListener('DOMContentLoaded', function() {
+                  if (window.__FARCASTER_READY_CALLED__) return;
+                  try {
+                    // Проверяем, доступен ли SDK через глобальный объект
+                    if (window.farcaster && window.farcaster.sdk && window.farcaster.sdk.actions && typeof window.farcaster.sdk.actions.ready === 'function') {
+                      window.farcaster.sdk.actions.ready().then(function() {
+                        window.__FARCASTER_READY_CALLED__ = true;
+                      }).catch(function() {});
+                    }
+                  } catch (e) {
+                    // Игнорируем ошибки - SDK будет вызван в _app.tsx
+                  }
+                });
+              })();
+            `,
+          }}
+        />
         <Main />
         <NextScript />
       </body>
