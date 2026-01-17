@@ -38,23 +38,6 @@ export default function App({ Component, pageProps }: AppProps) {
 
   // Вызываем sdk.actions.ready() для Farcaster Mini App
   // ⚠️ КРИТИЧНО: Вызываем ready() как можно раньше, чтобы скрыть заставку
-  // Вызываем синхронно при монтировании, не ждём useEffect
-  if (typeof window !== 'undefined') {
-    // Вызываем сразу, не ждём useEffect
-    (async () => {
-      try {
-        const { sdk } = await import('@farcaster/miniapp-sdk');
-        if (sdk && sdk.actions && typeof sdk.actions.ready === 'function') {
-          await sdk.actions.ready();
-          console.log('✅ [_APP] Farcaster Mini App SDK ready() called immediately');
-        }
-      } catch (error: any) {
-        // Игнорируем ошибки - SDK может быть недоступен
-      }
-    })();
-  }
-
-  // Дублируем вызов в useEffect для надёжности
   useEffect(() => {
     let mounted = true;
     
@@ -69,6 +52,11 @@ export default function App({ Component, pageProps }: AppProps) {
           console.log('ℹ️ [_APP] ready() already called, skipping');
           return;
         }
+
+        // Небольшая задержка, чтобы дать время SDK загрузиться
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        if (!mounted) return;
 
         // Динамический импорт для избежания SSR проблем
         const { sdk } = await import('@farcaster/miniapp-sdk');
@@ -91,6 +79,7 @@ export default function App({ Component, pageProps }: AppProps) {
       }
     };
 
+    // Вызываем сразу при монтировании
     callReady();
     
     return () => {

@@ -31,6 +31,57 @@ export default function Document() {
         <meta property="fc:miniapp:button:1" content="Открыть LikeChat" />
         <meta property="fc:miniapp:button:1:action" content="link" />
         <meta property="fc:miniapp:button:1:target" content={baseUrl} />
+        {/* КРИТИЧНО: Загружаем SDK и вызываем ready() как можно раньше, в <head> */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                if (typeof window === 'undefined') return;
+                
+                // Функция для вызова ready()
+                function callReady() {
+                  try {
+                    // Пробуем через глобальный объект (если SDK уже загружен)
+                    if (window.farcaster && window.farcaster.sdk && window.farcaster.sdk.actions && typeof window.farcaster.sdk.actions.ready === 'function') {
+                      window.farcaster.sdk.actions.ready().then(function() {
+                        console.log('✅ [_DOCUMENT] SDK ready() called via global object');
+                        window.__FARCASTER_READY_CALLED__ = true;
+                      }).catch(function(err) {
+                        console.warn('⚠️ [_DOCUMENT] Error calling ready() via global:', err);
+                      });
+                      return true;
+                    }
+                  } catch (e) {
+                    console.warn('⚠️ [_DOCUMENT] Error accessing global SDK:', e);
+                  }
+                  return false;
+                }
+                
+                // Пытаемся вызвать сразу
+                if (callReady()) return;
+                
+                // Если не получилось, пробуем после загрузки DOM
+                if (document.readyState === 'loading') {
+                  document.addEventListener('DOMContentLoaded', function() {
+                    if (!window.__FARCASTER_READY_CALLED__) {
+                      callReady();
+                    }
+                  });
+                } else {
+                  // DOM уже загружен
+                  callReady();
+                }
+                
+                // Также пробуем после полной загрузки страницы
+                window.addEventListener('load', function() {
+                  if (!window.__FARCASTER_READY_CALLED__) {
+                    callReady();
+                  }
+                });
+              })();
+            `,
+          }}
+        />
       </Head>
       <body>
         {/* КРИТИЧНО: Вызываем sdk.actions.ready() как можно раньше, до рендеринга компонентов */}
