@@ -176,7 +176,9 @@ export default function TasksPage() {
   });
   const refreshingDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastRefetchTimeRef = useRef<number>(0);
+  const lastSyncPendingSwapTimeRef = useRef<number>(0);
   const REFETCH_DEBOUNCE_MS = 2000; // Минимум 2 секунды между обновлениями балансов
+  const SYNC_PENDING_SWAP_DEBOUNCE_MS = 3000; // Минимум 3 секунды между синхронизациями pending swap
 
   // Always operate in "support" mode (buy posts)
   useEffect(() => {
@@ -494,7 +496,10 @@ export default function TasksPage() {
     // Persist current step so Base users return to the same screen after swaps / external sheets.
     setFlowStep('tasks');
 
-    requestRefresh();
+    // Обновляем только один раз при монтировании с небольшой задержкой для предотвращения скачков
+    const initialRefreshTimeout = setTimeout(() => {
+      requestRefresh();
+    }, 100);
 
     // Убираем polling (страница не должна "дёргаться" каждые 5 секунд).
     // Обновляем данные только при возврате во вкладку/приложение.
@@ -514,7 +519,12 @@ export default function TasksPage() {
           // ignore
         }
       }
-      syncPendingSwap();
+      // Debounce syncPendingSwap тоже
+      const timeSinceLastSync = now - lastSyncPendingSwapTimeRef.current;
+      if (timeSinceLastSync >= SYNC_PENDING_SWAP_DEBOUNCE_MS) {
+        syncPendingSwap();
+        lastSyncPendingSwapTimeRef.current = now;
+      }
     };
     const onVisibility = () => {
       if (document.visibilityState === 'visible') {
@@ -531,7 +541,12 @@ export default function TasksPage() {
             // ignore
           }
         }
-        syncPendingSwap();
+        // Debounce syncPendingSwap тоже
+        const timeSinceLastSync = now - lastSyncPendingSwapTimeRef.current;
+        if (timeSinceLastSync >= SYNC_PENDING_SWAP_DEBOUNCE_MS) {
+          syncPendingSwap();
+          lastSyncPendingSwapTimeRef.current = now;
+        }
       }
     };
 
@@ -539,6 +554,7 @@ export default function TasksPage() {
     document.addEventListener('visibilitychange', onVisibility);
 
     return () => {
+      clearTimeout(initialRefreshTimeout);
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisibility);
     };

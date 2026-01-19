@@ -699,6 +699,14 @@ export default function Submit() {
                   name="erc20_token_address"
                   value={tokenAddress}
                   onChange={(e) => setTokenAddress(e.target.value)}
+                  onPaste={(e) => {
+                    // Разрешаем стандартную вставку
+                    const pastedText = e.clipboardData.getData('text');
+                    if (pastedText) {
+                      e.preventDefault();
+                      setTokenAddress(pastedText.trim());
+                    }
+                  }}
                   placeholder="0x... or https://base.app/content/..."
                   autoComplete="off"
                   autoCorrect="off"
