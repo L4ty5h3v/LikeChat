@@ -11,7 +11,7 @@ import type { ActivityType } from '@/types';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
 import { useAccount, useConnect } from 'wagmi';
 import { isHexAddress } from '@/lib/base-content';
-import { getFlowState, stepToRoute } from '@/lib/flow';
+import { clearFlow } from '@/lib/flow';
 
 function shortHex(addr: string): string {
   if (!addr) return '';
@@ -47,22 +47,15 @@ export default function Home() {
     }
   }, []);
 
-  // Intentionally NO auto-redirect to /tasks.
-  // Base App UX: after a swap / external sheet, users can get "dropped" and re-open the app.
-  // If we have a recent flow step, resume them automatically to avoid losing context.
+  // Base App UX: Always start from home page when opening the app.
+  // Clear any saved flow state to ensure users always start fresh.
   useEffect(() => {
-    if (!isInitialized) return;
-    if (!user?.fid) return;
     if (typeof window === 'undefined') return;
     if (router.pathname !== '/') return;
-
-    const st = getFlowState();
-    if (!st) return;
-    // Resume only if the state is fresh (avoid surprising users who open the app later).
-    if (Date.now() - st.updatedAt > 1000 * 60 * 60 * 2) return; // 2h
-    if (st.step === 'home') return;
-    router.replace(stepToRoute(st.step));
-  }, [isInitialized, user?.fid, router]);
+    
+    // Clear saved flow state to ensure app always starts from home
+    clearFlow();
+  }, [router.pathname]);
 
   // Авторизация через Base (кошелек в Base App)
   const handleConnect = async () => {
