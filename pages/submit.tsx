@@ -709,23 +709,6 @@ export default function Submit() {
                   required
                 />
 
-                <div className="flex flex-col sm:flex-row gap-3 mt-3">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={async () => {
-                      try {
-                        const text = await navigator.clipboard.readText();
-                        if (text) setTokenAddress(text.trim());
-                      } catch {
-                        setError('Clipboard access is blocked. Paste manually.');
-                      }
-                    }}
-                  >
-                    Paste from clipboard
-                  </Button>
-                </div>
-
                 {isAddress(tokenAddress.trim().toLowerCase() as any) && (
                   <p className="text-sm text-gray-600 mt-3 break-all">
                     Base content URL (auto):{' '}
