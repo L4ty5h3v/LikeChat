@@ -177,6 +177,8 @@ export default function TasksPage() {
   const refreshingDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastRefetchTimeRef = useRef<number>(0);
   const lastSyncPendingSwapTimeRef = useRef<number>(0);
+  const focusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const visibilityTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const REFETCH_DEBOUNCE_MS = 2000; // Минимум 2 секунды между обновлениями балансов
   const SYNC_PENDING_SWAP_DEBOUNCE_MS = 3000; // Минимум 3 секунды между синхронизациями pending swap
 
