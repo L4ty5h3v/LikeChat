@@ -122,20 +122,25 @@ export default function Submit() {
 
   useEffect(() => {
     if (showSuccessModal) return;
-    if (!isInitialized) return;
     
-    // Base-версия: активность всегда support
+    // Base-версия: активность всегда support - устанавливаем сразу, не ждём isInitialized
     if (typeof window !== 'undefined') {
       localStorage.setItem('selected_activity', 'support');
     }
     setActivity('support');
+    console.log('✅ [SUBMIT] Activity set to "support" for Base App');
+    
+    if (!isInitialized) {
+      console.log('⏳ [SUBMIT] Waiting for auth initialization...');
+      return;
+    }
 
-      if (!user || !user.fid) {
+    if (!user || !user.fid) {
       setCanSubmit(false);
       setError('Publish is available only inside Base / Farcaster MiniApp. Please open the app there and try again.');
       setIsCheckingAccess(false);
-        return;
-      }
+      return;
+    }
       
     void checkProgress(user.fid);
   }, [user, isInitialized, showSuccessModal]);
@@ -265,16 +270,27 @@ export default function Submit() {
       return;
     }
     
-    if (!activity || !tokenAddress) {
+    // Для Base App activity всегда должен быть 'support'
+    const finalActivity = activity || 'support';
+    
+    if (!finalActivity || !tokenAddress) {
       console.error('❌ [SUBMIT] Missing required data:', {
         hasUser: !!user,
-        hasActivity: !!activity,
+        hasActivity: !!finalActivity,
+        activityValue: finalActivity,
         hasCastUrl: false,
         hasTokenAddress: !!tokenAddress,
+        tokenAddressValue: tokenAddress,
       });
       setError('Please fill in all required fields');
       return;
     }
+    
+    console.log('✅ [SUBMIT] All required fields present:', {
+      hasUser: !!user,
+      activity: finalActivity,
+      hasTokenAddress: !!tokenAddress,
+    });
 
     // Normalize: allow pasting a Base content URL; decode it to token address.
     const maybeDecoded = tokenAddressFromBaseAppContentUrl(tokenAddress);
@@ -306,28 +322,30 @@ export default function Submit() {
     try {
       // Публикация cast убрана - чтобы избежать баннера "Upgrade to Pro"
       // Сохраняем ссылку в базе данных через API endpoint
-      // ⚠️ ВАЖНО: Используем activity (выбранный тип заданий) как taskType для публикации
+      // ⚠️ ВАЖНО: Используем finalActivity (выбранный тип заданий) как taskType для публикации
       // Это гарантирует, что ссылка публикуется с тем же типом, который пользователь прошел
       const submissionData = {
         userFid: user.fid,
         username: user.username,
         pfpUrl: user.pfp_url || '',
         castUrl: '', // removed from UI; keep field for backward compatibility
-        taskType: activity, // Используем taskType вместо activityType для ясности
-        activityType: activity, // Оставляем для обратной совместимости
+        taskType: finalActivity, // Используем taskType вместо activityType для ясности
+        activityType: finalActivity, // Оставляем для обратной совместимости
         tokenAddress: normalizedTokenAddress,
         // Wallet is needed for onchain verification fallback (when DB is not persistent).
         walletAddress: (effectiveAddress || '').toString(),
       };
       
       console.log('📝 [SUBMIT] Publishing link with taskType:', {
-        taskType: activity,
+        taskType: finalActivity,
         userFid: user.fid,
         username: user.username,
       });
       
       console.log('📝 [SUBMIT] Submitting link via API...', {
         ...submissionData,
+        taskType: finalActivity,
+        activityType: finalActivity,
         castUrl: 'EMPTY (removed)',
       });
 
@@ -336,7 +354,11 @@ export default function Submit() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(submissionData),
+        body: JSON.stringify({
+          ...submissionData,
+          taskType: finalActivity,
+          activityType: finalActivity,
+        }),
       });
 
       console.log('📡 [SUBMIT] API response status:', response.status);
