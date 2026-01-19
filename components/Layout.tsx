@@ -35,14 +35,33 @@ const Layout: React.FC<LayoutProps> = ({ children, title = APP_NAME }) => {
     e.preventDefault();
     e.stopPropagation();
     
-    // Используем replace вместо push, чтобы не добавлять в историю
-    router.replace('/').catch((err) => {
-      console.error('Navigation error:', err);
-      // Fallback на window.location если router не работает
+    console.log('🖱️ Avatar clicked, navigating to home...');
+    
+    // Пробуем несколько способов навигации для надёжности
+    try {
+      // Способ 1: router.replace
+      if (router && router.replace) {
+        router.replace('/').catch((err) => {
+          console.warn('⚠️ router.replace failed, trying window.location:', err);
+          // Fallback на window.location
+          if (typeof window !== 'undefined') {
+            window.location.href = '/';
+          }
+        });
+      } else {
+        // Если router недоступен, используем window.location напрямую
+        console.log('⚠️ Router not available, using window.location');
+        if (typeof window !== 'undefined') {
+          window.location.href = '/';
+        }
+      }
+    } catch (error) {
+      console.error('❌ Navigation error:', error);
+      // Последний fallback
       if (typeof window !== 'undefined') {
         window.location.href = '/';
       }
-    });
+    }
   };
   return (
     <>
