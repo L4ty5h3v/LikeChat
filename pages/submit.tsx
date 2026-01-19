@@ -693,29 +693,51 @@ export default function Submit() {
                 >
                   Your tokenized post (ERC-20 address or base.app/content URL)
                 </label>
-                <input
-                  type="text"
-                  id="tokenAddress"
-                  name="erc20_token_address"
-                  value={tokenAddress}
-                  onChange={(e) => setTokenAddress(e.target.value)}
-                  onPaste={(e) => {
-                    // Разрешаем стандартную вставку
-                    const pastedText = e.clipboardData.getData('text');
-                    if (pastedText) {
-                      e.preventDefault();
-                      setTokenAddress(pastedText.trim());
-                    }
-                  }}
-                  placeholder="0x... or https://base.app/content/..."
-                  autoComplete="off"
-                  autoCorrect="off"
-                  autoCapitalize="none"
-                  spellCheck={false}
-                  inputMode="text"
-                  className="w-full px-6 py-4 border-2 border-gray-300 rounded-xl focus:border-primary focus:outline-none transition-colors text-lg"
-                  required
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    id="tokenAddress"
+                    name="erc20_token_address"
+                    value={tokenAddress}
+                    onChange={(e) => setTokenAddress(e.target.value)}
+                    onPaste={(e) => {
+                      // Для мобильных устройств разрешаем стандартную вставку
+                      const pastedText = e.clipboardData.getData('text');
+                      if (pastedText) {
+                        e.preventDefault();
+                        setTokenAddress(pastedText.trim());
+                      }
+                    }}
+                    placeholder="0x... or https://base.app/content/..."
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    inputMode="text"
+                    className="w-full px-6 py-4 pr-24 border-2 border-gray-300 rounded-xl focus:border-primary focus:outline-none transition-colors text-lg"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const text = await navigator.clipboard.readText();
+                        if (text) {
+                          setTokenAddress(text.trim());
+                          setError('');
+                        }
+                      } catch (err: any) {
+                        // На мобильных устройствах может не работать, но это нормально
+                        console.log('Clipboard read failed:', err?.message);
+                        // Не показываем ошибку, так как пользователь может использовать стандартное меню вставки
+                      }
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-2 text-sm font-semibold text-primary bg-primary/10 hover:bg-primary/20 rounded-lg transition-colors"
+                    title="Вставить из буфера обмена"
+                  >
+                    Вставить
+                  </button>
+                </div>
 
                 {isAddress(tokenAddress.trim().toLowerCase() as any) && (
                   <p className="text-sm text-gray-600 mt-3 break-all">
