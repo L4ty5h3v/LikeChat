@@ -8,8 +8,8 @@ export interface BaseUser {
   address?: string;
 }
 
-// Base-версия: поддерживаем все типы задач для совместимости с API
-export type TaskType = 'like' | 'recast' | 'support';
+// Base-версия: единственная активность — поддержка (покупка post-token).
+export type TaskType = 'support';
 // ActivityType — алиас для TaskType (для совместимости импорта)
 export type ActivityType = TaskType;
 
