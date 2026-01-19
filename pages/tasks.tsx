@@ -212,6 +212,10 @@ export default function TasksPage() {
     contracts: tokenContracts,
     query: {
       enabled: !!effectiveAddress && tokenContracts.length > 0,
+      // Отключаем автоматическое обновление - обновляем только вручную
+      refetchInterval: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
     },
   });
 
