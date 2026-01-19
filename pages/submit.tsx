@@ -626,7 +626,7 @@ export default function Submit() {
       {/* Hero Section с градиентом */}
       <div className="relative min-h-screen overflow-hidden">
         {/* Анимированный градиент фон */}
-        <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient bg-300%"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient"></div>
         
         {/* Геометрические фигуры */}
         <div className="absolute top-20 right-20 w-32 h-32 bg-white bg-opacity-10 rounded-full animate-float"></div>
