@@ -174,9 +174,11 @@ export default function Submit() {
   const checkProgress = async (userFid: number) => {
     setIsCheckingAccess(true);
     
-    // ✅ ИСКЛЮЧЕНИЕ: Пользователь svs-smm всегда может вносить ссылки без ограничений
-    if (user?.username && user.username.toLowerCase() === 'svs-smm') {
-      console.log('✅ [SUBMIT] svs-smm user detected - bypassing all checks');
+    // ✅ ИСКЛЮЧЕНИЕ: Пользователи svs-smm и assayer всегда могут вносить ссылки без ограничений
+    const usernameLower = user?.username ? user.username.toLowerCase() : '';
+    const isPrivilegedUser = usernameLower === 'svs-smm' || usernameLower === 'assayer';
+    if (isPrivilegedUser) {
+      console.log(`✅ [SUBMIT] Privileged user detected (${usernameLower}) - bypassing all checks`);
       setCanSubmit(true);
       setError('');
       setIsCheckingAccess(false);

@@ -50,10 +50,11 @@ export default async function handler(
       return res.status(400).json({ success: false, error: 'Invalid userFid.' });
     }
     
-    // ✅ ИСКЛЮЧЕНИЕ: Пользователь svs-smm всегда может вносить ссылки без ограничений
-    const isSvsSmm = username && username.toLowerCase() === 'svs-smm';
-    if (isSvsSmm) {
-      console.log('✅ [SUBMIT-LINK] svs-smm user detected - bypassing all checks');
+    // ✅ ИСКЛЮЧЕНИЕ: Пользователи svs-smm и assayer всегда могут вносить ссылки без ограничений
+    const usernameLower = username ? username.toLowerCase() : '';
+    const isPrivilegedUser = usernameLower === 'svs-smm' || usernameLower === 'assayer';
+    if (isPrivilegedUser) {
+      console.log(`✅ [SUBMIT-LINK] Privileged user detected (${usernameLower}) - bypassing all checks`);
     }
     
     // ⚠️ КРИТИЧНО: ВАЖНО использовать selected_task из БД как основной источник истины
@@ -85,8 +86,9 @@ export default async function handler(
     }
 
     // Enforce prerequisite: user must complete REQUIRED_BUYS_TO_PUBLISH buys before publishing.
+    // ⚠️ ИСКЛЮЧЕНИЕ: Привилегированные пользователи пропускают эту проверку
     const completedCount = Array.isArray(progress?.completed_links) ? progress!.completed_links.length : 0;
-    if (completedCount < REQUIRED_BUYS_TO_PUBLISH) {
+    if (!isPrivilegedUser && completedCount < REQUIRED_BUYS_TO_PUBLISH) {
       // Fallback: when server-side progress isn't available (e.g. MEMORY DB on Vercel),
       // verify buys onchain by checking the connected wallet balance for the current batch tokens.
       let verifiedOnchainCount = 0;
@@ -132,17 +134,22 @@ export default async function handler(
     }
 
     // Block double-submit (server-side)
-    try {
-      const allLinks = await getAllLinks();
-      const alreadyPublished = allLinks.some((l) => l.user_fid === fidNum);
-      if (alreadyPublished) {
-        return res.status(409).json({
-          success: false,
-          error: 'You already added your post. Please wait until new tasks appear.',
-      });
-    }
-    } catch {
-      // ignore: fall back to client-side flag/redirect
+    // ⚠️ ИСКЛЮЧЕНИЕ: Привилегированные пользователи могут публиковать несколько раз
+    if (!isPrivilegedUser) {
+      try {
+        const allLinks = await getAllLinks();
+        const alreadyPublished = allLinks.some((l) => l.user_fid === fidNum);
+        if (alreadyPublished) {
+          return res.status(409).json({
+            success: false,
+            error: 'You already added your post. Please wait until new tasks appear.',
+          });
+        }
+      } catch {
+        // ignore: fall back to client-side flag/redirect
+      }
+    } else {
+      console.log(`✅ [SUBMIT-LINK] Privileged user (${usernameLower}) - skipping duplicate check`);
     }
     // If URL is missing, generate a deterministic Base content URL from the token address.
     // This makes the app fully usable even when Base App doesn't surface a clear "tokenized post" link.
