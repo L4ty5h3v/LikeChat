@@ -21,8 +21,8 @@ export default async function handler(
     // Получаем taskType из query параметров
     const taskType = req.query.taskType as TaskType | undefined;
     
-    // Валидация taskType - поддерживаем все типы для Farcaster и Base версий
-    const validTaskTypes: TaskType[] = ['like', 'recast', 'support'];
+    // Валидация taskType - для Base App поддерживаем только 'support'
+    const validTaskTypes: TaskType[] = ['support'];
     if (taskType && !validTaskTypes.includes(taskType)) {
       return res.status(400).json({
         error: 'Invalid task type',
