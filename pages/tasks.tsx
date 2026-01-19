@@ -175,6 +175,8 @@ export default function TasksPage() {
     queuedSilent: true,
   });
   const refreshingDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastRefetchTimeRef = useRef<number>(0);
+  const REFETCH_DEBOUNCE_MS = 2000; // Минимум 2 секунды между обновлениями балансов
 
   // Always operate in "support" mode (buy posts)
   useEffect(() => {
@@ -492,23 +494,38 @@ export default function TasksPage() {
 
     // Убираем polling (страница не должна "дёргаться" каждые 5 секунд).
     // Обновляем данные только при возврате во вкладку/приложение.
+    // ⚠️ Добавляем debounce для предотвращения частых обновлений
     const onFocus = () => {
-      requestRefresh({ silent: true });
-      // also resync on-chain balances (BOUGHT state) after wallet redirect
-      try {
-        refetchBalances();
-      } catch {
-        // ignore
+      const now = Date.now();
+      const timeSinceLastRefetch = now - lastRefetchTimeRef.current;
+      
+      // Обновляем только если прошло достаточно времени
+      if (timeSinceLastRefetch >= REFETCH_DEBOUNCE_MS) {
+        requestRefresh({ silent: true });
+        // also resync on-chain balances (BOUGHT state) after wallet redirect
+        try {
+          refetchBalances();
+          lastRefetchTimeRef.current = now;
+        } catch {
+          // ignore
+        }
       }
       syncPendingSwap();
     };
     const onVisibility = () => {
       if (document.visibilityState === 'visible') {
-        requestRefresh({ silent: true });
-        try {
-          refetchBalances();
-        } catch {
-          // ignore
+        const now = Date.now();
+        const timeSinceLastRefetch = now - lastRefetchTimeRef.current;
+        
+        // Обновляем только если прошло достаточно времени
+        if (timeSinceLastRefetch >= REFETCH_DEBOUNCE_MS) {
+          requestRefresh({ silent: true });
+          try {
+            refetchBalances();
+            lastRefetchTimeRef.current = now;
+          } catch {
+            // ignore
+          }
         }
         syncPendingSwap();
       }
