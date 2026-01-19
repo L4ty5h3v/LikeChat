@@ -1021,7 +1021,7 @@ export default function TasksPage() {
     return (
       <Layout title="Tasks">
         <div className="relative min-h-screen overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient bg-300%"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient"></div>
           <div className="relative z-10 flex items-center justify-center min-h-screen">
             <div className="text-center">
               <div className="w-20 h-20 border-4 border-white border-t-transparent rounded-full animate-spin mx-auto mb-6" />
@@ -1036,7 +1036,7 @@ export default function TasksPage() {
   return (
     <Layout title="Buy Posts">
       <div className="relative min-h-screen overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient bg-300%"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient"></div>
         
         <div className="relative z-10 max-w-6xl mx-auto px-6 py-16">
           {expandHint ? (

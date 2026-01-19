@@ -494,7 +494,7 @@ export default function Submit() {
         {/* Hero Section с градиентом */}
         <div className="relative min-h-screen overflow-x-hidden">
           {/* Анимированный градиент фон */}
-          <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient bg-300%"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient"></div>
           
           {/* Геометрические фигуры */}
           <div className="absolute top-20 right-20 w-32 h-32 bg-white bg-opacity-10 rounded-full animate-float"></div>
@@ -570,7 +570,7 @@ export default function Submit() {
     return (
       <Layout title="Checking Access...">
         <div className="relative min-h-screen overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient bg-300%"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient"></div>
           <div className="relative z-10 flex items-center justify-center min-h-screen">
             <div className="text-center">
               <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4" />
@@ -586,7 +586,7 @@ export default function Submit() {
     return (
       <Layout title="Add Your Post">
         <div className="relative min-h-screen overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient bg-300%"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient"></div>
           <div className="relative z-10 flex items-center justify-center min-h-screen px-6">
             <div className="bg-white bg-opacity-95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 sm:p-10 border border-white/30 max-w-xl w-full">
               <div className="text-center">
