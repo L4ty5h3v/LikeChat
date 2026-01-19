@@ -555,8 +555,8 @@ export default function TasksPage() {
 
     return () => {
       clearTimeout(initialRefreshTimeout);
-      if (focusTimeout) clearTimeout(focusTimeout);
-      if (visibilityTimeout) clearTimeout(visibilityTimeout);
+      if (focusTimeoutRef.current) clearTimeout(focusTimeoutRef.current);
+      if (visibilityTimeoutRef.current) clearTimeout(visibilityTimeoutRef.current);
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisibility);
     };
