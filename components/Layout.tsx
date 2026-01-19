@@ -29,8 +29,18 @@ const Layout: React.FC<LayoutProps> = ({ children, title = 'Like Chat 💌' }) =
     }
   }, []);
 
-  const handleAvatarClick = () => {
-    router.push('/');
+  const handleAvatarClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Используем replace вместо push, чтобы не добавлять в историю
+    router.replace('/').catch((err) => {
+      console.error('Navigation error:', err);
+      // Fallback на window.location если router не работает
+      if (typeof window !== 'undefined') {
+        window.location.href = '/';
+      }
+    });
   };
   return (
     <>
@@ -54,7 +64,9 @@ const Layout: React.FC<LayoutProps> = ({ children, title = 'Like Chat 💌' }) =
               {mounted && (
                 <button
                   onClick={handleAvatarClick}
-                  className="relative w-8 h-8 sm:w-10 sm:h-10 rounded-full overflow-hidden border-2 border-white hover:border-white transition-all hover:scale-105 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2"
+                  type="button"
+                  className="relative w-8 h-8 sm:w-10 sm:h-10 rounded-full overflow-hidden border-2 border-white hover:border-white transition-all hover:scale-105 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 cursor-pointer z-50"
+                  style={{ pointerEvents: 'auto' }}
                   aria-label="Go to homepage"
                 >
                   <Image
@@ -62,7 +74,7 @@ const Layout: React.FC<LayoutProps> = ({ children, title = 'Like Chat 💌' }) =
                     alt="Mrs. Crypto"
                     width={40}
                     height={40}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover pointer-events-none"
                     priority
                     unoptimized
                   />
