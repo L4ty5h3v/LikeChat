@@ -136,23 +136,58 @@ export default async function handler(
     if (existingLink) {
       // Обновляем существующую ссылку, делая её закрепленной
       const allLinksRaw = await redis.lrange(KEYS.LINKS, 0, -1);
+      let updatedLink: LinkSubmission | null = null;
+      
+      // Обновляем ссылку
       for (let i = 0; i < allLinksRaw.length; i++) {
         const linkStr = allLinksRaw[i];
         const link = typeof linkStr === 'string' ? JSON.parse(linkStr) : linkStr;
         if (link.id === existingLink.id) {
-          const updatedLink: LinkSubmission = {
+          updatedLink = {
             ...link,
             pinned: true,
             pinned_position: pinPosition,
           };
           await redis.lset(KEYS.LINKS, i, JSON.stringify(updatedLink));
-          return res.status(200).json({
-            success: true,
-            message: `Link pinned to position ${pinPosition}`,
-            link: updatedLink,
-          });
+          break;
         }
       }
+      
+      if (!updatedLink) {
+        return res.status(500).json({
+          error: 'Failed to update link',
+          message: 'Link found but could not be updated',
+        });
+      }
+      
+      // Пересортируем список: закрепленные на своих позициях, остальные по дате
+      const allLinksAfterRaw = await redis.lrange(KEYS.LINKS, 0, -1);
+      const parsed = allLinksAfterRaw.map((linkStr: any) => {
+        const link = typeof linkStr === 'string' ? JSON.parse(linkStr) : linkStr;
+        return { link, str: linkStr };
+      });
+
+      const pinned = parsed.filter((p) => p.link.pinned);
+      const regular = parsed.filter((p) => !p.link.pinned).sort((a, b) => {
+        const dateA = new Date(a.link.created_at).getTime();
+        const dateB = new Date(b.link.created_at).getTime();
+        return dateB - dateA;
+      });
+
+      // Очищаем список и добавляем закрепленные + ограниченное количество обычных
+      await redis.del(KEYS.LINKS);
+      for (const p of pinned) {
+        await redis.rpush(KEYS.LINKS, p.str);
+      }
+      for (let i = 0; i < Math.min(TASKS_LIMIT - pinned.length, regular.length); i++) {
+        await redis.rpush(KEYS.LINKS, regular[i].str);
+      }
+      
+      return res.status(200).json({
+        success: true,
+        message: `Link pinned to position ${pinPosition}`,
+        link: updatedLink,
+      });
     }
 
     // Создаем новую закрепленную ссылку
