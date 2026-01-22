@@ -110,8 +110,40 @@ export async function getLastTenLinks(taskType?: TaskType): Promise<LinkSubmissi
     console.log(`📊 [MEMORY-DB] Total links: ${sortedLinks.length}, Filtered: ${filteredLinks.length}`);
   }
   
-  // Берем только TASKS_LIMIT ссылок (по ТЗ: ровно 5 задач одновременно)
-  return filteredLinks.slice(0, TASKS_LIMIT);
+  // Разделяем на закрепленные и обычные ссылки
+  const pinnedLinks: LinkSubmission[] = [];
+  const regularLinks: LinkSubmission[] = [];
+  
+  for (const link of filteredLinks) {
+    if (link.pinned && link.pinned_position && link.pinned_position >= 1 && link.pinned_position <= TASKS_LIMIT) {
+      pinnedLinks.push(link);
+    } else {
+      regularLinks.push(link);
+    }
+  }
+  
+  // Создаем массив результатов с закрепленными ссылками на их позициях
+  const result: (LinkSubmission | null)[] = new Array(TASKS_LIMIT).fill(null);
+  
+  // Размещаем закрепленные ссылки на их позициях (позиция 1-based, массив 0-based)
+  for (const pinnedLink of pinnedLinks) {
+    const pos = (pinnedLink.pinned_position || 1) - 1; // конвертируем в 0-based индекс
+    if (pos >= 0 && pos < TASKS_LIMIT) {
+      result[pos] = pinnedLink;
+    }
+  }
+  
+  // Заполняем свободные позиции обычными ссылками
+  let regularIndex = 0;
+  for (let i = 0; i < TASKS_LIMIT && regularIndex < regularLinks.length; i++) {
+    if (result[i] === null) {
+      result[i] = regularLinks[regularIndex];
+      regularIndex++;
+    }
+  }
+  
+  // Убираем null значения и берем только существующие ссылки
+  return result.filter((link): link is LinkSubmission => link !== null);
 }
 
 // Получить прогресс пользователя

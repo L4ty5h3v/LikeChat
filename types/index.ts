@@ -23,6 +23,8 @@ export interface LinkSubmission {
   task_type: TaskType;
   created_at: string;
   completed_by?: number[]; // массив FID пользователей, которые завершили задание
+  pinned?: boolean; // закрепленная ссылка
+  pinned_position?: number; // позиция закрепленной ссылки (1-based, 1 = первая позиция)
 }
 
 export interface UserProgress {

@@ -161,23 +161,57 @@ export async function getLastTenLinks(taskType?: TaskType): Promise<LinkSubmissi
       console.log(`📊 Total links: ${parsedLinks.length}, Filtered: ${filteredLinks.length} (strict filtering - no mixing)`);
     }
     
-    // Берем только TASKS_LIMIT ссылок (по ТЗ: ровно 5 задач одновременно)
-    const result = filteredLinks.slice(0, TASKS_LIMIT);
+    // Разделяем на закрепленные и обычные ссылки
+    const pinnedLinks: LinkSubmission[] = [];
+    const regularLinks: LinkSubmission[] = [];
+    
+    for (const link of filteredLinks) {
+      if (link.pinned && link.pinned_position && link.pinned_position >= 1 && link.pinned_position <= TASKS_LIMIT) {
+        pinnedLinks.push(link);
+      } else {
+        regularLinks.push(link);
+      }
+    }
+    
+    // Создаем массив результатов с закрепленными ссылками на их позициях
+    const result: (LinkSubmission | null)[] = new Array(TASKS_LIMIT).fill(null);
+    
+    // Размещаем закрепленные ссылки на их позициях (позиция 1-based, массив 0-based)
+    for (const pinnedLink of pinnedLinks) {
+      const pos = (pinnedLink.pinned_position || 1) - 1; // конвертируем в 0-based индекс
+      if (pos >= 0 && pos < TASKS_LIMIT) {
+        result[pos] = pinnedLink;
+      }
+    }
+    
+    // Заполняем свободные позиции обычными ссылками
+    let regularIndex = 0;
+    for (let i = 0; i < TASKS_LIMIT && regularIndex < regularLinks.length; i++) {
+      if (result[i] === null) {
+        result[i] = regularLinks[regularIndex];
+        regularIndex++;
+      }
+    }
+    
+    // Убираем null значения и берем только существующие ссылки
+    const finalResult = result.filter((link): link is LinkSubmission => link !== null);
     
     // Логируем данные для диагностики
-    console.log(`📖 Loaded ${result.length} links from Redis${taskType ? ` (filtered by ${taskType})` : ' (all tasks)'}:`, 
-      result.map((link, index) => ({
+    console.log(`📖 Loaded ${finalResult.length} links from Redis${taskType ? ` (filtered by ${taskType})` : ' (all tasks)'}:`, 
+      finalResult.map((link, index) => ({
         index: index + 1,
         id: link.id,
         username: link.username,
         user_fid: link.user_fid,
         task_type: link.task_type,
+        pinned: link.pinned || false,
+        pinned_position: link.pinned_position || null,
         created_at: link.created_at,
         cast_url: link.cast_url?.substring(0, 50) + '...',
       }))
     );
     
-    return result;
+    return finalResult;
   } catch (error) {
     console.error('Error getting links from Upstash:', error);
     return [];
