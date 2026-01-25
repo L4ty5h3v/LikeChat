@@ -1,0 +1,83 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Градиент фона -->
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ff0000;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#800080;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Градиент для 3D букв (верхняя часть) - светлее -->
+    <linearGradient id="textGradientTop" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#ffffff;stop-opacity:0.95" />
+      <stop offset="100%" style="stop-color:#f8f8f8;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Градиент для 3D букв (боковая часть) - светлее -->
+    <linearGradient id="textGradientSide" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#e0e0e0;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#d0d0d0;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Тень для букв -->
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="4"/>
+      <feOffset dx="3" dy="3" result="offsetblur"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.5"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- Свечение для букв -->
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Фон с градиентом -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGradient)"/>
+  
+  <!-- Декоративные круги -->
+  <circle cx="128" cy="128" r="60" fill="rgba(255,255,255,0.15)"/>
+  <circle cx="384" cy="384" r="80" fill="rgba(255,255,255,0.1)"/>
+  <circle cx="384" cy="128" r="40" fill="rgba(255,255,255,0.2)"/>
+  <circle cx="128" cy="384" r="50" fill="rgba(255,255,255,0.15)"/>
+  
+  <!-- Группа для MULTI с 3D эффектом -->
+  <g transform="translate(256, 220)">
+    <!-- MULTI - основная буква (верхняя часть) -->
+    <text x="0" y="0" font-family="Arial, sans-serif" font-size="120" font-weight="900" 
+          fill="url(#textGradientTop)" text-anchor="middle" filter="url(#glow)">MULTI</text>
+    
+    <!-- MULTI - 3D эффект (боковая часть, смещение вправо и вниз) -->
+    <text x="8" y="8" font-family="Arial, sans-serif" font-size="120" font-weight="900" 
+          fill="url(#textGradientSide)" text-anchor="middle" opacity="0.6">MULTI</text>
+    
+    <!-- MULTI - тень -->
+    <text x="4" y="4" font-family="Arial, sans-serif" font-size="120" font-weight="900" 
+          fill="rgba(0,0,0,0.3)" text-anchor="middle">MULTI</text>
+  </g>
+  
+  <!-- Группа для BUY с 3D эффектом -->
+  <g transform="translate(256, 320)">
+    <!-- BUY - основная буква (верхняя часть) -->
+    <text x="0" y="0" font-family="Arial, sans-serif" font-size="120" font-weight="900" 
+          fill="url(#textGradientTop)" text-anchor="middle" filter="url(#glow)">BUY</text>
+    
+    <!-- BUY - 3D эффект (боковая часть, смещение вправо и вниз) -->
+    <text x="8" y="8" font-family="Arial, sans-serif" font-size="120" font-weight="900" 
+          fill="url(#textGradientSide)" text-anchor="middle" opacity="0.6">BUY</text>
+    
+    <!-- BUY - тень -->
+    <text x="4" y="4" font-family="Arial, sans-serif" font-size="120" font-weight="900" 
+          fill="rgba(0,0,0,0.3)" text-anchor="middle">BUY</text>
+  </g>
+</svg>
