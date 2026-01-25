@@ -1,0 +1,7 @@
+Скопируйте и выполните эти команды в консоли браузера на сайте https://likechat-base-app.vercel.app:
+
+1. ПРОВЕРИТЬ, ЕСТЬ ЛИ ССЫЛКА:
+fetch('/api/tasks?taskType=support').then(r=>r.json()).then(d=>{const found=d.links.find(l=>l.token_address?.toLowerCase()==='0xbe705864202df9a6c7c57993fde1865ae67825ce');console.log(found?'✅ Ссылка найдена:':'❌ Ссылка не найдена');console.log(found||'Всего ссылок:',d.links.length);if(found)console.log('Детали:',found);else console.log('Первые 3 ссылки:',d.links.slice(0,3));})
+
+2. ЕСЛИ ССЫЛКА НЕ НАЙДЕНА ИЛИ БЕЗ cast_url, ИСПРАВИТЬ:
+fetch('/api/pin-link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tokenAddress:'0xbe705864202df9a6c7c57993fde1865ae67825ce',position:5})}).then(r=>r.json()).then(d=>{if(d.success){console.log('✅ Ссылка исправлена!');console.log('Детали:',d.link);alert('✅ Ссылка исправлена и закреплена на 5-й позиции!');}else{console.error('❌ Ошибка:',d.error);alert('❌ Ошибка: '+d.error);}})

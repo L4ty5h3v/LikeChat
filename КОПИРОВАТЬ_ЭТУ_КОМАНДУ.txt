@@ -1,0 +1,11 @@
+Скопируйте эту команду и вставьте в консоль браузера на сайте https://likechat-base-app.vercel.app:
+
+fetch('/api/pin-link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tokenAddress:'0xbe705864202df9a6c7c57993fde1865ae67825ce',position:5})}).then(r=>r.json()).then(d=>alert(d.success?'✅ Успешно! Ссылка добавлена на 5-ю позицию':'❌ Ошибка: '+d.error))
+
+ИНСТРУКЦИЯ:
+1. Откройте https://likechat-base-app.vercel.app в браузере
+2. Нажмите F12 (откроется консоль разработчика)
+3. Перейдите на вкладку "Console"
+4. Скопируйте команду выше и вставьте в консоль
+5. Нажмите Enter
+6. Должно появиться сообщение "✅ Успешно!"

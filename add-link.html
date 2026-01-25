@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Добавить ссылку</title></head>
+<body style="font-family:Arial;max-width:500px;margin:50px auto;padding:20px">
+<h1>📌 Добавить закрепленную ссылку</h1>
+<p>Нажмите кнопку ниже:</p>
+<button onclick="add()" style="padding:15px 30px;font-size:16px;background:#4CAF50;color:white;border:none;border-radius:5px;cursor:pointer">Добавить ссылку</button>
+<div id="result" style="margin-top:20px;padding:15px;border-radius:5px;display:none"></div>
+<script>
+async function add(){
+const btn=event.target;btn.disabled=true;btn.textContent='Добавление...';
+const r=document.getElementById('result');r.style.display='none';
+try{
+const res=await fetch('https://likechat-base-app.vercel.app/api/pin-link',{
+method:'POST',
+mode:'cors',
+credentials:'omit',
+headers:{'Content-Type':'application/json','Accept':'application/json'},
+body:JSON.stringify({tokenAddress:'0xbe705864202df9a6c7c57993fde1865ae67825ce',position:5})
+});
+if(!res.ok && res.status===403){
+r.style.display='block';r.style.background='#fff3cd';r.style.color='#856404';r.innerHTML='⚠️ <strong>Vercel Security Checkpoint блокирует запрос.</strong><br><br>Откройте <a href="https://likechat-base-app.vercel.app" target="_blank">сайт приложения</a>, затем:<br>1. Нажмите F12<br>2. Перейдите на вкладку Console<br>3. Вставьте эту команду:<br><br><code style="background:#f5f5f5;padding:5px;display:block;margin:10px 0">fetch(\'/api/pin-link\',{method:\'POST\',headers:{\'Content-Type\':\'application/json\'},body:JSON.stringify({tokenAddress:\'0xbe705864202df9a6c7c57993fde1865ae67825ce\',position:5})}).then(r=>r.json()).then(d=>alert(d.success?\'✅ Успешно!\':\'❌ Ошибка: \'+d.error))</code>';btn.disabled=false;btn.textContent='Добавить ссылку';return;}
+const data=await res.json();
+r.style.display='block';
+if(res.ok){
+r.style.background='#d4edda';r.style.color='#155724';r.innerHTML='✅ <strong>Успешно!</strong><br>Ссылка добавлена на 5-ю позицию.<br><small>ID: '+data.link.id+'</small>';
+}else{
+r.style.background='#f8d7da';r.style.color='#721c24';r.innerHTML='❌ <strong>Ошибка:</strong><br>'+data.error+'<br>'+data.message;
+}
+}catch(e){
+r.style.display='block';r.style.background='#f8d7da';r.style.color='#721c24';r.innerHTML='❌ <strong>Ошибка:</strong><br>'+e.message;
+}
+btn.disabled=false;btn.textContent='Добавить ссылку';
+}
+</script>
+</body>
+</html>

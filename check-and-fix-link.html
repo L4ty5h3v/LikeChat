@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Проверка и исправление ссылки</title></head>
+<body style="font-family:Arial;max-width:600px;margin:50px auto;padding:20px">
+<h1>🔍 Проверка и исправление ссылки</h1>
+<p>Токен: <code>0xbe705864202df9a6c7c57993fde1865ae67825ce</code></p>
+<button onclick="check()" style="padding:15px 30px;font-size:16px;background:#2196F3;color:white;border:none;border-radius:5px;cursor:pointer;margin:5px">Проверить ссылку</button>
+<button onclick="fix()" style="padding:15px 30px;font-size:16px;background:#4CAF50;color:white;border:none;border-radius:5px;cursor:pointer;margin:5px">Исправить ссылку</button>
+<div id="result" style="margin-top:20px;padding:15px;border-radius:5px;display:none;white-space:pre-wrap;font-family:monospace"></div>
+<script>
+const tokenAddress='0xbe705864202df9a6c7c57993fde1865ae67825ce';
+async function check(){
+const r=document.getElementById('result');r.style.display='block';r.style.background='#e3f2fd';r.style.color='#1565c0';
+r.textContent='Проверяю...';
+try{
+const res=await fetch('/api/tasks?taskType=support');
+const data=await res.json();
+const links=data.links||[];
+const found=links.find(l=>l.token_address?.toLowerCase()===tokenAddress.toLowerCase());
+if(found){
+r.style.background='#d4edda';r.style.color='#155724';
+r.textContent='✅ Ссылка найдена!\n\n'+JSON.stringify(found,null,2);
+}else{
+r.style.background='#fff3cd';r.style.color='#856404';
+r.textContent='⚠️ Ссылка не найдена в списке.\n\nВсего ссылок: '+links.length+'\n\nПервые ссылки:\n'+JSON.stringify(links.slice(0,3),null,2);
+}
+}catch(e){
+r.style.background='#f8d7da';r.style.color='#721c24';
+r.textContent='❌ Ошибка: '+e.message;
+}
+}
+async function fix(){
+const r=document.getElementById('result');r.style.display='block';r.style.background='#fff3cd';r.style.color='#856404';
+r.textContent='Исправляю ссылку...';
+try{
+// Генерируем правильный cast_url
+const castUrl='https://base.app/content/'+btoa(String.fromCharCode(...new Uint8Array([0x12,0x2a,0x0a,0x28,0x0a,0x18,0x6e,0x65,0x74,0x77,0x6f,0x72,0x6b,0x73,0x2f,0x62,0x61,0x73,0x65,0x2d,0x6d,0x61,0x69,0x6e,0x6e,0x65,0x74,0x12,0x0c,0x30,0x78,0x62,0x65,0x37,0x30,0x35,0x38,0x36,0x34,0x32,0x30,0x32,0x64,0x66,0x39,0x61,0x36,0x63,0x37,0x63,0x35,0x37,0x39,0x39,0x33,0x66,0x64,0x65,0x31,0x38,0x36,0x35,0x61,0x65,0x36,0x37,0x38,0x32,0x35,0x63,0x65])).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/g,'');
+const res=await fetch('/api/pin-link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tokenAddress,position:5,castUrl})});
+const data=await res.json();
+if(res.ok){
+r.style.background='#d4edda';r.style.color='#155724';
+r.textContent='✅ Ссылка исправлена!\n\n'+JSON.stringify(data,null,2);
+}else{
+r.style.background='#f8d7da';r.style.color='#721c24';
+r.textContent='❌ Ошибка: '+data.error+' '+data.message;
+}
+}catch(e){
+r.style.background='#f8d7da';r.style.color='#721c24';
+r.textContent='❌ Ошибка: '+e.message;
+}
+}
+</script>
+</body>
+</html>

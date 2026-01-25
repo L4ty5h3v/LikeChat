@@ -1,0 +1,12 @@
+Выполните эту команду в консоли браузера на сайте https://likechat-base-app.vercel.app:
+
+fetch('/api/pin-link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tokenAddress:'0xbe705864202df9a6c7c57993fde1865ae67825ce',position:5})}).then(r=>r.json()).then(d=>{if(d.success){console.log('✅ Успешно!');console.log('Ссылка:',d.link);alert('✅ Токен закреплен на 5-й позиции!\n\nID: '+d.link.id+'\nToken: '+d.link.token_address+'\nPosition: '+d.link.pinned_position);}else{console.error('❌ Ошибка:',d);alert('❌ Ошибка: '+d.error+'\n'+d.message);}}).catch(e=>{console.error('❌ Ошибка запроса:',e);alert('❌ Ошибка: '+e.message);})
+
+ИНСТРУКЦИЯ:
+1. Подождите 2-3 минуты после деплоя
+2. Откройте https://likechat-base-app.vercel.app
+3. Нажмите F12 (консоль разработчика)
+4. Перейдите на вкладку "Console"
+5. Скопируйте команду выше и вставьте
+6. Нажмите Enter
+7. Должно появиться сообщение "✅ Токен закреплен на 5-й позиции!"
