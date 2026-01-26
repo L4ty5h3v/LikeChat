@@ -1,17 +1,15 @@
 {
-  "frame": {
-    "name": "MULTI LIKE",
+  "miniapp": {
     "version": "1",
+    "name": "MULTI LIKE",
     "iconUrl": "https://likechat-farcaster.vercel.app/images/icon.png",
     "homeUrl": "https://likechat-farcaster.vercel.app/",
-    "description": "MULTI LIKE is a mini-app for Farcaster that helps you honestly gain likes and recasts through mutual activity. How it works You choose a mode: LIKE or RECAST. The app shows you a list of casts from other users. You perform the selected action (like or recast them). After completing the tasks, you add a link to your own cast. The next users who choose the same mode will perform that action on your cast. Fair mechanics No bots Only real users Who it’s for Content creators Projects and builders Anyone who wants to increase reach and engagement MULTI LIKE — get likes and recasts as honestly as you give them. 👍",
-    "primaryCategory": "social",
     "subtitle": "You like → they like back. Simple reciprocity",
+    "description": "MULTI LIKE helps you honestly gain likes and recasts through mutual activity. Choose LIKE or RECAST mode, complete tasks on other users' casts, then add your own cast link. Fair mechanics, no bots, only real users.",
+    "primaryCategory": "social",
     "splashBackgroundColor": "#C71585",
     "splashImageUrl": "https://likechat-farcaster.vercel.app/images/image%20(3).png"
-  }
-},
-{
+  },
   "accountAssociation": {
     "header": "eyJmaWQiOjQzOTY5OSwidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweDhjM2M0N0U0NTM4YzZmQzU4Y0NhQjk0OTM0OGMxRTVmOTkwMDRkZjgifQ",
     "payload": "eyJkb21haW4iOiJsaWtlY2hhdC1mYXJjYXN0ZXIudmVyY2VsLmFwcCJ9",
