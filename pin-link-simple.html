@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Закрепить ссылку</title></head>
+<body style="font-family:Arial;max-width:400px;margin:50px auto;padding:20px;text-align:center">
+<h1>📌 Закрепить ссылку</h1>
+<p style="color:#666">Токен: <code style="font-size:12px">0xbe705864202df9a6c7c57993fde1865ae67825ce</code></p>
+<p style="color:#666">Позиция: <strong>5</strong></p>
+<button onclick="pin()" style="padding:20px 40px;font-size:18px;background:#4CAF50;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:bold;margin:20px 0">ЗАКРЕПИТЬ НА 5-Й ПОЗИЦИИ</button>
+<div id="result" style="margin-top:20px;padding:15px;border-radius:5px;display:none;font-size:14px"></div>
+<script>
+async function pin(){
+const btn=event.target;const r=document.getElementById('result');
+btn.disabled=true;btn.textContent='Закрепляю...';r.style.display='none';
+try{
+const res=await fetch('https://likechat-base-app.vercel.app/api/pin-link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tokenAddress:'0xbe705864202df9a6c7c57993fde1865ae67825ce',position:5})});
+const data=await res.json();
+r.style.display='block';
+if(res.ok){
+r.style.background='#d4edda';r.style.color='#155724';r.style.border='2px solid #c3e6cb';
+r.innerHTML='✅ <strong>Успешно!</strong><br><br>Ссылка закреплена на 5-й позиции.<br><br><small>ID: '+data.link.id+'<br>Token: '+data.link.token_address.substring(0,10)+'...<br>Position: '+data.link.pinned_position+'</small>';
+btn.style.background='#28a745';btn.textContent='✅ ЗАКРЕПЛЕНО';
+}else{
+r.style.background='#f8d7da';r.style.color='#721c24';r.style.border='2px solid #f5c6cb';
+r.innerHTML='❌ <strong>Ошибка:</strong><br>'+data.error+'<br>'+data.message;
+btn.disabled=false;btn.textContent='ЗАКРЕПИТЬ НА 5-Й ПОЗИЦИИ';
+}
+}catch(e){
+r.style.display='block';r.style.background='#f8d7da';r.style.color='#721c24';r.style.border='2px solid #f5c6cb';
+r.innerHTML='❌ <strong>Ошибка:</strong><br>'+e.message+'<br><br><small>Убедитесь, что вы открыли этот файл на сайте<br>https://likechat-base-app.vercel.app</small>';
+btn.disabled=false;btn.textContent='ЗАКРЕПИТЬ НА 5-Й ПОЗИЦИИ';
+}
+}
+</script>
+</body>
+</html>

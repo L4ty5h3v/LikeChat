@@ -11,7 +11,6 @@ interface FortuneUser {
   last_fortune_claim_date?: string;
   total_fortune_claims: number;
   claim_count: number;
-  token_purchased: boolean;
 }
 
 export default function TopFortuneUsers() {
@@ -36,10 +35,10 @@ export default function TopFortuneUsers() {
         setTotal(data.total || 0);
         setTotalClaims(data.total_claims || 0);
       } else {
-        setError(data.message || 'Ошибка при загрузке данных');
+        setError(data.message || 'Failed to load data');
       }
     } catch (err: any) {
-      setError(err.message || 'Ошибка при загрузке данных');
+      setError(err.message || 'Failed to load data');
     } finally {
       setLoading(false);
     }
@@ -48,7 +47,7 @@ export default function TopFortuneUsers() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center">
-        <div className="text-white text-xl">Загрузка...</div>
+        <div className="text-white text-xl">Loading...</div>
       </div>
     );
   }
@@ -56,7 +55,7 @@ export default function TopFortuneUsers() {
   if (error) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center">
-        <div className="text-red-400 text-xl">Ошибка: {error}</div>
+        <div className="text-red-400 text-xl">Error: {error}</div>
       </div>
     );
   }
@@ -65,15 +64,15 @@ export default function TopFortuneUsers() {
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 py-12 px-4">
       <div className="max-w-4xl mx-auto">
         <h1 className="text-4xl font-bold text-white mb-2 text-center">
-          🍪 Топ-20 пользователей по клеймам предсказаний
+          🍪 Top 20 users by fortune claims
         </h1>
         <p className="text-gray-300 text-center mb-8">
-          Всего пользователей с клеймами: {total} | Всего клеймов: {totalClaims}
+          Users with claims: {total} | Total claims: {totalClaims}
         </p>
 
         {users.length === 0 ? (
           <div className="bg-white/10 backdrop-blur-lg rounded-lg p-8 text-center text-white">
-            <p className="text-xl">Пользователи с клеймами не найдены</p>
+            <p className="text-xl">No users with claims found</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -95,19 +94,16 @@ export default function TopFortuneUsers() {
                         )}
                       </div>
                       <div className="text-gray-300 mt-1">
-                        Клеймов: <span className="text-white font-semibold">{user.claim_count}</span>
+                        Claims: <span className="text-white font-semibold">{user.claim_count}</span>
                         {' | '}
-                        Стрик: <span className="text-white font-semibold">{user.current_streak}</span>
+                        Streak: <span className="text-white font-semibold">{user.current_streak}</span>
                         {' | '}
-                        Рекорд: <span className="text-white font-semibold">{user.longest_streak}</span>
+                        Best: <span className="text-white font-semibold">{user.longest_streak}</span>
                         {user.last_fortune_claim_date && (
                           <>
                             {' | '}
-                            Последний клейм: <span className="text-white font-semibold">{user.last_fortune_claim_date}</span>
+                            Last claim: <span className="text-white font-semibold">{user.last_fortune_claim_date}</span>
                           </>
-                        )}
-                        {user.token_purchased && (
-                          <span className="ml-2 text-green-400">✓ Токен куплен</span>
                         )}
                       </div>
                     </div>

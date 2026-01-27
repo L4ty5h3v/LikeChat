@@ -3,22 +3,24 @@ import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
-import type { FarcasterUser } from '@/types';
+import type { BaseUser } from '@/types';
 
 interface LayoutProps {
   children: React.ReactNode;
   title?: string;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, title = 'Like Chat 💌' }) => {
+const APP_NAME = 'MULTI LIKE';
+
+const Layout: React.FC<LayoutProps> = ({ children, title = APP_NAME }) => {
   const router = useRouter();
-  const [user, setUser] = useState<FarcasterUser | null>(null);
+  const [user, setUser] = useState<BaseUser | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
     if (typeof window !== 'undefined') {
-      const savedUser = localStorage.getItem('farcaster_user');
+      const savedUser = localStorage.getItem('base_user');
       if (savedUser) {
         try {
           setUser(JSON.parse(savedUser));
@@ -33,40 +35,61 @@ const Layout: React.FC<LayoutProps> = ({ children, title = 'Like Chat 💌' }) =
     e.preventDefault();
     e.stopPropagation();
     
-    // Используем replace вместо push, чтобы не добавлять в историю
-    router.replace('/').catch((err) => {
-      console.error('Navigation error:', err);
-      // Fallback на window.location если router не работает
+    console.log('🖱️ Avatar clicked, navigating to home...');
+    
+    // Пробуем несколько способов навигации для надёжности
+    try {
+      // Способ 1: router.replace
+      if (router && router.replace) {
+        router.replace('/').catch((err) => {
+          console.warn('⚠️ router.replace failed, trying window.location:', err);
+          // Fallback на window.location
+          if (typeof window !== 'undefined') {
+            window.location.href = '/';
+          }
+        });
+      } else {
+        // Если router недоступен, используем window.location напрямую
+        console.log('⚠️ Router not available, using window.location');
+        if (typeof window !== 'undefined') {
+          window.location.href = '/';
+        }
+      }
+    } catch (error) {
+      console.error('❌ Navigation error:', error);
+      // Последний fallback
       if (typeof window !== 'undefined') {
         window.location.href = '/';
       }
-    });
+    }
   };
   return (
     <>
       <Head>
-        <title>{title}</title>
+        <title>{APP_NAME}</title>
         <meta name="description" content="Mutual love from Mrs. Crypto" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="application-name" content={APP_NAME} />
+        <meta name="apple-mobile-web-app-title" content={APP_NAME} />
+        <meta property="og:site_name" content={APP_NAME} />
+        <meta property="og:title" content={APP_NAME} />
+        <meta name="twitter:title" content={APP_NAME} />
         
-        {/* Farcaster Mini App мета-теги - предотвращают распознавание как Frame */}
-        <meta name="farcaster:miniapp" content="true" />
-        <meta name="farcaster:frame" content="false" />
         <meta property="og:type" content="website" />
         
         <link rel="icon" href="/favicon.ico" />
       </Head>
       
       <div className="min-h-screen">
-        <header className="absolute top-0 right-0 z-50 p-4">
+        <header className="absolute top-0 right-0 z-[9999] p-4">
           <div className="flex items-center justify-end">
             <div className="flex items-center gap-3 sm:gap-4">
               {mounted && (
                 <button
                   onClick={handleAvatarClick}
                   type="button"
-                  className="relative w-8 h-8 sm:w-10 sm:h-10 rounded-full overflow-hidden border-2 border-white hover:border-white transition-all hover:scale-105 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 cursor-pointer z-50"
-                  style={{ pointerEvents: 'auto' }}
+                  className="relative w-8 h-8 sm:w-10 sm:h-10 rounded-full overflow-hidden border-2 border-white hover:border-white transition-all hover:scale-105 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 cursor-pointer z-[9999]"
+                  style={{ pointerEvents: 'auto', position: 'relative', zIndex: 9999 }}
                   aria-label="Go to homepage"
                 >
                   <Image

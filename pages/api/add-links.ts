@@ -19,7 +19,7 @@ export default async function handler(
     if (!secretKey || secretKey !== requiredSecretKey) {
       return res.status(401).json({ 
         error: 'Unauthorized',
-        message: 'Секретный ключ не указан или неверен. Установите INIT_LINKS_SECRET_KEY в Vercel или введите правильный ключ.'
+        message: 'Secret key is missing or invalid. Set INIT_LINKS_SECRET_KEY on Vercel or provide the correct key.'
       });
     }
   }
@@ -30,12 +30,12 @@ export default async function handler(
     if (!taskType) {
       return res.status(400).json({
         error: 'Missing taskType',
-        message: 'taskType is required. Must be "like" or "recast".'
+        message: 'taskType is required. Must be "support".'
       });
     }
 
     // Валидация taskType
-    const validTaskTypes: TaskType[] = ['like', 'recast'];
+    const validTaskTypes: TaskType[] = ['support'];
     if (!validTaskTypes.includes(taskType)) {
       return res.status(400).json({
         error: 'Invalid task type',
@@ -60,7 +60,7 @@ export default async function handler(
         taskType: taskType
       });
     } else {
-      return res.status(500).json({
+      return res.status(400).json({
         success: false,
         error: result.error || 'Failed to add links',
         taskType: taskType

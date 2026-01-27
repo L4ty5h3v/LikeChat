@@ -1,35 +1,134 @@
 import { Redis } from '@upstash/redis';
 import type { LinkSubmission, UserProgress, TaskType } from '@/types';
-import { getCastAuthor, getUserByUsername } from '@/lib/neynar';
+import { baseAppContentUrlFromTokenAddress } from '@/lib/base-content';
+import { REQUIRED_BUYS_TO_PUBLISH, TASKS_LIMIT } from '@/lib/app-config';
 
 // Инициализация Redis клиента
 let redis: Redis | null = null;
 
+// Default queue for a fresh Upstash DB (mirrors memory-db defaults).
+// This keeps the app usable immediately after switching from MEMORY -> Upstash.
+const DEFAULT_SEED_TOKEN_ADDRESSES = [
+  '0xf45d09963807f7a80aa164eab5da1488dafccdb8',
+  '0x657275c7a7b0ce6fa82d79d6aae36a536af6084e',
+  '0xfa81fea4854f0ead4462aa9dff783f742ff79721',
+  '0x46ceb7dc97ca354c7a23d581c6d392c0e7fcaf76',
+  '0xe69ecebbee60e4ce04cd6a38a9a897082605368b',
+] as const;
+
+let seedOncePromise: Promise<void> | null = null;
+
+function readEnvTrimmed(key: string): string | undefined {
+  const v = process.env[key];
+  if (!v) return undefined;
+  let t = v.trim();
+  // Values are sometimes pasted with wrapping quotes; strip them to prevent auth errors.
+  if (
+    (t.startsWith('"') && t.endsWith('"') && t.length >= 2) ||
+    (t.startsWith("'") && t.endsWith("'") && t.length >= 2)
+  ) {
+    t = t.slice(1, -1).trim();
+  }
+  return t ? t : undefined;
+}
+
+function sanitizeNamespace(ns: string): string {
+  return ns.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64);
+}
+
+function getDbNamespace(): string {
+  // Auto-isolate data per Vercel project to allow sharing one Upstash DB safely across multiple projects.
+  const explicit = readEnvTrimmed('LIKECHAT_DB_NAMESPACE');
+  if (explicit) return sanitizeNamespace(explicit);
+  const pid = readEnvTrimmed('VERCEL_PROJECT_ID');
+  if (pid) return sanitizeNamespace(pid);
+  const slug = readEnvTrimmed('VERCEL_GIT_REPO_SLUG');
+  if (slug) return sanitizeNamespace(slug);
+  return 'default';
+}
+
 // Инициализировать только на сервере
-if (typeof window === 'undefined' && process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
-  // Убираем пробелы и переносы строк из URL и токена
-  const url = process.env.UPSTASH_REDIS_REST_URL.trim();
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN.trim();
+if (typeof window === 'undefined') {
+  // Support both direct Upstash env vars and Vercel KV integration env vars.
+  const url =
+    readEnvTrimmed('UPSTASH_REDIS_REST_URL') ||
+    readEnvTrimmed('KV_REST_API_URL') ||
+    readEnvTrimmed('STORAGE_REST_API_URL');
+  const token =
+    readEnvTrimmed('UPSTASH_REDIS_REST_TOKEN') ||
+    readEnvTrimmed('KV_REST_API_TOKEN') ||
+    readEnvTrimmed('KV_REST_API_READ_ONLY_TOKEN') ||
+    readEnvTrimmed('STORAGE_REST_API_TOKEN') ||
+    readEnvTrimmed('STORAGE_REST_API_READ_ONLY_TOKEN');
+
+  if (url && token) {
   redis = new Redis({
     url,
     token,
   });
-} else if (typeof window === 'undefined') {
-  console.warn('⚠️ Upstash Redis credentials not found. Using fallback mode.');
+  } else {
+    console.warn('⚠️ Upstash Redis credentials not found. Using fallback mode.');
+  }
 }
 
 // Ключи для Redis
+const KEY_PREFIX = `likechat:${getDbNamespace()}`;
 const KEYS = {
-  LINKS: 'likechat:links',
-  USER_PROGRESS: 'likechat:user_progress',
-  TOTAL_LINKS_COUNT: 'likechat:total_links_count',
+  LINKS: `${KEY_PREFIX}:links`,
+  USER_PROGRESS: `${KEY_PREFIX}:user_progress`,
+  TOTAL_LINKS_COUNT: `${KEY_PREFIX}:total_links_count`,
 };
+
+async function ensureSeededIfEmpty(): Promise<void> {
+  if (!redis) return;
+  if (process.env.AUTO_SEED_LINKS === 'false') return;
+  if (seedOncePromise) return seedOncePromise;
+
+  seedOncePromise = (async () => {
+    try {
+      // We must handle cases where the list exists but has no "support" tasks,
+      // because /api/tasks uses strict filtering by taskType=support.
+      const raw = await redis!.lrange(KEYS.LINKS, 0, 50);
+      let hasAny = Array.isArray(raw) && raw.length > 0;
+      let hasSupport = false;
+
+      if (hasAny) {
+        for (const item of raw) {
+          try {
+            const link = typeof item === 'string' ? JSON.parse(item) : item;
+            if (link?.task_type === 'support') {
+              hasSupport = true;
+              break;
+            }
+          } catch {
+            // ignore per-item parse failures
+          }
+        }
+      }
+
+      // Seed if DB is empty OR has no support queue yet.
+      if (hasAny && hasSupport) return;
+
+      console.log(
+        `🌱 [UPSTASH] ${hasAny ? 'No support tasks found' : 'Empty links list detected'}. Seeding ${DEFAULT_SEED_TOKEN_ADDRESSES.length} default support tasks...`
+      );
+      await seedLinks(DEFAULT_SEED_TOKEN_ADDRESSES.map((tokenAddress) => ({ tokenAddress })));
+    } catch (e) {
+      console.warn('⚠️ [UPSTASH] ensureSeededIfEmpty failed:', e);
+    }
+  })();
+
+  return seedOncePromise;
+}
 
 // Функции для работы с ссылками
 export async function getLastTenLinks(taskType?: TaskType): Promise<LinkSubmission[]> {
   if (!redis) return [];
   
   try {
+    // If the DB is fresh and empty, seed the default queue once.
+    await ensureSeededIfEmpty();
+
     // Получаем все ссылки (берем больше, чтобы после фильтрации осталось достаточно)
     const allLinks = await redis.lrange(KEYS.LINKS, 0, -1);
     const parsedLinks = allLinks.map((linkStr: any) => {
@@ -62,23 +161,57 @@ export async function getLastTenLinks(taskType?: TaskType): Promise<LinkSubmissi
       console.log(`📊 Total links: ${parsedLinks.length}, Filtered: ${filteredLinks.length} (strict filtering - no mixing)`);
     }
     
-    // Берем первые 10 ссылок после фильтрации (может быть меньше 10, если нет достаточного количества)
-    const result = filteredLinks.slice(0, 10);
+    // Разделяем на закрепленные и обычные ссылки
+    const pinnedLinks: LinkSubmission[] = [];
+    const regularLinks: LinkSubmission[] = [];
+    
+    for (const link of filteredLinks) {
+      if (link.pinned && link.pinned_position && link.pinned_position >= 1 && link.pinned_position <= TASKS_LIMIT) {
+        pinnedLinks.push(link);
+      } else {
+        regularLinks.push(link);
+      }
+    }
+    
+    // Создаем массив результатов с закрепленными ссылками на их позициях
+    const result: (LinkSubmission | null)[] = new Array(TASKS_LIMIT).fill(null);
+    
+    // Размещаем закрепленные ссылки на их позициях (позиция 1-based, массив 0-based)
+    for (const pinnedLink of pinnedLinks) {
+      const pos = (pinnedLink.pinned_position || 1) - 1; // конвертируем в 0-based индекс
+      if (pos >= 0 && pos < TASKS_LIMIT) {
+        result[pos] = pinnedLink;
+      }
+    }
+    
+    // Заполняем свободные позиции обычными ссылками
+    let regularIndex = 0;
+    for (let i = 0; i < TASKS_LIMIT && regularIndex < regularLinks.length; i++) {
+      if (result[i] === null) {
+        result[i] = regularLinks[regularIndex];
+        regularIndex++;
+      }
+    }
+    
+    // Убираем null значения и берем только существующие ссылки
+    const finalResult = result.filter((link): link is LinkSubmission => link !== null);
     
     // Логируем данные для диагностики
-    console.log(`📖 Loaded ${result.length} links from Redis${taskType ? ` (filtered by ${taskType})` : ' (all tasks)'}:`, 
-      result.map((link, index) => ({
+    console.log(`📖 Loaded ${finalResult.length} links from Redis${taskType ? ` (filtered by ${taskType})` : ' (all tasks)'}:`, 
+      finalResult.map((link, index) => ({
         index: index + 1,
         id: link.id,
         username: link.username,
         user_fid: link.user_fid,
         task_type: link.task_type,
+        pinned: link.pinned || false,
+        pinned_position: link.pinned_position || null,
         created_at: link.created_at,
         cast_url: link.cast_url?.substring(0, 50) + '...',
       }))
     );
     
-    return result;
+    return finalResult;
   } catch (error) {
     console.error('Error getting links from Upstash:', error);
     return [];
@@ -144,7 +277,8 @@ export async function submitLink(
   username: string,
   pfpUrl: string,
   castUrl: string,
-  taskType: TaskType
+  taskType: TaskType,
+  tokenAddress?: string
 ): Promise<LinkSubmission | null> {
   if (!redis) return null;
   
@@ -155,6 +289,7 @@ export async function submitLink(
       username,
       pfp_url: pfpUrl,
       cast_url: castUrl,
+      token_address: tokenAddress,
       task_type: taskType,
       completed_by: [],
       created_at: new Date().toISOString(),
@@ -162,9 +297,17 @@ export async function submitLink(
 
     // Добавляем ссылку в начало списка (сериализуем в JSON)
     await redis.lpush(KEYS.LINKS, JSON.stringify(newLink));
+
+    // Keep queue bounded: always keep only TASKS_LIMIT newest links.
+    await redis.ltrim(KEYS.LINKS, 0, TASKS_LIMIT - 1);
     
     // Обновляем счетчик
-    await redis.incr(KEYS.TOTAL_LINKS_COUNT);
+    try {
+      const len = await redis.llen(KEYS.LINKS);
+      await redis.set(KEYS.TOTAL_LINKS_COUNT, typeof len === 'number' ? len : TASKS_LIMIT);
+    } catch {
+      await redis.incr(KEYS.TOTAL_LINKS_COUNT);
+    }
 
     console.log(`✅ Link published successfully:`, {
       id: newLink.id,
@@ -260,9 +403,10 @@ export async function markLinkCompleted(userFid: number, linkId: string): Promis
     const updatedCompletedLinks = [...progress.completed_links];
     if (!updatedCompletedLinks.includes(linkId)) {
       updatedCompletedLinks.push(linkId);
+      const capped = updatedCompletedLinks.slice(-REQUIRED_BUYS_TO_PUBLISH);
       
       await upsertUserProgress(userFid, {
-        completed_links: updatedCompletedLinks,
+        completed_links: capped,
       });
     }
   } catch (error) {
@@ -303,8 +447,8 @@ export async function setUserActivity(userFid: number, activity: TaskType): Prom
 }
 
 // Функция для очистки всех ссылок
-async function clearAllLinks(): Promise<void> {
-  if (!redis) return;
+export async function clearAllLinks(): Promise<number> {
+  if (!redis) return 0;
   
   try {
     // Удаляем все элементы из списка
@@ -315,8 +459,60 @@ async function clearAllLinks(): Promise<void> {
     
     // Сбрасываем счетчик
     await redis.set(KEYS.TOTAL_LINKS_COUNT, 0);
+    return typeof listLength === 'number' ? listLength : 0;
   } catch (error) {
     console.error('Error clearing links:', error);
+    return 0;
+  }
+}
+
+export async function seedLinks(
+  entries: Array<{ castUrl?: string; tokenAddress: string; username?: string; pfpUrl?: string }>
+): Promise<{ success: boolean; count: number; error?: string }> {
+  if (!redis) {
+    return { success: false, count: 0, error: 'Redis not available' };
+  }
+
+  try {
+    const now = Date.now();
+    const usernameFallback = 'svs-smm';
+    const pfpFallback = `https://api.dicebear.com/7.x/identicon/svg?seed=${usernameFallback}`;
+
+    for (let i = 0; i < entries.length; i++) {
+      const e = entries[i];
+      const tokenAddress = (e.tokenAddress || '').toString().trim();
+      const direct = (e.castUrl || '').toString().trim();
+      const generated = baseAppContentUrlFromTokenAddress(tokenAddress) || '';
+      const castUrl = direct.startsWith('http') ? direct : generated;
+      const newLink: LinkSubmission = {
+        id: `seed_${now}_${i}_${Math.random().toString(36).slice(2, 9)}`,
+        user_fid: 0,
+        username: e.username || usernameFallback,
+        pfp_url: e.pfpUrl || pfpFallback,
+        cast_url: castUrl,
+        token_address: tokenAddress,
+        task_type: 'support',
+        completed_by: [],
+        created_at: new Date(now + i).toISOString(),
+      };
+
+      await redis.lpush(KEYS.LINKS, JSON.stringify(newLink));
+    }
+
+    // Keep queue bounded: always keep only TASKS_LIMIT newest links.
+    await redis.ltrim(KEYS.LINKS, 0, TASKS_LIMIT - 1);
+
+    // Update counter to actual length (best-effort).
+    try {
+      const len = await redis.llen(KEYS.LINKS);
+      await redis.set(KEYS.TOTAL_LINKS_COUNT, typeof len === 'number' ? len : TASKS_LIMIT);
+    } catch {
+      // ignore
+    }
+
+    return { success: true, count: entries.length };
+  } catch (error: any) {
+    return { success: false, count: 0, error: error?.message || 'Failed to seed links' };
   }
 }
 
@@ -327,311 +523,10 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
   }
 
   try {
-    // Проверяем, не добавлены ли уже ссылки
-    const existingCount = await getTotalLinksCount();
-    if (existingCount > 0) {
-      // Если ссылки уже есть, очищаем их перед повторной инициализацией
-      await clearAllLinks();
-    }
-
-    // Список начальных ссылок - по 10 для каждого типа активности (всего 30 ссылок)
-    const baseLinks = [
-      'https://farcaster.xyz/gladness/0xaa4214bf',
-      'https://farcaster.xyz/svs-smm/0xf17842cb',
-      'https://farcaster.xyz/svs-smm/0x4fce02cd',
-      'https://farcaster.xyz/svs-smm/0xd976e9a8',
-      'https://farcaster.xyz/svs-smm/0x4349a0e0',
-      'https://farcaster.xyz/svs-smm/0x3bfa3788',
-      'https://farcaster.xyz/svs-smm/0xef39e991',
-      'https://farcaster.xyz/svs-smm/0xea43ddbf',
-      'https://farcaster.xyz/svs-smm/0x31157f15',
-      'https://farcaster.xyz/svs-smm/0xd4a09fb3',
-    ];
-
-    // Получаем реальные данные авторов кастов через Neynar API
-    const taskTypes: TaskType[] = ['like', 'recast'];
-    const baseTimestamp = Date.now();
-    const linksToAdd: LinkSubmission[] = [];
-    const userCache = new Map<string, { fid: number; username: string; pfp_url: string }>();
-
-    // Создаем по 10 ссылок для каждого типа активности (всего 30 ссылок)
-    for (let taskIndex = 0; taskIndex < taskTypes.length; taskIndex++) {
-      const taskType = taskTypes[taskIndex];
-      
-      for (let linkIndex = 0; linkIndex < baseLinks.length; linkIndex++) {
-        const castUrl = baseLinks[linkIndex];
-        const index = taskIndex * baseLinks.length + linkIndex;
-        
-        console.log(`🔍 Fetching cast author data for: ${castUrl} [${taskType}]`);
-        
-        try {
-        // Получаем реальные данные автора каста
-        const authorData = await getCastAuthor(castUrl);
-        
-        if (authorData && authorData.fid && authorData.username) {
-          userCache.set(authorData.username.toLowerCase(), {
-            fid: authorData.fid,
-            username: authorData.username,
-            pfp_url: authorData.pfp_url,
-          });
-          linksToAdd.push({
-            id: `init_link_${index + 1}_${baseTimestamp + index}`,
-            user_fid: authorData.fid,
-            username: authorData.username,
-            pfp_url: authorData.pfp_url,
-            cast_url: castUrl,
-            task_type: taskType,
-            completed_by: [],
-            created_at: new Date().toISOString(),
-          });
-          console.log(`✅ [${index + 1}/${baseLinks.length * taskTypes.length}] Loaded real data for @${authorData.username} (FID: ${authorData.fid}) [${taskType}]`);
-        } else {
-          // Если не удалось получить данные из каста, пытаемся получить данные пользователя по username из URL
-          console.warn(`⚠️ [${index + 1}/${baseLinks.length * taskTypes.length}] Failed to get author data from cast for ${castUrl}`);
-          console.warn(`⚠️ Author data received:`, authorData);
-          console.warn(`⚠️ Cast may not exist in Neynar API, trying to get user by username from URL...`);
-          
-          // Извлекаем hash из URL для использования в fallback
-          const castHash = castUrl.match(/0x[a-fA-F0-9]+/)?.[0] || `hash_${index}`;
-          
-          // Пытаемся извлечь username из URL (если есть)
-          // Формат: https://farcaster.xyz/svs-smm/0xf9660a16
-          const urlMatch = castUrl.match(/farcaster\.xyz\/([^\/]+)/);
-          const usernameFromUrl = urlMatch ? urlMatch[1] : null;
-          
-          // Пытаемся получить данные пользователя по username через Neynar API
-          let userData = null;
-          let cachedUser = null;
-          if (usernameFromUrl) {
-            cachedUser = userCache.get(usernameFromUrl.toLowerCase()) || null;
-          }
-
-          if (usernameFromUrl && !cachedUser) {
-            try {
-              console.log(`🔍 [${index + 1}/${baseLinks.length * taskTypes.length}] Trying to get user data by username: ${usernameFromUrl}`);
-              userData = await getUserByUsername(usernameFromUrl);
-              
-              console.log(`🔍 [${index + 1}/${baseLinks.length * taskTypes.length}] getUserByUsername returned:`, {
-                hasData: !!userData,
-                fid: userData?.fid,
-                username: userData?.username,
-                display_name: userData?.display_name,
-                hasPfp: !!(userData?.pfp || userData?.pfp_url || userData?.profile?.pfp),
-                pfpUrl: userData?.pfp?.url || userData?.pfp_url || userData?.profile?.pfp?.url,
-                rawData: userData,
-              });
-              
-              if (userData && userData.fid) {
-                console.log(`✅ [${index + 1}/${baseLinks.length * taskTypes.length}] Got user data by username: @${userData.username || userData.display_name} (FID: ${userData.fid})`);
-              } else {
-                console.warn(`⚠️ [${index + 1}/${baseLinks.length * taskTypes.length}] User data not found or invalid for username: ${usernameFromUrl}`);
-                console.warn(`⚠️ [${index + 1}/${baseLinks.length * taskTypes.length}] UserData received:`, userData);
-              }
-
-              if (userData && userData.fid && userData.username) {
-                userCache.set(userData.username.toLowerCase(), {
-                  fid: userData.fid,
-                  username: userData.username,
-                  pfp_url: userData?.pfp?.url || userData?.pfp_url || userData?.profile?.pfp?.url || '',
-                });
-              }
-            } catch (userError: any) {
-              console.error(`❌ [${index + 1}/${baseLinks.length * taskTypes.length}] Failed to get user by username:`, {
-                message: userError?.message,
-                stack: userError?.stack,
-                response: userError?.response?.data,
-                status: userError?.response?.status,
-              });
-            }
-          } else {
-            console.warn(`⚠️ [${index + 1}/${baseLinks.length * taskTypes.length}] No username extracted from URL: ${castUrl}`);
-          }
-          
-          // Если username из URL не найден, но это может быть реальный пользователь,
-          // попробуем использовать данные из других источников или создать временные данные с более реалистичными значениями
-          if (!userData && cachedUser) {
-            userData = cachedUser;
-          }
-
-          if (!userData && usernameFromUrl) {
-            console.warn(`⚠️ Could not fetch real user data for ${usernameFromUrl}, but will use it as username`);
-          }
-          
-          // Если получили данные пользователя, используем их
-          if (userData && userData.fid) {
-            // Извлекаем pfp_url из различных форматов ответа Neynar API
-            let pfpUrl = null;
-            const userDataAny = userData as any; // Type assertion для обработки разных форматов
-            if (userDataAny.pfp?.url) {
-              pfpUrl = userDataAny.pfp.url;
-            } else if (userDataAny.pfp_url) {
-              pfpUrl = userDataAny.pfp_url;
-            } else if (userDataAny.pfp) {
-              pfpUrl = typeof userDataAny.pfp === 'string' ? userDataAny.pfp : userDataAny.pfp.url;
-            } else if (userDataAny.profile?.pfp?.url) {
-              pfpUrl = userDataAny.profile.pfp.url;
-            } else if (userDataAny.profile?.pfp_url) {
-              pfpUrl = userDataAny.profile.pfp_url;
-            }
-            
-            // Если не нашли pfp_url, используем fallback
-            if (!pfpUrl) {
-              pfpUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.fid}`;
-            }
-
-            userCache.set((userData.username || usernameFromUrl || `user_${index + 1}`).toLowerCase(), {
-              fid: userData.fid,
-              username: userData.username || usernameFromUrl || `user_${index + 1}`,
-              pfp_url: pfpUrl,
-            });
-            
-            linksToAdd.push({
-              id: `init_link_${index + 1}_${baseTimestamp + index}`,
-              user_fid: userData.fid,
-              username: userData.username || (userDataAny.display_name) || usernameFromUrl || `user_${index + 1}`,
-              pfp_url: pfpUrl,
-              cast_url: castUrl,
-              task_type: taskType,
-              completed_by: [],
-              created_at: new Date().toISOString(),
-            });
-            console.log(`✅ [${index + 1}/${baseLinks.length * taskTypes.length}] Loaded real user data by username: @${userData.username || (userDataAny.display_name)} (FID: ${userData.fid}, pfp: ${pfpUrl}) [${taskType}]`);
-          } else {
-            // Если не удалось получить данные пользователя, используем fallback
-            linksToAdd.push({
-              id: `init_link_${index + 1}_${baseTimestamp + index}`,
-              user_fid: 0, // Временный FID
-              username: usernameFromUrl || `user_${index + 1}`, // Используем username из URL если есть
-              pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${castHash}`,
-              cast_url: castUrl,
-              task_type: taskType,
-              completed_by: [],
-              created_at: new Date().toISOString(),
-            });
-            console.log(`⚠️ [${index + 1}/${baseLinks.length * taskTypes.length}] Using fallback data for ${castUrl} (username: ${usernameFromUrl || `user_${index + 1}`}) [${taskType}]`);
-          }
-        }
-      } catch (error: any) {
-        console.error(`❌ [${index + 1}/${baseLinks.length * taskTypes.length}] Error fetching author data for ${castUrl}:`, error);
-        console.error(`❌ Error details:`, {
-          message: error.message,
-          stack: error.stack,
-        });
-        
-        // Используем fallback вместо выброса ошибки, чтобы система могла работать
-        const castHash = castUrl.match(/0x[a-fA-F0-9]+/)?.[0] || `hash_${index}`;
-        
-        // Пытаемся извлечь username из URL (если есть)
-        const urlMatch = castUrl.match(/farcaster\.xyz\/([^\/]+)/);
-        const usernameFromUrl = urlMatch ? urlMatch[1] : null;
-        
-        // Пытаемся получить данные пользователя по username даже при ошибке
-        let userData = null;
-        if (usernameFromUrl) {
-          const cachedUser = userCache.get(usernameFromUrl.toLowerCase()) || null;
-          try {
-            console.log(`🔍 Retrying to get user data by username after error: ${usernameFromUrl}`);
-            // Добавляем небольшую задержку перед повторной попыткой
-            await new Promise(resolve => setTimeout(resolve, 500));
-            userData = cachedUser || await getUserByUsername(usernameFromUrl);
-            if (userData && userData.fid) {
-              console.log(`✅ Got user data by username after error: @${userData.username} (FID: ${userData.fid})`);
-              const userDataAnyRetry = userData as any;
-              userCache.set((userData.username || usernameFromUrl).toLowerCase(), {
-                fid: userData.fid,
-                username: userData.username || usernameFromUrl,
-                pfp_url: userDataAnyRetry?.pfp?.url || userDataAnyRetry?.pfp_url || userDataAnyRetry?.profile?.pfp?.url || '',
-              });
-            }
-          } catch (retryError: any) {
-            console.warn(`⚠️ Retry failed to get user by username:`, retryError?.message);
-          }
-        }
-        
-        // Если получили данные пользователя, используем их
-        if (!userData && usernameFromUrl) {
-          userData = userCache.get(usernameFromUrl.toLowerCase()) || null;
-        }
-
-        if (userData && userData.fid) {
-          let pfpUrl = null;
-          const userDataAny = userData as any; // Type assertion для обработки разных форматов
-          if (userDataAny.pfp?.url) {
-            pfpUrl = userDataAny.pfp.url;
-          } else if (userDataAny.pfp_url) {
-            pfpUrl = userDataAny.pfp_url;
-          } else if (userDataAny.pfp) {
-            pfpUrl = typeof userDataAny.pfp === 'string' ? userDataAny.pfp : userDataAny.pfp.url;
-          } else if (userDataAny.profile?.pfp?.url) {
-            pfpUrl = userDataAny.profile.pfp.url;
-          } else if (userDataAny.profile?.pfp_url) {
-            pfpUrl = userDataAny.profile.pfp_url;
-          }
-          
-          if (!pfpUrl) {
-            pfpUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.fid}`;
-          }
-
-          userCache.set((userData.username || usernameFromUrl || `user_${index + 1}`).toLowerCase(), {
-            fid: userData.fid,
-            username: userData.username || usernameFromUrl || `user_${index + 1}`,
-            pfp_url: pfpUrl,
-          });
-          
-          linksToAdd.push({
-            id: `init_link_${index + 1}_${baseTimestamp + index}`,
-            user_fid: userData.fid,
-            username: userData.username || (userDataAny.display_name) || usernameFromUrl || `user_${index + 1}`,
-            pfp_url: pfpUrl,
-            cast_url: castUrl,
-            task_type: taskType,
-            completed_by: [],
-            created_at: new Date().toISOString(),
-          });
-          console.log(`✅ [${index + 1}/${baseLinks.length * taskTypes.length}] Loaded real user data after error: @${userData.username || (userDataAny.display_name)} (FID: ${userData.fid}, pfp: ${pfpUrl}) [${taskType}]`);
-        } else {
-          // Если не удалось получить данные пользователя, используем fallback
-          linksToAdd.push({
-            id: `init_link_${index + 1}_${baseTimestamp + index}`,
-            user_fid: 0,
-            username: usernameFromUrl || `user_${index + 1}`, // Используем username из URL если есть
-            pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${castHash}`,
-            cast_url: castUrl,
-            task_type: taskType,
-            completed_by: [],
-            created_at: new Date().toISOString(),
-          });
-          console.log(`⚠️ [${index + 1}/${baseLinks.length * taskTypes.length}] Using fallback data due to error for ${castUrl} (username: ${usernameFromUrl || `user_${index + 1}`}) [${taskType}]`);
-        }
-      }
-      
-      // Задержка между запросами, чтобы не перегружать API и избежать rate limiting
-      const delay = 500;
-      if (index < baseLinks.length * taskTypes.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
-      }
-    }
-
-    // Добавляем ссылки в Redis (в правильном порядке, первая - последняя)
-    console.log(`📝 Adding ${linksToAdd.length} links to Redis...`);
-    for (let i = 0; i < linksToAdd.length; i++) {
-      const link = linksToAdd[i];
-      console.log(`📝 [${i + 1}/${linksToAdd.length}] Adding link:`, {
-        id: link.id,
-        username: link.username,
-        user_fid: link.user_fid,
-        pfp_url: link.pfp_url,
-        has_pfp: !!link.pfp_url && link.pfp_url !== `https://api.dicebear.com/7.x/avataaars/svg?seed=${link.user_fid || 'hash'}`,
-      });
-      await redis.lpush(KEYS.LINKS, JSON.stringify(link));
-    }
-
-    // Устанавливаем счетчик (всего должно быть 20 ссылок: 10 like + 10 recast)
-    await redis.set(KEYS.TOTAL_LINKS_COUNT, baseLinks.length * taskTypes.length);
-
-    console.log(`✅ Successfully initialized ${linksToAdd.length} links`);
-    return { success: true, count: linksToAdd.length };
+    // По запросу: НЕ создаём тестовые/стартовые ссылки. Только очищаем.
+    const removed = await clearAllLinks();
+    console.log(`🧹 Cleared links via initializeLinks(): removed=${removed}`);
+    return { success: true, count: removed };
   } catch (error: any) {
     console.error('Error initializing links:', error);
     return { 
@@ -649,234 +544,8 @@ export async function addLinksForTaskType(taskType: TaskType): Promise<{ success
   }
 
   try {
-    // Валидация taskType
-    const validTaskTypes: TaskType[] = ['like', 'recast'];
-    if (!validTaskTypes.includes(taskType)) {
-      return { success: false, count: 0, error: `Invalid task type: ${taskType}. Must be "like" or "recast".` };
-    }
-
-    // Список начальных ссылок
-    const baseLinks = [
-      'https://farcaster.xyz/gladness/0xaa4214bf',
-      'https://farcaster.xyz/svs-smm/0xf17842cb',
-      'https://farcaster.xyz/svs-smm/0x4fce02cd',
-      'https://farcaster.xyz/svs-smm/0xd976e9a8',
-      'https://farcaster.xyz/svs-smm/0x4349a0e0',
-      'https://farcaster.xyz/svs-smm/0x3bfa3788',
-      'https://farcaster.xyz/svs-smm/0xef39e991',
-      'https://farcaster.xyz/svs-smm/0xea43ddbf',
-      'https://farcaster.xyz/svs-smm/0x31157f15',
-      'https://farcaster.xyz/svs-smm/0xd4a09fb3',
-    ];
-
-    const baseTimestamp = Date.now();
-    const linksToAdd: LinkSubmission[] = [];
-    const userCache = new Map<string, { fid: number; username: string; pfp_url: string }>();
-
-    // Создаем 10 ссылок для указанного типа
-    for (let linkIndex = 0; linkIndex < baseLinks.length; linkIndex++) {
-      const castUrl = baseLinks[linkIndex];
-      const index = linkIndex;
-      
-      console.log(`🔍 [ADD-LINKS] Fetching cast author data for: ${castUrl} [${taskType}]`);
-      
-      try {
-        // Получаем реальные данные автора каста
-        const authorData = await getCastAuthor(castUrl);
-        
-        if (authorData && authorData.fid && authorData.username) {
-          userCache.set(authorData.username.toLowerCase(), {
-            fid: authorData.fid,
-            username: authorData.username,
-            pfp_url: authorData.pfp_url,
-          });
-          linksToAdd.push({
-            id: `add_link_${taskType}_${index + 1}_${baseTimestamp + index}`,
-            user_fid: authorData.fid,
-            username: authorData.username,
-            pfp_url: authorData.pfp_url,
-            cast_url: castUrl,
-            task_type: taskType,
-            completed_by: [],
-            created_at: new Date().toISOString(),
-          });
-          console.log(`✅ [ADD-LINKS] [${index + 1}/${baseLinks.length}] Loaded real data for @${authorData.username} (FID: ${authorData.fid}) [${taskType}]`);
-        } else {
-          // Если не удалось получить данные из каста, пытаемся получить данные пользователя по username из URL
-          console.warn(`⚠️ [ADD-LINKS] [${index + 1}/${baseLinks.length}] Failed to get author data from cast for ${castUrl}`);
-          
-          const castHash = castUrl.match(/0x[a-fA-F0-9]+/)?.[0] || `hash_${index}`;
-          const urlMatch = castUrl.match(/farcaster\.xyz\/([^\/]+)/);
-          const usernameFromUrl = urlMatch ? urlMatch[1] : null;
-          
-          let userData = null;
-          let cachedUser = null;
-          if (usernameFromUrl) {
-            cachedUser = userCache.get(usernameFromUrl.toLowerCase()) || null;
-          }
-
-          if (usernameFromUrl && !cachedUser) {
-            try {
-              console.log(`🔍 [ADD-LINKS] [${index + 1}/${baseLinks.length}] Trying to get user data by username: ${usernameFromUrl}`);
-              userData = await getUserByUsername(usernameFromUrl);
-              
-              if (userData && userData.fid && userData.username) {
-                userCache.set(userData.username.toLowerCase(), {
-                  fid: userData.fid,
-                  username: userData.username,
-                  pfp_url: userData?.pfp?.url || userData?.pfp_url || userData?.profile?.pfp?.url || '',
-                });
-              }
-            } catch (userError: any) {
-              console.error(`❌ [ADD-LINKS] [${index + 1}/${baseLinks.length}] Failed to get user by username:`, userError?.message);
-            }
-          } else if (cachedUser) {
-            userData = cachedUser;
-          }
-
-          if (userData && userData.fid) {
-            const userDataAny = userData as any;
-            let pfpUrl = null;
-            if (userDataAny.pfp?.url) {
-              pfpUrl = userDataAny.pfp.url;
-            } else if (userDataAny.pfp_url) {
-              pfpUrl = userDataAny.pfp_url;
-            } else if (userDataAny.pfp) {
-              pfpUrl = typeof userDataAny.pfp === 'string' ? userDataAny.pfp : userDataAny.pfp.url;
-            } else if (userDataAny.profile?.pfp?.url) {
-              pfpUrl = userDataAny.profile.pfp.url;
-            } else if (userDataAny.profile?.pfp_url) {
-              pfpUrl = userDataAny.profile.pfp_url;
-            }
-            
-            if (!pfpUrl) {
-              pfpUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.fid}`;
-            }
-
-            userCache.set((userData.username || usernameFromUrl || `user_${index + 1}`).toLowerCase(), {
-              fid: userData.fid,
-              username: userData.username || usernameFromUrl || `user_${index + 1}`,
-              pfp_url: pfpUrl,
-            });
-            
-            linksToAdd.push({
-              id: `add_link_${taskType}_${index + 1}_${baseTimestamp + index}`,
-              user_fid: userData.fid,
-              username: userData.username || (userDataAny.display_name) || usernameFromUrl || `user_${index + 1}`,
-              pfp_url: pfpUrl,
-              cast_url: castUrl,
-              task_type: taskType,
-              completed_by: [],
-              created_at: new Date().toISOString(),
-            });
-            console.log(`✅ [ADD-LINKS] [${index + 1}/${baseLinks.length}] Loaded real user data by username: @${userData.username || (userDataAny.display_name)} (FID: ${userData.fid}) [${taskType}]`);
-          } else {
-            // Fallback
-            linksToAdd.push({
-              id: `add_link_${taskType}_${index + 1}_${baseTimestamp + index}`,
-              user_fid: 0,
-              username: usernameFromUrl || `user_${index + 1}`,
-              pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${castHash}`,
-              cast_url: castUrl,
-              task_type: taskType,
-              completed_by: [],
-              created_at: new Date().toISOString(),
-            });
-            console.log(`⚠️ [ADD-LINKS] [${index + 1}/${baseLinks.length}] Using fallback data for ${castUrl} (username: ${usernameFromUrl || `user_${index + 1}`}) [${taskType}]`);
-          }
-        }
-      } catch (error: any) {
-        console.error(`❌ [ADD-LINKS] [${index + 1}/${baseLinks.length}] Error fetching author data for ${castUrl}:`, error.message);
-        
-        const castHash = castUrl.match(/0x[a-fA-F0-9]+/)?.[0] || `hash_${index}`;
-        const urlMatch = castUrl.match(/farcaster\.xyz\/([^\/]+)/);
-        const usernameFromUrl = urlMatch ? urlMatch[1] : null;
-        
-        let userData = null;
-        if (usernameFromUrl) {
-          const cachedUser = userCache.get(usernameFromUrl.toLowerCase()) || null;
-          if (cachedUser) {
-            userData = cachedUser;
-          } else {
-            try {
-              await new Promise(resolve => setTimeout(resolve, 500));
-              userData = await getUserByUsername(usernameFromUrl);
-              if (userData && userData.fid) {
-                const userDataAnyRetry = userData as any;
-                userCache.set((userData.username || usernameFromUrl).toLowerCase(), {
-                  fid: userData.fid,
-                  username: userData.username || usernameFromUrl,
-                  pfp_url: userDataAnyRetry?.pfp?.url || userDataAnyRetry?.pfp_url || userDataAnyRetry?.profile?.pfp?.url || '',
-                });
-              }
-            } catch (retryError: any) {
-              console.warn(`⚠️ [ADD-LINKS] Retry failed to get user by username:`, retryError?.message);
-            }
-          }
-        }
-
-        if (userData && userData.fid) {
-          const userDataAny = userData as any;
-          let pfpUrl = null;
-          if (userDataAny.pfp?.url) {
-            pfpUrl = userDataAny.pfp.url;
-          } else if (userDataAny.pfp_url) {
-            pfpUrl = userDataAny.pfp_url;
-          } else if (userDataAny.pfp) {
-            pfpUrl = typeof userDataAny.pfp === 'string' ? userDataAny.pfp : userDataAny.pfp.url;
-          } else if (userDataAny.profile?.pfp?.url) {
-            pfpUrl = userDataAny.profile.pfp.url;
-          } else if (userDataAny.profile?.pfp_url) {
-            pfpUrl = userDataAny.profile.pfp_url;
-          }
-          
-          if (!pfpUrl) {
-            pfpUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.fid}`;
-          }
-
-          linksToAdd.push({
-            id: `add_link_${taskType}_${index + 1}_${baseTimestamp + index}`,
-            user_fid: userData.fid,
-            username: userData.username || (userDataAny.display_name) || usernameFromUrl || `user_${index + 1}`,
-            pfp_url: pfpUrl,
-            cast_url: castUrl,
-            task_type: taskType,
-            completed_by: [],
-            created_at: new Date().toISOString(),
-          });
-          console.log(`✅ [ADD-LINKS] [${index + 1}/${baseLinks.length}] Loaded real user data after error: @${userData.username || (userDataAny.display_name)} (FID: ${userData.fid}) [${taskType}]`);
-        } else {
-          linksToAdd.push({
-            id: `add_link_${taskType}_${index + 1}_${baseTimestamp + index}`,
-            user_fid: 0,
-            username: usernameFromUrl || `user_${index + 1}`,
-            pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${castHash}`,
-            cast_url: castUrl,
-            task_type: taskType,
-            completed_by: [],
-            created_at: new Date().toISOString(),
-          });
-          console.log(`⚠️ [ADD-LINKS] [${index + 1}/${baseLinks.length}] Using fallback data due to error for ${castUrl} [${taskType}]`);
-        }
-      }
-      
-      // Задержка между запросами
-      const delay = 500;
-      if (linkIndex < baseLinks.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
-    }
-
-    // Добавляем ссылки в Redis (НЕ удаляя существующие)
-    console.log(`📝 [ADD-LINKS] Adding ${linksToAdd.length} links for task type "${taskType}" to Redis (existing links preserved)...`);
-    for (let i = 0; i < linksToAdd.length; i++) {
-      const link = linksToAdd[i];
-      await redis.lpush(KEYS.LINKS, JSON.stringify(link));
-      await redis.incr(KEYS.TOTAL_LINKS_COUNT);
-    }
-
-    console.log(`✅ [ADD-LINKS] Successfully added ${linksToAdd.length} links for task type "${taskType}"`);
-    return { success: true, count: linksToAdd.length };
+    // По запросу: отключаем добавление тестовых ссылок.
+    return { success: false, count: 0, error: 'Disabled: seeding links is turned off.' };
   } catch (error: any) {
     console.error(`❌ [ADD-LINKS] Error adding links for task type "${taskType}":`, error);
     return { 

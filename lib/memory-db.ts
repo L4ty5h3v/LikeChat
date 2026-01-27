@@ -2,56 +2,100 @@
 // Позже заменим на Upstash Redis
 
 import type { LinkSubmission, UserProgress, TaskType } from '@/types';
+import { baseAppContentUrlFromTokenAddress } from '@/lib/base-content';
+import { REQUIRED_BUYS_TO_PUBLISH, TASKS_LIMIT } from '@/lib/app-config';
 
 // In-memory storage
 const linkSubmissions: LinkSubmission[] = [];
 const userProgress: Map<number, UserProgress> = new Map();
 
-// Генерируем тестовые данные для демонстрации
-function generateTestData() {
-  // Если база пустая, добавляем тестовые ссылки для демонстрации
-  if (linkSubmissions.length === 0) {
-    console.log('📝 [MEMORY-DB] Generating test data...');
-    const baseLinks = [
-      'https://farcaster.xyz/gladness/0xaa4214bf',
-      'https://farcaster.xyz/svs-smm/0xf17842cb',
-      'https://farcaster.xyz/svs-smm/0x4fce02cd',
-      'https://farcaster.xyz/svs-smm/0xd976e9a8',
-      'https://farcaster.xyz/svs-smm/0x4349a0e0',
-      'https://farcaster.xyz/svs-smm/0x3bfa3788',
-      'https://farcaster.xyz/svs-smm/0xef39e991',
-      'https://farcaster.xyz/svs-smm/0xea43ddbf',
-      'https://farcaster.xyz/svs-smm/0x31157f15',
-      'https://farcaster.xyz/svs-smm/0xd4a09fb3',
-    ];
-    
-    const taskTypes: TaskType[] = ['like', 'recast'];
-    
-    // Создаем по 10 ссылок для каждого типа задачи (всего 30)
-    taskTypes.forEach((taskType, typeIndex) => {
-      baseLinks.forEach((castUrl, linkIndex) => {
-        const index = typeIndex * baseLinks.length + linkIndex;
-        linkSubmissions.push({
-          id: `test-link-${taskType}-${linkIndex + 1}`,
-          user_fid: 1000 + index,
-          username: `user${index + 1}`,
-          pfp_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=user${index + 1}`,
-          cast_url: castUrl,
-          task_type: taskType,
-          completed_by: [],
-          created_at: new Date(Date.now() - index * 60000).toISOString(),
-        });
-      });
-    });
-    
-    console.log(`✅ [MEMORY-DB] Generated ${linkSubmissions.length} test links`);
+// Default posts to buy (used only in memory DB to avoid an empty app on Vercel when Upstash is not configured).
+// Note: memory DB is ephemeral; these defaults will re-appear after a cold start.
+(() => {
+  try {
+    const now = Date.now();
+    const username = 'svs-smm';
+    const pfp = `https://api.dicebear.com/7.x/identicon/svg?seed=${username}`;
+
+    // In serverless environments without Upstash, memory storage isn't shared between functions.
+    // So we keep a deterministic default list that always shows up on cold start.
+    const defaultTokenAddresses = [
+      // User-provided tokens (Dec 2025) — keep only these (remove older defaults).
+      '0xf45d09963807f7a80aa164eab5da1488dafccdb8',
+      '0x657275c7a7b0ce6fa82d79d6aae36a536af6084e',
+      '0xfa81fea4854f0ead4462aa9dff783f742ff79721',
+      '0x46ceb7dc97ca354c7a23d581c6d392c0e7fcaf76',
+      '0xe69ecebbee60e4ce04cd6a38a9a897082605368b',
+    ] as const;
+
+    const defaults: LinkSubmission[] = defaultTokenAddresses.map((token_address, idx) => ({
+      id: `default_${now}_${idx}`,
+      user_fid: 0,
+      username,
+      pfp_url: pfp,
+      cast_url: baseAppContentUrlFromTokenAddress(token_address) || '',
+      token_address,
+      task_type: 'support',
+      completed_by: [],
+      created_at: new Date(now + idx).toISOString(),
+    }));
+
+    // Put newest first
+    for (let i = defaults.length - 1; i >= 0; i--) {
+      linkSubmissions.unshift(defaults[i]);
+    }
+  } catch {
+    // ignore
+  }
+})();
+
+export async function clearAllLinks(): Promise<number> {
+  const n = linkSubmissions.length;
+  linkSubmissions.length = 0;
+  return n;
+}
+
+export async function seedLinks(
+  entries: Array<{ castUrl?: string; tokenAddress: string; username?: string; pfpUrl?: string }>
+): Promise<{ success: boolean; count: number; error?: string }> {
+  try {
+    const now = Date.now();
+    const usernameFallback = 'svs-smm';
+    const pfpFallback = `https://api.dicebear.com/7.x/identicon/svg?seed=${usernameFallback}`;
+
+    for (let i = 0; i < entries.length; i++) {
+      const e = entries[i];
+      const tokenAddress = (e.tokenAddress || '').toString().trim();
+      const direct = (e.castUrl || '').toString().trim();
+      const generated = baseAppContentUrlFromTokenAddress(tokenAddress) || '';
+      const castUrl = direct.startsWith('http') ? direct : generated;
+      const newLink: LinkSubmission = {
+        id: `seed_${now}_${i}_${Math.random().toString(16).slice(2, 8)}`,
+        user_fid: 0,
+        username: e.username || usernameFallback,
+        pfp_url: e.pfpUrl || pfpFallback,
+        cast_url: castUrl,
+        token_address: tokenAddress,
+        task_type: 'support',
+        completed_by: [],
+        created_at: new Date(now + i).toISOString(),
+      };
+      linkSubmissions.unshift(newLink);
+    }
+
+    // Keep queue bounded: always keep only TASKS_LIMIT newest links (per spec: exactly 5 tasks at a time).
+    if (linkSubmissions.length > TASKS_LIMIT) {
+      linkSubmissions.length = TASKS_LIMIT;
+    }
+
+    return { success: true, count: entries.length };
+  } catch (error: any) {
+    return { success: false, count: 0, error: error?.message || 'Failed to seed links' };
   }
 }
 
 // Получить последние 10 ссылок
 export async function getLastTenLinks(taskType?: TaskType): Promise<LinkSubmission[]> {
-  generateTestData();
-  
   // Сортируем все ссылки по дате создания (новые первыми)
   const sortedLinks = [...linkSubmissions].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -66,8 +110,40 @@ export async function getLastTenLinks(taskType?: TaskType): Promise<LinkSubmissi
     console.log(`📊 [MEMORY-DB] Total links: ${sortedLinks.length}, Filtered: ${filteredLinks.length}`);
   }
   
-  // Берем первые 10 ссылок (может быть меньше 10, если нет достаточного количества)
-  return filteredLinks.slice(0, 10);
+  // Разделяем на закрепленные и обычные ссылки
+  const pinnedLinks: LinkSubmission[] = [];
+  const regularLinks: LinkSubmission[] = [];
+  
+  for (const link of filteredLinks) {
+    if (link.pinned && link.pinned_position && link.pinned_position >= 1 && link.pinned_position <= TASKS_LIMIT) {
+      pinnedLinks.push(link);
+    } else {
+      regularLinks.push(link);
+    }
+  }
+  
+  // Создаем массив результатов с закрепленными ссылками на их позициях
+  const result: (LinkSubmission | null)[] = new Array(TASKS_LIMIT).fill(null);
+  
+  // Размещаем закрепленные ссылки на их позициях (позиция 1-based, массив 0-based)
+  for (const pinnedLink of pinnedLinks) {
+    const pos = (pinnedLink.pinned_position || 1) - 1; // конвертируем в 0-based индекс
+    if (pos >= 0 && pos < TASKS_LIMIT) {
+      result[pos] = pinnedLink;
+    }
+  }
+  
+  // Заполняем свободные позиции обычными ссылками
+  let regularIndex = 0;
+  for (let i = 0; i < TASKS_LIMIT && regularIndex < regularLinks.length; i++) {
+    if (result[i] === null) {
+      result[i] = regularLinks[regularIndex];
+      regularIndex++;
+    }
+  }
+  
+  // Убираем null значения и берем только существующие ссылки
+  return result.filter((link): link is LinkSubmission => link !== null);
 }
 
 // Получить прогресс пользователя
@@ -140,8 +216,9 @@ export async function markLinkCompleted(userFid: number, linkId: string): Promis
   if (!progress) return;
   
   if (!progress.completed_links.includes(linkId)) {
+    const next = [...progress.completed_links, linkId].slice(-REQUIRED_BUYS_TO_PUBLISH);
     await upsertUserProgress(userFid, {
-      completed_links: [...progress.completed_links, linkId],
+      completed_links: next,
     });
   }
 }
@@ -176,7 +253,8 @@ export async function submitLink(
   username: string,
   pfpUrl: string,
   castUrl: string,
-  taskType: TaskType
+  taskType: TaskType,
+  tokenAddress?: string
 ): Promise<LinkSubmission | null> {
   const newLink: LinkSubmission = {
     id: `link-${Date.now()}-${Math.random().toString(16).substr(2, 8)}`,
@@ -184,6 +262,7 @@ export async function submitLink(
     username,
     pfp_url: pfpUrl,
     cast_url: castUrl,
+    token_address: tokenAddress,
     task_type: taskType,
     completed_by: [],
     created_at: new Date().toISOString()
@@ -191,6 +270,11 @@ export async function submitLink(
   
   // Добавляем ссылку в начало массива (новые первыми)
   linkSubmissions.unshift(newLink);
+
+  // Keep queue bounded: always keep only TASKS_LIMIT newest links.
+  if (linkSubmissions.length > TASKS_LIMIT) {
+    linkSubmissions.length = TASKS_LIMIT;
+  }
   
   console.log(`✅ Link published successfully (memory-db):`, {
     id: newLink.id,
@@ -212,7 +296,6 @@ export async function submitLink(
 
 // Получить все ссылки для чата
 export async function getAllLinks(): Promise<LinkSubmission[]> {
-  generateTestData();
   return linkSubmissions
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 }
@@ -239,7 +322,6 @@ export async function deleteLink(linkId: string): Promise<boolean> {
 
 // Получить общее количество ссылок
 export async function getTotalLinksCount(): Promise<number> {
-  generateTestData();
   return linkSubmissions.length;
 }
 

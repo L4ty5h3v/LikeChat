@@ -1,0 +1,8 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Pin Link</title></head>
+<body style="font-family:Arial;text-align:center;padding:50px">
+<h1>Pin Link</h1>
+<button onclick="fetch('https://likechat-base-app.vercel.app/api/pin-link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tokenAddress:'0xbe705864202df9a6c7c57993fde1865ae67825ce',position:5})}).then(r=>r.json()).then(d=>alert(d.success?'Success!':'Error: '+d.error))" style="padding:20px 40px;font-size:18px;background:#4CAF50;color:white;border:none;border-radius:8px;cursor:pointer">PIN LINK</button>
+</body>
+</html>

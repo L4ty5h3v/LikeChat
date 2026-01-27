@@ -3,17 +3,29 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
 import Layout from '@/components/Layout';
-import ActivityButton from '@/components/ActivityButton';
 import Button from '@/components/Button';
+import Avatar from '@/components/Avatar';
+import { REQUIRED_BUYS_TO_PUBLISH, TASKS_LIMIT } from '@/lib/app-config';
 import { setUserActivity } from '@/lib/db-config';
-import { getUserByFid } from '@/lib/neynar';
-import type { ActivityType, FarcasterUser } from '@/types';
+import type { ActivityType } from '@/types';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
+import { useAccount, useConnect } from 'wagmi';
+import { isHexAddress } from '@/lib/base-content';
+import { clearFlow } from '@/lib/flow';
+
+function shortHex(addr: string): string {
+  if (!addr) return '';
+  const a = addr.toString();
+  if (a.length <= 12) return a;
+  return `${a.slice(0, 6)}…${a.slice(-4)}`;
+}
 
 export default function Home() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const { user, setUser, isLoading: authLoading, isInitialized } = useFarcasterAuth();
+  const { address, isConnected } = useAccount();
+  const { connectAsync, connectors } = useConnect();
   const [selectedActivity, setSelectedActivity] = useState<ActivityType | null>(null);
   const [mounted, setMounted] = useState(false);
   const [errorModal, setErrorModal] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
@@ -26,59 +38,8 @@ export default function Home() {
     
     // Проверяем localStorage только на клиенте
     if (typeof window !== 'undefined') {
-      // ⚠️ КРИТИЧЕСКИ ВАЖНО: Очищаем link_published флаг при загрузке главной страницы
-      // Это позволяет пользователю начать новый цикл публикации
-      // Делаем это СРАЗУ при монтировании компонента, до любой другой логики
-      const linkPublishedFlag = sessionStorage.getItem('link_published') || localStorage.getItem('link_published');
-      if (linkPublishedFlag === 'true') {
-        console.log('🧹 [INDEX] Clearing link_published flag on home page mount (new cycle can start)', {
-          sessionStorage: sessionStorage.getItem('link_published'),
-          localStorage: localStorage.getItem('link_published'),
-          timestamp: new Date().toISOString(),
-        });
-        sessionStorage.removeItem('link_published');
-        localStorage.removeItem('link_published');
-        console.log('✅ [INDEX] Flag cleared - new publication cycle can start', {
-          sessionStorageAfter: sessionStorage.getItem('link_published'),
-          localStorageAfter: localStorage.getItem('link_published'),
-          timestamp: new Date().toISOString(),
-        });
-      }
-      
-    const savedUser = localStorage.getItem('farcaster_user');
-    const savedActivity = localStorage.getItem('selected_activity');
-    
-    if (savedUser) {
-        try {
-          const parsedUser = JSON.parse(savedUser);
-          console.log('🔍 Loading saved user from localStorage:', parsedUser);
-          
-          // Проверяем валидность данных пользователя
-          // Если данные не валидны (например, случайный пользователь), очищаем их
-          if (parsedUser && parsedUser.fid && parsedUser.username) {
-            // Проверяем, что это не случайный пользователь (например, user_176369225243)
-            const isRandomUser = parsedUser.username.startsWith('user_') && 
-                                 parsedUser.username.match(/^user_\d+$/);
-            
-            if (isRandomUser) {
-              console.warn('⚠️ Random user detected in localStorage, clearing...');
-              localStorage.removeItem('farcaster_user');
-              setUser(null);
-            } else {
-              console.log('✅ Valid user data loaded from localStorage');
-              setUser(parsedUser);
-            }
-          } else {
-            console.warn('⚠️ Invalid user data in localStorage, clearing...');
-            localStorage.removeItem('farcaster_user');
-            setUser(null);
-          }
-        } catch (error) {
-          console.error('❌ Error parsing saved user:', error);
-          localStorage.removeItem('farcaster_user');
-          setUser(null);
-        }
-    }
+      const savedActivity = localStorage.getItem('selected_activity');
+    // user загружается из контекста (localStorage base_user) + из wagmi (AuthSync)
     
     if (savedActivity) {
       setSelectedActivity(savedActivity as ActivityType);
@@ -86,61 +47,68 @@ export default function Home() {
     }
   }, []);
 
-  // Авторизация через Farcaster кошелек
-  const handleConnect = async () => {
-    console.log('🔗 Farcaster authorization called');
-    console.log('🔍 Current state:', { loading, user, mounted });
+  // Base App UX: Always start from home page when opening the app.
+  // Clear any saved flow state to ensure users always start fresh.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (router.pathname !== '/') return;
     
-    // Предотвращаем повторные вызовы
-    if (loading) {
-      console.warn('⚠️ Already loading');
-      return;
-    }
+    // Clear saved flow state to ensure app always starts from home
+    clearFlow();
+  }, [router.pathname]);
+
+  // Авторизация через Base (кошелек в Base App)
+  const handleConnect = async () => {
+    if (loading) return;
     
     // Очищаем старые данные перед подключением
     if (typeof window !== 'undefined') {
-      console.log('🧹 Clearing old user data from localStorage');
-      localStorage.removeItem('farcaster_user');
+      localStorage.removeItem('base_user');
       setUser(null);
     }
     
-    // Сбрасываем состояние ошибки и успеха
     setErrorModal({ show: false, message: '' });
     setSuccess(false);
     setLoading(true);
     
     try {
-      let farcasterUser: FarcasterUser | null = null;
+      // Base: подключаем кошелёк через wagmi (без Farcaster SDK)
+      const connector = connectors?.[0];
+      if (!connector) {
+        throw new Error('No wallet connectors available. Please install Coinbase Wallet or MetaMask.');
+      }
+      await connectAsync({ connector });
+      setSuccess(true);
+
+      /*
+        legacy (удаляем): Farcaster SDK/Neynar авторизация
+        Этот блок оставался в файле исторически. Для Base-версии не используется.
+      */
+      /*
+      let farcasterUser: any = null;
       let walletAddress: string | null = null;
       
-      // Пытаемся получить адрес кошелька через Farcaster Mini App SDK
+      // Пытаемся получить адрес кошелька через Base (Mini App SDK)
       try {
-        console.log('🔄 Connecting Farcaster wallet via SDK...');
+        console.log('🔄 Connecting Base wallet via SDK...');
         console.log('🔍 [WALLET-CONNECT] Starting wallet connection process...', {
           timestamp: new Date().toISOString(),
           windowAvailable: typeof window !== 'undefined',
         });
         
-        // Используем Farcaster Mini App SDK для получения адреса кошелька
+        // Используем Mini App SDK для получения адреса кошелька
         if (typeof window !== 'undefined') {
           try {
             // Динамический импорт SDK с таймаутом
-            console.log('📦 [WALLET-CONNECT] Importing Farcaster SDK...');
-            const sdkModule = await Promise.race([
-              import('@farcaster/miniapp-sdk'),
-              new Promise((_, reject) => 
-                setTimeout(() => reject(new Error('SDK import timeout (5s)')), 5000)
-              )
-            ]) as any;
-            const { sdk } = sdkModule;
-            console.log('✅ [WALLET-CONNECT] SDK imported successfully');
+            // (удалено) Farcaster Mini App SDK
+            const sdkModule = null as any;
+            const { sdk } = sdkModule || {};
             
             // Пробуем получить Ethereum провайдер через SDK
             console.log('🔄 Trying to get Ethereum provider via SDK...');
             try {
-              // Импортируем getEthereumProvider напрямую из ethereumProvider
-              const { getEthereumProvider } = await import('@farcaster/miniapp-sdk/dist/ethereumProvider');
-              const provider = await getEthereumProvider();
+              // (удалено) getEthereumProvider через Farcaster SDK
+              const provider = null as any;
               if (provider) {
                 console.log('✅ Ethereum provider obtained from SDK');
                 // Получаем адрес кошелька через провайдер
@@ -196,13 +164,13 @@ export default function Home() {
             console.log('🔄 Attempting to get SDK context...');
             try {
               const context = await sdk.context;
-              console.log('📊 Farcaster SDK context received:', JSON.stringify(context, null, 2));
+            console.log('📊 Mini App SDK context received:', JSON.stringify(context, null, 2));
               console.log('📊 SDK context.user:', context?.user);
               console.log('📊 SDK context.user type:', typeof context?.user);
               
               // Если получили context с пользователем, используем его данные напрямую
               if (context?.user && context.user.fid) {
-                console.log('✅ Farcaster user found in SDK context:', {
+                console.log('✅ User found in SDK context:', {
                   fid: context.user.fid,
                   username: context.user.username,
                   displayName: (context.user as any).displayName,
@@ -217,7 +185,7 @@ export default function Home() {
                   display_name: (context.user as any).displayName || context.user.username || `User ${context.user.fid}`,
                 };
                 
-                console.log('✅ Using Farcaster user from SDK context:', farcasterUser);
+                console.log('✅ Using user from SDK context:', farcasterUser);
               } else {
                 console.warn('⚠️ SDK context does not contain user data:', {
                   hasContext: !!context,
@@ -276,10 +244,10 @@ export default function Home() {
           
           if (!walletAddress) {
             // Если кошелек не найден и нет пользователя из SDK, показываем ошибку
-            console.error('❌ Farcaster wallet not detected and no user from SDK context');
+            console.error('❌ Base wallet not detected and no user from SDK context');
             setErrorModal({
               show: true,
-              message: '❌ Farcaster wallet not detected.\n\nPlease make sure:\n1. You are using Farcaster Mini App\n2. Wallet is connected and unlocked\n3. Connection requests are allowed\n\nTry refreshing the page and connecting the wallet again.'
+              message: '❌ Base wallet not detected.\n\nPlease make sure:\n1. You are using the Base app\n2. Wallet is connected and unlocked\n3. Connection requests are allowed\n\nTry refreshing the page and connecting the wallet again.'
             });
             setLoading(false);
             return;
@@ -299,9 +267,9 @@ export default function Home() {
         return;
       }
       
-      // Ищем пользователя Farcaster по адресу кошелька (если есть и еще не получили из SDK context)
+      // Ищем пользователя по адресу кошелька (если есть и еще не получили из SDK context)
       if (walletAddress && !farcasterUser) {
-        console.log('🔍 Looking for Farcaster user by wallet address:', walletAddress);
+        console.log('🔍 Looking for user by wallet address:', walletAddress);
         console.log('🔍 Wallet address validation:', {
           startsWith0x: walletAddress.startsWith('0x'),
           length: walletAddress.length,
@@ -309,14 +277,7 @@ export default function Home() {
         });
         
         try {
-          console.log('📡 Sending request to /api/farcaster-user...');
-          const response = await fetch('/api/farcaster-user', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ walletAddress }),
-          });
+          const response = null as any;
 
           console.log('📡 Response status:', response.status);
           console.log('📡 Response ok:', response.ok);
@@ -349,7 +310,7 @@ export default function Home() {
               display_name: data.user.display_name || data.user.username || `User ${data.user.fid}`,
             };
             
-            console.log('✅ Farcaster user object created:', farcasterUser);
+            console.log('✅ User object created:', farcasterUser);
             console.log('✅ Real user data validation:', {
               hasFid: !!farcasterUser.fid,
               hasUsername: !!farcasterUser.username,
@@ -357,7 +318,7 @@ export default function Home() {
               hasDisplayName: !!farcasterUser.display_name,
             });
           } else {
-            console.warn('⚠️ Farcaster user not found for wallet address:', walletAddress);
+            console.warn('⚠️ User not found for wallet address:', walletAddress);
             console.warn('⚠️ API response structure:', {
               hasUser: !!data.user,
               userValue: data.user,
@@ -386,7 +347,7 @@ export default function Home() {
             }
           }
         } catch (error: any) {
-          console.error('❌ Failed to fetch Farcaster user by address:', error);
+          console.error('❌ Failed to fetch user by address:', error);
           console.error('❌ Error details:', {
             message: error.message,
             stack: error.stack,
@@ -396,7 +357,7 @@ export default function Home() {
           // Показываем пользователю детальную ошибку
           setErrorModal({
             show: true,
-            message: `❌ Error fetching Farcaster user data:\n\n${error.message}\n\nCheck browser console for details.`
+            message: `❌ Error fetching user data:\n\n${error.message}\n\nCheck browser console for details.`
           });
         }
       }
@@ -404,18 +365,18 @@ export default function Home() {
       // Если не нашли по адресу, пробуем другие способы
       if (!farcasterUser) {
         if (walletAddress) {
-          console.error('❌ Farcaster user not found for wallet:', walletAddress);
+          console.error('❌ User not found for wallet:', walletAddress);
           setErrorModal({
             show: true,
-            message: `Farcaster user not found for address ${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}.\n\nPossible reasons:\n1. Wallet is not linked to Farcaster account\n2. Neynar API key is not configured\n3. API cannot find user by this address\n\nCheck browser console for details.`
+            message: `User not found for address ${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}.\n\nPossible reasons:\n1. Wallet is not linked to Base account\n2. Neynar API key is not configured\n3. API cannot find user by this address\n\nCheck browser console for details.`
           });
           setLoading(false);
           return;
       } else {
-          console.error('❌ Farcaster wallet not detected');
+          console.error('❌ Base wallet not detected');
           setErrorModal({
             show: true,
-            message: 'Farcaster wallet not detected. Please use Farcaster wallet for authorization.'
+            message: 'Base wallet not detected. Please use Base app wallet for authorization.'
           });
           setLoading(false);
           return;
@@ -424,10 +385,10 @@ export default function Home() {
       
       // Проверяем, что данные пользователя валидны
       if (!farcasterUser.fid || !farcasterUser.username) {
-        console.error('❌ Invalid Farcaster user data:', farcasterUser);
+        console.error('❌ Invalid user data:', farcasterUser);
         setErrorModal({
           show: true,
-          message: 'Invalid Farcaster user data received. Please try again.'
+          message: 'Invalid user data received. Please try again.'
         });
         setLoading(false);
         return;
@@ -444,7 +405,7 @@ export default function Home() {
         return;
       }
       
-      console.log('✅ [INDEX] Setting Farcaster user via context:', {
+      console.log('✅ [INDEX] Setting user via context:', {
         fid: farcasterUser.fid,
         username: farcasterUser.username,
         hasPfp: !!farcasterUser.pfp_url,
@@ -484,6 +445,7 @@ export default function Home() {
       }
       console.log('✅ Farcaster user authorized successfully:', farcasterUser);
       setSuccess(true);
+      */
     } catch (error: any) {
       console.error('❌ Error during Farcaster authorization:', error);
       console.error('❌ Error details:', {
@@ -498,17 +460,17 @@ export default function Home() {
       
       setErrorModal({
         show: true,
-        message: `Ошибка при авторизации: ${error?.message || 'Неизвестная ошибка'}\n\nПроверьте консоль браузера для деталей.`
+        message: `Authorization error: ${error?.message || 'Unknown error'}\n\nCheck the browser console for details.`
       });
       setSuccess(false);
       return; // Явно выходим из функции
     } finally {
       // Проверяем успешность авторизации по наличию пользователя
-      const wasSuccessful = typeof window !== 'undefined' && localStorage.getItem('farcaster_user');
+      const wasSuccessful = typeof window !== 'undefined' && localStorage.getItem('base_user');
       if (wasSuccessful) {
-        console.log('✅ Farcaster authorization completed');
+        console.log('✅ Base authorization completed');
       } else {
-        console.log('❌ Farcaster authorization failed');
+        console.log('❌ Base authorization failed');
       }
       // Убеждаемся, что loading сбрасывается в finally
       setLoading(false);
@@ -516,7 +478,7 @@ export default function Home() {
   };
 
   // Сохранение выбранной активности
-  const handleActivitySelect = (activity: ActivityType) => {
+  const handleActivitySelect = async (activity: ActivityType) => {
     setSelectedActivity(activity);
     localStorage.setItem('selected_activity', activity);
     
@@ -526,20 +488,25 @@ export default function Home() {
     }
     
     // Автоматически переходим на страницу задач после выбора активности
+    // В in-app браузерах иногда router.push может не отрабатывать — добавляем fallback.
     console.log('✅ Activity selected, redirecting to /tasks');
-    setTimeout(() => {
-      router.push('/tasks');
-    }, 500); // Небольшая задержка для плавного перехода
+    try {
+      await router.push('/tasks');
+    } catch (e) {
+      if (typeof window !== 'undefined') {
+        window.location.href = '/tasks';
+      }
+    }
   };
 
   // ⚠️ УДАЛЕНО: handleContinue больше не нужен, так как переход происходит автоматически при выборе активности
 
   return (
-    <Layout title="Multi Like - Authorization">
+    <Layout title="MULTI LIKE - Authorization">
       {/* Hero Section с градиентом */}
       <div className="relative min-h-screen overflow-hidden">
         {/* Анимированный градиент фон */}
-        <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient bg-300%"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient"></div>
         
         {/* Геометрические фигуры */}
         <div className="absolute top-20 right-20 w-32 h-32 bg-white bg-opacity-10 rounded-full animate-float"></div>
@@ -557,7 +524,7 @@ export default function Home() {
                   MULTI
                 </span>
                 <span className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-white">
-                  LIKE
+                  BUY
                 </span>
             </h1>
             </div>
@@ -585,7 +552,7 @@ export default function Home() {
               <span className="text-white">♡</span> MUTUAL LOVE FROM MRS. CRYPTO <span className="text-white">♡</span>
             </p>
             <p className="text-lg text-white text-opacity-90 max-w-2xl mx-auto">
-              Complete tasks to get collective support
+              Complete tasks to get multiple buyers
             </p>
           </div>
 
@@ -597,7 +564,7 @@ export default function Home() {
                   {/* Фото Миссис Крипто */}
                   
                   <h2 className="text-2xl sm:text-4xl font-black text-dark mb-4 font-display tracking-tight px-4">
-                    FARCASTER AUTHORIZATION
+                    BASE AUTHORIZATION
                   </h2>
                 </div>
 
@@ -637,7 +604,7 @@ export default function Home() {
                       <span>AUTHORIZING...</span>
                     </div>
                   ) : (
-                    'CONNECT FARCASTER'
+                    'CONNECT BASE'
                   )}
                 </button>
               </div>
@@ -645,83 +612,75 @@ export default function Home() {
             <div>
               {/* Информация о пользователе */}
               <div className="flex items-center gap-4 mb-8 p-4 bg-gray-50 rounded-xl">
-                <img
-                  src={user.pfp_url}
+                <Avatar
+                  url={user.pfp_url}
+                  seed={user.address || user.username || String(user.fid)}
+                  size={64}
                   alt={user.username}
-                  className="w-16 h-16 rounded-full border-4 border-primary"
+                  className="rounded-full object-cover border-4 border-primary"
                 />
                 <div className="flex-1">
                   <h3 className="text-xl font-bold text-gray-900">
                     @{user.username}
                   </h3>
-                  <p className="text-sm text-gray-600">FID: {user.fid}</p>
+                  {isHexAddress(user.address) ? (
+                    <p className="text-sm text-gray-600 truncate">
+                      <span className="font-mono" title={user.address}>
+                        {shortHex(user.address)}
+                      </span>
+                      <button
+                        type="button"
+                        className="ml-2 inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs font-bold text-gray-800 hover:bg-gray-50"
+                        title="Copy address"
+                        onClick={() => {
+                          if (typeof navigator === 'undefined') return;
+                          if (!navigator.clipboard) return;
+                            const addr = user.address;
+                            if (!addr) return;
+                            navigator.clipboard.writeText(addr).catch(() => {});
+                        }}
+                      >
+                        Copy
+                      </button>
+                    </p>
+                  ) : null}
                 </div>
-                <div className="text-green-500 text-2xl">✓</div>
               </div>
 
               {/* Выбор активности */}
               <div>
                 <h2 className="text-4xl md:text-5xl font-black text-gray-900 mb-4 text-center font-display">
-                  SELECT TASK TYPE
+                  ACCEPT YOUR TASK
                 </h2>
                 <p className="text-base sm:text-xl md:text-2xl text-gray-700 mb-6 sm:mb-8 text-center font-bold px-4">
-                  You will perform this task on all 10 links
+                  You will perform that task on all {TASKS_LIMIT} links
                 </p>
 
                 {/* Стеклянные кнопки активности в стиле glassmorphism */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-8 sm:mb-12">
-                  {/* Кнопка Лайк */}
+                <div className="grid grid-cols-1 gap-4 sm:gap-6 mb-8 sm:mb-12">
+                  {/* Support (покупка post-token) */}
                   <button
-                    onClick={() => handleActivitySelect('like')}
+                    onClick={() => handleActivitySelect('support')}
                     className={`btn-gold-glow px-4 sm:px-8 py-4 sm:py-6 text-white font-bold text-base sm:text-lg group ${
-                      selectedActivity === 'like' 
+                      selectedActivity === 'support'
                         ? 'shadow-2xl shadow-purple-500/50 ring-4 ring-purple-500/30' 
                         : ''
                     }`}
                   >
-                    {/* Переливающийся эффект */}
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 z-10"></div>
-                    
                     <div className="flex items-center justify-between relative z-20">
                       <div className="flex items-center gap-2 sm:gap-3">
-                        <span className="text-2xl sm:text-3xl drop-shadow-lg">❤️</span>
-                        <span className="drop-shadow-lg">LIKE</span>
+                        <span className="text-2xl sm:text-3xl drop-shadow-lg">💎</span>
+                        <span className="drop-shadow-lg">BUY</span>
                       </div>
-                      <div className="text-xl sm:text-2xl drop-shadow-lg">💫</div>
+                      <div className="text-xl sm:text-2xl drop-shadow-lg">$0.10</div>
                     </div>
-                    {selectedActivity === 'like' && (
+                    {selectedActivity === 'support' && (
                       <div className="absolute -top-2 -right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center shadow-lg z-20">
                         <span className="text-white text-sm font-bold">✓</span>
                       </div>
                     )}
                   </button>
-
-                  {/* Кнопка Рекаст */}
-                  <button
-                    onClick={() => handleActivitySelect('recast')}
-                    className={`btn-gold-glow px-4 sm:px-8 py-4 sm:py-6 text-white font-bold text-base sm:text-lg group ${
-                      selectedActivity === 'recast' 
-                        ? 'shadow-2xl shadow-purple-500/50 ring-4 ring-purple-500/30' 
-                        : ''
-                    }`}
-                  >
-                    {/* Переливающийся эффект */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 z-10"></div>
-                    
-                    <div className="flex items-center justify-between relative z-20">
-                      <div className="flex items-center gap-2 sm:gap-3">
-                        <span className="text-2xl sm:text-3xl drop-shadow-lg">🔄</span>
-                        <span className="drop-shadow-lg">RECAST</span>
-                      </div>
-                      <div className="text-xl sm:text-2xl drop-shadow-lg">⚡</div>
-                    </div>
-                    {selectedActivity === 'recast' && (
-                      <div className="absolute -top-2 -right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center shadow-lg z-20">
-                        <span className="text-white text-sm font-bold">✓</span>
-                      </div>
-                    )}
-                  </button>
-
                 </div>
               </div>
             </div>
@@ -738,26 +697,26 @@ export default function Home() {
               <div className="space-y-3">
                 <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
                   <span className="text-3xl font-black text-accent">01</span>
-                  <span className="font-bold text-xl">Select task type</span>
+                  <span className="font-bold text-xl">Accept your task</span>
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
                   <span className="text-3xl font-black text-accent">02</span>
-                  <span className="font-bold text-xl">Complete tasks on 10 participants links</span>
+                  <span className="font-bold text-xl">Complete task on {TASKS_LIMIT} participants links</span>
                 </div>
               </div>
               <div className="space-y-3">
                 <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
                   <span className="text-3xl font-black text-accent">03</span>
-                  <span className="font-bold text-xl">Buy Mrs. Crypto token $0.10</span>
+                  <span className="font-bold text-xl">Buy {REQUIRED_BUYS_TO_PUBLISH} posts</span>
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
                   <span className="text-3xl font-black text-accent">04</span>
-                  <span className="font-bold text-xl">Add link to a cast you want to promote</span>
+                  <span className="font-bold text-xl">Add link to post you want to sell</span>
                 </div>
               </div>
               <div className="flex items-center justify-center gap-3 p-3 bg-gradient-to-r from-accent to-secondary rounded-xl col-span-1 md:col-span-2 text-center">
                 <span className="text-3xl">💎</span>
-                <span className="font-bold text-xl">Get mutual support!</span>
+                <span className="font-bold text-xl">Get multiple buyers</span>
               </div>
             </div>
           </div>

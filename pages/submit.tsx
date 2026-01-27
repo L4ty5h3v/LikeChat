@@ -1,142 +1,20 @@
 // Страница публикации ссылки
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
+import { useAccount } from 'wagmi';
 import Layout from '@/components/Layout';
 import Button from '@/components/Button';
-import { getUserProgress, getAllLinks } from '@/lib/db-config';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
 import type { TaskType } from '@/types';
+import { REQUIRED_BUYS_TO_PUBLISH, TASKS_LIMIT } from '@/lib/app-config';
+import { isAddress } from 'viem';
+import { baseAppContentUrlFromTokenAddress, tokenAddressFromBaseAppContentUrl } from '@/lib/base-content';
+import { setFlowStep } from '@/lib/flow';
 
-/**
- * Публикует cast в Farcaster через MiniKit SDK только для соответствующего типа активности
- * Это предотвращает спам и делает публикацию более targeted
- */
-async function publishCastByActivityType(
-  taskType: TaskType,
-  castUrl: string
-): Promise<{
-  success: boolean;
-  error?: string;
-}> {
-  try {
-    // Проверяем, что мы в Farcaster Mini App
-    if (typeof window === 'undefined') {
-      return {
-        success: false,
-        error: 'SDK доступен только на клиенте',
-      };
-    }
-
-    const isInFarcasterFrame = window.self !== window.top;
-    if (!isInFarcasterFrame) {
-      console.log('ℹ️ [PUBLISH-CAST] Not in Farcaster frame, skipping cast publication');
-      return {
-        success: false,
-        error: 'Not in Farcaster Mini App',
-      };
-    }
-
-    // Импортируем SDK
-    const { sdk } = await import('@farcaster/miniapp-sdk');
-
-    if (!sdk || !sdk.actions) {
-      console.warn('⚠️ [PUBLISH-CAST] SDK or actions not available');
-      return {
-        success: false,
-        error: 'SDK actions not available',
-      };
-    }
-
-    // Определяем канал и текст публикации в зависимости от типа активности
-    const activityConfig = {
-      like: {
-        castText: `❤️ Liked via mini-app: ${castUrl}`,
-        channel: '/like', // Канал для лайков
-        hashtag: '#likes',
-      },
-      recast: {
-        castText: `🔄 Recasted via mini-app: ${castUrl}`,
-        channel: '/recast', // Канал для рекастов
-        hashtag: '#recasts',
-      },
-      comment: {
-        castText: `💬 Commented via mini-app: ${castUrl}`,
-        channel: '/comment', // Канал для комментариев
-        hashtag: '#comments',
-      },
-    };
-
-    const config = activityConfig[taskType];
-    if (!config) {
-      // Неизвестный тип активности - не публикуем
-      console.log(`ℹ️ [PUBLISH-CAST] Unknown task type: ${taskType}, skipping cast publication`);
-      return {
-        success: false,
-        error: `Unknown task type: ${taskType}`,
-      };
-    }
-
-    // Добавляем хештег канала в текст для лучшей видимости
-    const castTextWithHashtag = `${config.castText}\n\n${config.hashtag}`;
-
-    // Используем composeCast если доступен, иначе fallback на openUrl
-    if (typeof (sdk.actions as any).composeCast === 'function') {
-      // Пробуем указать канал через parentUrl или channel параметр
-      const composeParams: any = {
-        text: castTextWithHashtag,
-        embeds: [castUrl],
-      };
-
-      // Пробуем разные варианты указания канала
-      // Вариант 1: через parentUrl (если поддерживается)
-      try {
-        composeParams.parentUrl = `https://farcaster.xyz/~/channel${config.channel}`;
-      } catch (e) {
-        // Игнорируем ошибку
-      }
-
-      // Вариант 2: через channel параметр (если поддерживается)
-      try {
-        composeParams.channel = config.channel.replace('/', '');
-      } catch (e) {
-        // Игнорируем ошибку
-      }
-
-      await (sdk.actions as any).composeCast(composeParams);
-      console.log(`✅ [PUBLISH-CAST] Cast published via composeCast for ${taskType} task in channel ${config.channel}`);
+// Base-версия: публикация "каста" через Farcaster SDK отключена
+async function publishCastByActivityType(_taskType: TaskType, _castUrl: string): Promise<{ success: boolean; error?: string }> {
       return { success: true };
-    } else if (sdk.actions.openUrl) {
-      // Fallback: открываем Compose с предзаполненным текстом и каналом
-      // Пробуем указать канал через URL параметр
-      let farcasterUrl = `https://farcaster.xyz/~/compose?text=${encodeURIComponent(castTextWithHashtag)}`;
-      
-      // Добавляем канал в URL (если поддерживается Farcaster)
-      // Пробуем несколько вариантов формата
-      const channelParam = config.channel.replace('/', '');
-      farcasterUrl += `&channel=${encodeURIComponent(channelParam)}`;
-      
-      // Альтернативный вариант: через parentUrl в URL
-      // farcasterUrl += `&parentUrl=${encodeURIComponent(`https://farcaster.xyz/~/channel${config.channel}`)}`;
-
-      await sdk.actions.openUrl({ url: farcasterUrl });
-      console.log(`✅ [PUBLISH-CAST] Cast compose opened via openUrl for ${taskType} task in channel ${config.channel}`);
-      return { success: true };
-    }
-
-    // Если ни один метод не доступен
-    console.warn('⚠️ [PUBLISH-CAST] No compose method available in SDK');
-    return {
-      success: false,
-      error: 'No compose method available',
-    };
-  } catch (error: any) {
-    console.error('❌ [PUBLISH-CAST] Error publishing cast:', error);
-    return {
-      success: false,
-      error: error?.message || 'Failed to publish cast',
-    };
-  }
 }
 
 // Глобальный счетчик событий для отслеживания порядка выполнения
@@ -180,357 +58,200 @@ function logEvent(prefix: string, data: any, eventId?: number) {
 export default function Submit() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const { user, isLoading: authLoading, isInitialized } = useFarcasterAuth();
+  const { user, isInitialized } = useFarcasterAuth();
+  const { address, chainId, isConnected } = useAccount();
   const [activity, setActivity] = useState<TaskType | null>(null);
-  const [castUrl, setCastUrl] = useState('');
+  const [tokenAddress, setTokenAddress] = useState('');
   const [error, setError] = useState('');
+  const [isCheckingAccess, setIsCheckingAccess] = useState(true);
   const [canSubmit, setCanSubmit] = useState(true); // Публикация разрешена всегда
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [publishedLinkId, setPublishedLinkId] = useState<string | null>(null);
+  const DRAFT_KEY = 'likechat:draft_token_address_v1';
 
+  // In WebViews wagmi's `address` can be empty even when the wallet is connected.
+  // Use the same "effective address" strategy as /tasks so on-chain verification works reliably.
+  const effectiveAddress = useMemo(() => {
+    if (address && isAddress(address)) return address;
+    const ua = (user as any)?.address;
+    if (typeof ua === 'string' && isAddress(ua)) return ua;
 
-  // ⚠️ БЛОКИРОВКА НАВИГАЦИИ: Проверяем флаг при монтировании и блокируем навигацию назад
-  useEffect(() => {
-    // Если показывается поздравление, не делаем редирект - пользователь должен остаться на странице
-    if (showSuccessModal) {
-      console.log('✅ [SUBMIT] Success modal is showing, skipping redirect check');
-      return;
-    }
-    
-    // Проверяем флаг при монтировании компонента
-    if (typeof window !== 'undefined') {
-      const sessionFlag = sessionStorage.getItem('link_published');
-      const localFlag = localStorage.getItem('link_published');
-      
-      if (sessionFlag === 'true' || localFlag === 'true') {
-        console.log('🚫 [SUBMIT] Component mounted but link already published - redirecting to /tasks', {
-          sessionFlag,
-          localFlag,
-          timestamp: new Date().toISOString(),
-        });
-        // Редиректим на страницу задач, а не на главную
-        router.replace('/tasks');
-        return; // Прерываем выполнение эффекта
-      }
-    }
-
-    // Используем beforePopState для блокировки навигации назад
-    const handleBeforePopState = (state: any) => {
-      if (typeof window !== 'undefined') {
-        const sessionFlag = sessionStorage.getItem('link_published');
-        const localFlag = localStorage.getItem('link_published');
-        
-        if (sessionFlag === 'true' || localFlag === 'true') {
-          console.log('🚫 [SUBMIT] Browser back navigation blocked - link already published', {
-            sessionFlag,
-            localFlag,
-            timestamp: new Date().toISOString(),
-          });
-          // Редиректим на страницу задач
-          router.replace('/tasks');
-          return false; // Блокируем навигацию назад
-        }
-      }
-      
-      return true; // Разрешаем навигацию
-    };
-
-    // Устанавливаем обработчик для блокировки навигации назад
-    router.beforePopState(handleBeforePopState);
-
-    return () => {
-      // Очищаем обработчик при размонтировании
-      router.beforePopState(() => true);
-    };
-  }, [router, showSuccessModal]); // Добавляем showSuccessModal в зависимости
-
-  // ⚠️ СЛУШАТЕЛЬ STORAGE: Отслеживаем изменения в localStorage/sessionStorage из других вкладок/сессий
-  useEffect(() => {
-    // Если показывается поздравление, не делаем редирект - пользователь должен остаться на странице
-    if (showSuccessModal) {
-      console.log('✅ [SUBMIT] Success modal is showing, skipping storage event checks');
-      return;
-    }
-    
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'link_published' && e.newValue === 'true') {
-        console.log('🔔 [SUBMIT] Storage event detected - link_published changed to true:', {
-          key: e.key,
-          oldValue: e.oldValue,
-          newValue: e.newValue,
-          url: e.url,
-          timestamp: new Date().toISOString(),
-        });
-        
-        // Если флаг установлен - редиректим на главную
-        setTimeout(() => {
-          const finalCheck = sessionStorage.getItem('link_published') || localStorage.getItem('link_published');
-          console.log('🔔 [SUBMIT] Storage event - final check before redirect:', {
-            finalCheck,
-            timestamp: new Date().toISOString(),
-          });
-          if (finalCheck === 'true') {
-            router.replace('/tasks');
-          }
-        }, 100);
-      }
-    };
-
-    // Также проверяем изменения в sessionStorage (хотя storage event не срабатывает для sessionStorage)
-    // Но мы можем проверить периодически
-    const checkStorageInterval = setInterval(() => {
-      // Если показывается поздравление, не делаем редирект
-      if (showSuccessModal) {
-        clearInterval(checkStorageInterval);
-        return;
-      }
-      
-      const sessionFlag = sessionStorage.getItem('link_published');
-      const localFlag = localStorage.getItem('link_published');
-      
-      if (sessionFlag === 'true' || localFlag === 'true') {
-        console.log('🔔 [SUBMIT] Periodic storage check - link_published detected:', {
-          sessionFlag,
-          localFlag,
-          timestamp: new Date().toISOString(),
-        });
-        clearInterval(checkStorageInterval);
-        setTimeout(() => router.replace('/tasks'), 100);
-      }
-    }, 500); // Проверяем каждые 500ms
-
-    window.addEventListener('storage', handleStorageChange);
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      clearInterval(checkStorageInterval);
-    };
-  }, [router, showSuccessModal]); // Добавляем showSuccessModal в зависимости
-
-  useEffect(() => {
-    // Если показывается поздравление, не делаем редирект - пользователь должен остаться на странице
-    if (showSuccessModal) {
-      console.log('✅ [SUBMIT] Success modal is showing, skipping auth and redirect checks');
-      return;
-    }
-    
-    console.log('🔍 [SUBMIT] Component mounted, checking auth...', {
-      hasUser: !!user,
-      userFid: user?.fid,
-      authLoading,
-      isInitialized,
-    });
-    
-    // Проверяем, что код выполняется на клиенте
-    if (typeof window !== 'undefined') {
-      // ⚠️ КРИТИЧЕСКИ ВАЖНО: Проверяем link_published В САМОМ НАЧАЛЕ
-      // Это предотвращает зацикливание редиректов, даже если модальное окно закрылось некорректно
-      // Проверяем ОБА хранилища для надежности
-      const useEffectMountEventId = logEvent('🔍 [SUBMIT]', {
-        action: 'useEffect on mount - checking storage',
-        sessionStorage: sessionStorage.getItem('link_published'),
-        localStorage: localStorage.getItem('link_published'),
-        sessionStorageRaw: sessionStorage.getItem('link_published'),
-        localStorageRaw: localStorage.getItem('link_published'),
-        allSessionKeys: Object.keys(sessionStorage),
-        allLocalKeys: Object.keys(localStorage).filter(k => k.includes('link') || k.includes('published')),
-      });
-      
-      const sessionFlag = sessionStorage.getItem('link_published');
-      const localFlag = localStorage.getItem('link_published');
-      
-      // Если флаг установлен в ЛЮБОМ хранилище - редиректим на /tasks
-      if (sessionFlag === 'true' || localFlag === 'true') {
-        console.log('✅ [SUBMIT] Link already published, redirecting to /tasks');
-        setTimeout(() => {
-          router.replace('/tasks');
-        }, 100);
-        return; // Выходим сразу, не выполняя дальнейшие проверки
-      }
-      
-      // Ждём инициализации авторизации
-      if (!isInitialized) {
-        console.log('⏳ [SUBMIT] Waiting for auth initialization...');
-        return;
-      }
-      
-      // Проверяем наличие user
-      if (!user || !user.fid) {
-        console.error('❌ [SUBMIT] No user found, redirecting to home...');
-        router.push('/');
-        return;
-      }
-      
-      // ⚠️ ВАЖНО: Получаем активность из БД, а не только из localStorage
-      // Это гарантирует, что используем актуальное значение, которое пользователь действительно прошел
-      (async () => {
-        try {
-          const progressResponse = await fetch(`/api/user-progress?userFid=${user.fid}`);
-          const progressData = await progressResponse.json();
-          const progress = progressData.progress;
-          
-          // Используем selected_task из БД, если он есть, иначе из localStorage
-          const activityFromDb = progress?.selected_task;
-          const activityFromStorage = localStorage.getItem('selected_activity');
-          const savedActivity = activityFromDb || activityFromStorage;
-          
-          if (!savedActivity) {
-            console.error('❌ [SUBMIT] No activity selected in DB or localStorage, redirecting to home...');
-            router.push('/');
-            return;
-          }
-
-          console.log('✅ [SUBMIT] Activity loaded:', {
-            fromDb: activityFromDb,
-            fromStorage: activityFromStorage,
-            final: savedActivity,
-            fid: user.fid,
-            username: user.username,
-          });
-          
-          setActivity(savedActivity as TaskType);
-          
-          // Обновляем localStorage для синхронизации
-          if (activityFromDb && activityFromDb !== activityFromStorage) {
-            localStorage.setItem('selected_activity', activityFromDb);
-            console.log('🔄 [SUBMIT] Updated localStorage with activity from DB:', activityFromDb);
-          }
-          
-          console.log('✅ [SUBMIT] User and activity loaded:', {
-            fid: user.fid,
-            username: user.username,
-            activity: savedActivity,
-          });
-        } catch (error) {
-          console.error('❌ [SUBMIT] Error loading progress, using localStorage:', error);
-          const savedActivity = localStorage.getItem('selected_activity');
-          if (!savedActivity) {
-            console.error('❌ [SUBMIT] No activity in localStorage either, redirecting to home...');
-            router.push('/');
-            return;
-          }
-          setActivity(savedActivity as TaskType);
-        }
-      })();
-      
-      // ⚠️ ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: Проверяем в БД, не опубликована ли уже ссылка
-      // Это предотвращает зацикливание редиректов даже если флаг sessionStorage не установлен
-      checkIfLinkAlreadyPublished(user.fid).then((linkPublished) => {
-        // Еще раз проверяем флаг (на случай если он установился пока выполнялся запрос)
-        const flagCheckSession = sessionStorage.getItem('link_published');
-        const flagCheckLocal = localStorage.getItem('link_published');
-        if (flagCheckSession === 'true' || flagCheckLocal === 'true' || linkPublished) {
-          console.log('✅ [SUBMIT] User already published a link, redirecting to /tasks:', {
-            flagCheckSession,
-            flagCheckLocal,
-            linkPublished,
-          });
-          // Устанавливаем флаг в ОБА хранилища для надежности
-          if (typeof window !== 'undefined') {
-            sessionStorage.setItem('link_published', 'true');
-            localStorage.setItem('link_published', 'true');
-          }
-          // ⚠️ ВАЖНО: Редиректим на /tasks, а не на главную, чтобы пользователь остался на странице задач
-          setTimeout(() => {
-            const finalCheckSession = sessionStorage.getItem('link_published');
-            const finalCheckLocal = localStorage.getItem('link_published');
-            console.log('🔍 [SUBMIT] RIGHT BEFORE redirect to /tasks (checkIfLinkAlreadyPublished, 100ms delay):', {
-              finalCheckSession,
-              finalCheckLocal,
-              timestamp: new Date().toISOString(),
-              delay: '100ms',
-            });
-            router.replace('/tasks');
-          }, 100);
-          return;
-        }
-        // Только если ссылка еще не опубликована - проверяем прогресс
-        checkProgress(user.fid);
-      }).catch((error) => {
-        console.error('❌ [SUBMIT] Error checking published link:', error);
-        // Перед продолжением проверяем флаг еще раз
-        const flagCheckSession = sessionStorage.getItem('link_published');
-        const flagCheckLocal = localStorage.getItem('link_published');
-        if (flagCheckSession === 'true' || flagCheckLocal === 'true') {
-          console.log('✅ [SUBMIT] Link published flag detected after error, redirecting to /tasks:', {
-            flagCheckSession,
-            flagCheckLocal,
-          });
-          // ⚠️ ВАЖНО: Редиректим на /tasks, а не на главную
-          setTimeout(() => {
-            const finalCheckSession = sessionStorage.getItem('link_published');
-            const finalCheckLocal = localStorage.getItem('link_published');
-            console.log('🔍 [SUBMIT] RIGHT BEFORE redirect to /tasks (error handler, 100ms delay):', {
-              finalCheckSession,
-              finalCheckLocal,
-              timestamp: new Date().toISOString(),
-              delay: '100ms',
-            });
-            router.replace('/tasks');
-          }, 100);
-          return;
-        }
-        // В случае ошибки продолжаем с проверкой прогресса
-        checkProgress(user.fid);
-      });
-    }
-  }, [router, user, authLoading, isInitialized, showSuccessModal]); // Добавляем showSuccessModal в зависимости
-  
-  // Функция для проверки, опубликована ли уже ссылка пользователем
-  const checkIfLinkAlreadyPublished = async (userFid: number): Promise<boolean> => {
+    // Fallback: localStorage base_user may contain address (set by auth flow on /).
     try {
-      const allLinks = await getAllLinks();
-      const userHasPublishedLink = allLinks.some((link) => link.user_fid === userFid);
-      console.log(`🔍 [SUBMIT] Check if link already published for user ${userFid}: ${userHasPublishedLink}`);
-      return userHasPublishedLink;
-    } catch (error) {
-      console.error('❌ [SUBMIT] Error checking if link published:', error);
-      return false;
+    if (typeof window !== 'undefined') {
+        const raw = window.localStorage?.getItem('base_user');
+        if (raw) {
+          const parsed: any = JSON.parse(raw);
+          const la = parsed?.address;
+          if (typeof la === 'string' && isAddress(la)) return la;
+      }
     }
-  };
+    } catch {
+      // ignore
+    }
+
+    // Fallback: window.ethereum (non-interactive: eth_accounts)
+    try {
+      if (typeof window !== 'undefined') {
+        const eth = (window as any).ethereum;
+        const sa = eth?.selectedAddress;
+        if (typeof sa === 'string' && isAddress(sa)) return sa;
+      }
+    } catch {
+      // ignore
+    }
+
+    return '';
+  }, [address, user]);
+
+
+  // IMPORTANT: Do not use a client-side "link_published" flag.
+  // It can get stuck in WebViews and incorrectly block publishing.
+  // We rely on server-side checks in /api/submit-link (403/409) instead.
+
+  // Fail-safe: never let the page spin forever in a WebView.
+  useEffect(() => {
+    if (!isCheckingAccess) return;
+    const t = setTimeout(() => {
+      setIsCheckingAccess(false);
+      setCanSubmit(false);
+      setError((prev) => prev || 'Unable to check access. Please reopen the app inside Base/Farcaster MiniApp and try again.');
+    }, 6000);
+    return () => clearTimeout(t);
+  }, [isCheckingAccess]);
+
+  useEffect(() => {
+    if (showSuccessModal) return;
+    
+    // Base-версия: активность всегда support - устанавливаем сразу, не ждём isInitialized
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('selected_activity', 'support');
+    }
+    setActivity('support');
+    console.log('✅ [SUBMIT] Activity set to "support" for Base App');
+    
+    if (!isInitialized) {
+      console.log('⏳ [SUBMIT] Waiting for auth initialization...');
+      return;
+    }
+
+    if (!user || !user.fid) {
+      setCanSubmit(false);
+      setError('Publish is available only inside Base / Farcaster MiniApp. Please open the app there and try again.');
+      setIsCheckingAccess(false);
+      return;
+    }
+      
+    void checkProgress(user.fid);
+  }, [user, isInitialized, showSuccessModal]);
+
+  // Persist step + draft so users don't lose context when leaving to create a tokenized post / confirm tx.
+  useEffect(() => {
+    setFlowStep('submit');
+    if (typeof window === 'undefined') return;
+    try {
+      const draft = window.localStorage.getItem(DRAFT_KEY);
+      if (draft && !tokenAddress) {
+        // If draft is a Base URL, try to decode to token address.
+        const decoded = tokenAddressFromBaseAppContentUrl(draft);
+        setTokenAddress((decoded || draft).toString());
+      }
+    } catch {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInitialized, user?.fid]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      if (tokenAddress) window.localStorage.setItem(DRAFT_KEY, tokenAddress);
+    } catch {
+      // ignore
+    }
+  }, [tokenAddress]);
 
   const checkProgress = async (userFid: number) => {
-    // Если показывается поздравление, не делаем редирект - пользователь должен остаться на странице
-    if (showSuccessModal) {
-      console.log('✅ [SUBMIT] Success modal is showing, skipping checkProgress redirect');
+    setIsCheckingAccess(true);
+    
+    // ✅ ИСКЛЮЧЕНИЕ: Пользователи svs-smm и assayer всегда могут вносить ссылки без ограничений
+    const usernameLower = user?.username ? user.username.toLowerCase() : '';
+    const isPrivilegedUser = usernameLower === 'svs-smm' || usernameLower === 'assayer';
+    if (isPrivilegedUser) {
+      console.log(`✅ [SUBMIT] Privileged user detected (${usernameLower}) - bypassing all checks`);
+      setCanSubmit(true);
+      setError('');
+      setIsCheckingAccess(false);
       return;
     }
     
-    // Упрощенная проверка: только проверяем, не опубликована ли уже ссылка
-    if (typeof window !== 'undefined') {
-      const sessionFlag = sessionStorage.getItem('link_published');
-      const localFlag = localStorage.getItem('link_published');
-      if (sessionFlag === 'true' || localFlag === 'true') {
-        console.log('✅ [SUBMIT] Link already published, redirecting to /tasks');
-        router.replace('/tasks');
-        return;
-      }
-    }
+    // Require: user must complete REQUIRED_BUYS_TO_PUBLISH buys before publishing.
+    try {
+      const progressRes = await fetch(`/api/user-progress?userFid=${userFid}&t=${Date.now()}`);
+      const progressJson = await progressRes.json();
+      const completedCount = Array.isArray(progressJson?.progress?.completed_links)
+        ? progressJson.progress.completed_links.length
+        : 0;
 
-    // Проверка: ссылка уже опубликована
-    const linkAlreadyPublished = await checkIfLinkAlreadyPublished(userFid);
-    if (linkAlreadyPublished) {
-      console.log('✅ [SUBMIT] Link already published, redirecting to /tasks');
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem('link_published', 'true');
-        localStorage.setItem('link_published', 'true');
-      }
-      router.replace('/tasks');
+      if (completedCount < REQUIRED_BUYS_TO_PUBLISH) {
+        // Fallback: if DB progress is missing (common when Upstash isn't configured),
+        // verify buys onchain using the connected wallet.
+        const wallet = (effectiveAddress || '').toString().trim();
+        if (wallet) {
+          try {
+            const vr = await fetch('/api/verify-buys', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ walletAddress: wallet, taskType: activity || 'support' }),
+            });
+            const vj = await vr.json();
+            const verified = typeof vj?.verifiedOnchainCount === 'number' ? vj.verifiedOnchainCount : 0;
+            if (vr.ok && vj?.success && verified >= REQUIRED_BUYS_TO_PUBLISH) {
+              setCanSubmit(true);
+              setError('');
+      return;
+    }
+            setCanSubmit(false);
+            setError(
+              `You need to buy ${REQUIRED_BUYS_TO_PUBLISH} posts first. Progress: ${completedCount}/${REQUIRED_BUYS_TO_PUBLISH}.`
+            );
+        return;
+          } catch {
+            // fall through to default error below
+          }
+        }
+
+        setCanSubmit(false);
+        setError(`You need to buy ${REQUIRED_BUYS_TO_PUBLISH} posts first. Progress: ${completedCount}/${REQUIRED_BUYS_TO_PUBLISH}.`);
       return;
     }
 
-    // Публикация ссылки разрешена всегда (все задания уже проверены)
     setCanSubmit(true);
+    } catch (e: any) {
+      // Fail safe: do not allow submit if we cannot verify progress.
+      setCanSubmit(false);
+      setError('Unable to verify progress. Please return to tasks and try again.');
+    } finally {
+      setIsCheckingAccess(false);
+    }
   };
 
   const validateUrl = (url: string): boolean => {
-    // Проверка формата URL Farcaster
-    const urlPattern = /^https?:\/\/(farcaster\.xyz)\/.+/i;
-    return urlPattern.test(url);
+    const trimmed = (url || '').trim();
+    // Base posts are usually shared as base.app/content/... (or base.app/post/...).
+    const urlPattern = /^https?:\/\/(www\.)?base\.app\/(content|post)\/.+/i;
+    return urlPattern.test(trimmed);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Network guard: publishing is for Base.
+    // In some WebViews chainId can be undefined; only block when we *know* it's not Base.
+    if (isConnected && chainId && chainId !== 8453) {
+      setError('Switch network to Base (8453) and try again.');
+      return;
+    }
     
     // ⚠️ ДЕТАЛЬНАЯ ПРОВЕРКА: Проверяем наличие всех необходимых данных
     console.log('🔍 [SUBMIT] Starting submission process...');
@@ -541,31 +262,50 @@ export default function Submit() {
         hasPfp: !!user.pfp_url,
       } : 'NULL',
       activity,
-      castUrl: castUrl ? castUrl.substring(0, 50) + '...' : 'EMPTY',
+      castUrl: 'REMOVED',
     });
     
     // Проверяем наличие user из контекста
     if (!user) {
       console.error('❌ [SUBMIT] User is null in context!');
-      setError('Ошибка: данные пользователя не найдены. Пожалуйста, авторизуйтесь заново.');
-      router.push('/');
+      setError('Error: user data not found. Please authorize again.');
       return;
     }
     
-    if (!activity || !castUrl) {
+    // Для Base App activity всегда должен быть 'support'
+    const finalActivity = activity || 'support';
+    
+    if (!finalActivity || !tokenAddress) {
       console.error('❌ [SUBMIT] Missing required data:', {
         hasUser: !!user,
-        hasActivity: !!activity,
-        hasCastUrl: !!castUrl,
+        hasActivity: !!finalActivity,
+        activityValue: finalActivity,
+        hasCastUrl: false,
+        hasTokenAddress: !!tokenAddress,
+        tokenAddressValue: tokenAddress,
       });
-      setError('Заполните все обязательные поля');
+      setError('Please fill in all required fields');
+      return;
+    }
+    
+    console.log('✅ [SUBMIT] All required fields present:', {
+      hasUser: !!user,
+      activity: finalActivity,
+      hasTokenAddress: !!tokenAddress,
+    });
+
+    // Normalize: allow pasting a Base content URL; decode it to token address.
+    const maybeDecoded = tokenAddressFromBaseAppContentUrl(tokenAddress);
+    const normalizedTokenAddress = (maybeDecoded || tokenAddress).toString().trim().toLowerCase();
+    if (!isAddress(normalizedTokenAddress)) {
+      setError('Please enter a valid ERC-20 token address (0x...) or paste a valid https://base.app/content/... URL.');
       return;
     }
     
     // ⚠️ ПРОВЕРКА FID: Убеждаемся, что fid существует и валиден
     if (!user.fid || typeof user.fid !== 'number') {
       console.error('❌ [SUBMIT] Invalid or missing user.fid:', user.fid);
-      setError('Ошибка: не найден FID пользователя. Попробуйте перезагрузить страницу.');
+      setError('Error: missing user id. Please refresh and try again.');
       return;
     }
     
@@ -576,37 +316,39 @@ export default function Submit() {
 
     setError('');
 
-    // Валидация URL
-    if (!validateUrl(castUrl)) {
-      setError('Please enter a valid Farcaster cast link');
-      return;
-    }
+    // Critical UX: Base App doesn't provide a clear tokenized-post URL.
+    // Publishing requires only token address.
 
     setLoading(true);
 
     try {
       // Публикация cast убрана - чтобы избежать баннера "Upgrade to Pro"
       // Сохраняем ссылку в базе данных через API endpoint
-      // ⚠️ ВАЖНО: Используем activity (выбранный тип заданий) как taskType для публикации
+      // ⚠️ ВАЖНО: Используем finalActivity (выбранный тип заданий) как taskType для публикации
       // Это гарантирует, что ссылка публикуется с тем же типом, который пользователь прошел
       const submissionData = {
         userFid: user.fid,
         username: user.username,
         pfpUrl: user.pfp_url || '',
-        castUrl: castUrl,
-        taskType: activity, // Используем taskType вместо activityType для ясности
-        activityType: activity, // Оставляем для обратной совместимости
+        castUrl: '', // removed from UI; keep field for backward compatibility
+        taskType: finalActivity, // Используем taskType вместо activityType для ясности
+        activityType: finalActivity, // Оставляем для обратной совместимости
+        tokenAddress: normalizedTokenAddress,
+        // Wallet is needed for onchain verification fallback (when DB is not persistent).
+        walletAddress: (effectiveAddress || '').toString(),
       };
       
       console.log('📝 [SUBMIT] Publishing link with taskType:', {
-        taskType: activity,
+        taskType: finalActivity,
         userFid: user.fid,
         username: user.username,
       });
       
       console.log('📝 [SUBMIT] Submitting link via API...', {
         ...submissionData,
-        castUrl: castUrl.substring(0, 50) + '...',
+        taskType: finalActivity,
+        activityType: finalActivity,
+        castUrl: 'EMPTY (removed)',
       });
 
       const response = await fetch('/api/submit-link', {
@@ -614,7 +356,11 @@ export default function Submit() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(submissionData),
+        body: JSON.stringify({
+          ...submissionData,
+          taskType: finalActivity,
+          activityType: finalActivity,
+        }),
       });
 
       console.log('📡 [SUBMIT] API response status:', response.status);
@@ -635,25 +381,17 @@ export default function Submit() {
         
         // Если ошибка связана с недостаточным количеством выполненных заданий
         if (data.completedCount !== undefined && data.requiredCount !== undefined) {
-          const errorMessage = data.error || `Вы можете отправить свою ссылку только после выполнения 10 заданий. Выполнено: ${data.completedCount}/10`;
+          const errorMessage = data.error || `You can submit only after completing ${REQUIRED_BUYS_TO_PUBLISH} buys. Completed: ${data.completedCount}/${REQUIRED_BUYS_TO_PUBLISH}`;
           setError(errorMessage);
           setLoading(false);
-          // Редиректим на страницу заданий через 3 секунды
-          setTimeout(() => {
-            router.push('/tasks');
-          }, 3000);
           return;
         }
         
         // Если ошибка связана с недостаточным количеством ссылок от других пользователей
         if (data.otherLinksCount !== undefined && data.requiredCount !== undefined) {
-          const errorMessage = data.error || `Вы можете отправить свою ссылку только после того, как в чат было отправлено 10 других ссылок. Отправлено другими пользователями: ${data.otherLinksCount}/10`;
+          const errorMessage = data.error || `You can submit only after ${TASKS_LIMIT} other posts are in the queue. Other posts: ${data.otherLinksCount}/${TASKS_LIMIT}`;
           setError(errorMessage);
           setLoading(false);
-          // Редиректим на страницу заданий через 3 секунды
-          setTimeout(() => {
-            router.push('/tasks');
-          }, 3000);
           return;
         }
         
@@ -670,121 +408,18 @@ export default function Submit() {
           cast_url: data.link.cast_url?.substring(0, 50) + '...',
         });
         
-        // ⚠️ КРИТИЧЕСКИ ВАЖНО: Устанавливаем флаг СРАЗУ после успешного API ответа
-        // ДО любых других операций, включая setState и асинхронные вызовы
-        // Это гарантирует, что флаг будет установлен до возможного редиректа
-        if (typeof window !== 'undefined') {
-          const beforeSetItemEventId = logEvent('⏱️ [SUBMIT]', {
-            action: 'BEFORE setItem',
-            sessionStorageBefore: sessionStorage.getItem('link_published'),
-            localStorageBefore: localStorage.getItem('link_published'),
-          });
-          
-          // Сохраняем в sessionStorage (быстрый доступ)
-          sessionStorage.setItem('link_published', 'true');
-          // Сохраняем в localStorage (сохраняется между табами и более надежен)
-          localStorage.setItem('link_published', 'true');
-          
-          // ⚠️ СИНХРОННАЯ проверка СРАЗУ после setItem (БЕЗ setTimeout!)
-          // Это критически важно для понимания порядка событий
-          const check1 = {
-            session: sessionStorage.getItem('link_published'),
-            local: localStorage.getItem('link_published'),
-          };
-          
-          // Логируем СИНХРОННО сразу после setItem
-          const afterSetItemEventId = logEvent('✅ [SUBMIT]', {
-            action: 'AFTER setItem (SYNCHRONOUS)',
-            check1,
-            check1BothTrue: check1.session === 'true' && check1.local === 'true',
-            sessionStorageType: typeof check1.session,
-            localStorageType: typeof check1.local,
-            sessionStorageEqualsTrue: check1.session === 'true',
-            localStorageEqualsTrue: check1.local === 'true',
-            beforeSetItemEventId,
-          });
-          
-          // Небольшая задержка для проверки persistence после setState
-          // Используем Promise для небольшой задержки без блокировки
-          const checkPromise = new Promise<void>((resolve) => {
-            setTimeout(() => {
-              const check2 = {
-                session: sessionStorage.getItem('link_published'),
-                local: localStorage.getItem('link_published'),
-              };
-              
-              const delayedCheckEventId = logEvent('⏱️ [SUBMIT]', {
-                action: 'Delayed check (10ms after setItem)',
-                check1,
-                check2,
-                check1BothTrue: check1.session === 'true' && check1.local === 'true',
-                check2BothTrue: check2.session === 'true' && check2.local === 'true',
-                beforeSetState: true,
-                afterSetItemEventId,
-              });
-              
-              // КРИТИЧЕСКАЯ ПРОВЕРКА: Убеждаемся, что флаг действительно установлен
-              if (check1.session !== 'true' || check1.local !== 'true') {
-                logEvent('❌ [SUBMIT]', {
-                  action: 'CRITICAL: Flag not set correctly after setItem!',
-                  check1,
-                  check2,
-                  afterSetItemEventId,
-                  delayedCheckEventId,
-                });
-                // Пытаемся установить еще раз
-                sessionStorage.setItem('link_published', 'true');
-                localStorage.setItem('link_published', 'true');
-                const retrySession = sessionStorage.getItem('link_published');
-                const retryLocal = localStorage.getItem('link_published');
-                logEvent('🔄 [SUBMIT]', {
-                  action: 'Retry setItem - checking again',
-                  retrySession,
-                  retryLocal,
-                  retrySessionEqualsTrue: retrySession === 'true',
-                  retryLocalEqualsTrue: retryLocal === 'true',
-                });
-              } else {
-                logEvent('✅ [SUBMIT]', {
-                  action: 'Flag confirmed set correctly in BOTH storages after delay',
-                  delayedCheckEventId,
-                  afterSetItemEventId,
-                });
-              }
-              
-              resolve();
-            }, 10);
-          });
-          
-          // Ждем завершения проверки перед продолжением
-          await checkPromise;
-          
-          sessionStorage.removeItem('redirect_to_submit_done');
-        }
-        
-        // ТЕПЕРЬ устанавливаем state (это может вызвать ре-рендер, но флаг уже установлен)
-        const beforeSetStateEventId = logEvent('⏱️ [SUBMIT]', {
-          action: 'BEFORE setState (setPublishedLinkId, setShowSuccessModal)',
-          flagStatus: {
-            sessionStorage: sessionStorage.getItem('link_published'),
-            localStorage: localStorage.getItem('link_published'),
-          },
-        });
-        
         setPublishedLinkId(data.link.id);
         setShowSuccessModal(true);
         
-        logEvent('✅ [SUBMIT]', {
-          action: 'AFTER setState (setPublishedLinkId, setShowSuccessModal)',
-          flagStatus: {
-            sessionStorage: sessionStorage.getItem('link_published'),
-            localStorage: localStorage.getItem('link_published'),
-          },
-          beforeSetStateEventId,
-        });
+        // Clear draft once published.
+        try {
+          if (typeof window !== 'undefined') window.localStorage.removeItem(DRAFT_KEY);
+        } catch {
+          // ignore
+        }
         
         // Очищаем форму, чтобы предотвратить повторную отправку
-        setCastUrl('');
+        setTokenAddress('');
         setError('');
         
         // Публикуем cast в Farcaster только для соответствующего типа активности
@@ -828,17 +463,6 @@ export default function Submit() {
         //   });
         // }
         
-        // Финальная проверка флага после всех операций (но до return)
-        const finalFlagCheckAfterAllOps = {
-          sessionStorage: typeof window !== 'undefined' ? sessionStorage.getItem('link_published') : null,
-          localStorage: typeof window !== 'undefined' ? localStorage.getItem('link_published') : null,
-        };
-        console.log('🔍 [SUBMIT] Final flag check AFTER all operations (before return):', {
-          ...finalFlagCheckAfterAllOps,
-          timestamp: new Date().toISOString(),
-          aboutToReturn: true,
-        });
-        
         // НЕ делаем автоматический редирект - показываем модальное окно с поздравлением
         // Пользователь может выбрать другую активность через кнопку в модальном окне
         // НЕ меняем setLoading(false) здесь - оставляем loading=true чтобы форма была заблокирована
@@ -858,16 +482,7 @@ export default function Submit() {
       
       const errorMessage = err.message || 'An error occurred';
       setError(errorMessage);
-      setLoading(false); // Разблокируем форму только при ошибке
-      
-      // Если ошибка связана с недостаточным количеством выполненных заданий или ссылок от других пользователей, редиректим на /tasks
-      if (errorMessage.includes('10 заданий') || errorMessage.includes('10 других ссылок') || 
-          errorMessage.includes('completedCount') || errorMessage.includes('otherLinksCount') || 
-          errorMessage.includes('других пользователей')) {
-        setTimeout(() => {
-          router.push('/tasks');
-        }, 3000);
-      }
+      setLoading(false); // Unlock the form only on error
     }
     // finally блок убран - loading управляется вручную для предотвращения повторной отправки
   };
@@ -875,11 +490,11 @@ export default function Submit() {
   // Если показывается поздравление, показываем полноэкранную страницу с поздравлением
   if (showSuccessModal) {
     return (
-      <Layout title="Congratulations!">
+      <Layout title="Success!">
         {/* Hero Section с градиентом */}
-        <div className="relative min-h-screen overflow-hidden">
+        <div className="relative min-h-screen overflow-x-hidden">
           {/* Анимированный градиент фон */}
-          <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient bg-300%"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient"></div>
           
           {/* Геометрические фигуры */}
           <div className="absolute top-20 right-20 w-32 h-32 bg-white bg-opacity-10 rounded-full animate-float"></div>
@@ -890,9 +505,7 @@ export default function Submit() {
             <div className="text-center mb-16">
               <div className="relative -mt-2 sm:mt-0">
                 <h1 className="text-white mb-12 sm:mb-24 leading-none flex items-center justify-center gap-4 sm:gap-8 px-4 sm:px-16">
-                  <span className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-white">
-                    SUCCESS
-                  </span>
+                  <span className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-white">Success!</span>
                 </h1>
               </div>
 
@@ -919,7 +532,7 @@ export default function Submit() {
             {/* Модная карточка поздравления */}
             <div className="bg-white bg-opacity-95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 sm:p-12 mb-12 border border-white border-opacity-20 mt-6 sm:mt-12">
               <div className="text-center">
-                <h2 className="text-4xl sm:text-5xl font-black bg-gradient-to-r from-red-500 via-purple-600 to-pink-500 bg-clip-text text-transparent mb-4">
+                <h2 className="text-2xl sm:text-5xl font-black bg-gradient-to-r from-red-500 via-purple-600 to-pink-500 bg-clip-text text-transparent mb-4 leading-tight break-words px-3 py-1 overflow-visible">
                   Congratulations!
                 </h2>
                 <p className="text-2xl sm:text-3xl text-gray-800 font-bold mb-8">
@@ -927,7 +540,7 @@ export default function Submit() {
                 </p>
                 <div className="bg-gradient-to-r from-red-500/10 via-purple-600/10 to-pink-500/10 rounded-2xl p-6 mb-8 border border-red-500/20">
                   <p className="text-base text-gray-700">
-                    <strong>The next 10 users</strong> who choose the same task will perform that task on your cast.
+                    <strong>The next 4 users</strong> will buy your post.
                   </p>
                 </div>
                 <Button
@@ -937,13 +550,13 @@ export default function Submit() {
                     // НЕ устанавливаем setShowSuccessModal(false) перед редиректом, чтобы useEffect не сработал
                     setLoading(false);
                     // Редиректим на главную страницу сразу, без задержки
-                    router.replace('/');
+                    router.replace(`/tasks?published=1${publishedLinkId ? `&linkId=${encodeURIComponent(publishedLinkId)}` : ''}`);
                   }}
                   variant="primary"
                   fullWidth
                   className="text-lg py-4"
                 >
-                  Close
+                  Back to tasks
                 </Button>
               </div>
             </div>
@@ -953,11 +566,11 @@ export default function Submit() {
     );
   }
 
-  if (!canSubmit) {
+  if (isCheckingAccess) {
     return (
       <Layout title="Checking Access...">
         <div className="relative min-h-screen overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient bg-300%"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient"></div>
           <div className="relative z-10 flex items-center justify-center min-h-screen">
             <div className="text-center">
               <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4" />
@@ -969,13 +582,51 @@ export default function Submit() {
     );
   }
 
+  if (!canSubmit) {
+    return (
+      <Layout title="Add Your Post">
+        <div className="relative min-h-screen overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient"></div>
+          <div className="relative z-10 flex items-center justify-center min-h-screen px-6">
+            <div className="bg-white bg-opacity-95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 sm:p-10 border border-white/30 max-w-xl w-full">
+              <div className="text-center">
+                <h2 className="text-2xl sm:text-4xl font-black text-gray-900 mb-4">Can’t publish yet</h2>
+                <p className="text-gray-700 font-bold mb-8">{error || 'Access is not available.'}</p>
+                <div className="flex flex-col gap-3">
+                  <Button
+                    onClick={() => {
+                      setError('');
+                      setIsCheckingAccess(true);
+                      if (user?.fid) void checkProgress(user.fid);
+                    }}
+                    variant="primary"
+                    fullWidth
+                  >
+                    Retry
+                  </Button>
+                  <Button onClick={() => router.push('/tasks')} variant="secondary" fullWidth>
+                    Back to tasks
+                  </Button>
+                </div>
+                <p className="text-xs text-gray-500 mt-6">
+                  Tip: this page requires your Farcaster/Base MiniApp profile (FID). If you opened the site in a regular browser,
+                  please open it inside the Base / Farcaster app.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
 
   return (
-    <Layout title="Multi Like - Add Your Link">
+    <Layout title="MULTI LIKE - Add Your Post">
       {/* Hero Section с градиентом */}
       <div className="relative min-h-screen overflow-hidden">
         {/* Анимированный градиент фон */}
-        <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient bg-300%"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient"></div>
         
         {/* Геометрические фигуры */}
         <div className="absolute top-20 right-20 w-32 h-32 bg-white bg-opacity-10 rounded-full animate-float"></div>
@@ -990,7 +641,7 @@ export default function Submit() {
                   PUBLISH
                 </span>
                 <span className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-white">
-                  LINK
+                  POST
                 </span>
               </h1>
             </div>
@@ -1014,10 +665,10 @@ export default function Submit() {
               <div className="w-10 sm:w-20 h-1 bg-white"></div>
             </div>
             <p className="text-xl sm:text-3xl md:text-4xl text-white font-bold mb-4 tracking-wide px-4">
-              <span className="text-white">🚀</span> ADD YOUR LINK <span className="text-white">🚀</span>
+              <span className="text-white">🚀</span> ADD YOUR POST <span className="text-white">🚀</span>
             </p>
             <p className="text-lg text-white text-opacity-90 max-w-2xl mx-auto">
-              Share your link for mutual support
+              Add link to post you want to sell
             </p>
           </div>
 
@@ -1026,48 +677,54 @@ export default function Submit() {
 
             {/* Информация о выбранной активности */}
             <div className="bg-gradient-to-r from-primary/10 via-secondary/10 to-accent/10 rounded-xl p-6 mb-6 border border-primary/20">
-              <p className="text-sm text-gray-700 mb-3 font-semibold">
-                Selected task:
-              </p>
-              <div className="flex items-center gap-3 text-primary font-bold text-xl">
-                {activity === 'like' && (
-                  <>
-                    <span className="text-3xl">❤️</span>
-                    <span>LIKE</span>
-                  </>
-                )}
-                {activity === 'recast' && (
-                  <>
-                    <span className="text-3xl">🔄</span>
-                    <span>RECAST</span>
-                  </>
-                )}
+              <p className="text-sm text-gray-700 mb-3 font-semibold">You accepted task:</p>
+              <div className="flex items-center gap-3 text-primary font-bold text-xl flex-wrap">
+                <span className="text-3xl">💎</span>
+                <span>BUY $0.10</span>
+                <span className="text-gray-600 font-semibold">– Other users will buy your post</span>
               </div>
-              <p className="text-sm text-gray-600 mt-3">
-                Other users will perform this task on your link
-              </p>
             </div>
 
             <form onSubmit={handleSubmit}>
               <div className="mb-6">
                 <label
-                  htmlFor="castUrl"
+                  htmlFor="tokenAddress"
                   className="block text-lg font-bold text-gray-900 mb-3"
                 >
-                  Link to your cast:
+                  Your tokenized post (ERC-20 address or base.app/content URL)
                 </label>
                 <input
-                  type="url"
-                  id="castUrl"
-                  value={castUrl}
-                  onChange={(e) => setCastUrl(e.target.value)}
-                  placeholder="https://farcaster.xyz/username/0x123abc..."
+                  type="text"
+                  id="tokenAddress"
+                  name="erc20_token_address"
+                  value={tokenAddress}
+                  onChange={(e) => setTokenAddress(e.target.value)}
+                  onPaste={(e) => {
+                    // Для мобильных устройств разрешаем стандартную вставку
+                    const pastedText = e.clipboardData.getData('text');
+                    if (pastedText) {
+                      e.preventDefault();
+                      setTokenAddress(pastedText.trim());
+                    }
+                  }}
+                  placeholder="0x... or https://base.app/content/..."
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  inputMode="text"
                   className="w-full px-6 py-4 border-2 border-gray-300 rounded-xl focus:border-primary focus:outline-none transition-colors text-lg"
                   required
                 />
-                <p className="text-sm text-gray-500 mt-2">
-                  Example: https://farcaster.xyz/username/0x123abc
-                </p>
+
+                {isAddress(tokenAddress.trim().toLowerCase() as any) && (
+                  <p className="text-sm text-gray-600 mt-3 break-all">
+                    Base content URL (auto):{' '}
+                    <span className="font-mono">
+                      {baseAppContentUrlFromTokenAddress(tokenAddress.trim().toLowerCase())}
+                    </span>
+                  </p>
+                )}
               </div>
 
               {error && (
@@ -1081,17 +738,17 @@ export default function Submit() {
 
               <button
                 type="submit"
-                disabled={loading || !castUrl}
+                disabled={loading || !tokenAddress}
                 className={`btn-gold-glow w-full text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold text-white group ${
-                  loading || !castUrl ? 'disabled' : ''
+                  loading || !tokenAddress ? 'disabled' : ''
                 }`}
               >
                 {/* Переливающийся эффект */}
-                {!loading && castUrl && (
+                {!loading && tokenAddress && (
                   <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
                 )}
                 {/* Внутреннее свечение */}
-                {!loading && castUrl && (
+                {!loading && tokenAddress && (
                   <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
                 )}
                 <span className="relative z-20 drop-shadow-lg">
@@ -1101,7 +758,7 @@ export default function Submit() {
                     <span>PUBLISHING...</span>
                   </div>
                 ) : (
-                  '🚀 ADD YOUR LINK'
+                  '🚀 ADD YOUR POST'
                 )}
                 </span>
               </button>
@@ -1122,7 +779,7 @@ export default function Submit() {
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
                   <span className="text-3xl font-black text-accent">02</span>
-                  <span className="font-bold text-xl">Next 10 users will complete your link</span>
+                  <span className="font-bold text-xl">The next 4 users will buy your post</span>
                 </div>
               </div>
               <div className="space-y-3">
@@ -1132,7 +789,7 @@ export default function Submit() {
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
                   <span className="text-3xl font-black text-accent">04</span>
-                  <span className="font-bold text-xl">You get mutual support from community</span>
+                  <span className="font-bold text-xl">You get multiple buyers</span>
                 </div>
               </div>
             </div>

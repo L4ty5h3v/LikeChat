@@ -2,10 +2,26 @@ import '@/styles/globals.css';
 import type { AppProps } from 'next/app';
 import Head from 'next/head';
 import { useEffect } from 'react';
+import dynamic from 'next/dynamic';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { WagmiProvider, createConfig, http } from 'wagmi';
 import { base } from 'wagmi/chains';
+import { injected } from 'wagmi/connectors';
 import { OnchainKitProvider } from '@coinbase/onchainkit';
 import { FarcasterAuthProvider } from '@/contexts/FarcasterAuthContext';
-import { AuthSync } from '@/components/AuthSync';
+
+const AuthSyncNoSSR = dynamic(() => import('@/components/AuthSync').then((m) => m.AuthSync), { ssr: false });
+
+const queryClient = new QueryClient();
+
+const wagmiConfig = createConfig({
+  chains: [base],
+  connectors: [injected()],
+  transports: {
+    [base.id]: http(),
+  },
+  ssr: true,
+});
 
 export default function App({ Component, pageProps }: AppProps) {
   // Глобальный обработчик ошибок для отлова неперехваченных ошибок
@@ -36,104 +52,31 @@ export default function App({ Component, pageProps }: AppProps) {
     };
   }, []);
 
-  // Вызываем sdk.actions.ready() для Farcaster Mini App
-  // ⚠️ КРИТИЧНО: Вызываем ready() как можно раньше, чтобы скрыть заставку
-  // Вызываем синхронно при загрузке модуля, не ждём useEffect
-  if (typeof window !== 'undefined') {
-    // Немедленный вызов при загрузке модуля
-    (async () => {
-      try {
-        // Небольшая задержка для инициализации
-        await new Promise(resolve => setTimeout(resolve, 50));
-        
-        const { sdk } = await import('@farcaster/miniapp-sdk');
-        
-        if (sdk && sdk.actions && typeof sdk.actions.ready === 'function') {
-          await sdk.actions.ready();
-          (window as any).__FARCASTER_READY_CALLED__ = true;
-          console.log('✅ [_APP] Farcaster Mini App SDK ready() called immediately on module load');
-        }
-      } catch (error: any) {
-        // Игнорируем ошибки - SDK будет вызван в useEffect
-        console.log('ℹ️ [_APP] Immediate SDK call failed, will retry in useEffect:', error?.message);
-      }
-    })();
-  }
-
-  // Дублируем вызов в useEffect для надёжности
-  useEffect(() => {
-    let mounted = true;
-    
-    const callReady = async () => {
-      try {
-        if (typeof window === 'undefined' || !mounted) {
-          return;
-        }
-
-        // Проверяем, не был ли уже вызван ready()
-        if ((window as any).__FARCASTER_READY_CALLED__) {
-          console.log('ℹ️ [_APP] ready() already called, skipping');
-          return;
-        }
-
-        // Небольшая задержка, чтобы дать время SDK загрузиться
-        await new Promise(resolve => setTimeout(resolve, 200));
-
-        if (!mounted) return;
-
-        // Динамический импорт для избежания SSR проблем
-        const { sdk } = await import('@farcaster/miniapp-sdk');
-        
-        if (!mounted) return;
-        
-        // Проверяем, что SDK доступен и вызываем ready()
-        if (sdk && sdk.actions && typeof sdk.actions.ready === 'function') {
-          await sdk.actions.ready();
-          (window as any).__FARCASTER_READY_CALLED__ = true;
-          console.log('✅ [_APP] Farcaster Mini App SDK ready() called successfully in useEffect');
-        } else {
-          console.warn('⚠️ [_APP] Farcaster Mini App SDK not properly initialized', { sdk });
-        }
-      } catch (error: any) {
-        if (mounted) {
-          // Не логируем ошибку как критическую - приложение может работать и без SDK
-          console.log('ℹ️ [_APP] Farcaster Mini App SDK not available:', error?.message || 'running in regular browser');
-        }
-      }
-    };
-
-    // Вызываем сразу при монтировании
-    callReady();
-    
-    return () => {
-      mounted = false;
-    };
-  }, []);
+  // Base-версия: Farcaster Mini App SDK не используем
 
   return (
     <>
       <Head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
       </Head>
-      <OnchainKitProvider
-        chain={base} // КРИТИЧНО: base из wagmi/chains имеет chainId 8453
-        config={{
-          appearance: {
-            name: 'Multi Like',
-            logo: '/mrs-crypto.png',
-            theme: 'default',
-            mode: 'auto',
-          },
-        }}
-        miniKit={{
-          enabled: true,
-        }}
-      >
-        <FarcasterAuthProvider>
-          <AuthSync />
-          <Component {...pageProps} />
-        </FarcasterAuthProvider>
-      </OnchainKitProvider>
+      <WagmiProvider config={wagmiConfig}>
+        <QueryClientProvider client={queryClient}>
+          <OnchainKitProvider
+            chain={base}
+            miniKit={{
+              enabled: true,
+              // У нас есть стабильный endpoint; нужен только чтобы библиотека не ходила в /api/notify по умолчанию.
+              notificationProxyUrl: '/api/webhook',
+              autoConnect: false,
+            }}
+          >
+            <FarcasterAuthProvider>
+              <AuthSyncNoSSR />
+              <Component {...pageProps} />
+            </FarcasterAuthProvider>
+          </OnchainKitProvider>
+        </QueryClientProvider>
+      </WagmiProvider>
     </>
   );
 }

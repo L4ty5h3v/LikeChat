@@ -1,24 +1,30 @@
 // Карточка ссылки в ленте
 import React from 'react';
 import type { LinkSubmission } from '@/types';
+import Avatar from '@/components/Avatar';
+import { baseAppContentUrlFromTokenAddress } from '@/lib/base-content';
+import InAppBrowserModal from '@/components/InAppBrowserModal';
 
 interface LinkCardProps {
   link: LinkSubmission;
 }
 
-import type { TaskType } from '@/types';
-
-const activityIcons: Record<TaskType, string> = {
-  like: '❤️',
-  recast: '🔄',
-};
-
-const activityLabels: Record<TaskType, string> = {
-  like: 'Like',
-  recast: 'Recast',
-};
+const activityIcon = '💎';
+const activityLabel = 'Buy';
 
 const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
+  const [postModalUrl, setPostModalUrl] = React.useState<string | null>(null);
+  const direct = (link.cast_url || '').trim();
+  const generated = link.token_address ? baseAppContentUrlFromTokenAddress(link.token_address) : null;
+  const postUrl = (direct.startsWith('http') ? direct : generated) || '';
+  const hasPostUrl = postUrl.startsWith('http');
+
+  const openPostInModal = (url: string) => {
+    const u = (url || '').trim();
+    if (!u.startsWith('http')) return;
+    setPostModalUrl(u);
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleString('en-US', {
@@ -30,21 +36,23 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
   };
 
   return (
-    <div className="bg-white rounded-xl border-2 border-gray-200 p-5 hover:shadow-lg transition-all duration-300">
+    <div
+      className={`bg-white rounded-xl border-2 border-gray-200 p-5 hover:shadow-lg transition-all duration-300 ${
+        hasPostUrl ? 'cursor-pointer' : ''
+      }`}
+      onClick={() => {
+        if (hasPostUrl) openPostInModal(postUrl);
+      }}
+    >
       {/* Заголовок с пользователем */}
       <div className="flex items-center gap-3 mb-3">
-        {link.pfp_url && (
-          <img
-            src={link.pfp_url}
-            alt={link.username}
-            className="w-10 h-10 rounded-full border-2 border-primary"
-            onError={(e) => {
-              // Fallback на дефолтный аватар при ошибке загрузки
-              const target = e.target as HTMLImageElement;
-              target.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${link.username}`;
-            }}
-          />
-        )}
+        <Avatar
+          url={link.pfp_url}
+          seed={link.username || link.id}
+          size={40}
+          alt={link.username || 'avatar'}
+          className="rounded-full object-cover border-2 border-primary"
+        />
         <div className="flex-1">
           <h3 className="font-bold text-gray-900">@{link.username}</h3>
           <p className="text-xs text-gray-500">{formatDate(link.created_at)}</p>
@@ -52,24 +60,21 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
         
         {/* Иконка активности */}
         <div className="flex items-center gap-2 px-3 py-1 bg-primary bg-opacity-10 rounded-full">
-          <span className="text-xl">{activityIcons[link.task_type]}</span>
+          <span className="text-xl">{activityIcon}</span>
           <span className="text-sm font-medium text-primary">
-            {activityLabels[link.task_type]}
+            {activityLabel}
           </span>
         </div>
       </div>
 
-      {/* Ссылка */}
-      <div className="bg-gray-50 rounded-lg p-3 mb-3">
-        <a
-          href={link.cast_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-primary hover:underline break-all text-sm"
-        >
-          {link.cast_url}
-        </a>
-      </div>
+      {/* Token */}
+      {link.token_address && (
+        <div className="bg-gray-50 rounded-lg p-3 mb-3">
+          <div className="text-xs text-gray-600 break-all">
+            Token: <span className="font-mono">{link.token_address}</span>
+          </div>
+        </div>
+      )}
 
       {/* Statistics */}
       <div className="flex items-center justify-between text-sm text-gray-600">
@@ -78,17 +83,12 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
           <span>Completed: {link.completed_by?.length || 0}</span>
         </div>
         
-        <button
-          onClick={() => window.open(link.cast_url, '_blank')}
-          className="btn-gold-glow px-4 py-2 text-white font-bold text-sm group"
-        >
-          {/* Переливающийся эффект */}
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-          {/* Внутреннее свечение */}
-          <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
-          <span className="relative z-20 drop-shadow-lg">Open</span>
-        </button>
+        {!hasPostUrl ? <span className="text-xs text-gray-500 font-bold">No post link</span> : null}
       </div>
+
+      {postModalUrl ? (
+        <InAppBrowserModal url={postModalUrl} title="Read the post" onClose={() => setPostModalUrl(null)} />
+      ) : null}
     </div>
   );
 };

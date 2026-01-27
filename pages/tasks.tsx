@@ -1,1132 +1,1035 @@
-// Страница задач: прохождение 10 ссылок
-import React, { useState, useEffect, useRef } from 'react';
+// Tasks page (Base): buy a post-token for BUY_AMOUNT_USDC_DISPLAY, onchain verification via balanceOf
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
 import Layout from '@/components/Layout';
-import TaskCard from '@/components/TaskCard';
 import Button from '@/components/Button';
-import { getAllLinks } from '@/lib/db-config';
+import Avatar from '@/components/Avatar';
+import InAppBrowserModal from '@/components/InAppBrowserModal';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
-import { extractCastHash } from '@/lib/neynar';
-import type { LinkSubmission, TaskType, TaskProgress } from '@/types';
+import type { LinkSubmission } from '@/types';
+import { useAccount, usePublicClient, useReadContracts } from 'wagmi';
+import { erc20Abi, parseEther, parseUnits, type Address } from 'viem';
+import { BUY_AMOUNT_USDC_DECIMAL, BUY_AMOUNT_USDC_DISPLAY, REQUIRED_BUYS_TO_PUBLISH } from '@/lib/app-config';
+import { useSwapToken, useIsInMiniApp } from '@coinbase/onchainkit/minikit';
+import { baseAppContentUrlFromTokenAddress } from '@/lib/base-content';
+import { setFlowStep } from '@/lib/flow';
 
-export default function Tasks() {
-  const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [verifying, setVerifying] = useState(false);
-  const { user, isLoading: authLoading, isInitialized } = useFarcasterAuth();
-  const [activity, setActivity] = useState<TaskType | null>(null);
-  const [tasks, setTasks] = useState<TaskProgress[]>([]);
-  const [completedCount, setCompletedCount] = useState(0);
-  const [showPublishedSuccess, setShowPublishedSuccess] = useState(false);
-  const [verificationMessages, setVerificationMessages] = useState<Array<{ linkId: string; message: string; neynarUrl?: string }>>([]);
-  // Состояние openedTasks только в памяти (не сохраняется в localStorage)
-  // Сбрасывается при каждой загрузке страницы, чтобы можно было открывать ссылки снова
-  const [openedTasks, setOpenedTasks] = useState<Record<string, boolean>>({});
-  // Храним состояние ошибок для заданий (используем useRef для сохранения между рендерами)
-  const taskErrorsRef = useRef<Record<string, boolean>>({});
-  // Храним активные polling интервалы для очистки
-  const pollingIntervalsRef = useRef<Record<string, NodeJS.Timeout>>({});
-  // ⚠️ КРИТИЧНО: Храним verified задания в ref, чтобы они не терялись при обновлениях
-  const verifiedTasksRef = useRef<Set<string>>(new Set());
+const USDC_CONTRACT_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as const;
+const BUY_AMOUNT_USDC = parseUnits(BUY_AMOUNT_USDC_DECIMAL, 6);
 
-  // Загрузка данных
-  useEffect(() => {
-    console.log('🔍 [TASKS] Component mounted, checking auth...', {
-      hasUser: !!user,
-      userFid: user?.fid,
-      authLoading,
-      isInitialized,
-    });
-    
-    // Проверяем, что код выполняется на клиенте
-    if (typeof window !== 'undefined') {
-      // Ждём инициализации авторизации
-      if (!isInitialized) {
-        console.log('⏳ [TASKS] Waiting for auth initialization...');
-        return;
-      }
-      
-      // Проверяем наличие user
-      if (!user || !user.fid) {
-        console.error('❌ [TASKS] No user found, redirecting to home...');
-        router.push('/');
-        return;
-      }
-      
-      const savedActivity = localStorage.getItem('selected_activity');
-      if (!savedActivity) {
-        console.error('❌ [TASKS] No activity selected, redirecting to home...');
-        router.push('/');
-        return;
-      }
+const OWNED_CACHE_KEY = 'mtb_owned_token_addrs_v1';
 
-      setActivity(savedActivity as TaskType);
-      
-      console.log('✅ [TASKS] User and activity loaded:', {
-        fid: user.fid,
-        username: user.username,
-        activity: savedActivity,
-      });
-      
-      // Проверяем, есть ли параметр published в URL (после публикации ссылки)
-      const urlParams = new URLSearchParams(window.location.search);
-      const justPublished = urlParams.get('published') === 'true';
-      
-      if (justPublished) {
-        setShowPublishedSuccess(true);
-        // Устанавливаем флаг в sessionStorage, чтобы предотвратить повторные редиректы
-        sessionStorage.setItem('link_published', 'true');
-        // Убираем параметр из URL
-        window.history.replaceState({}, '', '/tasks');
-        // Скрываем уведомление через 5 секунд
-        setTimeout(() => {
-          setShowPublishedSuccess(false);
-        }, 5000);
-        
-        // Принудительно обновляем список сразу и несколько раз подряд для быстрого появления ссылки
-        loadTasks(user.fid, true);
-        setTimeout(() => loadTasks(user.fid, false), 1000);
-        setTimeout(() => loadTasks(user.fid, false), 2000);
-        setTimeout(() => loadTasks(user.fid, false), 3000);
-      } else {
-        loadTasks(user.fid, true);
-      }
-      
-      // Обновляем список задач каждые 2 секунды (быстрее для более оперативного отображения новых ссылок)
-      // ⚠️ КРИТИЧНО: loadTasks сохраняет состояние verified заданий, поэтому можно безопасно обновлять
-      // ⚠️ КРИТИЧНО: Интервал обновления не перезаписывает verified состояние благодаря логике в loadTasks
-      const interval = setInterval(() => {
-        loadTasks(user.fid, false);
-      }, 2000);
-      
-      return () => clearInterval(interval);
-    }
-  }, [router, user, authLoading, isInitialized]);
+function buildBaseAppSwapUrl(opts: { inputToken: Address; outputToken: Address; exactAmount: string; returnUrl?: string }): string {
+  const u = new URL('https://base.app/swap');
+  // Best-effort params: Base App has supported multiple param styles over time.
+  // We include a few common variants so it doesn't silently fall back to ETH.
+  //
+  // Style A (Uniswap-like)
+  u.searchParams.set('inputCurrency', opts.inputToken);
+  u.searchParams.set('outputCurrency', opts.outputToken);
+  u.searchParams.set('exactField', 'input');
+  u.searchParams.set('exactAmount', opts.exactAmount);
+  u.searchParams.set('chainId', '8453');
+  u.searchParams.set('network', 'base');
+  //
+  // Style B (MiniKit-like)
+  u.searchParams.set('sellToken', `eip155:8453/erc20:${opts.inputToken}`);
+  u.searchParams.set('buyToken', `eip155:8453/erc20:${opts.outputToken}`);
+  // sellAmount in base units (USDC = 6 decimals)
+  try {
+    const sellAmount = parseUnits(opts.exactAmount, 6).toString();
+    u.searchParams.set('sellAmount', sellAmount);
+  } catch {
+    // ignore
+  }
+  if (opts.returnUrl) {
+    // Different hosts use different names; include a few common ones.
+    u.searchParams.set('returnUrl', opts.returnUrl);
+    u.searchParams.set('redirectUrl', opts.returnUrl);
+    u.searchParams.set('redirect_uri', opts.returnUrl);
+  }
+  return u.toString();
+}
 
-  // ⚠️ КРИТИЧНО: Автоматически запускаем polling для всех открытых заданий после загрузки
-  useEffect(() => {
-    if (!user?.fid || !activity || tasks.length === 0) return;
+const PENDING_SWAP_KEY = 'mtb_pending_swap_v1';
+const FULLSCREEN_OPENED_AT_KEY = 'mtb_fullscreen_opened_at_v1';
+const PENDING_SWAP_POLL_MS = 2500;
+const POST_TX_TIMEOUT_MS = 120_000;
 
-    // Запускаем polling для всех открытых заданий, которые еще не выполнены
-    tasks.forEach((task) => {
-      // ⚠️ КРИТИЧНО: Пропускаем задания с completed && verified - проверки для них прекращены
-      const isCompleted = task.completed && task.verified;
-      if (isCompleted) {
-        return; // Пропускаем - проверки прекращены
-      }
-      
-      const isOpened = task.opened || openedTasks[task.link_id] === true;
-      
-      // Запускаем polling только если задание открыто, но еще не выполнено
-      if (isOpened && task.cast_url) {
-        // Проверяем, не запущен ли уже polling для этого задания
-        if (!pollingIntervalsRef.current[task.link_id]) {
-          console.log(`🔄 [AUTO-POLLING] Starting polling for opened task ${task.link_id}`);
-          startPollingForActivity(task.cast_url, task.link_id, task.task_type || activity);
-        }
-      }
-    });
-  }, [tasks, user?.fid, activity, openedTasks]);
+async function sleep(ms: number) {
+  await new Promise((r) => setTimeout(r, ms));
+}
 
-  const loadTasks = async (userFid: number, showLoading: boolean = true) => {
-    if (showLoading) {
-      setLoading(true);
-    }
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit & { timeoutMs?: number } = {}) {
+  const timeoutMs = init.timeoutMs ?? 10_000;
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const { timeoutMs: _ignored, ...rest } = init;
+    return await fetch(input, { ...rest, signal: ctrl.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function retry<T>(fn: () => Promise<T>, opts?: { retries?: number; baseDelayMs?: number }) {
+  const retries = opts?.retries ?? 3;
+  const baseDelayMs = opts?.baseDelayMs ?? 450;
+  let lastErr: unknown = null;
+  for (let i = 0; i < retries; i++) {
     try {
-      // Получаем выбранную активность для фильтрации
-      const currentActivity = activity || (typeof window !== 'undefined' ? localStorage.getItem('selected_activity') : null);
-      
-      // Fetch links from API endpoint (server-side) с фильтрацией по taskType
-      const taskTypeParam = currentActivity ? `&taskType=${currentActivity}` : '';
-      const linksResponse = await fetch(`/api/tasks?t=${Date.now()}${taskTypeParam}`);
-      const linksData = await linksResponse.json();
-      const links = linksData.links || [];
-      
-      // Получаем прогресс пользователя через API endpoint
-      const progressResponse = await fetch(`/api/user-progress?userFid=${userFid}&t=${Date.now()}`);
-      const progressData = await progressResponse.json();
-      const progress = progressData.progress || null;
-      const completedLinks = progress?.completed_links || [];
-      
-      console.log(`📊 [TASKS] Loading progress from API:`, {
-        userFid,
-        completedLinksCount: completedLinks.length,
-        completedLinks: completedLinks,
-        activity: currentActivity,
-        progressFromAPI: progress,
-      });
+      return await fn();
+    } catch (e) {
+      lastErr = e;
+      await sleep(baseDelayMs * Math.pow(2, i));
+    }
+  }
+  throw lastErr;
+}
 
-      // ⚠️ ФИЛЬТРАЦИЯ: Фильтруем по taskType на фронтенде (на случай если backend не отфильтровал)
-      let filteredLinks = links;
-      if (currentActivity && links.length > 0) {
-        filteredLinks = links.filter((link: LinkSubmission) => {
-          // Поддержка как task_type (новое), так и activity_type (старое) для обратной совместимости
-          const linkTaskType = link.task_type || (link as any).activity_type;
-          const matches = linkTaskType === currentActivity;
-          if (!matches) {
-            console.warn(`⚠️ [TASKS] Link ${link.id} filtered out - task_type: ${linkTaskType}, expected: ${currentActivity}`);
-          }
-          return matches;
-        });
-        console.log(`🔍 [TASKS] Frontend filtering: ${links.length} links → ${filteredLinks.length} links (activity: ${currentActivity})`);
-        
-        // ⚠️ ВАЖНО: Строгая фильтрация - показываем только ссылки нужного типа, даже если список пустой
-        // Не показываем все ссылки, если нет ссылок нужного типа - это нарушает разделение по типам
+function getSessionStorageSafe(): Storage | null {
+  // Some environments / WebViews can throw on sessionStorage access.
+  try {
+    const g: any = globalThis as any;
+    const ss = g?.sessionStorage as Storage | undefined;
+    return ss || null;
+  } catch {
+    return null;
+  }
+}
+
+function getLocalStorageSafe(): Storage | null {
+  // Some environments / WebViews can throw on localStorage access.
+  try {
+    const g: any = globalThis as any;
+    const ls = g?.localStorage as Storage | undefined;
+    return ls || null;
+  } catch {
+    return null;
+  }
+}
+
+const postTokenBuyAbi = [
+  {
+    type: 'function',
+    name: 'buy',
+    stateMutability: 'nonpayable',
+    inputs: [],
+    outputs: [],
+  },
+] as const;
+
+function isAddress(value?: string): value is Address {
+  return !!value && /^0x[a-fA-F0-9]{40}$/.test(value);
+}
+
+function compactUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    // base.app/content/... is very long; show a compact host+path prefix
+    const path = (u.pathname || '/').replace(/\/{2,}/g, '/');
+    const compact = `${u.host}${path}`;
+    // Show only the beginning (avoid tall cards from long URLs)
+    return compact.length > 48 ? `${compact.slice(0, 48)}…` : compact;
+  } catch {
+    return url;
+  }
+}
+
+function shortHex(addr: string): string {
+  if (!addr) return '';
+  const a = addr.toString();
+  if (a.length <= 12) return a;
+  return `${a.slice(0, 6)}…${a.slice(-4)}`;
+}
+
+export default function TasksPage() {
+  const router = useRouter();
+  const { user, isInitialized } = useFarcasterAuth();
+  const { address, isConnected, chainId } = useAccount();
+  const publicClient = usePublicClient();
+  // const { writeContractAsync } = useWriteContract();
+  const { swapTokenAsync } = useSwapToken();
+  const { isInMiniApp } = useIsInMiniApp();
+
+  const [links, setLinks] = useState<LinkSubmission[]>([]);
+  const [completedLinkIds, setCompletedLinkIds] = useState<string[]>([]);
+  // UX: show full-screen loader only on the very first load.
+  // Background refreshes (focus/visibility) should NOT blank the whole page (causes "jitter").
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const [buyingLinkId, setBuyingLinkId] = useState<string | null>(null);
+  const [errorByLinkId, setErrorByLinkId] = useState<Record<string, string>>({});
+  const [noticeByLinkId, setNoticeByLinkId] = useState<Record<string, string>>({});
+  const [postModalUrl, setPostModalUrl] = useState<string | null>(null);
+  const [expandHint, setExpandHint] = useState(false);
+  const [publishHint, setPublishHint] = useState<string>('');
+  // Sticky "owned" cache: prevents BUY/BOUGHT flicker on initial load while balances are still loading.
+  const [stickyOwnedTokenAddrs, setStickyOwnedTokenAddrs] = useState<Set<string>>(() => new Set());
+  const handledReturnRef = useRef(false);
+  const refreshStateRef = useRef<{ inFlight: boolean; queued: boolean; queuedSilent: boolean }>({
+    inFlight: false,
+    queued: false,
+    queuedSilent: true,
+  });
+  const refreshingDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastRefetchTimeRef = useRef<number>(0);
+  const lastSyncPendingSwapTimeRef = useRef<number>(0);
+  const focusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const visibilityTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const REFETCH_DEBOUNCE_MS = 2000; // Минимум 2 секунды между обновлениями балансов
+  const SYNC_PENDING_SWAP_DEBOUNCE_MS = 3000; // Минимум 3 секунды между синхронизациями pending swap
+
+  // Always operate in "support" mode (buy posts)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem('selected_activity', 'support');
+  }, []);
+
+  // NOTE: Do not force-reload via `window.location.replace()` for cache-busting.
+  // In in-app WebViews it causes visible "jitter" (the page reloads right after opening).
+  // We rely on `Cache-Control: no-store` headers in `next.config.js` + build hashes instead.
+
+  const hasFid = typeof user?.fid === 'number' && Number.isFinite(user.fid) && user.fid > 0;
+  const effectiveAddress: Address | undefined = useMemo(() => {
+    if (address && isAddress(address)) return address;
+    const ua = user?.address;
+    if (typeof ua === 'string' && isAddress(ua)) return ua as Address;
+    return undefined;
+  }, [address, user?.address]);
+
+  const tokenContracts = useMemo(() => {
+    if (!effectiveAddress) return [];
+    return links
+      .filter((l) => isAddress(l.token_address))
+      .map((l) => ({
+        address: l.token_address as Address,
+        abi: erc20Abi,
+        functionName: 'balanceOf' as const,
+        args: [effectiveAddress] as const,
+      }));
+  }, [links, effectiveAddress]);
+
+  const { data: balances, refetch: refetchBalances } = useReadContracts({
+    contracts: tokenContracts,
+    query: {
+      enabled: !!effectiveAddress && tokenContracts.length > 0,
+      // Отключаем автоматическое обновление - обновляем только вручную
+      refetchInterval: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+    },
+  });
+
+  // Hydrate sticky-owned cache from localStorage once.
+  useEffect(() => {
+    const ls = getLocalStorageSafe();
+    const raw = ls?.getItem(OWNED_CACHE_KEY);
+    if (!raw) return;
+    try {
+      const arr = JSON.parse(raw);
+      if (!Array.isArray(arr)) return;
+      const next = new Set<string>();
+      for (const v of arr) {
+        if (typeof v === 'string' && /^0x[a-fA-F0-9]{40}$/.test(v)) next.add(v.toLowerCase());
+      }
+      if (next.size) setStickyOwnedTokenAddrs(next);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // Persist sticky-owned cache to localStorage.
+  useEffect(() => {
+    const ls = getLocalStorageSafe();
+    if (!ls) return;
+    try {
+      const arr = Array.from(stickyOwnedTokenAddrs);
+      // Keep it small/bounded.
+      const bounded = arr.slice(-64);
+      ls.setItem(OWNED_CACHE_KEY, JSON.stringify(bounded));
+    } catch {
+      // ignore
+    }
+  }, [stickyOwnedTokenAddrs]);
+
+  const refreshInternal = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      const silent = !!opts?.silent;
+
+      // Avoid flicker: show "Syncing…" only if refresh actually takes a moment.
+      if (!silent) {
+        setInitialLoading(true);
       } else {
-        // Если activity не выбрана, показываем все ссылки
-        console.log(`📋 [TASKS] No activity filter - showing all ${links.length} links`);
-      }
-      
-      console.log(`✅ [TASKS] Final filtered links count: ${filteredLinks.length}`);
-
-      // Сбрасываем состояние opened при загрузке задач, чтобы можно было открывать ссылки снова
-      // НЕ сбрасываем openedTasks в рамках одной сессии - сохраняем состояние открытых ссылок
-      // setOpenedTasks({});
-      
-      // ⚠️ КРИТИЧНО: Сохраняем текущие состояния задач для сохранения verifying и error
-      const currentTasksMap = new Map(tasks.map(t => [t.link_id, t]));
-      
-      // ⚠️ КРИТИЧНО: Обновляем verifiedTasksRef из текущего состояния
-      tasks.forEach(task => {
-        if (task.completed && task.verified) {
-          verifiedTasksRef.current.add(task.link_id);
-        }
-      });
-      
-      const taskList: TaskProgress[] = filteredLinks.map((link: LinkSubmission, index: number) => {
-        const castHash = extractCastHash(link.cast_url) || '';
-        const isCompleted = completedLinks.includes(link.id);
-        const isOpened = openedTasks[link.id] === true;
-        
-        // ⚠️ КРИТИЧНО: Проверяем verifiedTasksRef ПЕРВЫМ - это источник истины
-        // Если задание в verifiedTasksRef, оно ВСЕГДА completed && verified
-        const isVerifiedInRef = verifiedTasksRef.current.has(link.id);
-        
-        // ⚠️ КРИТИЧНО: Если задание уже было проверено (в ref или в текущем состоянии),
-        // НЕ перезаписываем это состояние - проверки для него прекращаются
-        const currentTask = currentTasksMap.get(link.id);
-        const wasVerifiedInState = currentTask?.completed === true && currentTask?.verified === true;
-        const wasVerified = isVerifiedInRef || wasVerifiedInState;
-        
-        // Логируем для отладки
-        if (isVerifiedInRef) {
-          console.log(`🔒 [LOAD] Task ${link.id} is in verifiedTasksRef - preserving completed state`);
-        }
-        if (wasVerifiedInState && !isVerifiedInRef) {
-          console.log(`🔒 [LOAD] Task ${link.id} was verified in state - adding to ref`);
-          verifiedTasksRef.current.add(link.id);
-        }
-        
-        const finalCompleted = wasVerified ? true : isCompleted;
-        const finalVerified = wasVerified ? true : isCompleted;
-        
-        // ⚠️ КРИТИЧНО: Если задание verified, добавляем в ref для постоянного хранения
-        if (finalCompleted && finalVerified && !isVerifiedInRef) {
-          verifiedTasksRef.current.add(link.id);
-          console.log(`✅ [LOAD] Added task ${link.id} to verifiedTasksRef`);
-        }
-        
-        // ⚠️ КРИТИЧНО: Для completed && verified заданий - проверки прекращаются
-        // Сохраняем состояние как есть, не меняем error, verifying и т.д.
-        if (finalCompleted && finalVerified) {
-          return {
-            link_id: link.id,
-            cast_url: link.cast_url,
-            cast_hash: castHash,
-            task_type: link.task_type,
-            user_fid_required: userFid,
-            username: link.username,
-            pfp_url: link.pfp_url,
-            completed: true, // Проверки прекращены
-            verified: true, // Проверки прекращены
-            opened: isOpened,
-            error: false, // Нет ошибок у выполненных заданий
-            verifying: false, // Не проверяем выполненные задания
-            _originalIndex: index,
-          };
-        }
-        
-        // Для невыполненных заданий сохраняем обычную логику
-        const hasStoredError = taskErrorsRef.current[link.id] === true;
-        const shouldHaveError = hasStoredError && !isOpened && !finalCompleted;
-        const preservingVerifying = currentTask?.verifying === true && !finalCompleted;
-        const preservingError = isOpened ? false : (shouldHaveError);
-        
-        return {
-          link_id: link.id,
-          cast_url: link.cast_url,
-          cast_hash: castHash,
-          task_type: link.task_type,
-          user_fid_required: userFid,
-          username: link.username,
-          pfp_url: link.pfp_url,
-          completed: finalCompleted,
-          verified: finalVerified,
-          opened: isOpened,
-          error: preservingError,
-          verifying: preservingVerifying,
-          _originalIndex: index,
-        };
-      });
-      // УБРАНА СОРТИРОВКА: Задания остаются в исходном порядке очереди, выполненные не перемещаются вниз
-
-      // Считаем количество завершенных заданий ТОЛЬКО для текущего типа активности
-      const completedCountForActivity = taskList.filter(task => task.completed).length;
-
-      // ⚠️ КРИТИЧНО: Проверяем, если все задачи завершены - обновляем состояние и делаем редирект с задержкой
-      const allTasksVerifiedInList = taskList.length > 0 && taskList.every((task) => task.completed && task.verified);
-      if (allTasksVerifiedInList && user) {
-        const linkPublishedSession = sessionStorage.getItem('link_published');
-        const linkPublishedLocal = localStorage.getItem('link_published');
-        if (linkPublishedSession !== 'true' && linkPublishedLocal !== 'true') {
-          // ⚠️ КРИТИЧНО: Обновляем состояние, чтобы показать зеленые кнопки
-          console.log(`✅ [TASKS] Setting tasks to state: ${taskList.length} tasks (all verified)`);
-          setTasks(taskList);
-          setCompletedCount(completedCountForActivity);
-          
-          // ⚠️ КРИТИЧНО: Задержка 2 секунды, чтобы зеленая кнопка светилась дольше
-          setTimeout(() => {
-            console.log('🚀 [TASKS] All tasks verified, redirecting to wallet after showing green buttons');
-            window.location.href = '/buyToken';
-          }, 2000); // 2 секунды чтобы показать зеленые кнопки
-          return; // Прекращаем выполнение, НЕ вызываем дальнейшие обновления
-        }
+        if (refreshingDelayRef.current) clearTimeout(refreshingDelayRef.current);
+        refreshingDelayRef.current = setTimeout(() => setRefreshing(true), 200);
       }
 
-      console.log(`✅ [TASKS] Setting tasks to state: ${taskList.length} tasks`);
-      setTasks(taskList);
-      setCompletedCount(completedCountForActivity);
-      
-      // ⚠️ КРИТИЧНО: После загрузки задач запускаем polling для открытых заданий
-      // Это нужно делать после setTasks, чтобы tasks были обновлены
-      // Используем setTimeout чтобы дать время React обновить состояние
-      setTimeout(() => {
-        taskList.forEach((task) => {
-          const isOpened = task.opened || openedTasks[task.link_id] === true;
-          const isCompleted = task.completed && task.verified;
-          
-          // Запускаем polling только если задание открыто, но еще не выполнено
-          if (isOpened && !isCompleted && task.cast_url && activity) {
-            // Проверяем, не запущен ли уже polling для этого задания
-            if (!pollingIntervalsRef.current[task.link_id]) {
-              console.log(`🔄 [LOAD-POLLING] Starting polling for opened task ${task.link_id}`);
-              startPollingForActivity(task.cast_url, task.link_id, task.task_type || activity);
+      try {
+        // For Farcaster version: load all links (like/recast) or determine taskType from URL/state
+        // For Base version: use 'support'
+        const taskTypeFromUrl = router.query.taskType as string | undefined;
+        const taskTypeFromStorage = typeof window !== 'undefined' ? localStorage.getItem('selected_activity') : null;
+        const taskType = taskTypeFromUrl || taskTypeFromStorage || undefined;
+        
+        // Load links (they are global, not user-specific)
+        const taskTypeParam = taskType ? `&taskType=${taskType}` : '';
+        const linksRes = await fetch(`/api/tasks?t=${Date.now()}${taskTypeParam}`);
+        const linksJson = await linksRes.json();
+        const nextLinks: LinkSubmission[] = Array.isArray(linksJson.links) ? linksJson.links : [];
+        setLinks((prev) => {
+          if (prev.length === nextLinks.length && prev.every((p, i) => p.id === nextLinks[i]?.id)) {
+            return prev;
+          }
+          return nextLinks;
+        });
+
+        // Load per-user progress only when we have a real fid (MiniKit/Base App)
+        if (hasFid) {
+          const progressRes = await fetch(`/api/user-progress?userFid=${user!.fid}&t=${Date.now()}`);
+          const progressJson = await progressRes.json();
+          const progress = progressJson.progress || null;
+          const nextCompleted: string[] = Array.isArray(progress?.completed_links) ? progress.completed_links : [];
+          setCompletedLinkIds((prev) => {
+            if (prev.length === nextCompleted.length && prev.every((p, i) => p === nextCompleted[i])) {
+              return prev;
             }
-          }
-        });
-      }, 100);
-      
-      // Логируем для отладки
-      if (taskList.length === 0) {
-        console.warn(`⚠️ [TASKS] No tasks to display!`, {
-          linksFromAPI: links.length,
-          filteredLinks: filteredLinks.length,
-          currentActivity,
-          taskTypes: links.map((l: LinkSubmission) => l.task_type || (l as any).activity_type),
-        });
-      }
-      
-      console.log(`✅ Loaded ${taskList.length} tasks, ${completedCountForActivity} completed for activity ${currentActivity}`);
-      console.log(`📋 Task links:`, taskList.map((t, i) => ({
-        index: i + 1,
-        link_id: t.link_id,
-        username: t.username,
-        cast_url: t.cast_url?.substring(0, 40) + '...',
-        completed: t.completed,
-      })));
-      console.log(`🔍 [TASKS] Activity filter: ${currentActivity || 'NONE'}, Raw links from API: ${links.length}, Filtered links: ${filteredLinks.length}, Final tasks: ${taskList.length}`);
-      console.log(`📊 [TASKS] Task types in loaded links:`, links.map((l: LinkSubmission) => l.task_type));
-      
-      // Проверяем: если все задания завершены, проверяем прогресс и делаем автоматический редирект
-      // ⚠️ ВАЖНО: Проверяем, не опубликована ли уже ссылка пользователем, чтобы избежать бесконечного редиректа
-      // ⚠️ КРИТИЧНО: Проверяем, что все задания действительно выполнены И проверены (зеленые кнопки)
-      // Если кнопки зеленые (completed && verified), значит проверка уже пройдена, редирект сразу
-      const allTasksCompleted = completedLinks.length >= taskList.length;
-      const allTasksVerified = taskList.length > 0 && taskList.every((task) => task.completed && task.verified);
-      
-      console.log('🔍 [TASKS] Redirect check:', {
-        allTasksCompleted,
-        allTasksVerified,
-        tasksCount: taskList.length,
-        completedCount: completedLinks.length,
-        verifiedTasks: taskList.filter(t => t.completed && t.verified).length,
-        taskStates: taskList.map(t => ({ id: t.link_id, completed: t.completed, verified: t.verified }))
-      });
-      
-      // ⚠️ КРИТИЧНО: Если все задачи завершены и проверены (зеленые кнопки) - редирект СРАЗУ на кошелек
-      // НЕМЕДЛЕННЫЙ редирект без Promise.all, без setTimeout, без промежуточных состояний
-      if (allTasksCompleted && allTasksVerified && taskList.length > 0 && user) {
-        // ⚠️ КРИТИЧЕСКАЯ ПРОВЕРКА: Только проверяем флаг link_published (синхронно)
-        // Это предотвращает редирект на /submit, если ссылка уже опубликована
-        const linkPublishedSession = sessionStorage.getItem('link_published');
-        const linkPublishedLocal = localStorage.getItem('link_published');
-        if (linkPublishedSession === 'true' || linkPublishedLocal === 'true') {
-          console.log(`✅ [TASKS] Link already published, skipping redirect`);
-          return; // Прекращаем выполнение, не делаем редирект
+            return nextCompleted;
+          });
+        } else {
+          setCompletedLinkIds((prev) => (prev.length ? [] : prev));
         }
-        
-        // ⚠️ КРИТИЧНО: СРАЗУ редирект без задержек, без Promise.all, без промежуточных состояний
-        // Используем window.location.href для немедленного редиректа
-        console.log(`🚀 IMMEDIATE redirect to /buyToken (all tasks verified - green buttons)`);
-        window.location.href = '/buyToken';
-        return; // Прекращаем выполнение, не вызываем setTasks
-      }
-    } catch (error) {
-      console.error('Error loading tasks:', error);
     } finally {
-      if (showLoading) {
-        setLoading(false);
-      }
-    }
-  };
-
-  // Отметить задачу как открытую (только в памяти, не сохраняем в localStorage)
-  // Это позволяет открывать ссылки снова при следующей загрузке страницы
-  const markOpened = (linkId: string) => {
-    setOpenedTasks(prev => ({ ...prev, [linkId]: true }));
-    // ⚠️ КРИТИЧНО: Убираем ошибку при открытии задачи, чтобы кнопка стала синей
-    delete taskErrorsRef.current[linkId];
-    // Также обновляем в tasks для немедленного отображения
-    // ⚠️ КРИТИЧНО: Не меняем состояние completed && verified заданий
-    setTasks(prevTasks => 
-      prevTasks.map(task => {
-        if (task.link_id === linkId) {
-          // Если задание уже completed && verified, не меняем его состояние
-          if (task.completed && task.verified) {
-            return task; // Возвращаем как есть
-          }
-          return { ...task, opened: true, error: false };
+        if (refreshingDelayRef.current) {
+          clearTimeout(refreshingDelayRef.current);
+          refreshingDelayRef.current = null;
         }
-        return task;
-      })
-    );
-  };
+        setInitialLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [hasFid, user?.fid]
+  );
 
-  // Polling для автоматической проверки активности после открытия ссылки
-  const startPollingForActivity = (castUrl: string, linkId: string, activityType: TaskType) => {
-    if (!user?.fid) return;
+  const requestRefresh = useCallback(
+    (opts?: { silent?: boolean }) => {
+      const silent = !!opts?.silent;
+      const st = refreshStateRef.current;
 
-    // ⚠️ КРИТИЧНО: Проверяем, не выполнено ли уже задание - если да, проверки прекращаем
-    const currentTask = tasks.find(t => t.link_id === linkId);
-    if (currentTask?.completed && currentTask?.verified) {
-      console.log(`⏹️ [POLLING] Task ${linkId} already completed and verified, skipping polling`);
-      return; // Проверки прекращены
-    }
-
-    // Если уже есть активный polling для этой ссылки, не создаем новый
-    if (pollingIntervalsRef.current[linkId]) {
-      console.log(`⚠️ [POLLING] Polling already active for link ${linkId}`);
+      // Collapse bursts from WebView focus/visibility events into at most 1 extra refresh.
+      if (st.inFlight) {
+        st.queued = true;
+        st.queuedSilent = st.queuedSilent && silent;
       return;
     }
 
-    console.log(`🔄 [POLLING] Starting polling for link ${linkId}`, { castUrl, activityType });
-    
-    // Ждем 7 секунд перед первой проверкой (даем время на индексацию)
-    const initialDelay = 7000; // 7 секунд
-    
-    const timeoutId = setTimeout(() => {
-      let pollCount = 0;
-      const maxPolls = 10; // Максимум 10 проверок (5 минут)
-      const pollInterval = 30000; // Проверяем каждые 30 секунд
-      
-      const pollIntervalId = setInterval(async () => {
-        pollCount++;
-        console.log(`🔄 [POLLING] Poll attempt ${pollCount}/${maxPolls} for link ${linkId}`);
-        
-        // ⚠️ КРИТИЧНО: Проверяем, не выполнено ли уже задание - если да, прекращаем проверки
-        const currentTask = tasks.find(t => t.link_id === linkId);
-        if (currentTask?.completed && currentTask?.verified) {
-          console.log(`⏹️ [POLLING] Task ${linkId} already completed and verified, stopping polling`);
-          clearInterval(pollIntervalId);
-          delete pollingIntervalsRef.current[linkId];
-          return; // Проверки прекращены
-        }
-        
+      st.inFlight = true;
+      st.queued = false;
+      st.queuedSilent = true;
+
+      void (async () => {
         try {
-          const result = await verifyActivity({
-            castHash: '',
-            castUrl: castUrl,
-            activityType: activityType,
-            viewerFid: user.fid,
+          let nextSilent = silent;
+          // eslint-disable-next-line no-constant-condition
+          while (true) {
+            await refreshInternal({ silent: nextSilent });
+            const s = refreshStateRef.current;
+            if (!s.queued) break;
+            nextSilent = s.queuedSilent;
+            s.queued = false;
+            s.queuedSilent = true;
+          }
+        } finally {
+          refreshStateRef.current.inFlight = false;
+        }
+      })();
+    },
+    [refreshInternal]
+  );
+
+  const waitForPurchaseConfirmation = useCallback(
+    async (opts: { tokenAddress: Address; buyer: Address; txHash?: `0x${string}`; linkId: string }) => {
+      if (!publicClient) return { ok: false as const, reason: 'no_public_client' as const };
+      const { tokenAddress, buyer, txHash, linkId } = opts;
+
+      // 1) If we have a tx hash, wait for receipt (best signal that swap finished).
+      if (txHash) {
+        try {
+          await publicClient.waitForTransactionReceipt({
+            hash: txHash,
+            confirmations: 1,
+            timeout: POST_TX_TIMEOUT_MS,
           });
-          
-          // ⚠️ КРИТИЧНО: Проверяем, что задача была открыта перед тем, как помечать её как выполненную
-          const isOpened = openedTasks[linkId] === true;
-          
-          if (result.completed && isOpened) {
-            console.log(`✅ [POLLING] Activity found for link ${linkId} and task is opened!`);
-            
-            // Помечаем ссылку как выполненную в базе СНАЧАЛА
-            try {
-              const markResponse = await fetch('/api/mark-completed', {
+        } catch {
+          // Fall back to polling balance.
+        }
+      }
+
+      // 2) Poll balance until it becomes > 0 (onchain source of truth).
+      const started = Date.now();
+      while (Date.now() - started < POST_TX_TIMEOUT_MS) {
+        try {
+          const bal = await publicClient.readContract({
+            address: tokenAddress,
+            abi: erc20Abi,
+            functionName: 'balanceOf',
+            args: [buyer],
+          });
+          if (typeof bal === 'bigint' && bal > 0n) {
+            return { ok: true as const, balance: bal };
+          }
+        } catch {
+          // ignore and retry
+        }
+
+        // Ping wagmi balances to update card UI ASAP.
+        try {
+          refetchBalances?.();
+        } catch {
+          // ignore
+        }
+
+        setNoticeByLinkId((p) => ({ ...p, [linkId]: 'Waiting for confirmation…' }));
+        await sleep(PENDING_SWAP_POLL_MS);
+      }
+
+      return { ok: false as const, reason: 'timeout' as const };
+    },
+    [publicClient, refetchBalances]
+  );
+
+  const markCompleted = useCallback(
+    async (linkId: string) => {
+      // Optimistic UI: never block BOUGHT state on network / API failures.
+      setCompletedLinkIds((prev) => (prev.includes(linkId) ? prev : [...prev, linkId]));
+
+      if (hasFid) {
+        try {
+          await retry(async () => {
+            const res = await fetchWithTimeout('/api/mark-completed', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userFid: user.fid, linkId }),
-              });
-              
-              if (!markResponse.ok) {
-                console.error(`[POLLING] Failed to mark link as completed: ${markResponse.status} ${markResponse.statusText}`);
-              } else {
-                console.log(`✅ [POLLING] Link ${linkId} marked as completed in DB`);
-              }
-            } catch (e) {
-              console.error('[POLLING] Error marking link as completed', e);
-            }
-            
-            // Убираем ошибку, если она была
-            delete taskErrorsRef.current[linkId];
-            
-            // ⚠️ КРИТИЧНО: Добавляем в verifiedTasksRef ПЕРЕД обновлением состояния
-            verifiedTasksRef.current.add(linkId);
-            console.log(`✅ [POLLING] Added task ${linkId} to verifiedTasksRef`);
-            
-            // Останавливаем polling
-            clearInterval(pollIntervalId);
-            delete pollingIntervalsRef.current[linkId];
-            
-            // ⚠️ КРИТИЧНО: Сначала обновляем состояние текущей задачи как завершенной
-            // Это нужно для того, чтобы кнопка стала зеленой сразу после проверки
-            setTasks(prevTasks =>
-              prevTasks.map(task =>
-                task.link_id === linkId
-                  ? { ...task, completed: true, verified: true, verifying: false, error: false }
-                  : task
-              )
-            );
-            
-            // ⚠️ КРИТИЧНО: Проверяем через API, все ли задачи завершены, ПЕРЕД вызовом loadTasks
-            // Это предотвращает промежуточные рендеры через loadTasks
-            if (user?.fid) {
-              try {
-                // Проверяем прогресс через API напрямую
-                const progressResponse = await fetch(`/api/user-progress?userFid=${user.fid}&t=${Date.now()}`);
-                const progressData = await progressResponse.json();
-                const progress = progressData.progress || null;
-                const completedLinks = progress?.completed_links || [];
-                
-                // Получаем список всех задач
-                const currentActivity = activity || (typeof window !== 'undefined' ? localStorage.getItem('selected_activity') : null);
-                const taskTypeParam = currentActivity ? `&taskType=${currentActivity}` : '';
-                const linksResponse = await fetch(`/api/tasks?t=${Date.now()}${taskTypeParam}`);
-                const linksData = await linksResponse.json();
-                const links = linksData.links || [];
-                
-                // Фильтруем по активности
-                let filteredLinks = links;
-                if (currentActivity && links.length > 0) {
-                  filteredLinks = links.filter((link: LinkSubmission) => {
-                    const linkTaskType = link.task_type || (link as any).activity_type;
-                    return linkTaskType === currentActivity;
-                  });
-                }
-                
-                // Проверяем, все ли задачи завершены
-                const allTasksCompleted = filteredLinks.length > 0 && filteredLinks.every((link: LinkSubmission) => 
-                  completedLinks.includes(link.id)
-                );
-                
-                if (allTasksCompleted) {
-                  const linkPublishedSession = sessionStorage.getItem('link_published');
-                  const linkPublishedLocal = localStorage.getItem('link_published');
-                  if (linkPublishedSession !== 'true' && linkPublishedLocal !== 'true') {
-                    // ⚠️ КРИТИЧНО: Задержка 2 секунды, чтобы зеленая кнопка светилась дольше
-                    // НЕ вызываем loadTasks, чтобы не было промежуточных рендеров
-                    setTimeout(() => {
-                      console.log('🚀 [POLLING] All tasks completed (checked via API), redirecting to wallet after showing green buttons');
-                      window.location.href = '/buyToken';
-                    }, 2000); // 2 секунды чтобы показать зеленые кнопки
-                    return; // Прекращаем выполнение, НЕ вызываем loadTasks
-                  }
-                }
-              } catch (e) {
-                console.error('[POLLING] Error checking all tasks completion:', e);
-              }
-              
-              // ⚠️ КРИТИЧНО: НЕ вызываем loadTasks после того как задание помечено как completed
-              // Состояние уже обновлено через setTasks выше, не нужно перезагружать из БД
-              // Это предотвращает перезапись verified состояния
-            }
-            return; // Выходим из интервала
-          } else if (result.completed && !isOpened) {
-            // Если активность найдена, но задача не открыта - это ошибка
-            console.log(`⚠️ [POLLING] Activity found for link ${linkId}, but task is not opened!`);
-            taskErrorsRef.current[linkId] = true;
-            setTasks(prevTasks =>
-              prevTasks.map(task =>
-                task.link_id === linkId
-                  ? { ...task, error: true, verifying: false }
-                  : task
-              )
-            );
-          } else if (!result.completed && isOpened) {
-            // ⚠️ КРИТИЧНО: Если задача открыта, но активность еще не найдена - НЕ устанавливаем error
-            // Просто продолжаем polling, не меняя цвет кнопки с синего на красный
-            console.log(`⏳ [POLLING] Task ${linkId} is opened, but activity not found yet. Continuing polling...`);
-            // НЕ устанавливаем error, оставляем кнопку синей
-          } else if (pollCount >= maxPolls) {
-            console.log(`⏰ [POLLING] Max polls reached for link ${linkId}, stopping`);
-            clearInterval(pollIntervalId);
-            delete pollingIntervalsRef.current[linkId];
-          }
-        } catch (error) {
-          console.error(`❌ [POLLING] Error during poll for link ${linkId}`, error);
-          // ⚠️ КРИТИЧНО: Если задача открыта, НЕ устанавливаем ошибку при исключении
-          const isOpened = openedTasks[linkId] === true;
-          if (!isOpened) {
-            // Устанавливаем ошибку только если задача НЕ открыта
-            taskErrorsRef.current[linkId] = true;
-            setTasks(prevTasks =>
-              prevTasks.map(task =>
-                task.link_id === linkId
-                  ? { ...task, error: true, verifying: false }
-                  : task
-              )
-            );
-          } else {
-            console.log(`⏳ [POLLING] Task ${linkId} is opened, skipping error on exception`);
-          }
-          if (pollCount >= maxPolls) {
-            clearInterval(pollIntervalId);
-            delete pollingIntervalsRef.current[linkId];
-          }
+              body: JSON.stringify({ userFid: user?.fid, linkId }),
+              timeoutMs: 10_000,
+            });
+            if (!res.ok) throw new Error(`mark-completed failed: ${res.status}`);
+            return true;
+          }, { retries: 3, baseDelayMs: 500 });
+        } catch {
+          // Keep the app usable; server sync can happen later.
+          setNoticeByLinkId((p) => ({ ...p, [linkId]: 'Saved locally. We’ll sync when connection is stable.' }));
         }
-      }, pollInterval);
-      
-      // Сохраняем ID интервала для очистки
-      pollingIntervalsRef.current[linkId] = pollIntervalId;
-    }, initialDelay);
-    
-    // Сохраняем timeout ID тоже для очистки
-    pollingIntervalsRef.current[`${linkId}_timeout`] = timeoutId as any;
-  };
-
-  // Очистка всех polling интервалов при размонтировании
-  useEffect(() => {
-    return () => {
-      Object.values(pollingIntervalsRef.current).forEach(intervalId => {
-        if (typeof intervalId === 'number') {
-          clearInterval(intervalId);
-        } else {
-          clearTimeout(intervalId);
-        }
-      });
-      pollingIntervalsRef.current = {};
-    };
-  }, []);
-
-  // Открыть ссылку
-  const handleOpenLink = (castUrl: string, linkId: string) => {
-    // ⚠️ КРИТИЧНО: Проверяем, не выполнено ли уже задание - если да, не запускаем polling
-    const currentTask = tasks.find(t => t.link_id === linkId);
-    if (currentTask?.completed && currentTask?.verified) {
-      console.log(`⏹️ [OPEN] Task ${linkId} already completed and verified, skipping polling`);
-      // Просто открываем ссылку, но не запускаем polling
-    } else {
-      // Отмечаем задачу как открытую
-      markOpened(linkId);
-      
-      // Запускаем polling для автоматической проверки
-      if (activity) {
-        startPollingForActivity(castUrl, linkId, activity);
       }
-    }
-    
-    // Определяем, мобильное ли устройство
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
-    if (isMobile) {
-      // На мобильных устройствах пытаемся открыть в приложении Farcaster
-      // Формат: farcaster://cast?url=...
-      const farcasterUrl = `farcaster://cast?url=${encodeURIComponent(castUrl)}`;
-      
-      // Пытаемся открыть в приложении
-      window.location.href = farcasterUrl;
-      
-      // Если приложение не установлено, через 2 секунды открываем веб-версию
-      setTimeout(() => {
-        window.open(castUrl, '_blank');
-      }, 2000);
-    } else {
-      // На компьютере открываем веб-версию Farcaster
-      window.open(castUrl, '_blank');
-    }
-  };
 
-  // ❌ Убрано: handleToggleTask - нет ручных чекбоксов, только автоматическая проверка через VERIFY ALL TASKS
+      try {
+        refetchBalances?.();
+      } catch {
+        // ignore
+      }
+      setErrorByLinkId((p) => ({ ...p, [linkId]: '' }));
+      setNoticeByLinkId((p) => {
+        const next = { ...p };
+        delete next[linkId];
+        return next;
+      });
+    },
+    [hasFid, refetchBalances, user?.fid]
+  );
 
-  // ✅ Обёртка для проверки активности через API
-  const verifyActivity = async ({
-    castHash,
-    castUrl,
-    activityType,
-    viewerFid,
-  }: {
-    castHash: string;
-    castUrl?: string;
-    activityType: TaskType;
-    viewerFid: number;
-  }): Promise<{ completed: boolean; userMessage?: string; hashWarning?: string; isError?: boolean; neynarExplorerUrl?: string }> => {
+  const syncPendingSwap = useCallback(async () => {
+    if (!publicClient) return;
+    const addr = effectiveAddress;
+    if (!addr) return;
+
+    const ss = getSessionStorageSafe();
+    const raw = ss?.getItem(PENDING_SWAP_KEY);
+    if (!raw) return;
+
+    let pending: { linkId: string; tokenAddress: string; startedAt: number } | null = null;
     try {
-      // Добавляем небольшую задержку для обновления данных в Neynar API после unlike+like
-      // Это особенно важно для лайков, так как API может обновляться с задержкой
-      if (activityType === 'like') {
-        await new Promise(resolve => setTimeout(resolve, 3000)); // 3 секунды задержки для обновления API
-      }
-      
-      const requestBody = {
-        castUrl: castUrl || castHash, // Передаем весь URL
-        userFid: viewerFid,
-        taskType: activityType, // Используем taskType для API
-      };
-      
-      console.log('[CLIENT] verifyActivity: Sending request:', requestBody);
-      console.log('[CLIENT] verifyActivity: viewerFid type:', typeof viewerFid, 'value:', viewerFid);
-      
-      // Отправляем castUrl (весь URL, даже с "...")
-      const response = await fetch('/api/verify-task', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
+      pending = JSON.parse(raw);
+    } catch {
+      pending = null;
+    }
+    if (!pending?.linkId || !pending?.tokenAddress) {
+      ss?.removeItem(PENDING_SWAP_KEY);
+      return;
+    }
+
+    if (!isAddress(pending.tokenAddress)) {
+      ss?.removeItem(PENDING_SWAP_KEY);
+      return;
+    }
+
+    setRefreshing(true);
+    setNoticeByLinkId((p) => ({ ...p, [pending.linkId]: 'Welcome back — syncing your purchase…' }));
+    try {
+      const r = await waitForPurchaseConfirmation({
+        tokenAddress: pending.tokenAddress as Address,
+        buyer: addr,
+        linkId: pending.linkId,
       });
-
-      console.log('[CLIENT] verifyActivity: Response status:', response.status, response.statusText);
-
-      const data = await response.json();
-      
-      // Если HTTP ошибка (не 200) - это реальная ошибка
-      if (!response.ok) {
-        return { 
-          completed: false,
-          userMessage: data.error || data.message || 'Error checking activity. Please try again.',
-          isError: true,
-        };
+      if (r.ok) {
+        ss?.removeItem(PENDING_SWAP_KEY);
+        await markCompleted(pending.linkId);
+        try {
+          requestRefresh({ silent: true });
+        } catch {
+          // ignore
+        }
+          } else {
+        // keep pending, user might still be in progress
+        setNoticeByLinkId((p) => ({ ...p, [pending.linkId]: 'Still syncing… if you just confirmed, wait a bit.' }));
       }
-
-      // Если success: false - это ошибка (не удалось расширить hash и т.д.)
-      if (!data.success) {
-        return { 
-          completed: false,
-          userMessage: data.error || data.hint || 'Error checking activity. Please try again.',
-          isError: true,
-        };
-      }
-
-      // success: true - проверка прошла успешно, но completed может быть false (активность не найдена)
-      return { 
-        completed: data.completed || false,
-        userMessage: data.completed ? undefined : 'Error: Action not found.',
-        isError: false, // Это не ошибка, просто активность не найдена
-      };
-    } catch (error: any) {
-      console.error('❌ Neynar API error:', error);
-      return { 
-        completed: false,
-        userMessage: 'Error checking activity. Please try again in 1-2 minutes.',
-      };
+    } finally {
+      setRefreshing(false);
     }
-  };
+  }, [effectiveAddress, markCompleted, publicClient, requestRefresh, waitForPurchaseConfirmation]);
 
-  // Проверить выполнение всех заданий (правильный алгоритм с Promise.all)
-  const handleVerifyAll = async () => {
-    console.log('🔍 [VERIFY] Starting verification process...');
-    
-    // ⚠️ КРИТИЧНО: Проверяем ПЕРЕД началом проверки - если все задачи уже завершены, сразу редирект
-    const allTasksVerified = tasks.length > 0 && tasks.every((task) => task.completed && task.verified);
-    if (allTasksVerified && user) {
-      const linkPublishedSession = sessionStorage.getItem('link_published');
-      const linkPublishedLocal = localStorage.getItem('link_published');
-      if (linkPublishedSession !== 'true' && linkPublishedLocal !== 'true') {
-        console.log('🚀 [VERIFY] All tasks already verified (green buttons), redirecting IMMEDIATELY');
-        window.location.href = '/buyToken';
-        return; // Прекращаем выполнение, не запускаем проверку
-      }
-    }
-    
-    // Проверяем наличие user из контекста
-    if (!user || !user.fid) {
-      console.error('❌ [VERIFY] User is null or missing FID!');
-      alert('Error: user data not found. Please authorize again.');
+  useEffect(() => {
+    if (!isInitialized) return;
+    if (!user) {
       router.push('/');
       return;
     }
 
-    if (!activity) {
-      console.error('❌ [VERIFY] Missing activity');
-      return;
+    // Persist current step so Base users return to the same screen after swaps / external sheets.
+    setFlowStep('tasks');
+
+    // Обновляем только один раз при монтировании с небольшой задержкой для предотвращения скачков
+    const initialRefreshTimeout = setTimeout(() => {
+      requestRefresh();
+    }, 100);
+
+    // Убираем polling (страница не должна "дёргаться" каждые 5 секунд).
+    // Обновляем данные только при возврате во вкладку/приложение.
+    // ⚠️ Добавляем debounce для предотвращения частых обновлений
+    const onFocus = () => {
+      const now = Date.now();
+      const timeSinceLastRefetch = now - lastRefetchTimeRef.current;
+      
+      // Обновляем только если прошло достаточно времени
+      if (timeSinceLastRefetch >= REFETCH_DEBOUNCE_MS) {
+        requestRefresh({ silent: true });
+        // also resync on-chain balances (BOUGHT state) after wallet redirect
+        try {
+          refetchBalances();
+          lastRefetchTimeRef.current = now;
+        } catch {
+          // ignore
+        }
+      }
+      // Debounce syncPendingSwap тоже
+      const timeSinceLastSync = now - lastSyncPendingSwapTimeRef.current;
+      if (timeSinceLastSync >= SYNC_PENDING_SWAP_DEBOUNCE_MS) {
+        syncPendingSwap();
+        lastSyncPendingSwapTimeRef.current = now;
+      }
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        const now = Date.now();
+        const timeSinceLastRefetch = now - lastRefetchTimeRef.current;
+        
+        // Обновляем только если прошло достаточно времени
+        if (timeSinceLastRefetch >= REFETCH_DEBOUNCE_MS) {
+          requestRefresh({ silent: true });
+          try {
+            refetchBalances();
+            lastRefetchTimeRef.current = now;
+          } catch {
+            // ignore
+          }
+        }
+        // Debounce syncPendingSwap тоже
+        const timeSinceLastSync = now - lastSyncPendingSwapTimeRef.current;
+        if (timeSinceLastSync >= SYNC_PENDING_SWAP_DEBOUNCE_MS) {
+          syncPendingSwap();
+          lastSyncPendingSwapTimeRef.current = now;
+        }
+      }
+    };
+
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      clearTimeout(initialRefreshTimeout);
+      if (focusTimeoutRef.current) clearTimeout(focusTimeoutRef.current);
+      if (visibilityTimeoutRef.current) clearTimeout(visibilityTimeoutRef.current);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInitialized, user?.fid, refetchBalances, syncPendingSwap, requestRefresh]);
+
+  const balanceByToken = useMemo(() => {
+    const map = new Map<string, bigint>();
+    if (!balances) return map;
+    tokenContracts.forEach((c, idx) => {
+      const token = c.address.toLowerCase();
+      const r: any = balances[idx];
+      const v = r?.result;
+      if (typeof v === 'bigint') map.set(token, v);
+    });
+    return map;
+  }, [balances, tokenContracts]);
+
+  // Whenever wagmi balances confirm ownership, add to sticky cache.
+  useEffect(() => {
+    if (!balances || tokenContracts.length === 0) return;
+    const newlyOwned: string[] = [];
+    tokenContracts.forEach((c, idx) => {
+      const r: any = balances[idx];
+      const v = r?.result;
+      if (typeof v === 'bigint' && v > 0n) newlyOwned.push(c.address.toLowerCase());
+    });
+    if (!newlyOwned.length) return;
+    setStickyOwnedTokenAddrs((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+      for (const a of newlyOwned) {
+        if (!next.has(a)) {
+          next.add(a);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [balances, tokenContracts]);
+
+  const isOwnedByTokenAddr = useCallback(
+    (tokenAddr?: string) => {
+      if (!tokenAddr || !isAddress(tokenAddr)) return false;
+      const key = tokenAddr.toLowerCase();
+      if (stickyOwnedTokenAddrs.has(key)) return true;
+      const bal = balanceByToken.get(key);
+      // Important: if bal is undefined (not loaded yet), don't treat it as 0.
+      return typeof bal === 'bigint' && bal > 0n;
+    },
+    [stickyOwnedTokenAddrs, balanceByToken]
+  );
+
+  const ownedLinkIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const l of links) {
+      if (!isAddress(l.token_address)) continue;
+      if (isOwnedByTokenAddr(l.token_address)) ids.add(l.id);
+    }
+    return ids;
+  }, [links, isOwnedByTokenAddr]);
+
+  const completedCountOverall = useMemo(() => {
+    // Eligibility/progress towards publishing is based on the user's overall progress
+    // (server-stored completed_links) + local optimistic updates, capped at REQUIRED_BUYS_TO_PUBLISH.
+    const ids = new Set<string>();
+    for (const id of completedLinkIds) ids.add(id);
+    for (const id of ownedLinkIds) ids.add(id); // best-effort: if balance shows ownership, count it too.
+    return Math.min(ids.size, REQUIRED_BUYS_TO_PUBLISH);
+  }, [completedLinkIds, ownedLinkIds]);
+
+  const completedCountBatch = useMemo(() => {
+    // UI hint: count progress only within the current batch (the 5 links shown on screen).
+    const currentIds = new Set<string>(links.map((l) => l.id));
+    const ids = new Set<string>();
+    for (const id of completedLinkIds) {
+      if (currentIds.has(id)) ids.add(id);
+    }
+    for (const id of ownedLinkIds) {
+      if (currentIds.has(id)) ids.add(id);
+    }
+    return Math.min(ids.size, REQUIRED_BUYS_TO_PUBLISH);
+  }, [completedLinkIds, ownedLinkIds, links]);
+
+  const remainingToBuyCount = useMemo(() => {
+    let c = 0;
+    for (const l of links) {
+      if (!isAddress(l.token_address)) continue;
+      const owned = isOwnedByTokenAddr(l.token_address);
+      const completedByProgress = completedLinkIds.includes(l.id);
+      const completed = completedByProgress || owned;
+      if (!completed) c++;
+    }
+    return c;
+  }, [links, completedLinkIds, isOwnedByTokenAddr]);
+
+  const isWrongNetwork = useMemo(() => {
+    // In some WebViews chainId can be undefined; only treat as wrong when we *know* it's not Base.
+    return !!(isConnected && chainId && chainId !== 8453);
+  }, [isConnected, chainId]);
+
+  // Clean UI: if a post is already DONE/BOUGHT, remove any lingering notices/errors.
+  useEffect(() => {
+    const completed = new Set<string>(completedLinkIds);
+    for (const id of ownedLinkIds) completed.add(id);
+
+    setNoticeByLinkId((prev) => {
+      let changed = false;
+      const next: Record<string, string> = { ...prev };
+      for (const id of completed) {
+        if (next[id]) {
+          delete next[id];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+
+    setErrorByLinkId((prev) => {
+      let changed = false;
+      const next: Record<string, string> = { ...prev };
+      for (const id of completed) {
+        if (next[id]) {
+          delete next[id];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [completedLinkIds, ownedLinkIds]);
+
+  const canPublish = completedCountOverall >= REQUIRED_BUYS_TO_PUBLISH && hasFid;
+
+  // If tokens are already owned (onchain) but server progress wasn't recorded (e.g. earlier network/WebView issues),
+  // proactively sync those completions so /submit and server-side eligibility match what the user sees in the UI.
+  const syncingOwnedToServerRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!hasFid) return;
+    if (!user?.fid) return;
+    if (!links?.length) return;
+
+    const alreadyCompleted = new Set(completedLinkIds);
+    const inFlight = syncingOwnedToServerRef.current;
+
+    const candidates: string[] = [];
+    for (const l of links) {
+      if (candidates.length >= REQUIRED_BUYS_TO_PUBLISH) break;
+      if (!l?.id) continue;
+      if (alreadyCompleted.has(l.id)) continue;
+      if (inFlight.has(l.id)) continue;
+      if (!isAddress(l.token_address)) continue;
+      if (!isOwnedByTokenAddr(l.token_address)) continue;
+      candidates.push(l.id);
     }
 
-    setVerifying(true);
+    // Cap to remaining slots so completed_links never grows beyond REQUIRED_BUYS_TO_PUBLISH.
+    const remaining = Math.max(0, REQUIRED_BUYS_TO_PUBLISH - alreadyCompleted.size);
+    const toSync = candidates.slice(0, remaining);
+    if (!toSync.length) return;
+
+    for (const id of toSync) inFlight.add(id);
+    void (async () => {
+      try {
+        for (const id of toSync) {
+          await markCompleted(id);
+        }
+      } finally {
+        for (const id of toSync) inFlight.delete(id);
+      }
+    })();
+  }, [hasFid, user?.fid, links, completedLinkIds, isOwnedByTokenAddr, markCompleted]);
+
+  const handlePublishClick = useCallback(() => {
+    if (canPublish) {
+      void router.push('/submit').catch(() => {
+        if (typeof window !== 'undefined') window.location.assign('/submit');
+      });
+      return;
+    }
+    const msg = !hasFid
+      ? 'Publish is available only inside Base / Farcaster MiniApp.'
+      : `You need to buy ${REQUIRED_BUYS_TO_PUBLISH} posts first. Progress: ${completedCountOverall}/${REQUIRED_BUYS_TO_PUBLISH}.`;
+    setPublishHint(msg);
+    setTimeout(() => setPublishHint(''), 6000);
+  }, [canPublish, router, hasFid, completedCountOverall]);
+
+  const handleBuy = async (link: LinkSubmission) => {
+    const addr = effectiveAddress;
+    if (!addr) {
+      setErrorByLinkId((p) => ({ ...p, [link.id]: 'Connect your wallet first.' }));
+      return;
+    }
+    // In some WebViews chainId can be undefined; only block when we *know* it's not Base.
+    if (chainId && chainId !== 8453) {
+      setErrorByLinkId((p) => ({ ...p, [link.id]: 'Switch network to Base (8453).' }));
+      return;
+    }
+    if (!isAddress(link.token_address)) {
+      setErrorByLinkId((p) => ({ ...p, [link.id]: 'This post has an invalid token address.' }));
+      return;
+    }
+    if (!publicClient) {
+      setErrorByLinkId((p) => ({ ...p, [link.id]: 'Public client is not available.' }));
+      return;
+    }
+    // Note: isInMiniApp can be undefined/false-positive in some Base App WebViews.
+    // Don't hard-block on it; attempt to open Trade and handle errors gracefully.
+
+    setErrorByLinkId((p) => ({ ...p, [link.id]: '' }));
+    setNoticeByLinkId((p) => ({ ...p, [link.id]: '' }));
+    setBuyingLinkId(link.id);
 
     try {
-      console.log(`🔍 [VERIFY] Processing ALL ${tasks.length} tasks in parallel...`);
+      setNoticeByLinkId((p) => ({ ...p, [link.id]: 'Opening Trade…' }));
+      // Preflight: user needs BUY_AMOUNT_USDC_DISPLAY USDC for the swap.
+      // Gas is usually paid in Base ETH; in Base App it can sometimes be paid in USDC (wallet feature).
+      const [ethBalance, usdcBalance] = await Promise.all([
+        publicClient.getBalance({ address: addr }),
+        publicClient.readContract({
+          address: USDC_CONTRACT_ADDRESS,
+          abi: erc20Abi,
+          functionName: 'balanceOf',
+          args: [addr],
+        }),
+      ]);
 
-      // ✅ Сначала помечаем все задачи как проверяемые
-      // ⚠️ КРИТИЧНО: Сохраняем error состояние и устанавливаем его ТОЛЬКО для неоткрытых и невыполненных задач
-      setTasks(prevTasks => 
-        prevTasks.map(task => {
-          const isOpened = task.opened || openedTasks[task.link_id] === true;
-          // Если задача выполнена, ошибки быть не должно
-          if (task.completed && task.verified) {
-            return {
-              ...task, 
-              verifying: true,
-              error: false // Выполненные задачи не должны показывать ошибку
-            };
-          }
-          // ⚠️ КРИТИЧНО: НЕ устанавливаем ошибку автоматически для неоткрытых задач
-          // Ошибка должна устанавливаться только после реальной проверки через API
-          // Для открытых задач НЕ устанавливаем error, чтобы кнопка оставалась синей
-          const finalError = isOpened ? false : (task.error || taskErrorsRef.current[task.link_id] === true);
-          return {
-            ...task, 
-            verifying: true,
-            // Устанавливаем error ТОЛЬКО для неоткрытых задач
-            error: finalError
-          };
-        })
-      );
+      if (usdcBalance < BUY_AMOUNT_USDC) {
+        throw new Error(`Not enough USDC. You need at least ${BUY_AMOUNT_USDC_DISPLAY} USDC on Base.`);
+      }
+      // Gas UX: warn early, but don't hard-block (Base App may support paying gas in USDC).
+      if (ethBalance < parseEther('0.00001')) {
+        setNoticeByLinkId((p) => ({
+          ...p,
+          [link.id]:
+            'Note: network fee (gas) is usually paid in Base ETH. In Base App you may be able to pay gas in USDC—if you see that option in the confirmation screen.',
+        }));
+      }
 
-      // ✅ Параллельная проверка всех задач через Promise.all
-      const messages: Array<{ linkId: string; message: string; neynarUrl?: string }> = [];
-      const updatedTasks: TaskProgress[] = await Promise.all(
-        tasks.map(async (task: TaskProgress) => {
-          // ⚠️ КРИТИЧНО: Пропускаем задания с completed && verified - проверки для них прекращены
-          // Также проверяем verifiedTasksRef - если задача уже была проверена ранее, пропускаем
-          const isAlreadyVerified = task.completed && task.verified;
-          const isInVerifiedRef = verifiedTasksRef.current.has(task.link_id);
-          
-          if (isAlreadyVerified || isInVerifiedRef) {
-            console.log(`⏹️ [VERIFY] Task ${task.link_id} already completed and verified (${isAlreadyVerified ? 'in state' : 'in ref'}), skipping verification`);
-            // Убеждаемся, что задача в ref
-            if (!isInVerifiedRef) {
-              verifiedTasksRef.current.add(task.link_id);
-            }
-            return {
-              ...task,
-              completed: true,
-              verified: true,
-              verifying: false,
-              error: false,
-            } as TaskProgress; // Возвращаем как выполненную, проверки прекращены
-          }
-          
-          try {
-            // ✅ Отправляем castUrl (весь URL, даже с "...")
-            // API сам разрешит URL через getFullCastHash
-            if (!task.cast_url) {
-              console.warn(`⚠️ Task ${task.link_id} has no cast_url, skipping verification`);
-              messages.push({
-                linkId: task.link_id,
-                message: 'Отсутствует ссылка на cast. Проверьте формат ссылки.',
-              });
-              
-              // Удаляем ссылку из базы данных
+      // Prefer MiniKit swap flow: it keeps the user in the MTB app context (wallet sheet),
+      // then we verify onchain and immediately flip the button to BOUGHT.
+      {
+        const ss = getSessionStorageSafe();
+        ss?.setItem(
+          PENDING_SWAP_KEY,
+          JSON.stringify({ linkId: link.id, tokenAddress: link.token_address, startedAt: Date.now() })
+        );
+      }
+
+      const returnUrl =
+        typeof window === 'undefined'
+          ? undefined
+          : (() => {
               try {
-                const deleteResponse = await fetch('/api/delete-link', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ linkId: task.link_id }),
-                });
-                
-                if (deleteResponse.ok) {
-                  console.log(`🗑️ Deleted link ${task.link_id} (no cast_url)`);
-                  // Удаляем задание из списка задач
-                  setTasks(prevTasks => prevTasks.filter(t => t.link_id !== task.link_id));
-                  // Перезагружаем список задач через 1 секунду, чтобы получить новую ссылку
-                  setTimeout(() => {
-                    if (user?.fid) {
-                      loadTasks(user.fid, false);
-                    }
-                  }, 1000);
-                } else {
-                  console.warn(`⚠️ Failed to delete link ${task.link_id}: ${deleteResponse.status}`);
-                }
-              } catch (e) {
-                console.error(`❌ Failed to delete link ${task.link_id}:`, e);
+                const u = new URL(window.location.href);
+                u.pathname = '/tasks';
+                u.searchParams.set('fromTrade', '1');
+                u.searchParams.set('linkId', link.id);
+                return u.toString();
+              } catch {
+                return '/tasks?fromTrade=1&linkId=' + encodeURIComponent(link.id);
               }
-              
-              return {
-                ...task,
-                completed: false,
-                verified: true,
-                verifying: false,
-                error: true,
-                opened: task.opened || openedTasks[task.link_id] === true,
-              } as TaskProgress;
-            }
+            })();
 
-            console.log(`[CLIENT] handleVerifyAll: Verifying task ${task.link_id}`, {
-              castUrl: task.cast_url,
-              activityType: task.task_type || activity,
-              userFid: user.fid,
-              userFidType: typeof user.fid,
-              userObject: { fid: user.fid, username: user.username }
-            });
-            
-            // ВАЖНО: Проверяем, что FID правильный
-            if (!user.fid || user.fid !== 799806) {
-              console.warn(`[CLIENT] handleVerifyAll: WARNING - User FID is ${user.fid}, expected 799806`);
+      const openSwapFallback = () => {
+        if (typeof window === 'undefined') return;
+        const swapUrl = buildBaseAppSwapUrl({
+          inputToken: USDC_CONTRACT_ADDRESS,
+          outputToken: link.token_address as Address,
+          exactAmount: BUY_AMOUNT_USDC_DECIMAL, // "0.10"
+          returnUrl,
+        });
+        setNoticeByLinkId((p) => ({
+          ...p,
+          [link.id]: 'To buy, open MTB inside the Base App. This browser cannot open the swap in-app.',
+        }));
+        // Best-effort: try to open within the Mini App host so user doesn't "drop out".
+        // If that fails, fall back to same-tab navigation (still returns via returnUrl).
+        void requestFullscreen(swapUrl).then((ok) => {
+          if (!ok) {
+            try {
+              window.location.href = swapUrl;
+            } catch {
+              // ignore
             }
-            
-            const result = await verifyActivity({
-              castHash: '', // Не используется, передаем castUrl
-              castUrl: task.cast_url, // ВАЖНО: передаем весь URL для разрешения
-              activityType: task.task_type || activity,
-              viewerFid: user.fid, // ✅ используем текущего пользователя
-            });
-            
-            console.log(`[CLIENT] handleVerifyAll: Result for task ${task.link_id}:`, {
-              completed: result.completed,
-              isError: result.isError,
-              userMessage: result.userMessage,
-              castHash: result.hashWarning
-            });
-
-            // ⚠️ КРИТИЧНО: Если задача не была открыта, она НЕ может быть выполнена, даже если активность найдена
-            const isOpened = task.opened || openedTasks[task.link_id] === true;
-            
-            // ⚠️ КРИТИЧНО: Задача может быть выполнена ТОЛЬКО если она была открыта И активность найдена
-            const finalCompleted = isOpened && result.completed;
-            
-            // Определяем, была ли ошибка (cast не найден или активность не найдена)
-            // ВАЖНО: Если задача выполнена (finalCompleted === true), ошибки быть не должно
-            // Ошибка только если:
-            // 1. Реальная ошибка API (result.isError === true)
-            // 2. Проверка прошла успешно, но активность не найдена И задача не открыта
-            // ⚠️ НЕ устанавливаем ошибку просто потому, что задача не открыта - это нормально
-            const hasError = finalCompleted ? false : (
-              result.isError || 
-              (!isOpened && !result.completed && !result.isError) // Только если проверка прошла, но активность не найдена И задача не открыта
-            );
-            
-            console.log(`🔍 [VERIFY] Task ${task.link_id} verification:`, {
-              isOpened,
-              resultCompleted: result.completed,
-              finalCompleted,
-              hasError,
-              resultIsError: result.isError
-            });
-            
-            // Если каст не найден (error: true), удаляем ссылку из базы данных
-            if (result.isError) {
-              try {
-                const deleteResponse = await fetch('/api/delete-link', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ linkId: task.link_id }),
-                });
-                
-                if (deleteResponse.ok) {
-                  console.log(`🗑️ Deleted link ${task.link_id} (cast not found)`);
-                  // Удаляем задание из списка задач
-                  setTasks(prevTasks => prevTasks.filter(t => t.link_id !== task.link_id));
-                  // Перезагружаем список задач через 1 секунду, чтобы получить новую ссылку
-                  setTimeout(() => {
-                    if (user?.fid) {
-                      loadTasks(user.fid, false);
-                    }
-                  }, 1000);
-                } else {
-                  console.warn(`⚠️ Failed to delete link ${task.link_id}: ${deleteResponse.status}`);
-                }
-              } catch (e) {
-                console.error(`❌ Error deleting link ${task.link_id}:`, e);
-              }
-            }
-
-            // Собираем сообщения об ошибках для пользователя
-            if (!finalCompleted) {
-              if (!isOpened) {
-                messages.push({
-                  linkId: task.link_id,
-                  message: 'Task not opened. Please open the task first.',
-                });
-              } else if (!result.completed && result.userMessage) {
-                messages.push({
-                  linkId: task.link_id,
-                  message: result.userMessage,
-                  neynarUrl: result.neynarExplorerUrl,
-                });
-              }
-            }
-
-            // Логируем предупреждения о hash
-            if (result.hashWarning) {
-              console.warn(`⚠️ [VERIFY] Hash warning for task ${task.link_id}:`, result.hashWarning);
-            }
-
-            // Если задача выполнена (открыта И активность найдена) - сохраняем в БД и в ref
-            if (finalCompleted) {
-              // ⚠️ КРИТИЧНО: Добавляем в verifiedTasksRef сразу после проверки
-              verifiedTasksRef.current.add(task.link_id);
-              console.log(`✅ [VERIFY] Added task ${task.link_id} to verifiedTasksRef`);
-              
-              try {
-                const markResponse = await fetch('/api/mark-completed', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({
-                    userFid: user.fid,
-                    linkId: task.link_id,
-                  }),
-                });
-
-                if (markResponse.ok) {
-                  const markData = await markResponse.json();
-                  if (markData.success) {
-                    console.log(`✅ Marked link ${task.link_id} as completed in DB`);
-                  }
-                }
-              } catch (markError) {
-                console.error(`❌ Failed to mark link ${task.link_id} as completed:`, markError);
-                // Не прерываем процесс, но логируем ошибку
-              }
-            }
-
-            // Сохраняем состояние ошибки в taskErrorsRef для сохранения между перезагрузками
-            if (hasError) {
-              taskErrorsRef.current[task.link_id] = true;
-              console.log(`🔴 [VERIFY] Stored error for task ${task.link_id}`, taskErrorsRef.current);
-            } else {
-              // Убираем ошибку, если задание выполнено
-              delete taskErrorsRef.current[task.link_id];
-              console.log(`✅ [VERIFY] Removed error for task ${task.link_id}`, taskErrorsRef.current);
-            }
-            
-            return {
-              ...task,
-              completed: finalCompleted, // ⚠️ Используем finalCompleted, а не result.completed
-              verified: true,
-              verifying: false,
-              error: hasError,
-              opened: isOpened, // Сохраняем состояние opened
-            } as TaskProgress;
-          } catch (err: any) {
-            console.error('❌ Neynar API error for task:', task.link_id, err);
-            messages.push({
-              linkId: task.link_id,
-              message: 'Error checking activity. Please try again in 1-2 minutes.',
-            });
-            // Сохраняем состояние ошибки в taskErrorsRef
-            taskErrorsRef.current[task.link_id] = true;
-            console.log(`🔴 [VERIFY] Stored error for task ${task.link_id} (exception)`, taskErrorsRef.current);
-            
-            return {
-              ...task,
-              completed: false,
-              verified: true, // Помечаем как проверенное, но не выполненное
-              verifying: false,
-              error: true, // Ошибка при проверке
-              opened: task.opened || openedTasks[task.link_id] === true,
-            } as TaskProgress;
           }
-        })
-      );
+        });
+      };
 
-      // Сохраняем сообщения для отображения пользователю
-      setVerificationMessages(messages);
+      // Buy flow:
+      // - Prefer MiniKit swap flow whenever possible (even if isInMiniApp mis-detects).
+      // - Fall back to base.app/swap if MiniKit is unavailable.
+      if (!swapTokenAsync) {
+        openSwapFallback();
+        setBuyingLinkId(null);
+        return;
+      }
 
-      // Обновляем состояние
-      // ВАЖНО: Убеждаемся, что выполненные задачи не имеют ошибок
-      const finalUpdatedTasks = updatedTasks.map(task => ({
-        ...task,
-        error: task.completed ? false : task.error // Выполненные задачи не должны показывать ошибку
+      let result: any;
+      try {
+        result = await swapTokenAsync({
+          sellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`,
+          buyToken: `eip155:8453/erc20:${link.token_address as Address}`,
+          sellAmount: BUY_AMOUNT_USDC.toString(), // 0.10 USDC = "100000"
+        });
+      } catch (err: any) {
+        const raw = (err?.shortMessage || err?.message || '').toString();
+        const lower = raw.toLowerCase();
+        // When not in Base App / MiniKit context, swapTokenAsync typically errors.
+        if (
+          lower.includes('minikit') ||
+          lower.includes('not in') ||
+          lower.includes('unsupported') ||
+          lower.includes('not available') ||
+          lower.includes('cannot') ||
+          lower.includes('window is not defined')
+        ) {
+          openSwapFallback();
+          setBuyingLinkId(null);
+          return;
+        }
+        throw err;
+      }
+
+      const maybeHash =
+        (result?.transactionHash as `0x${string}` | undefined) ||
+        (result?.txHash as `0x${string}` | undefined) ||
+        (result?.hash as `0x${string}` | undefined);
+
+      setNoticeByLinkId((p) => ({
+        ...p,
+        [link.id]: `Waiting for confirmation… If the amount is empty, type ${BUY_AMOUNT_USDC_DISPLAY} USDC and confirm.`,
       }));
-      
-      const newCompletedCount = finalUpdatedTasks.filter(t => t.completed).length;
-      
-      // ⚠️ КРИТИЧНО: Проверяем ПЕРЕД setTasks - если все задачи завершены, обновляем состояние и делаем редирект с задержкой
-      const allTasksCompleted = newCompletedCount === finalUpdatedTasks.length && finalUpdatedTasks.length > 0;
-      const allTasksVerified = finalUpdatedTasks.every((task) => task.completed && task.verified);
-      
-      if (allTasksCompleted && allTasksVerified && user) {
-        const linkPublishedSession = sessionStorage.getItem('link_published');
-        const linkPublishedLocal = localStorage.getItem('link_published');
-        if (linkPublishedSession !== 'true' && linkPublishedLocal !== 'true') {
-          // ⚠️ КРИТИЧНО: Обновляем состояние, чтобы показать зеленые кнопки
-          setTasks(finalUpdatedTasks);
-          setCompletedCount(newCompletedCount);
-          
-          // ⚠️ КРИТИЧНО: Задержка 2 секунды, чтобы зеленая кнопка светилась дольше
-          // НЕ вызываем loadTasks, чтобы не было промежуточных рендеров
-          setTimeout(() => {
-            console.log('🚀 [VERIFY] All tasks verified, redirecting to wallet after showing green buttons');
-            window.location.href = '/buyToken';
-          }, 2000); // 2 секунды чтобы показать зеленые кнопки
-          return; // Прекращаем выполнение, НЕ вызываем loadTasks
-        }
-      }
 
-      // ⚠️ КРИТИЧНО: Если не все задачи завершены, обновляем состояние нормально
-      setTasks(finalUpdatedTasks);
-      setCompletedCount(newCompletedCount);
-
-      console.log(`📊 [VERIFY] Verification complete: ${newCompletedCount}/${updatedTasks.length} completed`);
-
-      // ✅ Если все выполнены - редирект на покупку токена (НЕ перезагружаем задачи, чтобы кнопки остались зелеными)
-      // ⚠️ КРИТИЧНО: Проверяем, что все задания выполнены И открыты И нет ошибок
-      const allCompleted = finalUpdatedTasks.every((t) => t.completed);
-      // ВАЖНО: Проверяем, что ВСЕ задания открыты (независимо от выполнения)
-      const allOpened = finalUpdatedTasks.every((t) => t.opened === true);
-      const hasErrors = finalUpdatedTasks.some((t) => t.error);
-      
-      console.log('🔍 [VERIFY] Redirect check after verification:', {
-        allCompleted,
-        allOpened,
-        hasErrors,
-        tasksCount: finalUpdatedTasks.length,
-        openedCount: finalUpdatedTasks.filter(t => t.opened).length,
-        taskStates: finalUpdatedTasks.map(t => ({ id: t.link_id, opened: t.opened, completed: t.completed, error: t.error }))
+      const confirmed = await waitForPurchaseConfirmation({
+        tokenAddress: link.token_address as Address,
+        buyer: addr,
+        txHash: maybeHash,
+        linkId: link.id,
       });
-      
-      // ⚠️ КРИТИЧНО: НЕ перезагружаем задачи после проверки, чтобы сохранить состояние verified
-      // Состояние уже обновлено через setTasks выше, не нужно перезагружать из БД
-      // Это предотвращает "мигание" состояния - задания остаются в проверенном состоянии
-      // После проверки состояние фиксируется и не меняется до следующей загрузки страницы
-      
-      setVerifying(false);
-      
-      if (newCompletedCount < updatedTasks.length) {
-        // Показываем предупреждение с детальными сообщениями
-        const incompleteCount = updatedTasks.length - newCompletedCount;
-        let message = `Вы не выполнили все задания. Проверьте оставшиеся ${incompleteCount} ссылок.\n\n`;
-        
-        if (messages.length > 0) {
-          message += 'Детали:\n';
-          messages.forEach((msg, idx) => {
-            message += `\n${idx + 1}. ${msg.message}`;
-            if (msg.neynarUrl) {
-              message += `\n   Проверьте: ${msg.neynarUrl}`;
-            }
-          });
+
+      if (confirmed.ok) {
+        getSessionStorageSafe()?.removeItem(PENDING_SWAP_KEY);
+        // Sticky-owned: flip BOUGHT immediately and avoid flicker even if RPC is laggy.
+        setStickyOwnedTokenAddrs((prev) => {
+          const next = new Set(prev);
+          next.add((link.token_address as string).toLowerCase());
+          return next;
+        });
+        await markCompleted(link.id);
+        try {
+          requestRefresh({ silent: true });
+        } catch {
+          // ignore
         }
-        
-        console.warn(message);
-        alert(message);
+                } else {
+        // Don't error-hard: user may still be confirming, or RPC is lagging.
+        setNoticeByLinkId((p) => ({
+          ...p,
+          [link.id]: 'Swap opened. After confirming, stay on this screen — we’ll sync automatically.',
+        }));
       }
-    } catch (error: any) {
-      console.error('❌ Error verifying tasks:', error);
-      alert(`Error verifying tasks: ${error.message || 'Unknown error'}\n\nCheck browser console for details.`);
+    } catch (e: any) {
+      const raw = (e?.shortMessage || e?.message || 'Buy error').toString();
+      const lower = raw.toLowerCase();
+      const msg = lower.includes('user rejected') || lower.includes('rejected the request')
+        ? 'Transaction cancelled in wallet.'
+        : raw;
+      setNoticeByLinkId((p) => {
+        const next = { ...p };
+        delete next[link.id];
+        return next;
+      });
+      setErrorByLinkId((p) => ({ ...p, [link.id]: msg }));
     } finally {
-      setVerifying(false);
+      setBuyingLinkId(null);
     }
   };
 
+  const requestFullscreen = useCallback(
+    async (targetUrl?: string) => {
+      if (typeof window === 'undefined') return false;
+      const url = (targetUrl || window.location.href || '').toString();
+      if (!url.startsWith('http')) return false;
+      try {
+        const { sdk } = await import('@farcaster/miniapp-sdk');
+        const inMini = await sdk.isInMiniApp().catch(() => false);
+        if (!inMini) return false;
+        // Some hosts use "ready" to bring the miniapp to the foreground; safe to call repeatedly.
+        await sdk.actions.ready().catch(() => {});
+        try {
+          await sdk.actions.openMiniApp({ url });
+          return true;
+        } catch {
+          // Fall back to openUrl if openMiniApp isn't supported by the host.
+          await sdk.actions.openUrl({ url });
+          return true;
+        }
+      } catch {
+        return false;
+      }
+    },
+    []
+  );
 
-  if (loading) {
+  // If Trade returned the user to the app (or they re-opened the app), auto-sync and scroll to the relevant card.
+  useEffect(() => {
+    if (handledReturnRef.current) return;
+
+    const ss = getSessionStorageSafe();
+    const hasPending = !!ss?.getItem(PENDING_SWAP_KEY);
+    if (typeof window === 'undefined') return;
+    const u = new URL(window.location.href);
+    const linkId = u.searchParams.get('linkId');
+    const fromTrade = u.searchParams.get('fromTrade');
+    const fs = u.searchParams.get('fs');
+
+    if (!hasPending && !fromTrade) return;
+
+    // Best-effort: some hosts return the miniapp in a "collapsed" state after a swap.
+    // If supported, request the host to open MTB full-screen. This is not guaranteed
+    // (host-controlled), so we also show a one-tap fallback button.
+    if (fs !== '1') {
+      const lastOpenedAt = Number(ss?.getItem(FULLSCREEN_OPENED_AT_KEY) || '0');
+      const now = Date.now();
+      if (now - lastOpenedAt > 8000) {
+        ss?.setItem(FULLSCREEN_OPENED_AT_KEY, String(now));
+        const fsUrl = new URL(window.location.href);
+        fsUrl.searchParams.set('fs', '1');
+        void requestFullscreen(fsUrl.toString()).then((ok) => {
+          if (!ok) {
+            setExpandHint(true);
+            setTimeout(() => setExpandHint(false), 7000);
+          }
+        });
+      }
+    }
+
+    handledReturnRef.current = true;
+
+    if (linkId) {
+          setTimeout(() => {
+        const el = document.getElementById(`link-${linkId}`);
+        el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }, 150);
+    }
+
+    syncPendingSwap();
+
+    if (fromTrade) {
+      u.searchParams.delete('fromTrade');
+      u.searchParams.delete('linkId');
+      u.searchParams.delete('fs');
+      window.history.replaceState({}, '', `${u.pathname}${u.search}${u.hash}`);
+    }
+  }, [syncPendingSwap, links.length, requestFullscreen]);
+
+  const openPostInModal = (url: string) => {
+    const u = (url || '').trim();
+    if (!u.startsWith('http')) return;
+    setPostModalUrl(u);
+  };
+
+  if (initialLoading) {
     return (
-      <Layout title="Loading Tasks...">
+      <Layout title="Tasks">
         <div className="relative min-h-screen overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient bg-300%"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient"></div>
           <div className="relative z-10 flex items-center justify-center min-h-screen">
             <div className="text-center">
               <div className="w-20 h-20 border-4 border-white border-t-transparent rounded-full animate-spin mx-auto mb-6" />
-              <p className="text-white text-xl font-bold">Loading Tasks...</p>
+              <p className="text-white text-xl font-bold">Loading…</p>
             </div>
           </div>
         </div>
@@ -1135,152 +1038,168 @@ export default function Tasks() {
   }
 
   return (
-    <Layout title="Multi Like - Tasks">
-      {/* Уведомление о публикации ссылки */}
-      {showPublishedSuccess && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-slide-down max-w-md w-full mx-4">
-          <div className="bg-gradient-to-r from-success to-green-500 text-white rounded-2xl shadow-2xl p-6 border-4 border-white">
-            <div className="flex items-center gap-4">
-              <div className="flex-shrink-0">
-                <div className="text-5xl animate-bounce">🎉</div>
-              </div>
-              <div className="flex-1">
-                <h3 className="text-2xl font-black mb-1">Поздравляем!</h3>
-                <p className="text-lg font-bold">Ваша ссылка опубликована!</p>
-                <p className="text-sm text-green-100 mt-1">Она теперь доступна в списке заданий.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Hero Section с градиентом */}
+    <Layout title="Buy Posts">
       <div className="relative min-h-screen overflow-hidden">
-        {/* Анимированный градиент фон */}
-        <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient bg-300%"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient"></div>
         
-        {/* Геометрические фигуры */}
-        <div className="absolute top-20 right-20 w-32 h-32 bg-white bg-opacity-10 rounded-full animate-float"></div>
-        <div className="absolute bottom-32 left-20 w-24 h-24 bg-white bg-opacity-15 rounded-full animate-float" style={{animationDelay: '2s'}}></div>
-        
-        <div className="relative z-10 max-w-7xl mx-auto px-6 py-20">
-          {/* Заголовок в стиле модного сайта */}
-          <div className="text-center mb-16">
-            <h1 className="text-7xl md:text-9xl font-black text-white mb-8 font-display leading-none tracking-tight">
-              TASKS
-            </h1>
-            <div className="flex items-center justify-center gap-6 mb-10">
-              <div className="w-24 h-1 bg-white"></div>
-              <div className="flex items-center gap-4">
-                {/* Фото Миссис Крипто */}
-                <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-white shadow-2xl">
-                  <Image
-                    src="/images/mrs-crypto.jpg"
-                    alt="Mrs. Crypto"
-                    width={128}
-                    height={128}
-                    className="w-full h-full object-cover"
-                    priority
-                    unoptimized
-                  />
-                </div>
-              </div>
-              <div className="w-24 h-1 bg-white"></div>
+        <div className="relative z-10 max-w-6xl mx-auto px-6 py-16">
+          {expandHint ? (
+            <div className="fixed bottom-4 left-4 right-4 z-[200] flex justify-center pointer-events-none">
+              <button
+                type="button"
+                className="pointer-events-auto px-5 py-3 rounded-2xl bg-black/85 text-white font-black shadow-2xl border border-white/20 backdrop-blur-md"
+                onClick={() => {
+                  setExpandHint(false);
+                  void requestFullscreen();
+                }}
+              >
+                Open MTB full screen
+              </button>
             </div>
-            <p className="text-lg md:text-xl text-white text-opacity-90 max-w-2xl mx-auto">
-              <span>Open each link and perform the task:</span>
-              {' '}
-              <span className="font-bold text-yellow-300 text-xl md:text-2xl">
-                {activity === 'like' && '❤️ LIKE'}
-                {activity === 'recast' && '🔄 RECAST'}
-              </span>
+          ) : null}
+
+          <div className="text-center mb-10">
+            <h1 className="text-5xl md:text-7xl font-black text-white mb-6 font-display leading-none tracking-tight">
+              BUY POSTS
+            </h1>
+            <div className="flex items-center justify-center gap-4 mb-6">
+              <div className="w-20 h-1 bg-white"></div>
+              <div className="w-20 h-1 bg-white"></div>
+            </div>
+            <p className="text-white text-opacity-90 text-lg">
+              Buy {REQUIRED_BUYS_TO_PUBLISH} tokenized posts for{' '}
+              <span className="font-black text-yellow-300">{BUY_AMOUNT_USDC_DISPLAY}</span> each.
+            </p>
+            <p className="text-white text-opacity-75 text-sm mt-3">
+              Gas fee: usually paid in Base ETH. In the Base app you may be able to pay gas in USDC (if you see that option in the confirmation screen).
             </p>
           </div>
 
+          <div className="bg-white bg-opacity-95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 mb-8">
+              <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-full overflow-hidden border-4 border-primary shadow-lg">
+                <Image src="/images/mrs-crypto.jpg" alt="Mrs. Crypto" width={64} height={64} className="w-full h-full object-cover" unoptimized />
+                </div>
+              <div className="flex-1">
+                <div className="text-gray-900 font-black text-xl">Progress</div>
+                <div className="text-gray-600">
+                  Bought post-tokens: <span className="font-black">{completedCountOverall}</span>/{REQUIRED_BUYS_TO_PUBLISH}
+              </div>
+                {isWrongNetwork ? (
+                  <div className="mt-2 text-xs font-bold text-red-700">
+                    Wrong network. Please switch to Base (8453).
+            </div>
+                ) : null}
+                {/* Reserve space to avoid layout shift when "Syncing…" appears/disappears */}
+                <div className="text-xs text-gray-500 mt-1 min-h-[16px]">{refreshing ? 'Syncing…' : ''}</div>
+                {publishHint ? <div className="text-xs text-red-600 mt-1">{publishHint}</div> : null}
+            </div>
+              <Button onClick={handlePublishClick}>
+                {canPublish ? '👉 Add your post' : hasFid ? `Publish (need ${REQUIRED_BUYS_TO_PUBLISH})` : 'Publish (open in Base App)'}
+              </Button>
+          </div>
+          </div>
 
+          {links.length > 0 && remainingToBuyCount === 0 && (
+            <div className="bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl shadow-xl p-4 mb-6 border border-white/30">
+              <div className="text-gray-900 font-black">You completed this batch ✅</div>
+              <div className="text-gray-700 text-sm mt-1">
+                You can’t repeat buys on the same posts. Please wait until <span className="font-bold">{REQUIRED_BUYS_TO_PUBLISH} new links</span> appear.
+                </div>
+              </div>
+          )}
 
-          {/* Список заданий */}
-          <div className="space-y-6 mb-12">
-            {tasks.length === 0 ? (
+          <div className="space-y-4">
+            {links.length === 0 ? (
               <div className="text-center py-12 bg-white bg-opacity-10 backdrop-blur-md rounded-2xl border border-white/30 shadow-2xl">
                 <div className="text-6xl mb-4">📋</div>
-                <h3 className="text-2xl font-bold text-white mb-2">No tasks available</h3>
-                <p className="text-white text-opacity-80 mb-6">
-                  {activity 
-                    ? `No ${activity} tasks found. Please check back later.`
-                    : 'No tasks found. Please select a task type first.'}
-                </p>
-                {!activity && (
-                  <button
-                    onClick={() => router.push('/')}
-                    className="btn-gold-glow px-6 py-3 font-bold text-white"
-                  >
-                    Go to Home Page
-                  </button>
-                )}
+                <h3 className="text-2xl font-bold text-white mb-2">No tasks yet</h3>
+                <p className="text-white text-opacity-80">No one has added posts yet.</p>
               </div>
             ) : (
-              tasks.map((task, index) => {
-                // Объединяем opened из состояния tasks и openedTasks
-                const taskWithOpened = {
-                  ...task,
-                  opened: task.opened || openedTasks[task.link_id] === true,
-                };
+              links.map((link) => {
+                const tokenAddr = isAddress(link.token_address) ? link.token_address : undefined;
+                const postUrl = ((link.cast_url || '').trim().startsWith('http')
+                  ? (link.cast_url || '').trim()
+                  : (tokenAddr ? baseAppContentUrlFromTokenAddress(tokenAddr) : null)) || '';
+                const hasPostUrl = postUrl.startsWith('http');
+                const owned = tokenAddr ? isOwnedByTokenAddr(tokenAddr) : false;
+                const completedByProgress = completedLinkIds.includes(link.id);
+                const completed = completedByProgress || owned;
+                const isBuying = buyingLinkId === link.id;
+                const err = errorByLinkId[link.id];
+
                 return (
-                  <TaskCard
-                    key={task.link_id}
-                    task={taskWithOpened}
-                    index={index}
-                    onOpen={() => handleOpenLink(task.cast_url, task.link_id)}
-                  />
+                  <div
+                    key={link.id}
+                    id={`link-${link.id}`}
+                    className={`bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl shadow-xl p-4 border border-white/30 ${
+                      hasPostUrl ? 'cursor-pointer' : ''
+                    }`}
+                    onClick={() => {
+                      if (hasPostUrl) openPostInModal(postUrl);
+                    }}
+                  >
+                    <div className="flex items-start gap-3">
+                      <Avatar
+                        url={link.pfp_url}
+                        seed={link.username || link.id}
+                        size={40}
+                        alt={link.username || 'avatar'}
+                        className="rounded-full object-cover border-2 border-primary"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="min-w-0 flex-1">
+                            <div className="font-black text-gray-900 truncate">@{link.username}</div>
+                            {tokenAddr && (
+                              <div className="text-xs text-gray-500 truncate mt-1" title={tokenAddr}>
+                                Token: {shortHex(tokenAddr)}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 flex-shrink-0">
+                            <button
+                              className={`px-4 py-2 rounded-xl font-bold text-white transition-opacity ${
+                                completed
+                                  ? 'bg-green-600 cursor-not-allowed opacity-90'
+                                  : !tokenAddr
+                                  ? 'bg-gray-400 cursor-not-allowed opacity-50'
+                                  : 'bg-gradient-to-r from-primary via-secondary to-accent hover:opacity-90'
+                              }`}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (!tokenAddr || completed || isBuying) return;
+                                handleBuy(link);
+                              }}
+                              disabled={isBuying || completed || !tokenAddr}
+                              style={{ minWidth: '120px' }}
+                            >
+                              {completed ? (owned ? 'BOUGHT' : 'DONE') : isBuying ? 'Buying…' : `BUY ${BUY_AMOUNT_USDC_DISPLAY}`}
+                            </button>
+                          </div>
+                        </div>
+
+                        {!completed && noticeByLinkId[link.id] && (
+                          <div className="mt-3 text-sm text-blue-700 font-bold">{noticeByLinkId[link.id]}</div>
+                        )}
+                        {!completed && err && <div className="mt-3 text-sm text-red-600 font-bold">{err}</div>}
+                </div>
+              </div>
+                  </div>
                 );
               })
             )}
           </div>
-
-          {/* Модная кнопка проверки */}
-          <div className="sticky bottom-8 bg-white bg-opacity-95 backdrop-blur-sm rounded-3xl shadow-2xl p-8 border border-white border-opacity-20">
-            <button
-              onClick={handleVerifyAll}
-              disabled={verifying}
-              className={`btn-gold-glow w-full px-12 py-8 text-white font-black text-2xl md:text-3xl ${verifying ? 'disabled' : ''}`}
-            >
-              {/* Переливающийся эффект */}
-              {!verifying && (
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 z-10"></div>
-              )}
-              <div className="flex items-center justify-center gap-4 relative z-20">
-                {verifying ? (
-                  <>
-                    <div className="w-8 h-8 border-3 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>VERIFYING...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>VERIFY COMPLETION</span>
-                    <span className="text-4xl md:text-5xl">🔍</span>
-                  </>
-                )}
-              </div>
-            </button>
-
-            {tasks.length > 0 && completedCount === tasks.length && (
-              <div className="text-center mt-8">
-                <p className="text-black font-black text-2xl md:text-3xl mb-4">
-                  Excellent! All tasks completed! 🎉
-                </p>
-                <p className="text-gray-700 text-lg font-semibold">
-                  Redirecting to next step...
-                </p>
-                <div className="flex justify-center mt-4">
-                  <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-                </div>
-              </div>
-            )}
-          </div>
         </div>
       </div>
+
+      {postModalUrl ? (
+        <InAppBrowserModal url={postModalUrl} title="Read the post" onClose={() => setPostModalUrl(null)} />
+      ) : null}
     </Layout>
   );
 }
+
 

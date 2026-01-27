@@ -1,0 +1,12 @@
+Скопируйте и выполните эту команду в консоли браузера на сайте https://likechat-base-app.vercel.app:
+
+fetch('/api/pin-link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tokenAddress:'0xbe705864202df9a6c7c57993fde1865ae67825ce',position:5})}).then(r=>r.json()).then(d=>{if(d.success){console.log('✅ Ссылка закреплена на 5-й позиции!');console.log('Детали:',d.link);alert('✅ Ссылка закреплена на 5-й позиции!\n\nID: '+d.link.id+'\nToken: '+d.link.token_address+'\nPosition: '+d.link.pinned_position);}else{console.error('❌ Ошибка:',d.error,d.message);alert('❌ Ошибка: '+d.error+'\n'+d.message);}}).catch(e=>{console.error('❌ Ошибка запроса:',e);alert('❌ Ошибка: '+e.message);})
+
+ИНСТРУКЦИЯ:
+1. Откройте https://likechat-base-app.vercel.app
+2. Нажмите F12 (откроется консоль)
+3. Перейдите на вкладку "Console"
+4. Если нужно, введите "allow pasting" и нажмите Enter
+5. Скопируйте команду выше и вставьте в консоль
+6. Нажмите Enter
+7. Должно появиться сообщение "✅ Ссылка закреплена на 5-й позиции!"

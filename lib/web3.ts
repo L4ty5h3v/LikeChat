@@ -1,4 +1,4 @@
-// Web3 функции для покупки токена Миссис Крипто через Farcaster API
+// Web3 функции (Base). Farcaster MiniApp provider больше не используется.
 import { ethers } from 'ethers';
 
 // Константы конфигурации
@@ -6,9 +6,9 @@ const TOKEN_CONTRACT_ADDRESS = '0x04d388da70c32fc5876981097c536c51c8d3d236'; // 
 // Обрезаем пробелы и переносы строк из адреса контракта
 const TOKEN_SALE_CONTRACT_ADDRESS: string = (process.env.NEXT_PUBLIC_TOKEN_SALE_CONTRACT_ADDRESS || '0x3FD7a1D5C9C3163E873Df212006cB81D7178f3b4').trim().replace(/[\r\n]/g, ''); // Адрес контракта продажи
 const TOKEN_SALE_USDC_CONTRACT_ADDRESS: string = (process.env.NEXT_PUBLIC_TOKEN_SALE_USDC_CONTRACT_ADDRESS || '').trim().replace(/[\r\n]/g, ''); // Адрес контракта продажи USDC (если используется)
-const USDC_CONTRACT_ADDRESS = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'; // USDC на Base (6 decimals) - правильный адрес
+const USDC_CONTRACT_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // USDC на Base (6 decimals)
 const USE_USDC_FOR_PURCHASE = true; // Использовать USDC вместо ETH
-const USE_FARCASTER_SWAP = false; // Использовать смарт-контракт продажи вместо Uniswap swap
+// Base-версия: Farcaster swap отключён/удалён
 const DEFAULT_TOKEN_DECIMALS = 18;
 const PURCHASE_AMOUNT_USDC = 0.10; // Покупаем MCT на 0.10 USDC (количество рассчитывается через Uniswap)
 const BASE_CHAIN_ID = 8453; // Base mainnet
@@ -57,37 +57,12 @@ const TOKEN_SALE_USDC_ABI = [
   'event TokensPurchased(address indexed buyer, uint256 tokenAmount, uint256 paidAmount, bool isUSDC)',
 ];
 
-let cachedFarcasterProvider: ethers.BrowserProvider | null = null;
-
-async function ensureMiniAppProvider(): Promise<ethers.BrowserProvider | null> {
-  if (cachedFarcasterProvider) {
-    return cachedFarcasterProvider;
-  }
-
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
-  try {
-    const { getEthereumProvider } = await import('@farcaster/miniapp-sdk/dist/ethereumProvider');
-    const miniProvider = await getEthereumProvider();
-
-    if (!miniProvider) {
-      return null;
-    }
-
-    cachedFarcasterProvider = new ethers.BrowserProvider(miniProvider as any);
-    (window as any).ethereum = miniProvider;
-    return cachedFarcasterProvider;
-  } catch (error) {
-    console.warn('⚠️ Farcaster mini app provider not available:', (error as Error)?.message || error);
-    return null;
-  }
-}
-
-// Получить провайдер Farcaster Wallet
+// Получить провайдер из window.ethereum (Injected)
 export async function getProvider(): Promise<ethers.BrowserProvider | null> {
-  return await ensureMiniAppProvider();
+  if (typeof window === 'undefined') return null;
+  const ethereum = (window as any).ethereum;
+  if (!ethereum) return null;
+  return new ethers.BrowserProvider(ethereum as any);
 }
 
 // Получить провайдер для Base (с RPC fallback)
@@ -98,8 +73,6 @@ export function getBaseProvider(): ethers.JsonRpcProvider {
 // Переключить сеть на Base
 export async function switchToBaseNetwork(): Promise<boolean> {
   try {
-    await ensureMiniAppProvider();
-
     if (typeof window === 'undefined' || !(window as any).ethereum) {
       throw new Error('MetaMask is not installed');
     }
@@ -156,17 +129,12 @@ export async function connectWallet(): Promise<string | null> {
       throw new Error('Window is not available');
     }
 
-    const provider = await ensureMiniAppProvider();
-
+    const provider = await getProvider();
     if (!provider) {
-      if ((window as any).web3) {
-        throw new Error('Old Web3 provider detected. Please use Farcaster Wallet.');
-      }
-
-      throw new Error('Farcaster Wallet is not available. Please open the app through Farcaster Mini App.');
+      throw new Error('Кошелёк не найден. Установите/разрешите доступ к wallet (Coinbase Wallet/MetaMask) и обновите страницу.');
     }
 
-    console.log('🔄 Requesting Farcaster wallet connection...');
+    console.log('🔄 Requesting wallet connection...');
 
     try {
       const accounts = await provider.send('eth_requestAccounts', []);
@@ -175,13 +143,13 @@ export async function connectWallet(): Promise<string | null> {
         throw new Error('User cancelled wallet connection');
       }
 
-      console.log('✅ Wallet connected via Farcaster provider:', accounts[0]);
+      console.log('✅ Wallet connected:', accounts[0]);
       return accounts[0];
     } catch (requestError: any) {
       if (requestError.code === 4001) {
         throw new Error('User cancelled wallet connection');
       } else if (requestError.code === -32002) {
-        throw new Error('Connection request is already being processed. Please check Farcaster Wallet.');
+        throw new Error('Connection request is already being processed. Check your wallet window.');
       } else {
         throw new Error(requestError.message || 'Error requesting wallet connection');
       }
@@ -233,7 +201,7 @@ export async function approveUSDC(
   try {
     const provider = await getProvider();
     if (!provider) {
-      throw new Error('Farcaster Wallet не найден. Откройте приложение в Farcaster Mini App.');
+      throw new Error('Кошелёк не найден. Подключите wallet (Coinbase Wallet/MetaMask) и обновите страницу.');
     }
 
     // Проверяем, что адрес контракта валидный (не пустой и не только пробелы)
@@ -306,18 +274,10 @@ export async function buyToken(userFid: number): Promise<{
   verified?: boolean;
 }> {
   try {
-    // Используем Farcaster Swap API (включено по умолчанию)
-    if (USE_FARCASTER_SWAP) {
-      // Используем Farcaster Swap API
-      const paymentToken = USE_USDC_FOR_PURCHASE ? 'USDC' : 'ETH';
-      const { buyTokenViaFarcasterSwap } = await import('@/lib/farcaster-swap');
-      return await buyTokenViaFarcasterSwap(userFid, paymentToken);
-    }
-
     // Используем смарт-контракт (старый способ)
     const provider = await getProvider();
     if (!provider) {
-      throw new Error('Farcaster Wallet не найден. Откройте приложение в Farcaster Mini App.');
+      throw new Error('Кошелёк не найден. Откройте приложение в Base / подключите кошелёк.');
     }
 
     // Определяем, какой контракт использовать
@@ -353,7 +313,7 @@ export async function buyToken(userFid: number): Promise<{
     // Рассчитываем количество MCT, которое можно купить за 0.10 USDC через Uniswap
     const tokenAmount = await getMCTAmountForPurchase();
     if (!tokenAmount || tokenAmount === 0n) {
-      throw new Error('Не удалось рассчитать количество MCT для покупки через Uniswap');
+      throw new Error('Failed to calculate MCT amount for purchase via Uniswap');
     }
 
     const tokenDecimals = DEFAULT_TOKEN_DECIMALS;
@@ -407,7 +367,7 @@ async function buyTokenWithETH(
   // Обрезаем адрес от пробелов и переносов строк
   const cleanContractAddress = saleContractAddress.trim().replace(/[\r\n]/g, '');
   
-  // Используем Base RPC для чтения данных (getCostETH), так как Farcaster Wallet не поддерживает eth_call
+  // Используем Base RPC для чтения данных (getCostETH), чтобы не зависеть от ограничений injected провайдера.
   const baseProvider = getBaseProvider();
   const readContract = new ethers.Contract(cleanContractAddress, TOKEN_SALE_ABI, baseProvider);
   
@@ -415,14 +375,14 @@ async function buyTokenWithETH(
   const costWei: bigint = await readContract.getCostETH(tokenAmount);
   const costEth = ethers.formatEther(costWei);
   
-  // Для записи (покупки) используем signer с Farcaster Wallet
+  // Для записи (покупки) используем signer с injected wallet
   const saleContract = new ethers.Contract(cleanContractAddress, TOKEN_SALE_ABI, signer);
   
   const tokenAmountFormatted = ethers.formatUnits(tokenAmount, tokenDecimals);
   console.log(`💰 Purchase cost: ${costEth} ETH for ${tokenAmountFormatted} MCT`);
 
   if (costWei <= 0n) {
-    throw new Error('Цена покупки возвращает ноль. Проверьте контракт продажи.');
+    throw new Error('Purchase price returns zero. Check the sale contract.');
   }
 
   // Проверяем баланс ETH
@@ -479,25 +439,25 @@ async function buyTokenWithUSDC(
   // Обрезаем адрес от пробелов и переносов строк
   const cleanContractAddress = saleContractAddress.trim().replace(/[\r\n]/g, '');
   
-  // Используем Base RPC для чтения данных (getCostUSDC), так как Farcaster Wallet не поддерживает eth_call
+  // Используем Base RPC для чтения данных (getCostUSDC), чтобы не зависеть от ограничений injected провайдера.
   const baseProvider = getBaseProvider();
   const readContract = new ethers.Contract(cleanContractAddress, TOKEN_SALE_USDC_ABI, baseProvider);
   
   // Получаем стоимость покупки в USDC используя Base RPC
   const costUSDC: bigint = await readContract.getCostUSDC(tokenAmount);
   
-  // Для записи (покупки) используем signer с Farcaster Wallet
+  // Для записи (покупки) используем signer с injected wallet
   const saleContract = new ethers.Contract(cleanContractAddress, TOKEN_SALE_USDC_ABI, signer);
   const costUSDCFormatted = ethers.formatUnits(costUSDC, 6); // USDC имеет 6 decimals
   const tokenAmountFormatted = ethers.formatUnits(tokenAmount, tokenDecimals);
   console.log(`💰 Purchase cost: ${costUSDCFormatted} USDC for ${tokenAmountFormatted} MCT`);
 
   if (costUSDC <= 0n) {
-    throw new Error('Цена покупки возвращает ноль. Проверьте контракт продажи.');
+    throw new Error('Purchase price returns zero. Check the sale contract.');
   }
 
-  // Для чтения данных используем Base RPC (Farcaster Wallet не поддерживает eth_call)
-  // Для записи (approve, transfer) используем signer с Farcaster Wallet
+  // Для чтения данных используем Base RPC
+  // Для записи (approve) используем signer с injected wallet
   const usdcContractRead = new ethers.Contract(USDC_CONTRACT_ADDRESS, ERC20_ABI, baseProvider);
   const usdcContract = new ethers.Contract(USDC_CONTRACT_ADDRESS, ERC20_ABI, signer);
   
@@ -567,7 +527,7 @@ async function buyTokenWithUSDC(
 // Проверить баланс токена $MCT
 export async function checkTokenBalance(address: string): Promise<string> {
   try {
-    // Всегда используем Base RPC, так как Farcaster Wallet не поддерживает eth_call
+    // Всегда используем Base RPC
     const provider = getBaseProvider();
     
     const contract = new ethers.Contract(TOKEN_CONTRACT_ADDRESS, ERC20_ABI, provider);
@@ -589,7 +549,7 @@ export async function getTokenInfo(): Promise<{
   decimals: number;
 }> {
   try {
-    // Всегда используем Base RPC, так как Farcaster Wallet не поддерживает eth_call
+    // Всегда используем Base RPC
     const provider = getBaseProvider();
 
     const contract = new ethers.Contract(TOKEN_CONTRACT_ADDRESS, ERC20_ABI, provider);
@@ -617,8 +577,7 @@ export async function getTokenInfo(): Promise<{
   }
 }
 
-// Получить цену 1 MCT в USDC через Uniswap пары MCT/WETH и WETH/USDC (полностью onchain через API)
-// Использует backend API для избежания eth_call в Farcaster Wallet
+// Получить цену 1 MCT в USDC через onchain quote (через backend API)
 async function getMCTPricePerTokenInUSDC(): Promise<number | null> {
   try {
     console.log(`🔍 Fetching MCT price: MCT → WETH → USDC (via API backend)...`);
@@ -811,11 +770,6 @@ export async function getPurchaseCost(): Promise<{
 // Верифицировать покупку токена через контракт продажи (ETH)
 export async function verifyTokenPurchase(txHash: string, buyerAddress: string): Promise<boolean> {
   try {
-    // Если используется swap, верификация не нужна (swap происходит через DEX)
-    if (USE_FARCASTER_SWAP) {
-      return true; // Swap верифицируется через баланс токенов
-    }
-
     const useSeparateUSDCContract = USE_USDC_FOR_PURCHASE && TOKEN_SALE_USDC_CONTRACT_ADDRESS;
     let saleContractAddress: string = useSeparateUSDCContract 
       ? TOKEN_SALE_USDC_CONTRACT_ADDRESS 
@@ -965,17 +919,7 @@ async function verifyTokenPurchaseUSDC(txHash: string, buyerAddress: string): Pr
   }
 }
 
-// Верифицировать покупку токена через Farcaster API
-export async function verifyTokenPurchaseViaFarcaster(userFid: number): Promise<boolean> {
-  try {
-    const { getUserByFid } = await import('@/lib/neynar');
-    const user = await getUserByFid(userFid);
-    return !!user;
-  } catch (error) {
-    console.error('Error verifying token purchase via Farcaster:', error);
-    return false;
-  }
-}
+// Base: verifyTokenPurchaseViaFarcaster удалено (Farcaster/Neynar не используем)
 
 // Проверить транзакцию
 export async function verifyTransaction(txHash: string): Promise<boolean> {
