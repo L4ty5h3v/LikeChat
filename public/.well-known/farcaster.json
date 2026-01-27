@@ -1,30 +1,18 @@
 {
-  "accountAssociation": {
-    "header": "",
-    "payload": "",
-    "signature": ""
-  },
   "miniapp": {
     "version": "1",
-    "name": "MULTI BUY",
-    "homeUrl": "https://likechat-base-app.vercel.app",
-    "iconUrl": "https://likechat-base-app.vercel.app/favicon.ico",
-    "splashImageUrl": "https://likechat-base-app.vercel.app/images/mrs-crypto.jpg",
-    "splashBackgroundColor": "#000000",
-    "webhookUrl": "https://likechat-base-app.vercel.app/api/webhook",
-    "subtitle": "Buy posts on Base",
-    "description": "Complete tasks by buying post-tokens on Base. Publish after 5 buys.",
-    "screenshotUrls": [
-      "https://likechat-base-app.vercel.app/images/mrs-crypto.jpg"
-    ],
+    "name": "MULTI LIKE",
+    "iconUrl": "https://likechat-farcaster.vercel.app/images/icon.png",
+    "homeUrl": "https://likechat-farcaster.vercel.app/",
+    "subtitle": "You like, they like back",
+    "description": "Gain likes and recasts through mutual activity. Choose LIKE or RECAST mode, complete tasks on other users casts, then add your own cast link. Fair mechanics, no bots.",
     "primaryCategory": "social",
-    "tags": ["baseapp", "miniapp", "social"],
-    "heroImageUrl": "https://likechat-base-app.vercel.app/images/mrs-crypto.jpg",
-    "tagline": "MULTI BUY",
-    "ogTitle": "MULTI BUY",
-    "ogDescription": "Buy post-tokens on Base.",
-    "ogImageUrl": "https://likechat-base-app.vercel.app/images/mrs-crypto.jpg",
-    "noindex": false
+    "splashBackgroundColor": "#C71585",
+    "splashImageUrl": "https://likechat-farcaster.vercel.app/images/image%20(3).png"
+  },
+  "accountAssociation": {
+    "header": "eyJmaWQiOjQzOTY5OSwidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweDhjM2M0N0U0NTM4YzZmQzU4Y0NhQjk0OTM0OGMxRTVmOTkwMDRkZjgifQ",
+    "payload": "eyJkb21haW4iOiJsaWtlY2hhdC1mYXJjYXN0ZXIudmVyY2VsLmFwcCJ9",
+    "signature": "L8+UCEjvubB4IQ8NFCsfLQiPFm23G/YTlTvffqILQQEtEj3Ahgc7Pvn9rMG7E9WeAwUrwEH22z9nPmaSSVCbqxw="
   }
 }
-
