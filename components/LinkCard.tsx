@@ -83,7 +83,7 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
           <span>Completed: {link.completed_by?.length || 0}</span>
         </div>
         
-        {!hasPostUrl ? <span className="text-xs text-gray-500 font-bold">Нет ссылки на пост</span> : null}
+        {!hasPostUrl ? <span className="text-xs text-gray-500 font-bold">No post link</span> : null}
       </div>
 
       {postModalUrl ? (

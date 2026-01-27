@@ -149,7 +149,7 @@ export async function connectWallet(): Promise<string | null> {
       if (requestError.code === 4001) {
         throw new Error('User cancelled wallet connection');
       } else if (requestError.code === -32002) {
-        throw new Error('Запрос на подключение уже обрабатывается. Проверьте окно кошелька.');
+        throw new Error('Connection request is already being processed. Check your wallet window.');
       } else {
         throw new Error(requestError.message || 'Error requesting wallet connection');
       }
@@ -313,7 +313,7 @@ export async function buyToken(userFid: number): Promise<{
     // Рассчитываем количество MCT, которое можно купить за 0.10 USDC через Uniswap
     const tokenAmount = await getMCTAmountForPurchase();
     if (!tokenAmount || tokenAmount === 0n) {
-      throw new Error('Не удалось рассчитать количество MCT для покупки через Uniswap');
+      throw new Error('Failed to calculate MCT amount for purchase via Uniswap');
     }
 
     const tokenDecimals = DEFAULT_TOKEN_DECIMALS;
@@ -382,7 +382,7 @@ async function buyTokenWithETH(
   console.log(`💰 Purchase cost: ${costEth} ETH for ${tokenAmountFormatted} MCT`);
 
   if (costWei <= 0n) {
-    throw new Error('Цена покупки возвращает ноль. Проверьте контракт продажи.');
+    throw new Error('Purchase price returns zero. Check the sale contract.');
   }
 
   // Проверяем баланс ETH
@@ -453,7 +453,7 @@ async function buyTokenWithUSDC(
   console.log(`💰 Purchase cost: ${costUSDCFormatted} USDC for ${tokenAmountFormatted} MCT`);
 
   if (costUSDC <= 0n) {
-    throw new Error('Цена покупки возвращает ноль. Проверьте контракт продажи.');
+    throw new Error('Purchase price returns zero. Check the sale contract.');
   }
 
   // Для чтения данных используем Base RPC

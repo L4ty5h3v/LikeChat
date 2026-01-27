@@ -1,0 +1,59 @@
+{
+  "name": "MULTI LIKE",
+  "short_name": "MULTI LIKE",
+  "description": "5 purchases = your post in the game. Honest and beautiful. 😏",
+  "long_description": "MULTI LIKE is a game of love and attention. 💎 Buy posts for $0.10 USDC — whisper \"I see you\" to content creators. Make 5 purchases — now your post can flirt with the world. Everything is honest, beautiful, and transparent — Base smart contracts watch every move. 😏 Share attention, play with energy, and let every click leave a spark. ✨",
+  "icon": "/icon-64-multi-like.svg",
+  "splash": "/icon-512.svg",
+  "url": "https://likechat-farcaster.vercel.app",
+  "home_url": "https://likechat-farcaster.vercel.app",
+  "category": "Social",
+  "tags": [
+    "Farcaster",
+    "Base",
+    "Social",
+    "Community",
+    "Support",
+    "Tokens",
+    "USDC",
+    "Content Monetization"
+  ],
+  "keywords": [
+    "buy posts",
+    "support creators",
+    "Farcaster",
+    "Base network",
+    "post tokens",
+    "community support",
+    "content monetization"
+  ],
+  "version": "1.0.0",
+  "author": "MULTI LIKE Team",
+  "permissions": [
+    "farcaster",
+    "wallet"
+  ],
+  "features": [
+    "Buy posts for $0.10 USDC",
+    "On-chain verification",
+    "Gated publishing (5 purchases required)",
+    "Direct creator support",
+    "Base network integration"
+  ],
+  "network": {
+    "chain_id": 8453,
+    "chain_name": "Base",
+    "rpc_url": "https://mainnet.base.org",
+    "token": "USDC",
+    "token_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "purchase_amount": "0.10"
+  },
+  "requirements": {
+    "purchases_to_publish": 5,
+    "purchase_amount_usdc": 0.10
+  },
+  "screenshots": [],
+  "support_url": "https://likechat-farcaster.vercel.app",
+  "privacy_policy_url": "https://likechat-farcaster.vercel.app",
+  "terms_of_service_url": "https://likechat-farcaster.vercel.app"
+}
