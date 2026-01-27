@@ -631,7 +631,7 @@ export default function TasksPage() {
   }, [completedLinkIds, ownedLinkIds]);
 
   const completedCountBatch = useMemo(() => {
-    // UI hint: count progress only within the current batch (the 5 links shown on screen).
+    // UI hint: count progress only within the current batch (the links shown on screen).
     const currentIds = new Set<string>(links.map((l) => l.id));
     const ids = new Set<string>();
     for (const id of completedLinkIds) {
