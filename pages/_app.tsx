@@ -12,16 +12,32 @@ import { FarcasterAuthProvider } from '@/contexts/FarcasterAuthContext';
 
 const AuthSyncNoSSR = dynamic(() => import('@/components/AuthSync').then((m) => m.AuthSync), { ssr: false });
 
-const queryClient = new QueryClient();
-
-const wagmiConfig = createConfig({
-  chains: [base],
-  connectors: [injected()],
-  transports: {
-    [base.id]: http(),
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
   },
-  ssr: true,
 });
+
+// Создаем wagmiConfig только на клиенте, чтобы избежать ошибок SSR
+let wagmiConfig: ReturnType<typeof createConfig> | null = null;
+
+if (typeof window !== 'undefined') {
+  try {
+    wagmiConfig = createConfig({
+      chains: [base],
+      connectors: [injected()],
+      transports: {
+        [base.id]: http(),
+      },
+      ssr: false, // Отключаем SSR для Wagmi в Farcaster Mini App
+    });
+  } catch (error) {
+    console.error('❌ [APP] Failed to create wagmi config:', error);
+  }
+}
 
 export default function App({ Component, pageProps }: AppProps) {
   // Глобальный обработчик ошибок для отлова неперехваченных ошибок
@@ -59,6 +75,20 @@ export default function App({ Component, pageProps }: AppProps) {
   }, []);
 
   // Base-версия: Farcaster Mini App SDK не используем
+
+  // Если wagmiConfig не создан, рендерим без провайдеров (fallback)
+  if (!wagmiConfig) {
+    return (
+      <>
+        <Head>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+        </Head>
+        <FarcasterAuthProvider>
+          <Component {...pageProps} />
+        </FarcasterAuthProvider>
+      </>
+    );
+  }
 
   return (
     <>
