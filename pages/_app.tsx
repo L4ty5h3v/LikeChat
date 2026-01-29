@@ -22,15 +22,29 @@ const queryClient = new QueryClient({
   },
 });
 
-// Создаем wagmiConfig всегда (для SSR), но делаем его безопасным
-const wagmiConfig = createConfig({
-  chains: [base],
-  connectors: [injected()],
-  transports: {
-    [base.id]: http(),
-  },
-  ssr: true, // Включаем SSR, но провайдеры будут работать только на клиенте
-});
+// Создаем wagmiConfig с обработкой ошибок
+let wagmiConfig: ReturnType<typeof createConfig>;
+try {
+  wagmiConfig = createConfig({
+    chains: [base],
+    connectors: [injected()],
+    transports: {
+      [base.id]: http(),
+    },
+    ssr: true, // Включаем SSR, но провайдеры будут работать только на клиенте
+  });
+} catch (error) {
+  console.error('❌ [APP] Failed to create wagmi config:', error);
+  // Создаем минимальный конфиг в случае ошибки
+  wagmiConfig = createConfig({
+    chains: [base],
+    connectors: [],
+    transports: {
+      [base.id]: http(),
+    },
+    ssr: true,
+  });
+}
 
 export default function App({ Component, pageProps }: AppProps) {
   // Глобальный обработчик ошибок для отлова неперехваченных ошибок
