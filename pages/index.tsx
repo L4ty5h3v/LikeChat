@@ -524,7 +524,7 @@ export default function Home() {
                   MULTI
                 </span>
                 <span className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-white">
-                  BUY
+                  LIKE
                 </span>
             </h1>
             </div>
