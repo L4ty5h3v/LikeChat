@@ -26,6 +26,8 @@ const wagmiConfig = createConfig({
 export default function App({ Component, pageProps }: AppProps) {
   // Глобальный обработчик ошибок для отлова неперехваченных ошибок
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+
     const handleError = (event: ErrorEvent) => {
       console.error('🔴 [GLOBAL-ERROR] Unhandled error:', {
         message: event.message,
@@ -34,6 +36,8 @@ export default function App({ Component, pageProps }: AppProps) {
         colno: event.colno,
         error: event.error,
       });
+      // Предотвращаем полный краш приложения
+      event.preventDefault();
     };
 
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
@@ -41,6 +45,8 @@ export default function App({ Component, pageProps }: AppProps) {
         reason: event.reason,
         promise: event.promise,
       });
+      // Предотвращаем полный краш приложения
+      event.preventDefault();
     };
 
     window.addEventListener('error', handleError);
