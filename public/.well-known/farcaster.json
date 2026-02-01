@@ -11,6 +11,7 @@
     "splashImageUrl": "https://likechat-farcaster.vercel.app/images/image%20(3).png"
   },
   "accountAssociation": {
+    
     "header": "eyJmaWQiOjQzOTY5OSwidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweDhjM2M0N0U0NTM4YzZmQzU4Y0NhQjk0OTM0OGMxRTVmOTkwMDRkZjgifQ",
     "payload": "eyJkb21haW4iOiJsaWtlY2hhdC1mYXJjYXN0ZXIudmVyY2VsLmFwcCJ9",
     "signature": "L8+UCEjvubB4IQ8NFCsfLQiPFm23G/YTlTvffqILQQEtEj3Ahgc7Pvn9rMG7E9WeAwUrwEH22z9nPmaSSVCbqxw="
