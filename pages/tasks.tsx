@@ -182,10 +182,10 @@ export default function TasksPage() {
   const REFETCH_DEBOUNCE_MS = 2000; // Минимум 2 секунды между обновлениями балансов
   const SYNC_PENDING_SWAP_DEBOUNCE_MS = 3000; // Минимум 3 секунды между синхронизациями pending swap
 
-  // Always operate in "support" mode (buy posts)
+  // Always operate in "like" mode for Farcaster
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    localStorage.setItem('selected_activity', 'support');
+    localStorage.setItem('selected_activity', 'like');
   }, []);
 
   // NOTE: Do not force-reload via `window.location.replace()` for cache-busting.

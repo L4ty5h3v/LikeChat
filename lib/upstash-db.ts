@@ -131,6 +131,10 @@ export async function getLastTenLinks(taskType?: TaskType): Promise<LinkSubmissi
 
     // Получаем все ссылки (берем больше, чтобы после фильтрации осталось достаточно)
     const allLinks = await redis.lrange(KEYS.LINKS, 0, -1);
+    
+    console.log(`📦 [getLastTenLinks] Raw data from Redis:`);
+    console.log(`   - Total raw links from lrange: ${allLinks.length}`);
+    
     const parsedLinks = allLinks.map((linkStr: any) => {
       // Try to parse as JSON, or use as-is if already parsed
       const link = typeof linkStr === 'string' ? JSON.parse(linkStr) : linkStr;
@@ -152,13 +156,36 @@ export async function getLastTenLinks(taskType?: TaskType): Promise<LinkSubmissi
       return dateB - dateA;
     });
     
+    console.log(`   - Parsed links: ${parsedLinks.length}`);
+    if (parsedLinks.length > 0) {
+      console.log(`   - Task types distribution:`);
+      const typeCount: Record<string, number> = {};
+      parsedLinks.forEach((link: LinkSubmission) => {
+        const type = link.task_type || 'undefined';
+        typeCount[type] = (typeCount[type] || 0) + 1;
+      });
+      Object.entries(typeCount).forEach(([type, count]) => {
+        console.log(`     - ${type}: ${count}`);
+      });
+    }
+    
     // Фильтруем по taskType, если указан
     let filteredLinks = parsedLinks;
     if (taskType) {
       // ⚠️ ВАЖНО: Строгая фильтрация - только ссылки нужного типа, без дополнения другими типами
       filteredLinks = parsedLinks.filter((link: LinkSubmission) => link.task_type === taskType);
-      console.log(`🔍 Filtering links by task type: ${taskType}`);
-      console.log(`📊 Total links: ${parsedLinks.length}, Filtered: ${filteredLinks.length} (strict filtering - no mixing)`);
+      console.log(`🔍 [getLastTenLinks] Filtering by task type: ${taskType}`);
+      console.log(`📊 [getLastTenLinks] Before filter: ${parsedLinks.length}, After filter: ${filteredLinks.length}`);
+      
+      if (filteredLinks.length < parsedLinks.length) {
+        const otherTypes = parsedLinks
+          .filter((link: LinkSubmission) => link.task_type !== taskType)
+          .map((link: LinkSubmission) => link.task_type)
+          .filter((type, idx, arr) => arr.indexOf(type) === idx);
+        console.log(`   - Links with other types (${otherTypes.length} types): ${otherTypes.join(', ')}`);
+      }
+    } else {
+      console.log(`🔍 [getLastTenLinks] No taskType filter, returning all ${parsedLinks.length} links`);
     }
     
     // Разделяем на закрепленные и обычные ссылки
@@ -194,22 +221,33 @@ export async function getLastTenLinks(taskType?: TaskType): Promise<LinkSubmissi
     }
     
     // Убираем null значения и берем только существующие ссылки
-    const finalResult = result.filter((link): link is LinkSubmission => link !== null);
+    let finalResult = result.filter((link): link is LinkSubmission => link !== null);
+    
+    console.log(`📊 [getLastTenLinks] Final processing:`);
+    console.log(`   - Pinned links: ${pinnedLinks.length}`);
+    console.log(`   - Regular links: ${regularLinks.length}`);
+    console.log(`   - Result array size: ${result.length} (TASKS_LIMIT: ${TASKS_LIMIT})`);
+    console.log(`   - Final result (after removing nulls): ${finalResult.length}`);
+    
+    // ⚠️ ВАЖНО: Если ссылок меньше TASKS_LIMIT, это означает, что в базе меньше ссылок нужного типа
+    // Логируем предупреждение, если ссылок меньше ожидаемого
+    if (finalResult.length < TASKS_LIMIT) {
+      console.warn(`⚠️  [getLastTenLinks] WARNING: Only ${finalResult.length} links found (expected ${TASKS_LIMIT})`);
+      console.warn(`   - Total links in DB: ${parsedLinks.length}`);
+      console.warn(`   - Filtered by ${taskType || 'all'}: ${filteredLinks.length}`);
+      console.warn(`   - Pinned: ${pinnedLinks.length}, Regular: ${regularLinks.length}`);
+    }
     
     // Логируем данные для диагностики
-    console.log(`📖 Loaded ${finalResult.length} links from Redis${taskType ? ` (filtered by ${taskType})` : ' (all tasks)'}:`, 
-      finalResult.map((link, index) => ({
-        index: index + 1,
-        id: link.id,
-        username: link.username,
-        user_fid: link.user_fid,
-        task_type: link.task_type,
-        pinned: link.pinned || false,
-        pinned_position: link.pinned_position || null,
-        created_at: link.created_at,
-        cast_url: link.cast_url?.substring(0, 50) + '...',
-      }))
-    );
+    console.log(`📖 [getLastTenLinks] Returning ${finalResult.length} links${taskType ? ` (filtered by ${taskType})` : ' (all tasks)'}`);
+    if (finalResult.length > 0) {
+      console.log(`   - Links summary:`);
+      finalResult.forEach((link, index) => {
+        console.log(`     [${index + 1}/${finalResult.length}] ID: ${link.id.substring(0, 8)}..., Type: ${link.task_type}, User: @${link.username}, Pinned: ${link.pinned || false}${link.pinned_position ? ` (pos: ${link.pinned_position})` : ''}`);
+      });
+    } else {
+      console.log(`   ⚠️  No links to return!`);
+    }
     
     return finalResult;
   } catch (error) {

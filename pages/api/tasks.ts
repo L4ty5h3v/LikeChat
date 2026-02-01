@@ -21,8 +21,8 @@ export default async function handler(
     // Получаем taskType из query параметров
     const taskType = req.query.taskType as TaskType | undefined;
     
-    // Валидация taskType - для Base App поддерживаем только 'support'
-    const validTaskTypes: TaskType[] = ['support'];
+    // Валидация taskType - для Farcaster поддерживаем 'like', 'recast', 'comment', 'support'
+    const validTaskTypes: TaskType[] = ['like', 'recast', 'comment', 'support'];
     if (taskType && !validTaskTypes.includes(taskType)) {
       return res.status(400).json({
         error: 'Invalid task type',
@@ -31,11 +31,31 @@ export default async function handler(
     }
 
     // ⚠️ ВАЖНО: Строгая фильтрация - возвращаем только ссылки нужного типа (может быть пустой массив)
-    const links = (await getLastTenLinks(taskType)).slice(0, TASKS_LIMIT);
+    const allLinksFromDb = await getLastTenLinks(taskType);
+    const links = allLinksFromDb.slice(0, TASKS_LIMIT);
     
-    console.log(
-      `📋 API /tasks: returning ${links.length} links${taskType ? ` (strictly filtered by task: ${taskType})` : ' (all tasks)'}`
-    );
+    // Подробное логирование для диагностики
+    console.log('='.repeat(80));
+    console.log(`📋 [API /tasks] Request details:`);
+    console.log(`   - taskType: ${taskType || 'undefined (all tasks)'}`);
+    console.log(`   - TASKS_LIMIT: ${TASKS_LIMIT}`);
+    console.log(`   - Links from DB: ${allLinksFromDb.length}`);
+    console.log(`   - Links after slice(0, ${TASKS_LIMIT}): ${links.length}`);
+    console.log(`   - Expected: ${TASKS_LIMIT}, Actual: ${links.length}, Difference: ${TASKS_LIMIT - links.length}`);
+    
+    if (links.length > 0) {
+      console.log(`   - Link details:`);
+      links.forEach((link, idx) => {
+        console.log(`     [${idx + 1}] ID: ${link.id}, Type: ${link.task_type}, Username: ${link.username}, Pinned: ${link.pinned || false}`);
+      });
+    } else {
+      console.log(`   ⚠️  WARNING: No links returned!`);
+    }
+    
+    if (links.length < TASKS_LIMIT) {
+      console.log(`   ⚠️  WARNING: Only ${links.length} links returned, expected ${TASKS_LIMIT}`);
+    }
+    console.log('='.repeat(80));
     
     return res.status(200).json({ success: true, links });
   } catch (error: any) {

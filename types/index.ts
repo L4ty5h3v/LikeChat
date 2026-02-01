@@ -8,8 +8,8 @@ export interface BaseUser {
   address?: string;
 }
 
-// Base-версия: единственная активность — поддержка (покупка post-token).
-export type TaskType = 'support';
+// Farcaster-версия: поддерживаем типы задач для лайков, рекастов и комментариев
+export type TaskType = 'like' | 'recast' | 'comment' | 'support';
 // ActivityType — алиас для TaskType (для совместимости импорта)
 export type ActivityType = TaskType;
 

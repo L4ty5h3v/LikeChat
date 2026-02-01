@@ -30,12 +30,12 @@ export default async function handler(
     if (!taskType) {
       return res.status(400).json({
         error: 'Missing taskType',
-        message: 'taskType is required. Must be "support".'
+        message: 'taskType is required. Must be one of: "like", "recast", "comment", "support".'
       });
     }
 
-    // Валидация taskType
-    const validTaskTypes: TaskType[] = ['support'];
+    // Валидация taskType - поддерживаем все типы для Farcaster
+    const validTaskTypes: TaskType[] = ['like', 'recast', 'comment', 'support'];
     if (!validTaskTypes.includes(taskType)) {
       return res.status(400).json({
         error: 'Invalid task type',
