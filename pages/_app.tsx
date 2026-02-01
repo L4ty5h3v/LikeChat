@@ -64,6 +64,26 @@ export default function App({ Component, pageProps }: AppProps) {
     };
 
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      // Игнорируем ошибки загрузки изображений (они не критичны)
+      const reason = event.reason;
+      if (reason && typeof reason === 'object' && 'target' in reason) {
+        const target = (reason as any).target;
+        if (target && target.tagName === 'IMG') {
+          // Это ошибка загрузки изображения - не логируем, чтобы не засорять консоль
+          event.preventDefault();
+          return;
+        }
+      }
+      
+      // Игнорируем ошибки из Farcaster компонентов (UnfocusedCast и т.д.)
+      if (reason && typeof reason === 'object' && 'isTrusted' in reason) {
+        const errorEvent = reason as ErrorEvent;
+        if (errorEvent.target && (errorEvent.target as any).tagName === 'IMG') {
+          event.preventDefault();
+          return;
+        }
+      }
+
       console.error('🔴 [GLOBAL-ERROR] Unhandled promise rejection:', {
         reason: event.reason,
         promise: event.promise,
@@ -72,8 +92,21 @@ export default function App({ Component, pageProps }: AppProps) {
       event.preventDefault();
     };
 
+    // Обработка ошибок загрузки изображений
+    const handleImageError = (event: Event) => {
+      // Тихо обрабатываем ошибки загрузки изображений
+      const img = event.target as HTMLImageElement;
+      if (img && img.tagName === 'IMG') {
+        // Устанавливаем fallback или скрываем изображение
+        if (img.src && !img.src.includes('data:')) {
+          img.style.display = 'none';
+        }
+      }
+    };
+
     window.addEventListener('error', handleError);
     window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    document.addEventListener('error', handleImageError, true); // Используем capture phase
 
     return () => {
       window.removeEventListener('error', handleError);

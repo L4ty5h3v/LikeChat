@@ -18,6 +18,47 @@ export const AuthSync: React.FC = () => {
   const { user, setUser } = useFarcasterAuth();
   const { context: miniKitContext } = useMiniKit();
 
+  // Сначала пытаемся получить пользователя из MiniKit (даже без подключенного кошелька)
+  useEffect(() => {
+    const syncUserFromMiniKit = async () => {
+      try {
+        const mkUser: any = (miniKitContext as any)?.user;
+        if (mkUser?.fid) {
+          const mkUsername = (mkUser.username || mkUser.displayName || `user_${mkUser.fid}`).toString();
+          const mkPfp = normalizeAvatarUrl(mkUser.pfpUrl) || fallbackAvatarDataUri(mkUsername, 96);
+          const mkAddress = address || (mkUser.address as string | undefined);
+
+          // Не обновляем, если уже синхронизировано
+          if (
+            user?.fid === Number(mkUser.fid) &&
+            user?.username === mkUsername &&
+            user?.pfp_url === mkPfp
+          ) {
+            return;
+          }
+
+          console.log('✅ [AUTH-SYNC] Found user from MiniKit:', {
+            fid: mkUser.fid,
+            username: mkUsername,
+            hasAddress: !!mkAddress,
+          });
+
+          setUser({
+            fid: Number(mkUser.fid),
+            username: mkUsername,
+            pfp_url: mkPfp,
+            display_name: (mkUser.displayName || mkUsername).toString(),
+            address: mkAddress,
+          });
+        }
+      } catch (error) {
+        console.error('❌ [AUTH-SYNC] Error syncing from MiniKit:', error);
+      }
+    };
+
+    syncUserFromMiniKit();
+  }, [miniKitContext, user, setUser, address]);
+
   useEffect(() => {
     const syncUserFromWallet = async () => {
       if (!isConnected || !address) {
