@@ -11,6 +11,7 @@
     "deploy": "node scripts/deploy-token-sale.js",
     "fund": "node scripts/fund-contract.js",
     "check-db": "node scripts/check-db.mjs"
+    
   },
   "dependencies": {
     "@coinbase/onchainkit": "^1.1.2",
