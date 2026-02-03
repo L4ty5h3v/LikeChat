@@ -908,7 +908,7 @@ export default function BuyToken() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-lg text-gray-700 font-semibold">Token balance:</span>
-                <span className="font-bold text-primary text-2xl">
+                <span className="font-bold text-primary text-lg">
                   {parseFloat(tokenBalance).toFixed(2)} $MCT
                 </span>
               </div>
