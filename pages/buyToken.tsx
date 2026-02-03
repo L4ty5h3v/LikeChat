@@ -105,7 +105,7 @@ export default function BuyToken() {
   const [swapWaitTime, setSwapWaitTime] = useState(0);
   const MAX_RETRIES = 3;
   const BLOCKS_TO_CHECK = 4; // Проверяем каждые 4 блока (~12 секунд на Base)
-  const SWAP_TIMEOUT_MS = 60000; // Увеличиваем таймаут до 60 секунд
+  const SWAP_TIMEOUT_MS = 120000; // Увеличиваем таймаут до 120 секунд (2 минуты) для медленных транзакций
   
   // Real-time block listener для проверки баланса
   const { data: blockNumber } = useBlockNumber({
@@ -422,6 +422,57 @@ export default function BuyToken() {
     }
   };
 
+  // Функция для проверки статуса транзакции через RPC
+  const checkTransactionStatus = async (txHash: string) => {
+    if (!txHash || !isSwapping) return;
+    
+    try {
+      const BASE_RPC_URL = 'https://mainnet.base.org';
+      const response = await fetch(BASE_RPC_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'eth_getTransactionReceipt',
+          params: [txHash],
+          id: 1,
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (data.result) {
+        const receipt = data.result;
+        if (receipt.status === '0x1') {
+          // Транзакция успешна
+          console.log('✅ [TX] Transaction confirmed on-chain:', txHash);
+          // Баланс должен обновиться автоматически, но принудительно обновляем
+          setTimeout(() => {
+            refetchMCTBalance();
+          }, 2000);
+        } else if (receipt.status === '0x0') {
+          // Транзакция провалилась
+          console.error('❌ [TX] Transaction failed on-chain:', txHash);
+          handleSwapError(new Error('Transaction failed on-chain'), false);
+        }
+      } else {
+        // Транзакция еще не подтверждена, продолжаем ждать
+        console.log('⏳ [TX] Transaction pending, will check again...');
+        // Повторная проверка через 10 секунд
+        setTimeout(() => {
+          if (isSwapping) {
+            checkTransactionStatus(txHash);
+          }
+        }, 10000);
+      }
+    } catch (error) {
+      console.warn('⚠️ [TX] Error checking transaction status:', error);
+      // Не прерываем процесс, продолжаем ждать обновления баланса
+    }
+  };
+
   // Функция для retry с exponential backoff
   const handleRetry = () => {
     if (retryCount >= MAX_RETRIES) {
@@ -448,7 +499,20 @@ export default function BuyToken() {
     }
   };
 
-  // Real-time баланс через блоки: проверяем каждые 3-5 блоков
+  // Real-time баланс: проверяем каждые 5 секунд (более часто, чем через блоки)
+  useEffect(() => {
+    if (!isSwapping || oldBalanceBeforeSwap === null) return;
+
+    // Проверяем баланс каждые 5 секунд
+    const balanceCheckInterval = setInterval(() => {
+      console.log('🔍 [BALANCE] Periodic balance check (every 5 seconds)...');
+      refetchMCTBalance();
+    }, 5000);
+
+    return () => clearInterval(balanceCheckInterval);
+  }, [isSwapping, oldBalanceBeforeSwap, refetchMCTBalance]);
+
+  // Дополнительная проверка через блоки (каждые 4 блока ~12 секунд на Base)
   useEffect(() => {
     if (!isSwapping || !blockNumber || !mctBalance || oldBalanceBeforeSwap === null) return;
 
@@ -464,9 +528,9 @@ export default function BuyToken() {
     setBlocksSinceSwap(prev => prev + blocksPassed);
     setLastCheckedBlock(blockNumber);
 
-    // Проверяем баланс каждые BLOCKS_TO_CHECK блоков
+    // Проверяем баланс каждые BLOCKS_TO_CHECK блоков (дополнительно к периодической проверке)
     if (blocksSinceSwap >= BLOCKS_TO_CHECK) {
-      console.log(`🔍 Checking balance after ${blocksSinceSwap} blocks (block ${blockNumber})...`);
+      console.log(`🔍 [BALANCE] Block-based check after ${blocksSinceSwap} blocks (block ${blockNumber})...`);
       refetchMCTBalance();
       setBlocksSinceSwap(0); // Сбрасываем счетчик после проверки
     }
@@ -483,11 +547,19 @@ export default function BuyToken() {
         const mctReceived = newBalance - oldBalanceBeforeSwap;
         console.log('✅ Balance increased! Swap completed successfully');
         console.log(`📊 Balance: ${oldBalanceBeforeSwap} → ${newBalance} MCT (received: ${mctReceived.toFixed(4)} MCT)`);
+        
+        // Очищаем таймаут при успешном завершении
+        if (swapTimeoutId) {
+          clearTimeout(swapTimeoutId);
+          setSwapTimeoutId(null);
+        }
+        
         setIsSwapping(false);
         setSwapInitiatedAt(null);
         setOldBalanceBeforeSwap(null);
         setLastCheckedBlock(null);
         setBlocksSinceSwap(0);
+        setSwapWaitTime(0);
         setPurchased(true);
         
         // Отметить покупку в базе данных и отправить уведомление
@@ -584,7 +656,7 @@ export default function BuyToken() {
       setIsSwapping(true);
       setSwapInitiatedAt(Date.now());
 
-      // Таймаут для swap - 60 секунд
+      // Таймаут для swap - 60 секунд (НЕ очищаем сразу после вызова, ждем завершения)
       const timeoutId = setTimeout(() => {
         console.warn(`⏱️ Swap timeout: ${SWAP_TIMEOUT_MS / 1000} seconds elapsed without response`);
         handleSwapError(new Error(`Timeout: swap не завершился за ${SWAP_TIMEOUT_MS / 1000} секунд`), true);
@@ -596,6 +668,8 @@ export default function BuyToken() {
 
       // Проверяем, что swapTokenAsync готов перед вызовом
       if (!swapTokenAsync) {
+        clearTimeout(timeoutId);
+        setSwapTimeoutId(null);
         throw new Error('Swap function not ready. Please try again.');
       }
 
@@ -657,11 +731,9 @@ export default function BuyToken() {
           note: 'If result is undefined/null, form opened but amount may not be pre-filled',
         });
         
-        // Очищаем таймаут при успешном запуске
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-          setSwapTimeoutId(null);
-        }
+        // НЕ очищаем таймаут здесь - он должен оставаться активным до завершения транзакции
+        // Таймаут будет очищен только когда баланс изменится или произойдет ошибка
+        console.log('⏳ [SWAP] Swap form opened in wallet, waiting for transaction completion. Timeout active.');
       } catch (swapError: any) {
         // Очищаем таймаут при ошибке
         if (timeoutId) {
@@ -710,6 +782,9 @@ export default function BuyToken() {
       if (extractedTxHash) {
         console.log('✅ [SWAP] Transaction hash extracted from result:', extractedTxHash);
         setTxHash(extractedTxHash);
+        
+        // Если есть txHash, начинаем проверять статус транзакции через RPC
+        checkTransactionStatus(extractedTxHash);
       } else {
         console.log('ℹ️ [SWAP] No txHash in result - swap form opened in wallet, will wait for balance update');
       }
@@ -1068,10 +1143,10 @@ export default function BuyToken() {
                 </p>
                 {swapWaitTime > 0 && (
                   <p className="text-blue-500 text-xs mb-4">
-                    Waiting: {swapWaitTime} sec. / 60 sec.
+                    Waiting: {swapWaitTime} sec. / 120 sec.
                   </p>
                 )}
-                {swapWaitTime > 30 && (
+                {swapWaitTime > 45 && (
                   <div className="mt-4 pt-4 border-t border-blue-300">
                     <p className="text-orange-600 text-sm mb-3">
                       ⚠️ Transaction is taking longer than usual.
