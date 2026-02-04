@@ -54,6 +54,27 @@ const Layout: React.FC<LayoutProps> = ({ children, title = 'Like Chat 💌' }) =
         <meta name="farcaster:frame" content="false" />
         <meta property="og:type" content="website" />
         
+        {/* Open Graph мета-теги для обложки - дублируем из _document.tsx для всех страниц */}
+        <meta property="og:title" content="MULTI LIKE" />
+        <meta property="og:description" content="You like, they like back. Gain likes and recasts through mutual activity." />
+        <meta property="og:image" content="https://likechat-farcaster.vercel.app/images/image%20(3).png" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:url" content="https://likechat-farcaster.vercel.app" />
+        <meta property="og:site_name" content="MULTI LIKE" />
+        
+        {/* Farcaster Mini App мета-теги */}
+        <meta property="fc:miniapp" content="v1" />
+        <meta property="fc:miniapp:title" content="MULTI LIKE" />
+        <meta property="fc:miniapp:image" content="https://likechat-farcaster.vercel.app/images/image%20(3).png" />
+        <meta property="fc:miniapp:description" content="You like, they like back" />
+        
+        {/* Twitter Card мета-теги */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="MULTI LIKE" />
+        <meta name="twitter:description" content="You like, they like back. Gain likes and recasts through mutual activity." />
+        <meta name="twitter:image" content="https://likechat-farcaster.vercel.app/images/image%20(3).png" />
+        
         <link rel="icon" href="/favicon.ico" />
       </Head>
       
