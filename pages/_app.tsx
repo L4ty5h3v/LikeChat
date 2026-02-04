@@ -126,7 +126,7 @@ export default function App({ Component, pageProps }: AppProps) {
           },
         }}
         miniKit={{
-          enabled: true,
+          enabled: false, // Отключаем MiniKit для Farcaster Mini App (чтобы не определялось как Base App)
         }}
       >
         <FarcasterAuthProvider>
