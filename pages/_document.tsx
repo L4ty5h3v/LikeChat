@@ -1,15 +1,16 @@
 import { Html, Head, Main, NextScript, DocumentContext } from 'next/document';
 
 function getBaseUrl(): string {
-  // Используем переменную окружения или Vercel URL
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL;
+  // Для мета-тегов всегда используем основной production домен,
+  // чтобы обложка отображалась правильно при шаринге
+  // NEXT_PUBLIC_BASE_URL может быть установлен для production
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
   
-  if (baseUrl) {
-    // Если VERCEL_URL, добавляем https://
+  if (baseUrl && baseUrl.includes('likechat-farcaster.vercel.app')) {
     return baseUrl.startsWith('http') ? baseUrl : `https://${baseUrl}`;
   }
   
-  // Fallback на дефолтный домен
+  // Всегда используем основной production домен для мета-тегов
   return 'https://likechat-farcaster.vercel.app';
 }
 
