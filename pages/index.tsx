@@ -535,7 +535,7 @@ export default function Home() {
   // ⚠️ УДАЛЕНО: handleContinue больше не нужен, так как переход происходит автоматически при выборе активности
 
   return (
-    <Layout title="Multi Like - Authorization">
+    <Layout title="MULTI LIKE">
       {/* Hero Section с градиентом */}
       <div className="relative min-h-screen overflow-hidden">
         {/* Анимированный градиент фон */}
