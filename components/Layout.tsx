@@ -68,6 +68,12 @@ const Layout: React.FC<LayoutProps> = ({ children, title = 'Like Chat 💌' }) =
         <meta property="fc:miniapp:title" content="MULTI LIKE" />
         <meta property="fc:miniapp:image" content="https://likechat-farcaster.vercel.app/images/image%20(3).png" />
         <meta property="fc:miniapp:description" content="You like, they like back" />
+        <meta property="fc:miniapp:button:1" content="Открыть MULTI LIKE" />
+        <meta property="fc:miniapp:button:1:action" content="link" />
+        <meta property="fc:miniapp:button:1:target" content="https://likechat-farcaster.vercel.app" />
+        <meta property="fc:miniapp:button:2" content="MUTUAL LOVE" />
+        <meta property="fc:miniapp:button:2:action" content="link" />
+        <meta property="fc:miniapp:button:2:target" content="https://likechat-farcaster.vercel.app" />
         
         {/* Twitter Card мета-теги */}
         <meta name="twitter:card" content="summary_large_image" />

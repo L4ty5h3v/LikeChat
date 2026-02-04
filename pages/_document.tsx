@@ -26,6 +26,9 @@ export default function Document() {
         <meta property="fc:miniapp:button:1" content="Открыть MULTI LIKE" />
         <meta property="fc:miniapp:button:1:action" content="link" />
         <meta property="fc:miniapp:button:1:target" content={farcasterUrl} />
+        <meta property="fc:miniapp:button:2" content="MUTUAL LOVE" />
+        <meta property="fc:miniapp:button:2:action" content="link" />
+        <meta property="fc:miniapp:button:2:target" content={farcasterUrl} />
         
         {/* Open Graph мета-теги для обложки при шаринге */}
         <meta property="og:title" content="MULTI LIKE" />
