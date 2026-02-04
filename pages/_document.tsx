@@ -1,16 +1,8 @@
 import { Html, Head, Main, NextScript, DocumentContext } from 'next/document';
 
-function getBaseUrl(): string {
-  // Для мета-тегов всегда используем основной production домен,
-  // чтобы обложка отображалась правильно при шаринге
-  // NEXT_PUBLIC_BASE_URL может быть установлен для production
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
-  
-  if (baseUrl && baseUrl.includes('likechat-farcaster.vercel.app')) {
-    return baseUrl.startsWith('http') ? baseUrl : `https://${baseUrl}`;
-  }
-  
-  // Всегда используем основной production домен для мета-тегов
+function getFarcasterUrl(): string {
+  // КРИТИЧНО: Всегда используем Farcaster production домен для мета-тегов
+  // Это гарантирует, что приложение определяется как Farcaster Mini App, а не Base App
   return 'https://likechat-farcaster.vercel.app';
 }
 
@@ -20,8 +12,8 @@ Document.getInitialProps = async (ctx: DocumentContext) => {
 };
 
 export default function Document() {
-  const baseUrl = getBaseUrl();
-  const imageUrl = `${baseUrl}/images/image%20(3).png`;
+  const farcasterUrl = getFarcasterUrl();
+  const imageUrl = `${farcasterUrl}/images/image%20(3).png`;
   
   return (
     <Html>
@@ -33,7 +25,7 @@ export default function Document() {
         <meta property="fc:miniapp:description" content="You like, they like back" />
         <meta property="fc:miniapp:button:1" content="Открыть MULTI LIKE" />
         <meta property="fc:miniapp:button:1:action" content="link" />
-        <meta property="fc:miniapp:button:1:target" content={baseUrl} />
+        <meta property="fc:miniapp:button:1:target" content={farcasterUrl} />
         
         {/* Open Graph мета-теги для обложки при шаринге */}
         <meta property="og:title" content="MULTI LIKE - Farcaster Mini App" />
@@ -42,7 +34,7 @@ export default function Document() {
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
         <meta property="og:type" content="website" />
-        <meta property="og:url" content={baseUrl} />
+        <meta property="og:url" content={farcasterUrl} />
         <meta property="og:site_name" content="MULTI LIKE" />
         
         {/* Twitter Card мета-теги */}
