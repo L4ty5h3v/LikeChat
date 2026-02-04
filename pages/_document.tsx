@@ -42,6 +42,22 @@ export default function Document() {
         <meta name="apple-mobile-web-app-title" content="MULTI LIKE" />
         <meta name="theme-color" content="#ef4444" />
         <link rel="manifest" href="/site.webmanifest" />
+        
+        {/* Open Graph мета-теги для Farcaster обложки */}
+        <meta property="og:title" content="MULTI LIKE - Farcaster Mini App" />
+        <meta property="og:description" content="5 purchases = your post in the game. Honest and beautiful. 😏" />
+        <meta property="og:image" content={`${baseUrl}/cover-multi-like.svg`} />
+        <meta property="og:image:width" content="1920" />
+        <meta property="og:image:height" content="1080" />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content={baseUrl} />
+        
+        {/* Twitter Card мета-теги */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="MULTI LIKE - Farcaster Mini App" />
+        <meta name="twitter:description" content="5 purchases = your post in the game. Honest and beautiful. 😏" />
+        <meta name="twitter:image" content={`${baseUrl}/cover-multi-like.svg`} />
+        
         {isBaseApp && (
           <meta name="base:app_id" content="693c50258a7c4e55fec73fe1" />
         )}

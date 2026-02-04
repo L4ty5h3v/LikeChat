@@ -1,19 +1,60 @@
 {
-  "miniapp": {
-    "version": "1",
-    "name": "MULTI LIKE",
-    "iconUrl": "https://likechat-farcaster.vercel.app/images/icon.png",
-    "homeUrl": "https://likechat-farcaster.vercel.app/",
-    "subtitle": "You like, they like back",
-    "description": "Gain likes and recasts through mutual activity. Choose LIKE or RECAST mode, complete tasks on other users casts, then add your own cast link. Fair mechanics, no bots.",
-    "primaryCategory": "social",
-    "splashBackgroundColor": "#C71585",
-    "splashImageUrl": "https://likechat-farcaster.vercel.app/images/image%20(3).png"
-    
+  "name": "MULTI LIKE",
+  "short_name": "MULTI LIKE",
+  "description": "5 purchases = your post in the game. Honest and beautiful. 😏",
+  "long_description": "MULTI LIKE is a game of love and attention. 💎 Buy posts for $0.10 USDC — whisper \"I see you\" to content creators. Make 5 purchases — now your post can flirt with the world. Everything is honest, beautiful, and transparent — Base smart contracts watch every move. 😏 Share attention, play with energy, and let every click leave a spark. ✨",
+  "icon": "https://likechat-farcaster.vercel.app/icon-64-multi-like.svg",
+  "splash": "https://likechat-farcaster.vercel.app/icon-512.svg",
+  "cover": "https://likechat-farcaster.vercel.app/cover-multi-like.svg",
+  "url": "https://likechat-farcaster.vercel.app",
+  "home_url": "https://likechat-farcaster.vercel.app",
+  "category": "Social",
+  "tags": [
+    "Farcaster",
+    "Base",
+    "Social",
+    "Community",
+    "Support",
+    "Tokens",
+    "USDC",
+    "Content Monetization"
+  ],
+  "keywords": [
+    "buy posts",
+    "support creators",
+    "Farcaster",
+    "Base network",
+    "post tokens",
+    "community support",
+    "content monetization"
+  ],
+  "version": "1.0.0",
+  "author": "MULTI LIKE Team",
+  "permissions": [
+    "farcaster",
+    "wallet"
+  ],
+  "features": [
+    "Buy posts for $0.10 USDC",
+    "On-chain verification",
+    "Gated publishing (5 purchases required)",
+    "Direct creator support",
+    "Base network integration"
+  ],
+  "network": {
+    "chain_id": 8453,
+    "chain_name": "Base",
+    "rpc_url": "https://mainnet.base.org",
+    "token": "USDC",
+    "token_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "purchase_amount": "0.10"
   },
-  "accountAssociation": {
-    "header": "eyJmaWQiOjQzOTY5OSwidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweDhjM2M0N0U0NTM4YzZmQzU4Y0NhQjk0OTM0OGMxRTVmOTkwMDRkZjgifQ",
-    "payload": "eyJkb21haW4iOiJsaWtlY2hhdC1mYXJjYXN0ZXIudmVyY2VsLmFwcCJ9",
-    "signature": "L8+UCEjvubB4IQ8NFCsfLQiPFm23G/YTlTvffqILQQEtEj3Ahgc7Pvn9rMG7E9WeAwUrwEH22z9nPmaSSVCbqxw="
-  }
+  "requirements": {
+    "purchases_to_publish": 5,
+    "purchase_amount_usdc": 0.10
+  },
+  "screenshots": [],
+  "support_url": "https://likechat-farcaster.vercel.app",
+  "privacy_policy_url": "https://likechat-farcaster.vercel.app",
+  "terms_of_service_url": "https://likechat-farcaster.vercel.app"
 }
