@@ -28,7 +28,7 @@ export default function Document() {
         <meta property="fc:miniapp:button:1:target" content={farcasterUrl} />
         
         {/* Open Graph мета-теги для обложки при шаринге */}
-        <meta property="og:title" content="MULTI LIKE - Farcaster Mini App" />
+        <meta property="og:title" content="MULTI LIKE" />
         <meta property="og:description" content="You like, they like back. Gain likes and recasts through mutual activity." />
         <meta property="og:image" content={imageUrl} />
         <meta property="og:image:width" content="1200" />
@@ -39,7 +39,7 @@ export default function Document() {
         
         {/* Twitter Card мета-теги */}
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="MULTI LIKE - Farcaster Mini App" />
+        <meta name="twitter:title" content="MULTI LIKE" />
         <meta name="twitter:description" content="You like, they like back. Gain likes and recasts through mutual activity." />
         <meta name="twitter:image" content={imageUrl} />
         
