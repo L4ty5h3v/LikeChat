@@ -18,42 +18,16 @@ export default function Document() {
   return (
     <Html>
       <Head>
-        {/* Farcaster Mini App embed мета-теги */}
-        <meta 
-          name="fc:miniapp" 
-          content={JSON.stringify({
-            version: "1",
-            imageUrl: imageUrl,
-            button: {
-              title: "MUTUAL LOVE",
-              action: {
-                type: "launch_miniapp",
-                name: "MULTI LIKE",
-                url: farcasterUrl,
-                splashImageUrl: `${farcasterUrl}/images/image%20(3).png`,
-                splashBackgroundColor: "#C71585"
-              }
-            }
-          })} 
-        />
-        {/* Для обратной совместимости с legacy Mini Apps */}
-        <meta 
-          name="fc:frame" 
-          content={JSON.stringify({
-            version: "1",
-            imageUrl: imageUrl,
-            button: {
-              title: "MUTUAL LOVE",
-              action: {
-                type: "launch_frame",
-                name: "MULTI LIKE",
-                url: farcasterUrl,
-                splashImageUrl: `${farcasterUrl}/images/image%20(3).png`,
-                splashBackgroundColor: "#C71585"
-              }
-            }
-          })} 
-        />
+        {/* Farcaster Mini App мета-теги */}
+        <meta property="fc:miniapp" content="v1" />
+        <meta property="fc:miniapp:title" content="MULTI LIKE" />
+        <meta property="fc:miniapp:image" content={imageUrl} />
+        <meta property="fc:miniapp:description" content="You like, they like back" />
+        
+        {/* Кнопка рядом с обложкой */}
+        <meta property="fc:miniapp:button:1" content="MUTUAL LOVE" />
+        <meta property="fc:miniapp:button:1:action" content="link" />
+        <meta property="fc:miniapp:button:1:target" content={farcasterUrl} />
         
         {/* Open Graph мета-теги для обложки при шаринге */}
         <meta property="og:title" content="MULTI LIKE" />
