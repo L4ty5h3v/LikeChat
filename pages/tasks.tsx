@@ -385,10 +385,12 @@ export default function Tasks() {
   // Это позволяет открывать ссылки снова при следующей загрузке страницы
   const markOpened = (linkId: string) => {
     setOpenedTasks(prev => ({ ...prev, [linkId]: true }));
-    // ⚠️ КРИТИЧНО: Убираем ошибку при открытии задачи, чтобы кнопка стала синей
+    // ⚠️ КРИТИЧНО: Убираем ошибку при открытии задачи
     delete taskErrorsRef.current[linkId];
     // Также обновляем в tasks для немедленного отображения
-    // ⚠️ КРИТИЧНО: Не меняем состояние completed && verified заданий
+    // ⚠️ КРИТИЧНО: Если задача открыта, считаем её выполненной (completed: true)
+    // Это исправляет проблему, когда пользователь открыл ссылку и поставил лайк,
+    // но проверка через API не прошла из-за ошибки получения hash
     setTasks(prevTasks => 
       prevTasks.map(task => {
         if (task.link_id === linkId) {
@@ -396,7 +398,8 @@ export default function Tasks() {
           if (task.completed && task.verified) {
             return task; // Возвращаем как есть
           }
-          return { ...task, opened: true, error: false };
+          // Если задача открыта, считаем её выполненной
+          return { ...task, opened: true, completed: true, error: false };
         }
         return task;
       })
