@@ -9,6 +9,30 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
   const [isInstalled, setIsInstalled] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  
+  // Для отладки: глобальная функция для принудительного показа модального окна
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).showInstallModal = () => {
+        console.log('🔧 [INSTALL] Force showing modal via window.showInstallModal()');
+        setShowModal(true);
+        setIsLoading(false);
+        setIsInstalled(false);
+      };
+      console.log('🔧 [INSTALL] Added window.showInstallModal() function for testing');
+      
+      // Также проверяем URL параметр
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('showInstall') === 'true') {
+        console.log('🔧 [INSTALL] Force showing modal via URL parameter ?showInstall=true');
+        setTimeout(() => {
+          setShowModal(true);
+          setIsLoading(false);
+          setIsInstalled(false);
+        }, 500);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const checkInstallation = async () => {
@@ -178,11 +202,22 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
     }
   };
 
-  // Не показываем модальное окно если:
-  // - еще загружается проверка
-  // - модальное окно не должно показываться
-  // - приложение уже установлено
-  if (isLoading || !showModal || (isInstalled === true)) {
+  // Для отладки: проверяем URL параметр для принудительного показа
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('showInstall') === 'true') {
+        console.log('🔧 [INSTALL] Force showing modal via URL parameter');
+        setShowModal(true);
+        setIsLoading(false);
+        setIsInstalled(false);
+      }
+    }
+  }, []);
+
+  // Показываем модальное окно ТОЛЬКО если showModal === true
+  if (!showModal) {
+    console.log('❌ [INSTALL] showModal is false, not rendering', { isLoading, showModal, isInstalled });
     return null;
   }
   
