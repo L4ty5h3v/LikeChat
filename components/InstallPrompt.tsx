@@ -20,6 +20,7 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
         // Проверяем, что мы в iframe Farcaster Mini App
         const isInFarcasterFrame = window.self !== window.top;
         if (!isInFarcasterFrame) {
+          console.log('ℹ️ [INSTALL] Not in Farcaster frame');
           setIsInstalled(null);
           setIsLoading(false);
           return;
@@ -56,8 +57,27 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
         const testUsers = ['svs-smm', 'svs-smr'];
         const isTestUser = currentUsername && testUsers.includes(currentUsername.toLowerCase());
         
-        // Проверяем, установлено ли приложение
-        // Сначала пробуем использовать метод isInstalled, если доступен
+        console.log('🧪 [INSTALL] User check:', {
+          currentUsername,
+          usernameLowercase: currentUsername?.toLowerCase(),
+          testUsers,
+          isTestUser
+        });
+        
+        // Для тестовых пользователей ВСЕГДА показываем модальное окно, независимо от других условий
+        if (isTestUser) {
+          console.log('🧪 [INSTALL] Test user detected, ALWAYS showing modal');
+          setIsInstalled(false);
+          setIsLoading(false);
+          // Небольшая задержка для лучшего UX
+          setTimeout(() => {
+            console.log('✅ [INSTALL] Showing install prompt modal for test user');
+            setShowModal(true);
+          }, 1000);
+          return; // Выходим раньше, не проверяем установку
+        }
+        
+        // Для обычных пользователей проверяем установку
         let installed = false;
         const actions = sdk.actions as any;
         
@@ -68,18 +88,13 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
             console.log('✅ [INSTALL] isInstalled check result:', installed);
           } catch (error) {
             console.log('ℹ️ [INSTALL] isInstalled method error:', error);
-            // Если метод не работает, предполагаем, что приложение не установлено
             installed = false;
             setIsInstalled(false);
           }
         } else {
-          // Если метод isInstalled недоступен, проверяем через другие признаки
-          // В Farcaster Mini App, если приложение не установлено, может не быть некоторых данных
           try {
             const context = await sdk.context;
-            // Если context есть, но нет явного признака установки, показываем модальное окно
-            // (но только если пользователь еще не отклонил его)
-            installed = false; // По умолчанию считаем, что не установлено
+            installed = false;
             setIsInstalled(false);
             console.log('ℹ️ [INSTALL] isInstalled method not available, assuming not installed');
           } catch (error) {
@@ -89,37 +104,21 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
           }
         }
         
-        // Для тестовых пользователей всегда показываем модальное окно, даже если приложение "установлено"
-        if (isTestUser) {
-          console.log('🧪 [INSTALL] Test user detected, forcing modal to show');
-          installed = false; // Принудительно считаем, что не установлено для тестовых пользователей
-          setIsInstalled(false);
-        }
-        
         // Показываем модальное окно, если приложение не установлено
         if (!installed) {
-          // Список пользователей, которым всегда показываем модальное окно (для тестирования)
-          const testUsers = ['svs-smm', 'svs-smr'];
-          const isTestUser = currentUsername && testUsers.includes(currentUsername.toLowerCase());
-          
-          // Проверяем, не было ли уже отклонено пользователем (кроме тестовых пользователей)
-          const dismissed = !isTestUser ? localStorage.getItem('install_prompt_dismissed') : null;
+          // Проверяем, не было ли уже отклонено пользователем
+          const dismissed = localStorage.getItem('install_prompt_dismissed');
           
           console.log('🔍 [INSTALL] Installation check:', {
             installed,
             currentUsername,
-            usernameLowercase: currentUsername?.toLowerCase(),
-            testUsers,
-            isTestUser,
             dismissed: !!dismissed,
-            dismissedValue: dismissed,
             willShow: !dismissed
           });
           
           if (!dismissed) {
-            // Небольшая задержка для лучшего UX
             setTimeout(() => {
-              console.log('✅ [INSTALL] Showing install prompt modal', isTestUser ? '(test user, always show)' : '');
+              console.log('✅ [INSTALL] Showing install prompt modal');
               setShowModal(true);
             }, 1000);
           } else {
