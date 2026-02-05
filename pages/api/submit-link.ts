@@ -3,6 +3,55 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { submitLink, getAllLinks, getUserProgress } from '@/lib/db-config';
 import { extractCastHash } from '@/lib/neynar';
 
+// Функция валидации URL - только ссылки на посты (casts)
+function validateCastUrl(url: string): boolean {
+  try {
+    // Проверяем, что это валидный URL
+    const urlObj = new URL(url);
+    
+    // Разрешаем только farcaster.xyz и warpcast.com
+    const allowedDomains = ['farcaster.xyz', 'warpcast.com'];
+    if (!allowedDomains.includes(urlObj.hostname)) {
+      return false;
+    }
+    
+    // БЛОКИРУЕМ ссылки на приложения
+    if (urlObj.pathname.includes('/miniapps/')) {
+      return false;
+    }
+    
+    // БЛОКИРУЕМ ссылки на каналы
+    if (urlObj.pathname.includes('/~/channel/')) {
+      return false;
+    }
+    
+    // БЛОКИРУЕМ ссылки на профили (без hash)
+    // Профиль: /username (без дальнейшего пути или без hash)
+    const pathParts = urlObj.pathname.split('/').filter(p => p);
+    if (pathParts.length === 1 && !urlObj.pathname.includes('0x')) {
+      // Это профиль, если только username без hash
+      return false;
+    }
+    
+    // РАЗРЕШАЕМ только ссылки на посты с hash (0x...)
+    // Формат: /username/0x... или /~/conversations/0x...
+    const hasHash = /0x[a-fA-F0-9]{40,}/i.test(url);
+    if (!hasHash) {
+      return false;
+    }
+    
+    // Дополнительная проверка: должен быть путь с username или conversations
+    const isValidCastPath = 
+      /^\/[^\/]+\/0x/i.test(urlObj.pathname) || // /username/0x...
+      /^\/~\/conversations\/0x/i.test(urlObj.pathname); // /~/conversations/0x...
+    
+    return isValidCastPath;
+  } catch (error) {
+    // Если URL невалидный, возвращаем false
+    return false;
+  }
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
@@ -18,6 +67,14 @@ export default async function handler(
 
   try {
     let { userFid, username, pfpUrl, castUrl, activityType, taskType } = req.body;
+    
+    // Валидация URL - только ссылки на посты (casts)
+    if (!validateCastUrl(castUrl)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Разрешены только ссылки на посты Farcaster (casts). Нельзя использовать ссылки на профили, приложения или другие разделы.'
+      });
+    }
     
     // ⚠️ КРИТИЧНО: ВАЖНО использовать selected_task из БД как основной источник истины
     // Получаем selected_task из прогресса пользователя, чтобы гарантировать правильный тип

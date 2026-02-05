@@ -70,8 +70,51 @@ export default function Chat() {
   const userLink = links.find((link) => link.id === userLinkId);
 
   const validateUrl = (url: string): boolean => {
-    const urlPattern = /^https?:\/\/(farcaster\.xyz)\/.+/i;
-    return urlPattern.test(url);
+    try {
+      // Проверяем, что это валидный URL
+      const urlObj = new URL(url);
+      
+      // Разрешаем только farcaster.xyz и warpcast.com
+      const allowedDomains = ['farcaster.xyz', 'warpcast.com'];
+      if (!allowedDomains.includes(urlObj.hostname)) {
+        return false;
+      }
+      
+      // БЛОКИРУЕМ ссылки на приложения
+      if (urlObj.pathname.includes('/miniapps/')) {
+        return false;
+      }
+      
+      // БЛОКИРУЕМ ссылки на каналы
+      if (urlObj.pathname.includes('/~/channel/')) {
+        return false;
+      }
+      
+      // БЛОКИРУЕМ ссылки на профили (без hash)
+      // Профиль: /username (без дальнейшего пути или без hash)
+      const pathParts = urlObj.pathname.split('/').filter(p => p);
+      if (pathParts.length === 1 && !urlObj.pathname.includes('0x')) {
+        // Это профиль, если только username без hash
+        return false;
+      }
+      
+      // РАЗРЕШАЕМ только ссылки на посты с hash (0x...)
+      // Формат: /username/0x... или /~/conversations/0x...
+      const hasHash = /0x[a-fA-F0-9]{40,}/i.test(url);
+      if (!hasHash) {
+        return false;
+      }
+      
+      // Дополнительная проверка: должен быть путь с username или conversations
+      const isValidCastPath = 
+        /^\/[^\/]+\/0x/i.test(urlObj.pathname) || // /username/0x...
+        /^\/~\/conversations\/0x/i.test(urlObj.pathname); // /~/conversations/0x...
+      
+      return isValidCastPath;
+    } catch (error) {
+      // Если URL невалидный, возвращаем false
+      return false;
+    }
   };
 
   const handleQuickSubmit = async (e: React.FormEvent) => {
@@ -83,7 +126,7 @@ export default function Chat() {
       return;
     }
     if (!validateUrl(castUrl)) {
-      setSubmitError('Введите корректную ссылку на каст Farcaster');
+      setSubmitError('Разрешены только ссылки на посты Farcaster (casts). Нельзя использовать ссылки на профили, приложения или другие разделы.');
       return;
     }
     setSubmitError('');
