@@ -228,15 +228,18 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none p-4">
+    <div className="fixed inset-0 z-50 pointer-events-none">
       {/* Overlay */}
       <div 
         className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto"
         onClick={handleDismiss}
       />
       
-      {/* Modal */}
-      <div className="relative w-full max-w-md rounded-3xl shadow-2xl pointer-events-auto overflow-hidden animate-slide-up">
+      {/* Modal - позиционируем явно сверху */}
+      <div 
+        className="absolute left-1/2 transform -translate-x-1/2 w-full max-w-md rounded-3xl shadow-2xl pointer-events-auto overflow-hidden animate-slide-up p-4"
+        style={{ top: '10vh', maxHeight: '80vh', overflowY: 'auto' }}
+      >
         {/* Градиентный фон */}
         <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient" style={{ backgroundSize: '300% 300%' }}></div>
         
