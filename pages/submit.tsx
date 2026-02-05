@@ -554,7 +554,8 @@ export default function Submit() {
       
       // РАЗРЕШАЕМ только ссылки на посты с hash (0x...)
       // Формат: /username/0x... или /~/conversations/0x...
-      const hasHash = /0x[a-fA-F0-9]{40,}/i.test(url);
+      // Хеши могут быть короткими, минимум 6 символов после 0x
+      const hasHash = /0x[a-fA-F0-9]{6,}/i.test(url);
       if (!hasHash) {
         return false;
       }
