@@ -218,7 +218,10 @@ export default function Tasks() {
           verifiedTasksRef.current.add(link.id);
         }
         
-        const finalCompleted = wasVerified ? true : isCompleted;
+        // ⚠️ КРИТИЧНО: Если задача открыта, считаем её выполненной
+        // Это исправляет проблему, когда пользователь открыл ссылку и поставил лайк,
+        // но проверка через API не прошла из-за ошибки получения hash
+        const finalCompleted = wasVerified ? true : (isCompleted || isOpened);
         const finalVerified = wasVerified ? true : isCompleted;
         
         // ⚠️ КРИТИЧНО: Если задание verified, добавляем в ref для постоянного хранения
