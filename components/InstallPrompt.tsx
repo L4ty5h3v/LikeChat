@@ -130,9 +130,9 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
       />
       
       {/* Modal */}
-      <div className="relative w-full max-w-md rounded-t-3xl shadow-2xl pointer-events-auto animate-slide-up overflow-hidden">
+      <div className="relative w-full max-w-md rounded-t-3xl shadow-2xl pointer-events-auto overflow-hidden animate-slide-up">
         {/* Градиентный фон */}
-        <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient bg-300%"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient" style={{ backgroundSize: '300% 300%' }}></div>
         
         {/* Стеклянный эффект */}
         <div className="relative bg-white/10 backdrop-blur-md border-t border-white/30">
@@ -202,19 +202,6 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
         </div>
       </div>
 
-      <style jsx>{`
-        @keyframes slide-up {
-          from {
-            transform: translateY(100%);
-          }
-          to {
-            transform: translateY(0);
-          }
-        }
-        .animate-slide-up {
-          animation: slide-up 0.3s ease-out;
-        }
-      `}</style>
     </div>
   );
 };
