@@ -97,7 +97,7 @@ a {
   animation: float 6s ease-in-out infinite;
 }
 
-/* Анимация slide-up для модальных окон */
+/* Анимация slide-up для модальных окон (снизу вверх) */
 @keyframes slide-up {
   from {
     transform: translateY(100%);
@@ -107,8 +107,20 @@ a {
   }
 }
 
+/* Анимация fade-in-scale для модальных окон по центру */
+@keyframes fade-in-scale {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 .animate-slide-up {
-  animation: slide-up 0.3s ease-out;
+  animation: fade-in-scale 0.3s ease-out;
 }
 
 /* Кастомный скроллбар */

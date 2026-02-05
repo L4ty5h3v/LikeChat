@@ -228,7 +228,7 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center pointer-events-none">
+    <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none p-4">
       {/* Overlay */}
       <div 
         className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto"
@@ -236,16 +236,13 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
       />
       
       {/* Modal */}
-      <div className="relative w-full max-w-md rounded-t-3xl shadow-2xl pointer-events-auto overflow-hidden animate-slide-up">
+      <div className="relative w-full max-w-md rounded-3xl shadow-2xl pointer-events-auto overflow-hidden animate-slide-up">
         {/* Градиентный фон */}
         <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient" style={{ backgroundSize: '300% 300%' }}></div>
         
         {/* Стеклянный эффект */}
-        <div className="relative bg-white/10 backdrop-blur-md border-t border-white/30">
-          {/* Drag handle */}
-          <div className="flex justify-center pt-3 pb-2">
-            <div className="w-12 h-1 bg-white/50 rounded-full" />
-          </div>
+        <div className="relative bg-white/10 backdrop-blur-md border border-white/30 rounded-3xl">
+          {/* Drag handle - убираем, так как теперь модальное окно по центру */}
 
           {/* Header */}
           <div className="px-6 pt-4 pb-6">
