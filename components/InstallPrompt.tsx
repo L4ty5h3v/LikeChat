@@ -251,7 +251,22 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
         }
       }
 
-      // Метод 4: Попробуем через postMessage к родительскому окну
+      // Метод 4: Попробуем через openUrl с текущим URL (может триггерить установку)
+      if (!installSuccess && actions?.openUrl && typeof actions.openUrl === 'function') {
+        try {
+          console.log('🔄 [INSTALL] Trying openUrl with current URL...');
+          await actions.openUrl({ url: window.location.href });
+          console.log('✅ [INSTALL] openUrl completed');
+          installSuccess = true;
+        } catch (error: any) {
+          console.error('❌ [INSTALL] Error with openUrl:', {
+            error,
+            message: error?.message
+          });
+        }
+      }
+
+      // Метод 5: Попробуем через postMessage к родительскому окну
       if (!installSuccess && isInFarcasterFrame) {
         try {
           console.log('🔄 [INSTALL] Trying postMessage to parent window...');
@@ -260,9 +275,27 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
             url: window.location.href
           }, '*');
           console.log('✅ [INSTALL] postMessage sent');
-          installSuccess = true; // Считаем успешным, даже если не получили ответ
+          // Не считаем успешным, так как не получили ответ
         } catch (error: any) {
           console.error('❌ [INSTALL] Error with postMessage:', {
+            error,
+            message: error?.message
+          });
+        }
+      }
+
+      // Метод 6: Попробуем использовать window.location для перезагрузки (может триггерить установку)
+      if (!installSuccess) {
+        try {
+          console.log('🔄 [INSTALL] Trying to trigger install via page interaction...');
+          // Пробуем вызвать событие, которое может триггерить установку
+          const event = new CustomEvent('farcaster:install-request', {
+            detail: { url: window.location.href }
+          });
+          window.dispatchEvent(event);
+          console.log('✅ [INSTALL] Custom event dispatched');
+        } catch (error: any) {
+          console.error('❌ [INSTALL] Error dispatching custom event:', {
             error,
             message: error?.message
           });
@@ -273,6 +306,7 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
       // Farcaster может показать свою собственную кнопку установки внизу экрана
       if (!installSuccess) {
         console.log('ℹ️ [INSTALL] No install method worked, closing modal. Farcaster may show native install button.');
+        console.log('ℹ️ [INSTALL] User should look for the native "Add" button at the bottom of the screen.');
       }
 
       // Закрываем модальное окно в любом случае
@@ -387,6 +421,13 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
                 </div>
                 <span className="text-white font-medium">Enable notifications</span>
               </div>
+            </div>
+
+            {/* Info text */}
+            <div className="mb-4 px-2">
+              <p className="text-white/80 text-sm text-center">
+                After clicking "Add", look for the native install button at the bottom of the screen
+              </p>
             </div>
 
             {/* Buttons */}
