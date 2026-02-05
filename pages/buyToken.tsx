@@ -124,13 +124,33 @@ export default function BuyToken() {
       refetchInterval: false, // Отключаем интервальное обновление, используем блоки
     },
   });
-  const { data: usdcBalance } = useBalance({
+  const { data: usdcBalance, isLoading: usdcBalanceLoading, error: usdcBalanceError } = useBalance({
     address: walletAddress,
     token: USDC_CONTRACT_ADDRESS as `0x${string}`,
     query: {
       enabled: !!walletAddress,
+      refetchInterval: 10000, // Обновляем каждые 10 секунд
     },
   });
+  
+  // Логирование для отладки баланса
+  useEffect(() => {
+    if (walletAddress) {
+      console.log('💰 [BALANCE-DEBUG] Wallet info:', {
+        walletAddress,
+        isConnected,
+        usdcBalance: usdcBalance ? {
+          value: usdcBalance.value.toString(),
+          decimals: usdcBalance.decimals,
+          formatted: formatUnits(usdcBalance.value, usdcBalance.decimals),
+        } : null,
+        usdcBalanceLoading,
+        usdcBalanceError: usdcBalanceError?.message,
+      });
+    } else {
+      console.warn('⚠️ [BALANCE-DEBUG] No wallet address:', { isConnected });
+    }
+  }, [walletAddress, isConnected, usdcBalance, usdcBalanceLoading, usdcBalanceError]);
   // Получаем весь объект из useSwapToken для установки параметров
   const swapHookResult = useSwapToken();
   const swapTokenAsync = typeof swapHookResult === 'function' 
@@ -315,10 +335,26 @@ export default function BuyToken() {
     }
 
     // Проверяем баланс USDC
-    if (useUSDC && usdcBalance) {
+    if (useUSDC) {
+      if (!usdcBalance) {
+        // Баланс еще загружается
+        setError('Loading wallet balance... Please wait a moment and try again.');
+        console.warn('⚠️ [BUY-TOKEN] USDC balance not loaded yet');
+        return;
+      }
+      
       const usdcAmount = parseUnits(PURCHASE_AMOUNT_USDC.toString(), 6); // USDC имеет 6 decimals
+      const availableBalance = formatUnits(usdcBalance.value, usdcBalance.decimals);
+      
+      console.log('💰 [BUY-TOKEN] Balance check:', {
+        required: PURCHASE_AMOUNT_USDC,
+        available: availableBalance,
+        value: usdcBalance.value.toString(),
+        decimals: usdcBalance.decimals,
+      });
+      
       if (usdcBalance.value < usdcAmount) {
-        setError(`Insufficient USDC. Required: ${PURCHASE_AMOUNT_USDC} USDC`);
+        setError(`Insufficient USDC. Required: ${PURCHASE_AMOUNT_USDC} USDC, available: ${parseFloat(availableBalance).toFixed(2)} USDC`);
         return;
       }
     }
@@ -621,10 +657,28 @@ export default function BuyToken() {
     }
 
     // Проверяем баланс USDC перед каждой попыткой
-    if (useUSDC && usdcBalance) {
+    if (useUSDC) {
+      if (!usdcBalance) {
+        const errorMsg = 'Wallet balance is loading. Please wait a moment and try again.';
+        setError(errorMsg);
+        setLastError(errorMsg);
+        console.warn('⚠️ [CONFIRM-BUY] USDC balance not loaded yet');
+        return;
+      }
+      
       const usdcAmount = parseUnits(PURCHASE_AMOUNT_USDC.toString(), 6);
+      const availableBalance = formatUnits(usdcBalance.value, usdcBalance.decimals);
+      
+      console.log('💰 [CONFIRM-BUY] Balance check:', {
+        required: PURCHASE_AMOUNT_USDC,
+        available: availableBalance,
+        value: usdcBalance.value.toString(),
+        decimals: usdcBalance.decimals,
+        walletAddress,
+      });
+      
       if (usdcBalance.value < usdcAmount) {
-        const errorMsg = `Insufficient USDC. Required: ${PURCHASE_AMOUNT_USDC} USDC, available: ${formatUnits(usdcBalance.value, usdcBalance.decimals)}`;
+        const errorMsg = `Insufficient USDC. Required: ${PURCHASE_AMOUNT_USDC} USDC, available: ${parseFloat(availableBalance).toFixed(2)} USDC`;
         setError(errorMsg);
         setLastError(errorMsg);
         return;
@@ -906,12 +960,31 @@ export default function BuyToken() {
                   {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
                 </span>
               </div>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between mb-3">
                 <span className="text-lg text-gray-700 font-semibold">Token balance:</span>
                 <span className="font-bold text-primary text-lg">
                   {parseFloat(tokenBalance).toFixed(2)} $MCT
                 </span>
               </div>
+              {useUSDC && (
+                <div className="flex items-center justify-between">
+                  <span className="text-lg text-gray-700 font-semibold">USDC balance:</span>
+                  <span className="font-bold text-primary text-lg">
+                    {usdcBalanceLoading 
+                      ? 'Loading...'
+                      : usdcBalanceError
+                      ? 'Error loading'
+                      : usdcBalance 
+                      ? `${parseFloat(formatUnits(usdcBalance.value, usdcBalance.decimals)).toFixed(2)} USDC`
+                      : 'Not available'}
+                  </span>
+                </div>
+              )}
+              {useUSDC && usdcBalanceError && (
+                <div className="mt-2 text-sm text-red-600">
+                  ⚠️ {usdcBalanceError.message || 'Failed to load balance. Please refresh the page.'}
+                </div>
+              )}
             </div>
           )}
 
