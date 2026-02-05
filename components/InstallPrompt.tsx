@@ -28,6 +28,34 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
         // Импортируем SDK
         const { sdk } = await import('@farcaster/miniapp-sdk');
 
+        // Получаем username из SDK context или localStorage для проверки (делаем это ДО проверки установки)
+        let currentUsername: string | null = null;
+        try {
+          const context = await sdk.context;
+          currentUsername = context?.user?.username || null;
+          console.log('🔍 [INSTALL] Username from SDK context:', currentUsername);
+        } catch (error) {
+          console.log('ℹ️ [INSTALL] Could not get username from SDK context:', error);
+        }
+        
+        // Если не получили из SDK, пробуем из localStorage
+        if (!currentUsername) {
+          try {
+            const savedUserStr = localStorage.getItem('farcaster_user');
+            if (savedUserStr) {
+              const savedUser = JSON.parse(savedUserStr);
+              currentUsername = savedUser?.username || null;
+              console.log('🔍 [INSTALL] Username from localStorage:', currentUsername);
+            }
+          } catch (e) {
+            console.log('ℹ️ [INSTALL] Could not get username from localStorage:', e);
+          }
+        }
+        
+        // Список пользователей, которым всегда показываем модальное окно (для тестирования)
+        const testUsers = ['svs-smm', 'svs-smr'];
+        const isTestUser = currentUsername && testUsers.includes(currentUsername.toLowerCase());
+        
         // Проверяем, установлено ли приложение
         // Сначала пробуем использовать метод isInstalled, если доступен
         let installed = false;
@@ -61,26 +89,15 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
           }
         }
         
+        // Для тестовых пользователей всегда показываем модальное окно, даже если приложение "установлено"
+        if (isTestUser) {
+          console.log('🧪 [INSTALL] Test user detected, forcing modal to show');
+          installed = false; // Принудительно считаем, что не установлено для тестовых пользователей
+          setIsInstalled(false);
+        }
+        
         // Показываем модальное окно, если приложение не установлено
         if (!installed) {
-          // Получаем username из SDK context или localStorage для проверки
-          let currentUsername: string | null = null;
-          try {
-            const context = await sdk.context;
-            currentUsername = context?.user?.username || null;
-          } catch (error) {
-            // Если не получили из SDK, пробуем из localStorage
-            try {
-              const savedUserStr = localStorage.getItem('farcaster_user');
-              if (savedUserStr) {
-                const savedUser = JSON.parse(savedUserStr);
-                currentUsername = savedUser?.username || null;
-              }
-            } catch (e) {
-              // Игнорируем ошибки
-            }
-          }
-          
           // Список пользователей, которым всегда показываем модальное окно (для тестирования)
           const testUsers = ['svs-smm', 'svs-smr'];
           const isTestUser = currentUsername && testUsers.includes(currentUsername.toLowerCase());
@@ -91,8 +108,11 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
           console.log('🔍 [INSTALL] Installation check:', {
             installed,
             currentUsername,
+            usernameLowercase: currentUsername?.toLowerCase(),
+            testUsers,
             isTestUser,
             dismissed: !!dismissed,
+            dismissedValue: dismissed,
             willShow: !dismissed
           });
           
