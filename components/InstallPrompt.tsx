@@ -163,33 +163,134 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
   }, []);
 
   const handleInstall = async () => {
+    console.log('🔧 [INSTALL] handleInstall called');
     try {
       if (typeof window === 'undefined') {
+        console.error('❌ [INSTALL] window is undefined');
         return;
       }
 
+      // Проверяем, что мы в iframe Farcaster Mini App
+      const isInFarcasterFrame = window.self !== window.top;
+      if (!isInFarcasterFrame) {
+        console.warn('⚠️ [INSTALL] Not in Farcaster frame, install may not work');
+        setShowModal(false);
+        return;
+      }
+
+      console.log('📦 [INSTALL] Importing SDK...');
       const { sdk } = await import('@farcaster/miniapp-sdk');
+      
+      console.log('🔍 [INSTALL] SDK loaded:', {
+        hasSDK: !!sdk,
+        hasActions: !!sdk?.actions,
+        actionsKeys: sdk?.actions ? Object.keys(sdk.actions) : []
+      });
 
       // Вызываем установку через SDK (через any для обхода типов)
       const actions = sdk.actions as any;
+      
+      // Логируем все доступные методы для отладки
+      console.log('🔍 [INSTALL] All available methods:', {
+        hasActions: !!actions,
+        allMethods: actions ? Object.keys(actions) : [],
+        hasInstall: !!actions?.install,
+        hasRequestInstall: !!actions?.requestInstall,
+        hasAddToHomeScreen: !!actions?.addToHomeScreen,
+        installType: typeof actions?.install,
+        requestInstallType: typeof actions?.requestInstall
+      });
+
+      // Пробуем разные методы установки
+      let installSuccess = false;
+
+      // Метод 1: install()
       if (actions?.install && typeof actions.install === 'function') {
         try {
-          await actions.install();
-          setShowModal(false);
-          setIsInstalled(true);
-        } catch (error) {
-          console.error('❌ [INSTALL] Error calling install:', error);
-          // Если установка не удалась, просто закрываем модальное окно
-          setShowModal(false);
+          console.log('✅ [INSTALL] Trying install() method...');
+          const result = await actions.install();
+          console.log('✅ [INSTALL] install() completed:', result);
+          installSuccess = true;
+        } catch (error: any) {
+          console.error('❌ [INSTALL] Error calling install():', {
+            error,
+            message: error?.message,
+            stack: error?.stack,
+            name: error?.name
+          });
         }
-      } else {
-        // Если метод install недоступен, просто закрываем модальное окно
-        // Farcaster может показать свою собственную плашку установки
-        console.log('ℹ️ [INSTALL] Install method not available, closing modal');
-        setShowModal(false);
       }
-    } catch (error) {
-      console.error('❌ [INSTALL] Error installing app:', error);
+
+      // Метод 2: requestInstall()
+      if (!installSuccess && actions?.requestInstall && typeof actions.requestInstall === 'function') {
+        try {
+          console.log('✅ [INSTALL] Trying requestInstall() method...');
+          const result = await actions.requestInstall();
+          console.log('✅ [INSTALL] requestInstall() completed:', result);
+          installSuccess = true;
+        } catch (error: any) {
+          console.error('❌ [INSTALL] Error calling requestInstall():', {
+            error,
+            message: error?.message
+          });
+        }
+      }
+
+      // Метод 3: addToHomeScreen()
+      if (!installSuccess && actions?.addToHomeScreen && typeof actions.addToHomeScreen === 'function') {
+        try {
+          console.log('✅ [INSTALL] Trying addToHomeScreen() method...');
+          const result = await actions.addToHomeScreen();
+          console.log('✅ [INSTALL] addToHomeScreen() completed:', result);
+          installSuccess = true;
+        } catch (error: any) {
+          console.error('❌ [INSTALL] Error calling addToHomeScreen():', {
+            error,
+            message: error?.message
+          });
+        }
+      }
+
+      // Метод 4: Попробуем через postMessage к родительскому окну
+      if (!installSuccess && isInFarcasterFrame) {
+        try {
+          console.log('🔄 [INSTALL] Trying postMessage to parent window...');
+          window.parent.postMessage({
+            type: 'farcaster:install',
+            url: window.location.href
+          }, '*');
+          console.log('✅ [INSTALL] postMessage sent');
+          installSuccess = true; // Считаем успешным, даже если не получили ответ
+        } catch (error: any) {
+          console.error('❌ [INSTALL] Error with postMessage:', {
+            error,
+            message: error?.message
+          });
+        }
+      }
+
+      // Если ни один метод не сработал, просто закрываем модальное окно
+      // Farcaster может показать свою собственную кнопку установки внизу экрана
+      if (!installSuccess) {
+        console.log('ℹ️ [INSTALL] No install method worked, closing modal. Farcaster may show native install button.');
+      }
+
+      // Закрываем модальное окно в любом случае
+      setShowModal(false);
+      
+      // Если установка прошла успешно, обновляем состояние
+      if (installSuccess) {
+        setIsInstalled(true);
+      }
+    } catch (error: any) {
+      console.error('❌ [INSTALL] Error installing app:', {
+        error,
+        message: error?.message,
+        stack: error?.stack,
+        name: error?.name
+      });
+      // В случае ошибки все равно закрываем модальное окно
+      setShowModal(false);
     }
   };
 
