@@ -816,47 +816,24 @@ export default function Tasks() {
           try {
             // ✅ Отправляем castUrl (весь URL, даже с "...")
             // API сам разрешит URL через getFullCastHash
-            if (!task.cast_url) {
-              console.warn(`⚠️ Task ${task.link_id} has no cast_url, skipping verification`);
-              messages.push({
-                linkId: task.link_id,
-                message: 'Отсутствует ссылка на cast. Проверьте формат ссылки.',
-              });
-              
-              // Удаляем ссылку из базы данных
-              try {
-                const deleteResponse = await fetch('/api/delete-link', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ linkId: task.link_id }),
-                });
-                
-                if (deleteResponse.ok) {
-                  console.log(`🗑️ Deleted link ${task.link_id} (no cast_url)`);
-                  // Удаляем задание из списка задач
-                  setTasks(prevTasks => prevTasks.filter(t => t.link_id !== task.link_id));
-                  // Перезагружаем список задач через 1 секунду, чтобы получить новую ссылку
-                  setTimeout(() => {
-                    if (user?.fid) {
-                      loadTasks(user.fid, false);
-                    }
-                  }, 1000);
-                } else {
-                  console.warn(`⚠️ Failed to delete link ${task.link_id}: ${deleteResponse.status}`);
-                }
-              } catch (e) {
-                console.error(`❌ Failed to delete link ${task.link_id}:`, e);
-              }
-              
-              return {
-                ...task,
-                completed: false,
-                verified: true,
-                verifying: false,
-                error: true,
-                opened: task.opened || openedTasks[task.link_id] === true,
-              } as TaskProgress;
-            }
+          if (!task.cast_url) {
+            console.warn(`⚠️ Task ${task.link_id} has no cast_url, skipping verification (link kept, no error shown)`);
+            messages.push({
+              linkId: task.link_id,
+              message: 'Отсутствует ссылка на cast. Проверьте формат ссылки.',
+            });
+            
+            // Ведём себя как с обычной невыполненной задачей: не completed, без error,
+            // просто пропускаем проверку.
+            return {
+              ...task,
+              completed: false,
+              verified: false,
+              verifying: false,
+              error: false,
+              opened: task.opened || openedTasks[task.link_id] === true,
+            } as TaskProgress;
+          }
 
             console.log(`[CLIENT] handleVerifyAll: Verifying task ${task.link_id}`, {
               castUrl: task.cast_url,
@@ -897,9 +874,10 @@ export default function Tasks() {
             // 1. Реальная ошибка API (result.isError === true)
             // 2. Проверка прошла успешно, но активность не найдена И задача не открыта
             // ⚠️ НЕ устанавливаем ошибку просто потому, что задача не открыта - это нормально
+            // И НЕ считаем result.isError визуальной ошибкой — пользователь не видит красный статус.
             const hasError = finalCompleted ? false : (
-              result.isError || 
-              (!isOpened && !result.completed && !result.isError) // Только если проверка прошла, но активность не найдена И задача не открыта
+              (!result.isError) && 
+              (!isOpened && !result.completed) // Только если проверка прошла, но активность не найдена И задача не открыта
             );
             
             console.log(`🔍 [VERIFY] Task ${task.link_id} verification:`, {
@@ -910,32 +888,8 @@ export default function Tasks() {
               resultIsError: result.isError
             });
             
-            // Если каст не найден (error: true), удаляем ссылку из базы данных
-            if (result.isError) {
-              try {
-                const deleteResponse = await fetch('/api/delete-link', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ linkId: task.link_id }),
-                });
-                
-                if (deleteResponse.ok) {
-                  console.log(`🗑️ Deleted link ${task.link_id} (cast not found)`);
-                  // Удаляем задание из списка задач
-                  setTasks(prevTasks => prevTasks.filter(t => t.link_id !== task.link_id));
-                  // Перезагружаем список задач через 1 секунду, чтобы получить новую ссылку
-                  setTimeout(() => {
-                    if (user?.fid) {
-                      loadTasks(user.fid, false);
-                    }
-                  }, 1000);
-                } else {
-                  console.warn(`⚠️ Failed to delete link ${task.link_id}: ${deleteResponse.status}`);
-                }
-              } catch (e) {
-                console.error(`❌ Error deleting link ${task.link_id}:`, e);
-              }
-            }
+            // Если каст не найден (error: true), больше НЕ удаляем ссылку из базы.
+            // Ссылка остаётся в очереди, задача помечается как с ошибкой.
 
             // Собираем сообщения об ошибках для пользователя
             if (!finalCompleted) {
