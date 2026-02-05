@@ -63,10 +63,35 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
         
         // Показываем модальное окно, если приложение не установлено
         if (!installed) {
-          // Проверяем, не было ли уже отклонено пользователем
-          const dismissed = localStorage.getItem('install_prompt_dismissed');
+          // Получаем username из SDK context или localStorage для проверки
+          let currentUsername: string | null = null;
+          try {
+            const context = await sdk.context;
+            currentUsername = context?.user?.username || null;
+          } catch (error) {
+            // Если не получили из SDK, пробуем из localStorage
+            try {
+              const savedUserStr = localStorage.getItem('farcaster_user');
+              if (savedUserStr) {
+                const savedUser = JSON.parse(savedUserStr);
+                currentUsername = savedUser?.username || null;
+              }
+            } catch (e) {
+              // Игнорируем ошибки
+            }
+          }
+          
+          // Список пользователей, которым всегда показываем модальное окно (для тестирования)
+          const testUsers = ['svs-smm', 'svs-smr'];
+          const isTestUser = currentUsername && testUsers.includes(currentUsername.toLowerCase());
+          
+          // Проверяем, не было ли уже отклонено пользователем (кроме тестовых пользователей)
+          const dismissed = !isTestUser ? localStorage.getItem('install_prompt_dismissed') : null;
+          
           console.log('🔍 [INSTALL] Installation check:', {
             installed,
+            currentUsername,
+            isTestUser,
             dismissed: !!dismissed,
             willShow: !dismissed
           });
@@ -74,7 +99,7 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
           if (!dismissed) {
             // Небольшая задержка для лучшего UX
             setTimeout(() => {
-              console.log('✅ [INSTALL] Showing install prompt modal');
+              console.log('✅ [INSTALL] Showing install prompt modal', isTestUser ? '(test user, always show)' : '');
               setShowModal(true);
             }, 1000);
           } else {
