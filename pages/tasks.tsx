@@ -592,7 +592,7 @@ export default function Tasks() {
               setTasks(prevTasks =>
                 prevTasks.map(task =>
                   task.link_id === linkId
-                    ? { ...task, completed: false, error: true, verifying: false }
+                    ? { ...task, completed: false, verified: true, error: true, verifying: false } // verified: true чтобы показать, что проверка прошла, но лайка нет
                     : task
                 )
               );
@@ -991,14 +991,25 @@ export default function Tasks() {
             
             // ⚠️ КРИТИЧНО: Если задача открыта и проверка через API не прошла (ошибка API), 
             // устанавливаем verified: true и completed: true (зеленая кнопка)
-            // Если проверка прошла, но лайка нет, устанавливаем error: true (красная кнопка)
+            // Если проверка прошла, но лайка нет, устанавливаем verified: true и error: true (красная кнопка)
+            // verified должен быть true если:
+            // 1. Задача открыта И (ошибка API ИЛИ лайк есть) - т.е. shouldBeVerified
+            // 2. ИЛИ задача выполнена (finalCompleted = true)
+            // 3. ИЛИ проверка прошла (!result.isError) - чтобы показать, что проверка была выполнена
             const shouldBeVerified = isOpened && (result.isError || result.completed);
             const shouldBeCompleted = isOpened ? (result.isError ? true : result.completed) : result.completed;
+            
+            // ⚠️ КРИТИЧНО: verified должен быть true если:
+            // - shouldBeVerified (открыта и (ошибка API или лайк есть))
+            // - ИЛИ finalCompleted (задача выполнена)
+            // - ИЛИ проверка прошла (!result.isError) - чтобы показать, что проверка была выполнена
+            // Это позволяет отличить случай "проверка прошла, но лайка нет" (error: true, verified: true) от "проверка не прошла" (completed: true, verified: true)
+            const finalVerified = shouldBeVerified || finalCompleted || (!result.isError && isOpened);
             
             return {
               ...task,
               completed: shouldBeCompleted,
-              verified: shouldBeVerified || finalCompleted, // verified если открыта и (ошибка API или лайк есть) или выполнена
+              verified: finalVerified, // verified только если shouldBeVerified или finalCompleted без ошибки
               verifying: false,
               error: hasError,
               opened: isOpened, // Сохраняем состояние opened

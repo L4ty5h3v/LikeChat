@@ -16,8 +16,10 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
           ${
             task.error
               ? 'bg-red-50 border-red-500 shadow-lg shadow-red-200'
-              : (task.completed && task.verified) || (task.opened && task.verified && (task.completed || !task.error))
+              : task.completed && task.verified
               ? 'bg-green-50 border-success'
+              : task.opened && task.verified && !task.error && !task.completed
+              ? 'bg-green-50 border-success' // Открыта, проверена, ошибка API (зеленая)
               : task.completed && !task.verified
               ? 'bg-yellow-50 border-warning'
               : 'bg-white border-gray-300 hover:border-primary'
@@ -32,17 +34,19 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
             ${
               task.error
                 ? 'bg-red-500 text-white'
-                : (task.completed && task.verified) || (task.opened && task.verified && (task.completed || !task.error))
+                : task.completed && task.verified
                 ? 'bg-success text-white'
+                : task.opened && task.verified && !task.error && !task.completed
+                ? 'bg-success text-white' // Открыта, проверена, ошибка API (зеленая)
                 : task.completed && !task.verified
                 ? 'bg-warning text-white'
                 : 'bg-gray-200 text-gray-600'
             }
           `}
           style={{ cursor: 'default', pointerEvents: 'none' }}
-          aria-label={(task.completed && task.verified) || (task.opened && task.verified && (task.completed || !task.error)) ? 'Task completed' : task.error ? 'Task error' : `Task ${index + 1}`}
+          aria-label={(task.completed && task.verified) || (task.opened && task.verified && !task.error && !task.completed) ? 'Task completed' : task.error ? 'Task error' : `Task ${index + 1}`}
         >
-          {task.error ? '❌' : ((task.completed && task.verified) || (task.opened && task.verified && (task.completed || !task.error))) ? '✓' : index + 1}
+          {task.error ? '❌' : ((task.completed && task.verified) || (task.opened && task.verified && !task.error && !task.completed)) ? '✓' : index + 1}
         </div>
 
         {/* Информация о пользователе */}
@@ -86,12 +90,14 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
         <div className="flex flex-col items-end gap-2">
           <button
             onClick={onOpen}
-            disabled={(task.completed && task.verified) || (task.opened && task.verified && (task.completed || !task.error))}
+            disabled={(task.completed && task.verified) || (task.opened && task.verified && !task.error && !task.completed)}
             className={`
               px-4 py-1.5 rounded-lg font-medium text-sm transition-all duration-300
               ${
-                (task.completed && task.verified) || (task.opened && task.verified && (task.completed || !task.error))
+                task.completed && task.verified
                   ? 'bg-green-500 text-white cursor-not-allowed hover:bg-green-600'
+                  : task.opened && task.verified && !task.error && !task.completed
+                  ? 'bg-green-500 text-white cursor-not-allowed hover:bg-green-600' // Открыта, проверена, ошибка API (зеленая)
                   : task.error
                   ? 'bg-red-500 text-white hover:bg-red-600 hover:shadow-lg'
                   : task.verifying
@@ -102,8 +108,10 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
               }
             `}
           >
-            {(task.completed && task.verified) || (task.opened && task.verified && (task.completed || !task.error))
-              ? 'Completed ✓' 
+            {task.completed && task.verified
+              ? 'Completed ✓'
+              : task.opened && task.verified && !task.error && !task.completed
+              ? 'Completed ✓' // Открыта, проверена, ошибка API (зеленая) 
               : task.error
               ? 'Error: Action not found'
               : task.verifying
