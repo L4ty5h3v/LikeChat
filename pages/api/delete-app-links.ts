@@ -6,8 +6,41 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  // Разрешаем GET для проверки и POST для выполнения удаления
+  if (req.method === 'GET') {
+    try {
+      const allLinks = await getAllLinks();
+      const appLinks = allLinks.filter(link => {
+        if (!link.cast_url) return false;
+        try {
+          const url = new URL(link.cast_url);
+          return url.pathname.includes('/miniapps/');
+        } catch {
+          return link.cast_url.includes('/miniapps/');
+        }
+      });
+      
+      return res.status(200).json({
+        success: true,
+        totalFound: appLinks.length,
+        appLinks: appLinks.map(link => ({
+          id: link.id,
+          url: link.cast_url,
+          username: link.username,
+        })),
+        message: `Found ${appLinks.length} app link(s). Use POST to delete them.`
+      });
+    } catch (error: any) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to check app links',
+        message: error.message,
+      });
+    }
+  }
+  
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ error: 'Method not allowed. Use GET to check or POST to delete.' });
   }
 
   try {
