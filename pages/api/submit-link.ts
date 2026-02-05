@@ -73,7 +73,7 @@ export default async function handler(
     if (!validateCastUrl(castUrl)) {
       return res.status(400).json({
         success: false,
-        error: 'Разрешены только ссылки на посты Farcaster (casts). Нельзя использовать ссылки на профили, приложения или другие разделы.'
+        error: 'Only Farcaster cast links are allowed. You cannot use links to profiles, applications, or other sections.'
       });
     }
     

@@ -43,19 +43,19 @@ export default function InitLinks() {
         data = text ? JSON.parse(text) : {};
       } catch (parseError) {
         console.error('JSON parse error:', parseError, 'Response text:', text);
-        setResult({ error: `Ошибка ответа сервера: ${text || 'пустой ответ'}` });
+        setResult({ error: `Server response error: ${text || 'empty response'}` });
         setLoading(false);
         return;
       }
 
       if (response.ok) {
-        setResult({ success: true, message: data.message || 'Ссылки успешно инициализированы!' });
+        setResult({ success: true, message: data.message || 'Links successfully initialized!' });
       } else {
-        setResult({ error: data.error || data.message || `Ошибка при инициализации (${response.status})` });
+        setResult({ error: data.error || data.message || `Initialization error (${response.status})` });
       }
     } catch (error: any) {
       console.error('Init error:', error);
-      setResult({ error: error.message || 'Неизвестная ошибка' });
+      setResult({ error: error.message || 'Unknown error' });
     } finally {
       setLoading(false);
     }
@@ -84,7 +84,7 @@ export default function InitLinks() {
         data = text ? JSON.parse(text) : {};
       } catch (parseError) {
         console.error('JSON parse error:', parseError, 'Response text:', text);
-        setResult({ error: `Ошибка ответа сервера: ${text || 'пустой ответ'}` });
+        setResult({ error: `Server response error: ${text || 'empty response'}` });
         setAddLinksLoading({ [taskType]: false });
         return;
       }
@@ -92,32 +92,32 @@ export default function InitLinks() {
       if (response.ok) {
         setResult({ 
           success: true, 
-          message: data.message || `Успешно добавлено ${data.count || 0} ссылок для типа "${taskType}"!` 
+          message: data.message || `Successfully added ${data.count || 0} links for type "${taskType}"!` 
         });
       } else {
-        setResult({ error: data.error || data.message || `Ошибка при добавлении ссылок (${response.status})` });
+        setResult({ error: data.error || data.message || `Error adding links (${response.status})` });
       }
     } catch (error: any) {
       console.error('Add links error:', error);
-      setResult({ error: error.message || 'Неизвестная ошибка' });
+      setResult({ error: error.message || 'Unknown error' });
     } finally {
       setAddLinksLoading({ [taskType]: false });
     }
   };
 
   return (
-    <Layout title="Инициализация системы">
+    <Layout title="System Initialization">
       <div className="max-w-3xl mx-auto">
         <h1 className="text-3xl font-bold text-gray-900 mb-6">
-          Инициализация начальных ссылок
+          Initialize Initial Links
         </h1>
 
         <div className="bg-white rounded-2xl shadow-xl p-8 mb-6">
           <h2 className="text-xl font-bold text-gray-900 mb-4">
-            Информация
+            Information
           </h2>
           <p className="text-gray-600 mb-4">
-            Эта страница позволяет инициализировать систему 20 начальными ссылками (по 10 для каждого типа активности: like, recast).
+            This page allows you to initialize the system with 20 initial links (10 for each activity type: like, recast).
           </p>
           <ul className="list-disc list-inside text-gray-600 mb-6 space-y-2">
             <li>https://farcaster.xyz/svs-smm/0xf9660a16</li>
@@ -154,12 +154,12 @@ export default function InitLinks() {
               fullWidth
               className="text-lg py-4"
             >
-              {loading ? 'Инициализация...' : 'Инициализировать систему (удаляет все существующие ссылки)'}
+              {loading ? 'Initializing...' : 'Initialize system (deletes all existing links)'}
             </Button>
 
             <div className="border-t pt-4">
               <h3 className="text-lg font-bold text-gray-900 mb-3">
-                Добавить ссылки только для одного типа (без удаления существующих)
+                Add links for one type only (without deleting existing)
               </h3>
               <div className="grid grid-cols-2 gap-3">
                 <Button
@@ -168,7 +168,7 @@ export default function InitLinks() {
                   variant="secondary"
                   className="text-base py-3"
                 >
-                  {addLinksLoading.like ? 'Добавление...' : '➕ Добавить 10 ссылок для LIKE'}
+                  {addLinksLoading.like ? 'Adding...' : '➕ Add 10 links for LIKE'}
                 </Button>
                 <Button
                   onClick={() => performAddLinks('recast')}
@@ -176,7 +176,7 @@ export default function InitLinks() {
                   variant="secondary"
                   className="text-base py-3"
                 >
-                  {addLinksLoading.recast ? 'Добавление...' : '➕ Добавить 10 ссылок для RECAST'}
+                  {addLinksLoading.recast ? 'Adding...' : '➕ Add 10 links for RECAST'}
                 </Button>
               </div>
             </div>
@@ -187,23 +187,23 @@ export default function InitLinks() {
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
               <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 max-w-md w-full mx-4">
                 <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">
-                  Подтверждение
+                  Confirmation
                 </h3>
                 <p className="text-gray-700 mb-6">
-                  Вы уверены, что хотите инициализировать систему начальными ссылками? Это действие нельзя отменить.
+                  Are you sure you want to initialize the system with initial links? This action cannot be undone.
                 </p>
                 <div className="flex gap-4">
                   <button
                     onClick={() => setShowConfirmModal(false)}
                     className="flex-1 px-6 py-3 bg-gray-200 text-gray-800 font-bold rounded-xl hover:bg-gray-300 transition-colors"
                   >
-                    Отмена
+                    Cancel
                   </button>
                   <button
                     onClick={handleConfirm}
                     className="flex-1 px-6 py-3 bg-gradient-to-r from-primary to-accent text-white font-bold rounded-xl hover:opacity-90 transition-opacity"
                   >
-                    Подтвердить
+                    Confirm
                   </button>
                 </div>
               </div>
@@ -214,18 +214,18 @@ export default function InitLinks() {
 
         <div className="bg-yellow-50 border-2 border-yellow-300 rounded-2xl p-6 mb-6">
           <h3 className="text-lg font-bold text-yellow-800 mb-2">
-            ⚠️ Внимание
+            ⚠️ Warning
           </h3>
           <p className="text-yellow-700 mb-2">
-            <strong>Инициализация системы:</strong> Эта операция добавляет 20 начальных ссылок в систему (10 для like, 10 для recast). 
-            Если система уже инициализирована, старые ссылки будут удалены перед добавлением новых.
+            <strong>System Initialization:</strong> This operation adds 20 initial links to the system (10 for like, 10 for recast). 
+            If the system is already initialized, old links will be deleted before adding new ones.
           </p>
           <p className="text-yellow-700">
-            <strong>Добавление ссылок по типам:</strong> Эти кнопки добавляют 10 ссылок только для указанного типа (like или recast) 
-            БЕЗ удаления существующих ссылок. Это безопасный способ заполнить пустые разделы.
+            <strong>Adding links by type:</strong> These buttons add 10 links only for the specified type (like or recast) 
+            WITHOUT deleting existing links. This is a safe way to fill empty sections.
           </p>
           <p className="text-yellow-700 mt-2">
-            Для работы этих действий необходим секретный ключ (установите его в переменную окружения INIT_LINKS_SECRET_KEY на Vercel).
+            A secret key is required for these actions (set it in the INIT_LINKS_SECRET_KEY environment variable on Vercel).
           </p>
         </div>
       </div>

@@ -127,7 +127,7 @@ export default function Chat() {
       return;
     }
     if (!validateUrl(castUrl)) {
-      setSubmitError('Разрешены только ссылки на посты Farcaster (casts). Нельзя использовать ссылки на профили, приложения или другие разделы.');
+      setSubmitError('Only Farcaster cast links are allowed. You cannot use links to profiles, applications, or other sections.');
       return;
     }
     setSubmitError('');
@@ -148,10 +148,10 @@ export default function Chat() {
         // Прокрутка к началу списка
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
-        setSubmitError('Не удалось опубликовать ссылку');
+        setSubmitError('Failed to publish link');
       }
     } catch (err: any) {
-      setSubmitError(err?.message || 'Ошибка при публикации');
+      setSubmitError(err?.message || 'Error publishing link');
     } finally {
       setSubmitLoading(false);
     }
@@ -217,7 +217,7 @@ export default function Chat() {
         {/* Быстрая публикация ссылки */}
         {user && !userLink && (
           <div className="bg-white rounded-xl shadow-md p-4 mb-6">
-            <h3 className="text-lg font-bold text-gray-900 mb-3">Быстрая публикация ссылки</h3>
+            <h3 className="text-lg font-bold text-gray-900 mb-3">Quick Link Submission</h3>
             <form onSubmit={handleQuickSubmit} className="flex flex-col md:flex-row gap-3">
               <input
                 type="url"
@@ -234,7 +234,7 @@ export default function Chat() {
             {submitError && (
               <p className="text-red-600 text-sm mt-2">{submitError}</p>
             )}
-            <p className="text-xs text-gray-500 mt-2">Ссылка на ваш каст Farcaster</p>
+            <p className="text-xs text-gray-500 mt-2">Link to your Farcaster cast</p>
           </div>
         )}
 

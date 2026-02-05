@@ -52,7 +52,7 @@ export default async function handler(
       return res.status(200).json({
         success: false,
         completed: false,
-        error: "Не удалось получить hash из ссылки. Проверьте, что ссылка корректна и каст существует в сети Farcaster.",
+        error: "Failed to get hash from link. Please check that the link is correct and the cast exists on Farcaster network.",
         neynarExplorerUrl: `https://explorer.neynar.com/search?q=${encodeURIComponent(
           castUrl
         )}`,

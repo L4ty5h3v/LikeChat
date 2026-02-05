@@ -498,7 +498,7 @@ export default function Home() {
       
       setErrorModal({
         show: true,
-        message: `Ошибка при авторизации: ${error?.message || 'Неизвестная ошибка'}\n\nПроверьте консоль браузера для деталей.`
+        message: `Authorization error: ${error?.message || 'Unknown error'}\n\nCheck browser console for details.`
       });
       setSuccess(false);
       return; // Явно выходим из функции

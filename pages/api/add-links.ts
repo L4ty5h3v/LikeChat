@@ -19,7 +19,7 @@ export default async function handler(
     if (!secretKey || secretKey !== requiredSecretKey) {
       return res.status(401).json({ 
         error: 'Unauthorized',
-        message: 'Секретный ключ не указан или неверен. Установите INIT_LINKS_SECRET_KEY в Vercel или введите правильный ключ.'
+        message: 'Secret key is not set or invalid. Set INIT_LINKS_SECRET_KEY in Vercel or enter the correct key.'
       });
     }
   }

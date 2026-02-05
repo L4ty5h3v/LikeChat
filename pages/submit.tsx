@@ -24,7 +24,7 @@ async function publishCastByActivityType(
     if (typeof window === 'undefined') {
       return {
         success: false,
-        error: 'SDK доступен только на клиенте',
+        error: 'SDK is only available on the client',
       };
     }
 
@@ -590,7 +590,7 @@ export default function Submit() {
     // Проверяем наличие user из контекста
     if (!user) {
       console.error('❌ [SUBMIT] User is null in context!');
-      setError('Ошибка: данные пользователя не найдены. Пожалуйста, авторизуйтесь заново.');
+      setError('Error: user data not found. Please authorize again.');
       router.push('/');
       return;
     }
@@ -601,14 +601,14 @@ export default function Submit() {
         hasActivity: !!activity,
         hasCastUrl: !!castUrl,
       });
-      setError('Заполните все обязательные поля');
+      setError('Please fill in all required fields');
       return;
     }
     
     // ⚠️ ПРОВЕРКА FID: Убеждаемся, что fid существует и валиден
     if (!user.fid || typeof user.fid !== 'number') {
       console.error('❌ [SUBMIT] Invalid or missing user.fid:', user.fid);
-      setError('Ошибка: не найден FID пользователя. Попробуйте перезагрузить страницу.');
+      setError('Error: user FID not found. Please reload the page.');
       return;
     }
     
@@ -621,7 +621,7 @@ export default function Submit() {
 
     // Валидация URL - только ссылки на посты (casts)
     if (!validateUrl(castUrl)) {
-      setError('Разрешены только ссылки на посты Farcaster (casts). Нельзя использовать ссылки на профили, приложения или другие разделы.');
+      setError('Only Farcaster cast links are allowed. You cannot use links to profiles, applications, or other sections.');
       return;
     }
 
@@ -678,7 +678,7 @@ export default function Submit() {
         
         // Если ошибка связана с недостаточным количеством выполненных заданий
         if (data.completedCount !== undefined && data.requiredCount !== undefined) {
-          const errorMessage = data.error || `Вы можете отправить свою ссылку только после выполнения 10 заданий. Выполнено: ${data.completedCount}/10`;
+          const errorMessage = data.error || `You can submit your link only after completing 10 tasks. Completed: ${data.completedCount}/10`;
           setError(errorMessage);
           setLoading(false);
           // Редиректим на страницу заданий через 3 секунды
@@ -690,7 +690,7 @@ export default function Submit() {
         
         // Если ошибка связана с недостаточным количеством ссылок от других пользователей
         if (data.otherLinksCount !== undefined && data.requiredCount !== undefined) {
-          const errorMessage = data.error || `Вы можете отправить свою ссылку только после того, как в чат было отправлено 10 других ссылок. Отправлено другими пользователями: ${data.otherLinksCount}/10`;
+          const errorMessage = data.error || `You can submit your link only after 10 other links have been submitted to the chat. Submitted by other users: ${data.otherLinksCount}/10`;
           setError(errorMessage);
           setLoading(false);
           // Редиректим на страницу заданий через 3 секунды
