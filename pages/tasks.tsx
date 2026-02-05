@@ -989,10 +989,16 @@ export default function Tasks() {
               console.log(`✅ [VERIFY] Removed error for task ${task.link_id}`, taskErrorsRef.current);
             }
             
+            // ⚠️ КРИТИЧНО: Если задача открыта и проверка через API не прошла (ошибка API), 
+            // устанавливаем verified: true и completed: true (зеленая кнопка)
+            // Если проверка прошла, но лайка нет, устанавливаем error: true (красная кнопка)
+            const shouldBeVerified = isOpened && (result.isError || result.completed);
+            const shouldBeCompleted = isOpened ? (result.isError ? true : result.completed) : result.completed;
+            
             return {
               ...task,
-              completed: finalCompleted, // ⚠️ Используем finalCompleted, а не result.completed
-              verified: true,
+              completed: shouldBeCompleted,
+              verified: shouldBeVerified || finalCompleted, // verified если открыта и (ошибка API или лайк есть) или выполнена
               verifying: false,
               error: hasError,
               opened: isOpened, // Сохраняем состояние opened
