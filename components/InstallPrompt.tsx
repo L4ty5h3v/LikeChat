@@ -238,7 +238,7 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
       {/* Modal - позиционируем явно сверху */}
       <div 
         className="absolute left-1/2 transform -translate-x-1/2 w-full max-w-md rounded-3xl shadow-2xl pointer-events-auto overflow-hidden animate-slide-up p-4"
-        style={{ top: '10vh', maxHeight: '80vh', overflowY: 'auto' }}
+        style={{ top: '30vh', maxHeight: '60vh', overflowY: 'auto' }}
       >
         {/* Градиентный фон */}
         <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient" style={{ backgroundSize: '300% 300%' }}></div>
