@@ -29,31 +29,30 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
         const { sdk } = await import('@farcaster/miniapp-sdk');
 
         // Проверяем, установлено ли приложение
-        // Пробуем использовать метод isInstalled, если доступен
+        // Проверяем через context - если context.user отсутствует, возможно приложение не установлено
         let installed = false;
-        if (sdk?.actions?.isInstalled && typeof sdk.actions.isInstalled === 'function') {
-          try {
-            installed = await sdk.actions.isInstalled();
-            setIsInstalled(installed);
-          } catch (error) {
-            console.log('ℹ️ [INSTALL] isInstalled method error:', error);
-            // Если метод не работает, предполагаем, что приложение не установлено
-            installed = false;
-            setIsInstalled(false);
+        try {
+          const context = await sdk.context;
+          installed = !!context?.user;
+          setIsInstalled(installed);
+          
+          // Пробуем использовать метод isInstalled, если доступен (через any для обхода типов)
+          const actions = sdk.actions as any;
+          if (actions?.isInstalled && typeof actions.isInstalled === 'function') {
+            try {
+              const isInstalledResult = await actions.isInstalled();
+              installed = isInstalledResult;
+              setIsInstalled(installed);
+            } catch (error) {
+              console.log('ℹ️ [INSTALL] isInstalled method error:', error);
+              // Используем результат проверки через context
+            }
           }
-        } else {
-          // Если метод isInstalled недоступен, проверяем через context
-          // Если context.user отсутствует, возможно приложение не установлено
-          try {
-            const context = await sdk.context;
-            installed = !!context?.user;
-            setIsInstalled(installed);
-          } catch (error) {
-            console.log('ℹ️ [INSTALL] Context check error:', error);
-            // Если не можем проверить, предполагаем, что приложение не установлено
-            installed = false;
-            setIsInstalled(false);
-          }
+        } catch (error) {
+          console.log('ℹ️ [INSTALL] Context check error:', error);
+          // Если не можем проверить, предполагаем, что приложение не установлено
+          installed = false;
+          setIsInstalled(false);
         }
         
         // Показываем модальное окно, если приложение не установлено
@@ -86,10 +85,11 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
 
       const { sdk } = await import('@farcaster/miniapp-sdk');
 
-      // Вызываем установку через SDK
-      if (sdk?.actions?.install && typeof sdk.actions.install === 'function') {
+      // Вызываем установку через SDK (через any для обхода типов)
+      const actions = sdk.actions as any;
+      if (actions?.install && typeof actions.install === 'function') {
         try {
-          await sdk.actions.install();
+          await actions.install();
           setShowModal(false);
           setIsInstalled(true);
         } catch (error) {
