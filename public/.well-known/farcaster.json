@@ -15,6 +15,15 @@
     "splashBackgroundColor": "#C71585",
     "splashImageUrl": "https://likechat-farcaster.vercel.app/images/image%20(3).png",
     "imageUrl": "https://likechat-farcaster.vercel.app/images/image%20(3).png",
-    "buttonTitle": "MUTUAL LOVE"
+    "buttonTitle": "MUTUAL LOVE",
+    "buttons": [
+      {
+        "title": "MUTUAL LOVE",
+        "action": {
+          "type": "link",
+          "target": "https://likechat-farcaster.vercel.app/"
+        }
+      }
+    ]
   }
 }
