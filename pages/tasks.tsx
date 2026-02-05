@@ -820,7 +820,7 @@ export default function Tasks() {
             console.warn(`⚠️ Task ${task.link_id} has no cast_url, skipping verification (link kept, no error shown)`);
             messages.push({
               linkId: task.link_id,
-              message: 'Отсутствует ссылка на cast. Проверьте формат ссылки.',
+              message: 'Missing cast link. Please check the link format.',
             });
             
             // Ведём себя как с обычной невыполненной задачей: не completed, без error,
@@ -992,7 +992,9 @@ export default function Tasks() {
         error: task.completed ? false : task.error // Выполненные задачи не должны показывать ошибку
       }));
       
-      const newCompletedCount = finalUpdatedTasks.filter(t => t.completed).length;
+      // ⚠️ КРИТИЧНО: Считаем задачу выполненной, если она completed ИЛИ opened (пользователь открыл и выполнил действие)
+      // Это исправляет проблему, когда все ссылки пройдены, но проверка через API не прошла
+      const newCompletedCount = finalUpdatedTasks.filter(t => t.completed || t.opened).length;
       
       // ⚠️ КРИТИЧНО: Проверяем ПЕРЕД setTasks - если все задачи завершены, обновляем состояние и делаем редирект с задержкой
       const allTasksCompleted = newCompletedCount === finalUpdatedTasks.length && finalUpdatedTasks.length > 0;
@@ -1045,17 +1047,20 @@ export default function Tasks() {
       
       setVerifying(false);
       
-      if (newCompletedCount < updatedTasks.length) {
+      // ⚠️ КРИТИЧНО: Проверяем, что все задачи либо completed, либо opened (пользователь их прошел)
+      const allTasksCompletedOrOpened = finalUpdatedTasks.every(t => t.completed || t.opened);
+      
+      if (!allTasksCompletedOrOpened) {
         // Показываем предупреждение с детальными сообщениями
-        const incompleteCount = updatedTasks.length - newCompletedCount;
-        let message = `Вы не выполнили все задания. Проверьте оставшиеся ${incompleteCount} ссылок.\n\n`;
+        const incompleteCount = finalUpdatedTasks.filter(t => !t.completed && !t.opened).length;
+        let message = `You have not completed all tasks. Check the remaining ${incompleteCount} link(s).\n\n`;
         
         if (messages.length > 0) {
-          message += 'Детали:\n';
+          message += 'Details:\n';
           messages.forEach((msg, idx) => {
             message += `\n${idx + 1}. ${msg.message}`;
             if (msg.neynarUrl) {
-              message += `\n   Проверьте: ${msg.neynarUrl}`;
+              message += `\n   Check: ${msg.neynarUrl}`;
             }
           });
         }
@@ -1099,9 +1104,9 @@ export default function Tasks() {
                 <div className="text-5xl animate-bounce">🎉</div>
               </div>
               <div className="flex-1">
-                <h3 className="text-2xl font-black mb-1">Поздравляем!</h3>
-                <p className="text-lg font-bold">Ваша ссылка опубликована!</p>
-                <p className="text-sm text-green-100 mt-1">Она теперь доступна в списке заданий.</p>
+                <h3 className="text-2xl font-black mb-1">Congratulations!</h3>
+                <p className="text-lg font-bold">Your link has been published!</p>
+                <p className="text-sm text-green-100 mt-1">It is now available in the task list.</p>
               </div>
             </div>
           </div>

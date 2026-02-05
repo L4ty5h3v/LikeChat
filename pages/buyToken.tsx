@@ -609,14 +609,14 @@ export default function BuyToken() {
 
   const confirmBuyToken = async (isRetry: boolean = false) => {
     if (!user) {
-      setError('Пользователь не авторизован');
-      setLastError('Пользователь не авторизован');
+      setError('User not authorized');
+      setLastError('User not authorized');
       return;
     }
 
     if (!walletAddress) {
-      setError('Кошелек не подключен');
-      setLastError('Кошелек не подключен');
+      setError('Wallet not connected');
+      setLastError('Wallet not connected');
       return;
     }
 
