@@ -29,42 +29,59 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
         const { sdk } = await import('@farcaster/miniapp-sdk');
 
         // Проверяем, установлено ли приложение
-        // Проверяем через context - если context.user отсутствует, возможно приложение не установлено
+        // Сначала пробуем использовать метод isInstalled, если доступен
         let installed = false;
-        try {
-          const context = await sdk.context;
-          installed = !!context?.user;
-          setIsInstalled(installed);
-          
-          // Пробуем использовать метод isInstalled, если доступен (через any для обхода типов)
-          const actions = sdk.actions as any;
-          if (actions?.isInstalled && typeof actions.isInstalled === 'function') {
-            try {
-              const isInstalledResult = await actions.isInstalled();
-              installed = isInstalledResult;
-              setIsInstalled(installed);
-            } catch (error) {
-              console.log('ℹ️ [INSTALL] isInstalled method error:', error);
-              // Используем результат проверки через context
-            }
+        const actions = sdk.actions as any;
+        
+        if (actions?.isInstalled && typeof actions.isInstalled === 'function') {
+          try {
+            installed = await actions.isInstalled();
+            setIsInstalled(installed);
+            console.log('✅ [INSTALL] isInstalled check result:', installed);
+          } catch (error) {
+            console.log('ℹ️ [INSTALL] isInstalled method error:', error);
+            // Если метод не работает, предполагаем, что приложение не установлено
+            installed = false;
+            setIsInstalled(false);
           }
-        } catch (error) {
-          console.log('ℹ️ [INSTALL] Context check error:', error);
-          // Если не можем проверить, предполагаем, что приложение не установлено
-          installed = false;
-          setIsInstalled(false);
+        } else {
+          // Если метод isInstalled недоступен, проверяем через другие признаки
+          // В Farcaster Mini App, если приложение не установлено, может не быть некоторых данных
+          try {
+            const context = await sdk.context;
+            // Если context есть, но нет явного признака установки, показываем модальное окно
+            // (но только если пользователь еще не отклонил его)
+            installed = false; // По умолчанию считаем, что не установлено
+            setIsInstalled(false);
+            console.log('ℹ️ [INSTALL] isInstalled method not available, assuming not installed');
+          } catch (error) {
+            console.log('ℹ️ [INSTALL] Context check error:', error);
+            installed = false;
+            setIsInstalled(false);
+          }
         }
         
         // Показываем модальное окно, если приложение не установлено
         if (!installed) {
           // Проверяем, не было ли уже отклонено пользователем
           const dismissed = localStorage.getItem('install_prompt_dismissed');
+          console.log('🔍 [INSTALL] Installation check:', {
+            installed,
+            dismissed: !!dismissed,
+            willShow: !dismissed
+          });
+          
           if (!dismissed) {
             // Небольшая задержка для лучшего UX
             setTimeout(() => {
+              console.log('✅ [INSTALL] Showing install prompt modal');
               setShowModal(true);
             }, 1000);
+          } else {
+            console.log('ℹ️ [INSTALL] Install prompt was dismissed, not showing');
           }
+        } else {
+          console.log('✅ [INSTALL] App is installed, not showing prompt');
         }
       } catch (error) {
         console.log('ℹ️ [INSTALL] Error checking installation status:', error);
@@ -117,9 +134,19 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
     }
   };
 
-  if (isLoading || !showModal || isInstalled) {
+  // Не показываем модальное окно если:
+  // - еще загружается проверка
+  // - модальное окно не должно показываться
+  // - приложение уже установлено
+  if (isLoading || !showModal || (isInstalled === true)) {
     return null;
   }
+  
+  console.log('🎨 [INSTALL] Rendering install prompt modal', {
+    isLoading,
+    showModal,
+    isInstalled
+  });
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center pointer-events-none">
