@@ -6,6 +6,7 @@ import { base } from 'wagmi/chains';
 import { OnchainKitProvider } from '@coinbase/onchainkit';
 import { FarcasterAuthProvider } from '@/contexts/FarcasterAuthContext';
 import { AuthSync } from '@/components/AuthSync';
+import InstallPrompt from '@/components/InstallPrompt';
 
 export default function App({ Component, pageProps }: AppProps) {
   // Глобальный обработчик ошибок для отлова неперехваченных ошибок
@@ -132,6 +133,7 @@ export default function App({ Component, pageProps }: AppProps) {
         <FarcasterAuthProvider>
           <AuthSync />
           <Component {...pageProps} />
+          <InstallPrompt />
         </FarcasterAuthProvider>
       </OnchainKitProvider>
     </>

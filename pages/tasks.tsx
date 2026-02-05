@@ -223,6 +223,11 @@ export default function Tasks() {
         const finalCompleted = wasVerified ? true : isCompleted;
         const finalVerified = wasVerified ? true : isCompleted;
         
+        // ⚠️ КРИТИЧНО: Если задание выполнено, удаляем ошибку из taskErrorsRef
+        if (finalCompleted && finalVerified) {
+          delete taskErrorsRef.current[link.id];
+        }
+        
         // ⚠️ КРИТИЧНО: Если задание verified, добавляем в ref для постоянного хранения
         if (finalCompleted && finalVerified && !isVerifiedInRef) {
           verifiedTasksRef.current.add(link.id);
@@ -912,9 +917,12 @@ export default function Tasks() {
             // Определяем, была ли ошибка
             // Ошибка только если: проверка прошла успешно (!result.isError), но лайка нет (!result.completed)
             // НЕ ошибка если: result.isError (ошибка API) - в этом случае считаем выполненной
+            // ⚠️ КРИТИЧНО: Если result.completed = true, то ошибки быть не должно
+            // Ошибка только если: проверка прошла успешно (!result.isError), но лайка нет (!result.completed), и задача открыта
             const hasError = finalCompleted ? false : (
               (!result.isError) && 
-              (!result.completed) // Проверка прошла, но лайка нет - это ошибка
+              (!result.completed) && 
+              isOpened // Проверка прошла, но лайка нет, и задача открыта - это ошибка
             );
             
             console.log(`🔍 [VERIFY] Task ${task.link_id} verification:`, {
@@ -982,11 +990,23 @@ export default function Tasks() {
             // Сохраняем состояние ошибки в taskErrorsRef для сохранения между перезагрузками
             if (hasError) {
               taskErrorsRef.current[task.link_id] = true;
-              console.log(`🔴 [VERIFY] Stored error for task ${task.link_id}`, taskErrorsRef.current);
+              console.log(`🔴 [VERIFY] Stored error for task ${task.link_id}`, {
+                hasError,
+                resultCompleted: result.completed,
+                resultIsError: result.isError,
+                isOpened,
+                finalCompleted
+              });
             } else {
-              // Убираем ошибку, если задание выполнено
+              // Убираем ошибку, если задание выполнено или проверка не показала ошибку
               delete taskErrorsRef.current[task.link_id];
-              console.log(`✅ [VERIFY] Removed error for task ${task.link_id}`, taskErrorsRef.current);
+              console.log(`✅ [VERIFY] Removed error for task ${task.link_id}`, {
+                hasError,
+                resultCompleted: result.completed,
+                resultIsError: result.isError,
+                isOpened,
+                finalCompleted
+              });
             }
             
             // ⚠️ КРИТИЧНО: Если задача открыта и проверка через API не прошла (ошибка API), 
