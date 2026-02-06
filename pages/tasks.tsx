@@ -702,43 +702,60 @@ export default function Tasks() {
       });
       
       if (isInFarcasterFrame) {
-        // КРИТИЧНО: На iOS внутри iframe нужно использовать window.top.location для выхода из iframe
-        if (isIOS && window.top && window.top !== window.self) {
-          try {
-            console.log('📱 [OPEN] iOS detected in iframe, trying window.top.location to exit iframe');
-            
-            // Пробуем разные методы для выхода из iframe на iOS
-            // Метод 1: window.top.location.href
+        // КРИТИЧНО: На iOS внутри iframe SDK openUrl открывает ссылку внутри iframe
+        // Нужно использовать прямой выход из iframe БЕЗ SDK на iOS
+        if (isIOS) {
+          console.log('📱 [OPEN] iOS detected in iframe, using direct iframe exit methods');
+          
+          // Метод 1: Пробуем window.top.location.href (самый надежный для iOS)
+          if (window.top && window.top !== window.self) {
             try {
               window.top.location.href = castUrl;
               console.log(`✅ [OPEN] Link opened via window.top.location.href on iOS: ${castUrl}`);
               return;
-            } catch (hrefError) {
-              console.warn('⚠️ [OPEN] window.top.location.href failed, trying window.top.location.replace:', hrefError);
+            } catch (hrefError: any) {
+              console.warn('⚠️ [OPEN] window.top.location.href blocked:', hrefError?.message);
             }
-            
-            // Метод 2: window.top.location.replace (может работать, если href заблокирован)
+          }
+          
+          // Метод 2: Пробуем window.top.location.replace
+          if (window.top && window.top !== window.self) {
             try {
               window.top.location.replace(castUrl);
               console.log(`✅ [OPEN] Link opened via window.top.location.replace on iOS: ${castUrl}`);
               return;
-            } catch (replaceError) {
-              console.warn('⚠️ [OPEN] window.top.location.replace failed, trying window.top.location.assign:', replaceError);
+            } catch (replaceError: any) {
+              console.warn('⚠️ [OPEN] window.top.location.replace blocked:', replaceError?.message);
             }
-            
-            // Метод 3: window.top.location.assign
-            try {
-              window.top.location.assign(castUrl);
-              console.log(`✅ [OPEN] Link opened via window.top.location.assign on iOS: ${castUrl}`);
-              return;
-            } catch (assignError) {
-              console.warn('⚠️ [OPEN] All window.top.location methods failed, trying SDK:', assignError);
-            }
-          } catch (topLocationError) {
-            console.warn('⚠️ [OPEN] window.top.location access blocked, trying SDK:', topLocationError);
+          }
+          
+          // Метод 3: Пробуем создать временную ссылку и кликнуть (работает на iOS)
+          try {
+            const link = document.createElement('a');
+            link.href = castUrl;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            console.log(`✅ [OPEN] Link opened via temporary link click on iOS: ${castUrl}`);
+            return;
+          } catch (linkError: any) {
+            console.warn('⚠️ [OPEN] Temporary link click failed:', linkError?.message);
+          }
+          
+          // Метод 4: Пробуем window.open (может работать на iOS в некоторых случаях)
+          try {
+            window.open(castUrl, '_blank', 'noopener,noreferrer');
+            console.log(`✅ [OPEN] Link opened via window.open on iOS: ${castUrl}`);
+            return;
+          } catch (openError: any) {
+            console.warn('⚠️ [OPEN] window.open failed:', openError?.message);
           }
         }
         
+        // Для не-iOS используем SDK
         const { sdk } = await import('@farcaster/miniapp-sdk');
         
         // Убеждаемся, что SDK готов
@@ -751,33 +768,14 @@ export default function Tasks() {
           }
         }
         
-        // Метод 1: Используем SDK openUrl (предпочтительный метод для не-iOS)
+        // Метод: Используем SDK openUrl (работает на Android и веб)
         if (sdk?.actions?.openUrl) {
           try {
             await sdk.actions.openUrl({ url: castUrl });
             console.log(`✅ [OPEN] Link opened via SDK openUrl: ${castUrl}`);
             return;
           } catch (openUrlError) {
-            console.warn('⚠️ [OPEN] SDK openUrl failed, trying postMessage:', openUrlError);
-          }
-        }
-        
-        // Метод 2: Используем postMessage для отправки сообщения родительскому окну
-        if (window.parent && window.parent !== window) {
-          try {
-            window.parent.postMessage(
-              {
-                type: 'farcaster:openUrl',
-                url: castUrl,
-              },
-              '*'
-            );
-            console.log(`✅ [OPEN] Link opened via postMessage: ${castUrl}`);
-            // Даем немного времени на обработку postMessage
-            await new Promise(resolve => setTimeout(resolve, 100));
-            return;
-          } catch (postMessageError) {
-            console.warn('⚠️ [OPEN] postMessage failed:', postMessageError);
+            console.warn('⚠️ [OPEN] SDK openUrl failed:', openUrlError);
           }
         }
       }

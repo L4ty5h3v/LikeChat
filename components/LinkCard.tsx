@@ -36,39 +36,62 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
       const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
       
       if (isInFarcasterFrame) {
-        // КРИТИЧНО: На iOS внутри iframe нужно использовать window.top.location для выхода из iframe
-        if (isIOS && window.top && window.top !== window.self) {
-          try {
-            console.log('📱 [LINKCARD] iOS detected in iframe, trying window.top.location to exit iframe');
-            
-            // Пробуем разные методы для выхода из iframe на iOS
+        // КРИТИЧНО: На iOS внутри iframe SDK openUrl открывает ссылку внутри iframe
+        // Нужно использовать прямой выход из iframe БЕЗ SDK на iOS
+        if (isIOS) {
+          console.log('📱 [LINKCARD] iOS detected in iframe, using direct iframe exit methods');
+          
+          // Метод 1: window.top.location.href
+          if (window.top && window.top !== window.self) {
             try {
               window.top.location.href = url;
               console.log(`✅ [LINKCARD] Link opened via window.top.location.href on iOS: ${url}`);
               return;
-            } catch (hrefError) {
-              try {
-                window.top.location.replace(url);
-                console.log(`✅ [LINKCARD] Link opened via window.top.location.replace on iOS: ${url}`);
-                return;
-              } catch (replaceError) {
-                try {
-                  window.top.location.assign(url);
-                  console.log(`✅ [LINKCARD] Link opened via window.top.location.assign on iOS: ${url}`);
-                  return;
-                } catch (assignError) {
-                  console.warn('⚠️ [LINKCARD] All window.top.location methods failed, trying SDK:', assignError);
-                }
-              }
+            } catch (hrefError: any) {
+              console.warn('⚠️ [LINKCARD] window.top.location.href blocked:', hrefError?.message);
             }
-          } catch (topLocationError) {
-            console.warn('⚠️ [LINKCARD] window.top.location access blocked, trying SDK:', topLocationError);
+          }
+          
+          // Метод 2: window.top.location.replace
+          if (window.top && window.top !== window.self) {
+            try {
+              window.top.location.replace(url);
+              console.log(`✅ [LINKCARD] Link opened via window.top.location.replace on iOS: ${url}`);
+              return;
+            } catch (replaceError: any) {
+              console.warn('⚠️ [LINKCARD] window.top.location.replace blocked:', replaceError?.message);
+            }
+          }
+          
+          // Метод 3: Временная ссылка с кликом
+          try {
+            const link = document.createElement('a');
+            link.href = url;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            console.log(`✅ [LINKCARD] Link opened via temporary link click on iOS: ${url}`);
+            return;
+          } catch (linkError: any) {
+            console.warn('⚠️ [LINKCARD] Temporary link click failed:', linkError?.message);
+          }
+          
+          // Метод 4: window.open
+          try {
+            window.open(url, '_blank', 'noopener,noreferrer');
+            console.log(`✅ [LINKCARD] Link opened via window.open on iOS: ${url}`);
+            return;
+          } catch (openError: any) {
+            console.warn('⚠️ [LINKCARD] window.open failed:', openError?.message);
           }
         }
         
+        // Для не-iOS используем SDK
         const { sdk } = await import('@farcaster/miniapp-sdk');
         
-        // Убеждаемся, что SDK готов
         if (sdk?.actions?.ready && typeof sdk.actions.ready === 'function') {
           try {
             await sdk.actions.ready();
@@ -77,31 +100,13 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
           }
         }
         
-        // Метод 1: Используем SDK openUrl
         if (sdk?.actions?.openUrl) {
           try {
             await sdk.actions.openUrl({ url });
             console.log(`✅ [LINKCARD] Link opened via SDK: ${url}`);
             return;
           } catch (openUrlError) {
-            console.warn('⚠️ [LINKCARD] SDK openUrl failed, trying postMessage:', openUrlError);
-          }
-        }
-        
-        // Метод 2: Используем postMessage
-        if (window.parent && window.parent !== window) {
-          try {
-            window.parent.postMessage(
-              {
-                type: 'farcaster:openUrl',
-                url: url,
-              },
-              '*'
-            );
-            console.log(`✅ [LINKCARD] Link opened via postMessage: ${url}`);
-            return;
-          } catch (postMessageError) {
-            console.warn('⚠️ [LINKCARD] postMessage failed:', postMessageError);
+            console.warn('⚠️ [LINKCARD] SDK openUrl failed:', openUrlError);
           }
         }
       }
