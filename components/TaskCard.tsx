@@ -29,11 +29,19 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
         }
         
         // КРИТИЧНО: Используем viewCast для открытия кастов (правильный метод SDK)
+        // viewCast принимает hash каста, а не URL
         if (sdk?.actions?.viewCast && typeof sdk.actions.viewCast === 'function') {
           try {
-            await sdk.actions.viewCast({ url });
-            console.log(`✅ [TASKCARD] Cast opened via SDK viewCast: ${url}`);
-            return;
+            const { extractCastHash } = await import('@/lib/neynar');
+            const castHash = extractCastHash(url);
+            
+            if (castHash) {
+              await (sdk.actions.viewCast as any)({ hash: castHash });
+              console.log(`✅ [TASKCARD] Cast opened via SDK viewCast with hash: ${castHash}`);
+              return;
+            } else {
+              console.warn('⚠️ [TASKCARD] Could not extract hash from URL, trying openUrl');
+            }
           } catch (viewCastError: any) {
             console.warn('⚠️ [TASKCARD] SDK viewCast failed, trying openUrl:', viewCastError?.message || viewCastError);
           }

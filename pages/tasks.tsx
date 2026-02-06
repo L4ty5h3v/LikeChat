@@ -716,12 +716,21 @@ export default function Tasks() {
         
         // КРИТИЧНО: Используем viewCast для открытия кастов (правильный метод SDK)
         // viewCast работает на всех платформах, включая iOS, и открывает каст в Farcaster
+        // viewCast принимает hash каста, а не URL, поэтому извлекаем hash из URL
         if (sdk?.actions?.viewCast && typeof sdk.actions.viewCast === 'function') {
           try {
-            // viewCast принимает URL каста
-            await sdk.actions.viewCast({ url: castUrl });
-            console.log(`✅ [OPEN] Cast opened via SDK viewCast: ${castUrl}`);
-            return;
+            // Извлекаем hash из URL для viewCast
+            const { extractCastHash } = await import('@/lib/neynar');
+            const castHash = extractCastHash(castUrl);
+            
+            if (castHash) {
+              // viewCast принимает hash каста
+              await (sdk.actions.viewCast as any)({ hash: castHash });
+              console.log(`✅ [OPEN] Cast opened via SDK viewCast with hash: ${castHash}`);
+              return;
+            } else {
+              console.warn('⚠️ [OPEN] Could not extract hash from URL, trying openUrl');
+            }
           } catch (viewCastError: any) {
             console.warn('⚠️ [OPEN] SDK viewCast failed, trying openUrl:', viewCastError?.message || viewCastError);
           }
