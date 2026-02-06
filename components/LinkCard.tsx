@@ -36,44 +36,62 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
       const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
       
       if (isInFarcasterFrame) {
-        const { sdk } = await import('@farcaster/miniapp-sdk');
-        
-        if (sdk?.actions?.ready && typeof sdk.actions.ready === 'function') {
-          try {
-            await sdk.actions.ready();
-          } catch (readyError) {
-            // Игнорируем ошибку ready()
+        if (isIOS) {
+          // iOS: прямой выход из iframe
+          if (window.top && window.top !== window.self) {
+            try {
+              window.top.location.href = url;
+              return;
+            } catch {
+              try {
+                window.top.location.replace(url);
+                return;
+              } catch {
+                try {
+                  window.open(url, '_blank', 'noopener,noreferrer');
+                  return;
+                } catch {
+                  const link = document.createElement('a');
+                  link.href = url;
+                  link.target = '_blank';
+                  link.rel = 'noopener noreferrer';
+                  link.style.cssText = 'position:fixed;top:-9999px;';
+                  document.body.appendChild(link);
+                  link.click();
+                  setTimeout(() => {
+                    try {
+                      document.body.removeChild(link);
+                    } catch {}
+                  }, 100);
+                  return;
+                }
+              }
+            }
           }
         }
         
-        // КРИТИЧНО: Используем viewCast для открытия кастов (правильный метод SDK)
-        // viewCast принимает hash каста, а не URL
-        if (sdk?.actions?.viewCast && typeof sdk.actions.viewCast === 'function') {
+        // Не-iOS: используем SDK
+        const { sdk } = await import('@farcaster/miniapp-sdk');
+        try {
+          if (sdk?.actions?.ready) await sdk.actions.ready();
+        } catch {}
+        
+        if (sdk?.actions?.viewCast) {
           try {
             const { extractCastHash } = await import('@/lib/neynar');
-            const castHash = extractCastHash(url);
-            
-            if (castHash) {
-              await (sdk.actions.viewCast as any)({ hash: castHash });
-              console.log(`✅ [LINKCARD] Cast opened via SDK viewCast with hash: ${castHash}`);
+            const hash = extractCastHash(url);
+            if (hash) {
+              await (sdk.actions.viewCast as any)({ hash });
               return;
-            } else {
-              console.warn('⚠️ [LINKCARD] Could not extract hash from URL, trying openUrl');
             }
-          } catch (viewCastError: any) {
-            console.warn('⚠️ [LINKCARD] SDK viewCast failed, trying openUrl:', viewCastError?.message || viewCastError);
-          }
+          } catch {}
         }
         
-        // Fallback: Используем openUrl если viewCast недоступен
         if (sdk?.actions?.openUrl) {
           try {
             await sdk.actions.openUrl({ url });
-            console.log(`✅ [LINKCARD] Link opened via SDK openUrl: ${url}`);
             return;
-          } catch (openUrlError) {
-            console.warn('⚠️ [LINKCARD] SDK openUrl failed:', openUrlError);
-          }
+          } catch {}
         }
       }
     } catch (error) {

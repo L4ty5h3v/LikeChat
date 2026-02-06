@@ -702,48 +702,100 @@ export default function Tasks() {
       });
       
       if (isInFarcasterFrame) {
+        // КРИТИЧНО: На iOS внутри iframe SDK методы открывают ссылку внутри iframe
+        // Используем прямой выход из iframe через window.top.location
+        
+        if (isIOS) {
+          console.log('📱 [OPEN] iOS detected in iframe, using direct iframe exit');
+          
+          // Метод 1: window.top.location.href (самый надежный)
+          if (window.top && window.top !== window.self) {
+            try {
+              window.top.location.href = castUrl;
+              console.log(`✅ [OPEN] iOS: Opened via window.top.location.href: ${castUrl}`);
+              return;
+            } catch (e: any) {
+              console.warn('⚠️ [OPEN] iOS: window.top.location.href blocked, trying replace');
+            }
+          }
+          
+          // Метод 2: window.top.location.replace
+          if (window.top && window.top !== window.self) {
+            try {
+              window.top.location.replace(castUrl);
+              console.log(`✅ [OPEN] iOS: Opened via window.top.location.replace: ${castUrl}`);
+              return;
+            } catch (e: any) {
+              console.warn('⚠️ [OPEN] iOS: window.top.location.replace blocked, trying window.open');
+            }
+          }
+          
+          // Метод 3: window.open с _blank (может открыть в Safari на iOS)
+          try {
+            const newWindow = window.open(castUrl, '_blank', 'noopener,noreferrer');
+            if (newWindow) {
+              console.log(`✅ [OPEN] iOS: Opened via window.open: ${castUrl}`);
+              return;
+            }
+          } catch (e: any) {
+            console.warn('⚠️ [OPEN] iOS: window.open failed, trying temporary link');
+          }
+          
+          // Метод 4: Временная ссылка с кликом (последний fallback)
+          try {
+            const link = document.createElement('a');
+            link.href = castUrl;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.style.cssText = 'position:fixed;top:-9999px;left:-9999px;';
+            document.body.appendChild(link);
+            link.click();
+            setTimeout(() => {
+              try {
+                document.body.removeChild(link);
+              } catch {}
+            }, 100);
+            console.log(`✅ [OPEN] iOS: Opened via temporary link: ${castUrl}`);
+            return;
+          } catch (e: any) {
+            console.error('❌ [OPEN] iOS: All methods failed:', e?.message);
+          }
+        }
+        
+        // Для не-iOS (Android, Web) используем SDK
         const { sdk } = await import('@farcaster/miniapp-sdk');
         
-        // Убеждаемся, что SDK готов
-        if (sdk?.actions?.ready && typeof sdk.actions.ready === 'function') {
-          try {
+        try {
+          if (sdk?.actions?.ready) {
             await sdk.actions.ready();
-            console.log('✅ [OPEN] SDK ready() called');
-          } catch (readyError) {
-            console.warn('⚠️ [OPEN] SDK ready() failed, continuing anyway:', readyError);
           }
+        } catch (e) {
+          // Игнорируем ошибку ready()
         }
         
-        // КРИТИЧНО: Используем viewCast для открытия кастов (правильный метод SDK)
-        // viewCast работает на всех платформах, включая iOS, и открывает каст в Farcaster
-        // viewCast принимает hash каста, а не URL, поэтому извлекаем hash из URL
-        if (sdk?.actions?.viewCast && typeof sdk.actions.viewCast === 'function') {
+        // Пробуем viewCast с hash
+        if (sdk?.actions?.viewCast) {
           try {
-            // Извлекаем hash из URL для viewCast
             const { extractCastHash } = await import('@/lib/neynar');
             const castHash = extractCastHash(castUrl);
-            
             if (castHash) {
-              // viewCast принимает hash каста
               await (sdk.actions.viewCast as any)({ hash: castHash });
-              console.log(`✅ [OPEN] Cast opened via SDK viewCast with hash: ${castHash}`);
+              console.log(`✅ [OPEN] Opened via viewCast: ${castHash}`);
               return;
-            } else {
-              console.warn('⚠️ [OPEN] Could not extract hash from URL, trying openUrl');
             }
-          } catch (viewCastError: any) {
-            console.warn('⚠️ [OPEN] SDK viewCast failed, trying openUrl:', viewCastError?.message || viewCastError);
+          } catch (e: any) {
+            console.warn('⚠️ [OPEN] viewCast failed:', e?.message);
           }
         }
         
-        // Fallback: Используем openUrl если viewCast недоступен
+        // Fallback: openUrl
         if (sdk?.actions?.openUrl) {
           try {
             await sdk.actions.openUrl({ url: castUrl });
-            console.log(`✅ [OPEN] Link opened via SDK openUrl: ${castUrl}`);
+            console.log(`✅ [OPEN] Opened via openUrl: ${castUrl}`);
             return;
-          } catch (openUrlError) {
-            console.warn('⚠️ [OPEN] SDK openUrl failed:', openUrlError);
+          } catch (e: any) {
+            console.warn('⚠️ [OPEN] openUrl failed:', e?.message);
           }
         }
       }
