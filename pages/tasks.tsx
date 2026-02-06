@@ -656,6 +656,22 @@ export default function Tasks() {
     };
   }, []);
 
+  // Тестовая функция для проверки открытия ссылок (доступна в консоли)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).testOpenLink = async (testUrl?: string) => {
+        const url = testUrl || 'https://farcaster.xyz/vitalik/0x1234567890abcdef';
+        console.log('🧪 [TEST] Testing link opening:', url);
+        console.log('🧪 [TEST] User Agent:', navigator.userAgent);
+        console.log('🧪 [TEST] Is in Farcaster frame:', window.self !== window.top);
+        
+        await handleOpenLink(url, 'test-link-id');
+      };
+      
+      console.log('✅ [TEST] Test function available: window.testOpenLink(url)');
+    }
+  }, []);
+
   // Открыть ссылку
   const handleOpenLink = async (castUrl: string, linkId: string) => {
     // ⚠️ КРИТИЧНО: Проверяем, не выполнено ли уже задание - если да, не запускаем polling
@@ -738,17 +754,27 @@ export default function Tasks() {
       // На iOS пытаемся использовать deeplink для открытия в приложении Farcaster
       // Формат: farcaster://cast?url=... или fc://cast?url=...
       const farcasterDeeplink = `farcaster://cast?url=${encodeURIComponent(castUrl)}`;
-      const fcDeeplink = `fc://cast?url=${encodeURIComponent(castUrl)}`;
       
-      console.log(`🔗 [OPEN] Trying iOS deeplink: ${farcasterDeeplink}`);
+      console.log(`🔗 [OPEN] iOS detected, trying deeplink: ${farcasterDeeplink}`);
+      console.log(`📱 [OPEN] User Agent: ${navigator.userAgent}`);
       
       // Пытаемся открыть через deeplink
       try {
-        window.location.href = farcasterDeeplink;
-        // Если deeplink не сработает, через 1 секунду откроем веб-версию
+        // Создаем скрытую ссылку для iOS deeplink
+        const link = document.createElement('a');
+        link.href = farcasterDeeplink;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        console.log(`✅ [OPEN] iOS deeplink triggered: ${farcasterDeeplink}`);
+        
+        // Если deeplink не сработает, через 1.5 секунды откроем веб-версию
         setTimeout(() => {
+          console.log(`⏰ [OPEN] Fallback: opening web version after deeplink timeout`);
           window.open(castUrl, '_blank');
-        }, 1000);
+        }, 1500);
       } catch (deeplinkError) {
         console.warn('⚠️ [OPEN] Deeplink failed, opening web version:', deeplinkError);
         window.open(castUrl, '_blank');
