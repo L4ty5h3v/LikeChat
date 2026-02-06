@@ -657,7 +657,7 @@ export default function Tasks() {
   }, []);
 
   // Открыть ссылку
-  const handleOpenLink = (castUrl: string, linkId: string) => {
+  const handleOpenLink = async (castUrl: string, linkId: string) => {
     // ⚠️ КРИТИЧНО: Проверяем, не выполнено ли уже задание - если да, не запускаем polling
     const currentTask = tasks.find(t => t.link_id === linkId);
     if (currentTask?.completed && currentTask?.verified) {
@@ -673,6 +673,24 @@ export default function Tasks() {
       }
     }
     
+    // Используем SDK для открытия ссылки в Farcaster (работает на всех платформах, включая iOS)
+    try {
+      // Проверяем, что мы в Farcaster Mini App
+      if (typeof window !== 'undefined' && window.self !== window.top) {
+        const { sdk } = await import('@farcaster/miniapp-sdk');
+        
+        if (sdk?.actions?.openUrl) {
+          // Используем SDK для открытия ссылки в Farcaster
+          await sdk.actions.openUrl({ url: castUrl });
+          console.log(`✅ [OPEN] Link opened via SDK: ${castUrl}`);
+          return;
+        }
+      }
+    } catch (error) {
+      console.warn('⚠️ [OPEN] Failed to open via SDK, falling back to window.open:', error);
+    }
+    
+    // Fallback: если SDK недоступен, используем обычное открытие
     // Определяем, мобильное ли устройство
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     

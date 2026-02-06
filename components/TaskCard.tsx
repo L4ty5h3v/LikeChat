@@ -9,6 +9,29 @@ interface TaskCardProps {
 }
 
 const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
+  const handleLinkClick = async (e: React.MouseEvent<HTMLAnchorElement>, url: string) => {
+    e.preventDefault();
+    
+    // Используем SDK для открытия ссылки в Farcaster (работает на всех платформах, включая iOS)
+    try {
+      // Проверяем, что мы в Farcaster Mini App
+      if (typeof window !== 'undefined' && window.self !== window.top) {
+        const { sdk } = await import('@farcaster/miniapp-sdk');
+        
+        if (sdk?.actions?.openUrl) {
+          // Используем SDK для открытия ссылки в Farcaster
+          await sdk.actions.openUrl({ url });
+          console.log(`✅ [TASKCARD] Link opened via SDK: ${url}`);
+          return;
+        }
+      }
+    } catch (error) {
+      console.warn('⚠️ [TASKCARD] Failed to open via SDK, falling back to window.open:', error);
+    }
+    
+    // Fallback: если SDK недоступен, используем обычное открытие
+    window.open(url, '_blank');
+  };
   return (
     <div
         className={`
@@ -71,13 +94,8 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
               href={task.cast_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm text-purple-600 hover:text-purple-700 hover:underline break-all block truncate"
-              onClick={(e) => {
-                // Не предотвращаем открытие ссылки, но также вызываем onOpen для отслеживания
-                if (!task.opened) {
-                  // onOpen будет вызван отдельно через кнопку "Open"
-                }
-              }}
+              className="text-sm text-purple-600 hover:text-purple-700 hover:underline break-all block truncate cursor-pointer"
+              onClick={(e) => handleLinkClick(e, task.cast_url!)}
             >
               {task.cast_url}
             </a>

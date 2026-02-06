@@ -29,6 +29,33 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
     });
   };
 
+  const handleOpenLink = async (url: string) => {
+    // Используем SDK для открытия ссылки в Farcaster (работает на всех платформах, включая iOS)
+    try {
+      // Проверяем, что мы в Farcaster Mini App
+      if (typeof window !== 'undefined' && window.self !== window.top) {
+        const { sdk } = await import('@farcaster/miniapp-sdk');
+        
+        if (sdk?.actions?.openUrl) {
+          // Используем SDK для открытия ссылки в Farcaster
+          await sdk.actions.openUrl({ url });
+          console.log(`✅ [LINKCARD] Link opened via SDK: ${url}`);
+          return;
+        }
+      }
+    } catch (error) {
+      console.warn('⚠️ [LINKCARD] Failed to open via SDK, falling back to window.open:', error);
+    }
+    
+    // Fallback: если SDK недоступен, используем обычное открытие
+    window.open(url, '_blank');
+  };
+
+  const handleLinkClick = async (e: React.MouseEvent<HTMLAnchorElement>, url: string) => {
+    e.preventDefault();
+    await handleOpenLink(url);
+  };
+
   return (
     <div className="bg-white rounded-xl border-2 border-gray-200 p-5 hover:shadow-lg transition-all duration-300">
       {/* Заголовок с пользователем */}
@@ -65,7 +92,8 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
           href={link.cast_url}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-primary hover:underline break-all text-sm"
+          className="text-primary hover:underline break-all text-sm cursor-pointer"
+          onClick={(e) => handleLinkClick(e, link.cast_url)}
         >
           {link.cast_url}
         </a>
@@ -79,7 +107,7 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
         </div>
         
         <button
-          onClick={() => window.open(link.cast_url, '_blank')}
+          onClick={() => handleOpenLink(link.cast_url)}
           className="btn-gold-glow px-4 py-2 text-white font-bold text-sm group"
         >
           {/* Переливающийся эффект */}
