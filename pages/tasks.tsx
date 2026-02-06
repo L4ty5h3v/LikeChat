@@ -676,33 +676,87 @@ export default function Tasks() {
     // Используем SDK для открытия ссылки в Farcaster (работает на всех платформах, включая iOS)
     try {
       // Проверяем, что мы в Farcaster Mini App
-      if (typeof window !== 'undefined' && window.self !== window.top) {
+      const isInFarcasterFrame = typeof window !== 'undefined' && window.self !== window.top;
+      console.log(`🔍 [OPEN] Opening link: ${castUrl}`, {
+        isInFarcasterFrame,
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
+      });
+      
+      if (isInFarcasterFrame) {
         const { sdk } = await import('@farcaster/miniapp-sdk');
         
+        // Убеждаемся, что SDK готов
+        if (sdk?.actions?.ready && typeof sdk.actions.ready === 'function') {
+          try {
+            await sdk.actions.ready();
+            console.log('✅ [OPEN] SDK ready() called');
+          } catch (readyError) {
+            console.warn('⚠️ [OPEN] SDK ready() failed, continuing anyway:', readyError);
+          }
+        }
+        
+        // Метод 1: Используем SDK openUrl (предпочтительный метод)
         if (sdk?.actions?.openUrl) {
-          // Используем SDK для открытия ссылки в Farcaster
-          await sdk.actions.openUrl({ url: castUrl });
-          console.log(`✅ [OPEN] Link opened via SDK: ${castUrl}`);
-          return;
+          try {
+            await sdk.actions.openUrl({ url: castUrl });
+            console.log(`✅ [OPEN] Link opened via SDK openUrl: ${castUrl}`);
+            return;
+          } catch (openUrlError) {
+            console.warn('⚠️ [OPEN] SDK openUrl failed, trying postMessage:', openUrlError);
+          }
+        }
+        
+        // Метод 2: Используем postMessage для отправки сообщения родительскому окну
+        if (window.parent && window.parent !== window) {
+          try {
+            window.parent.postMessage(
+              {
+                type: 'farcaster:openUrl',
+                url: castUrl,
+              },
+              '*'
+            );
+            console.log(`✅ [OPEN] Link opened via postMessage: ${castUrl}`);
+            // Даем немного времени на обработку postMessage
+            await new Promise(resolve => setTimeout(resolve, 100));
+            return;
+          } catch (postMessageError) {
+            console.warn('⚠️ [OPEN] postMessage failed:', postMessageError);
+          }
         }
       }
     } catch (error) {
-      console.warn('⚠️ [OPEN] Failed to open via SDK, falling back to window.open:', error);
+      console.warn('⚠️ [OPEN] Failed to open via SDK/postMessage, falling back:', error);
     }
     
     // Fallback: если SDK недоступен, используем обычное открытие
     // Определяем, мобильное ли устройство
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
     
-    if (isMobile) {
-      // На мобильных устройствах пытаемся открыть в приложении Farcaster
-      // Формат: farcaster://cast?url=...
+    if (isIOS) {
+      // На iOS пытаемся использовать deeplink для открытия в приложении Farcaster
+      // Формат: farcaster://cast?url=... или fc://cast?url=...
+      const farcasterDeeplink = `farcaster://cast?url=${encodeURIComponent(castUrl)}`;
+      const fcDeeplink = `fc://cast?url=${encodeURIComponent(castUrl)}`;
+      
+      console.log(`🔗 [OPEN] Trying iOS deeplink: ${farcasterDeeplink}`);
+      
+      // Пытаемся открыть через deeplink
+      try {
+        window.location.href = farcasterDeeplink;
+        // Если deeplink не сработает, через 1 секунду откроем веб-версию
+        setTimeout(() => {
+          window.open(castUrl, '_blank');
+        }, 1000);
+      } catch (deeplinkError) {
+        console.warn('⚠️ [OPEN] Deeplink failed, opening web version:', deeplinkError);
+        window.open(castUrl, '_blank');
+      }
+    } else if (isMobile) {
+      // На Android и других мобильных устройствах
       const farcasterUrl = `farcaster://cast?url=${encodeURIComponent(castUrl)}`;
-      
-      // Пытаемся открыть в приложении
       window.location.href = farcasterUrl;
-      
-      // Если приложение не установлено, через 2 секунды открываем веб-версию
       setTimeout(() => {
         window.open(castUrl, '_blank');
       }, 2000);

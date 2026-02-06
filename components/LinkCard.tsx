@@ -32,23 +32,63 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
   const handleOpenLink = async (url: string) => {
     // Используем SDK для открытия ссылки в Farcaster (работает на всех платформах, включая iOS)
     try {
-      // Проверяем, что мы в Farcaster Mini App
-      if (typeof window !== 'undefined' && window.self !== window.top) {
+      const isInFarcasterFrame = typeof window !== 'undefined' && window.self !== window.top;
+      
+      if (isInFarcasterFrame) {
         const { sdk } = await import('@farcaster/miniapp-sdk');
         
+        // Убеждаемся, что SDK готов
+        if (sdk?.actions?.ready && typeof sdk.actions.ready === 'function') {
+          try {
+            await sdk.actions.ready();
+          } catch (readyError) {
+            // Игнорируем ошибку ready()
+          }
+        }
+        
+        // Метод 1: Используем SDK openUrl
         if (sdk?.actions?.openUrl) {
-          // Используем SDK для открытия ссылки в Farcaster
-          await sdk.actions.openUrl({ url });
-          console.log(`✅ [LINKCARD] Link opened via SDK: ${url}`);
-          return;
+          try {
+            await sdk.actions.openUrl({ url });
+            console.log(`✅ [LINKCARD] Link opened via SDK: ${url}`);
+            return;
+          } catch (openUrlError) {
+            console.warn('⚠️ [LINKCARD] SDK openUrl failed, trying postMessage:', openUrlError);
+          }
+        }
+        
+        // Метод 2: Используем postMessage
+        if (window.parent && window.parent !== window) {
+          try {
+            window.parent.postMessage(
+              {
+                type: 'farcaster:openUrl',
+                url: url,
+              },
+              '*'
+            );
+            console.log(`✅ [LINKCARD] Link opened via postMessage: ${url}`);
+            return;
+          } catch (postMessageError) {
+            console.warn('⚠️ [LINKCARD] postMessage failed:', postMessageError);
+          }
         }
       }
     } catch (error) {
-      console.warn('⚠️ [LINKCARD] Failed to open via SDK, falling back to window.open:', error);
+      console.warn('⚠️ [LINKCARD] Failed to open via SDK/postMessage, falling back:', error);
     }
     
     // Fallback: если SDK недоступен, используем обычное открытие
-    window.open(url, '_blank');
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isIOS) {
+      const farcasterDeeplink = `farcaster://cast?url=${encodeURIComponent(url)}`;
+      window.location.href = farcasterDeeplink;
+      setTimeout(() => {
+        window.open(url, '_blank');
+      }, 1000);
+    } else {
+      window.open(url, '_blank');
+    }
   };
 
   const handleLinkClick = async (e: React.MouseEvent<HTMLAnchorElement>, url: string) => {
