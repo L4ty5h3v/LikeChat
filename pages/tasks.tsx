@@ -705,12 +705,37 @@ export default function Tasks() {
         // КРИТИЧНО: На iOS внутри iframe нужно использовать window.top.location для выхода из iframe
         if (isIOS && window.top && window.top !== window.self) {
           try {
-            console.log('📱 [OPEN] iOS detected in iframe, using window.top.location to exit iframe');
-            window.top.location.href = castUrl;
-            console.log(`✅ [OPEN] Link opened via window.top.location on iOS: ${castUrl}`);
-            return;
+            console.log('📱 [OPEN] iOS detected in iframe, trying window.top.location to exit iframe');
+            
+            // Пробуем разные методы для выхода из iframe на iOS
+            // Метод 1: window.top.location.href
+            try {
+              window.top.location.href = castUrl;
+              console.log(`✅ [OPEN] Link opened via window.top.location.href on iOS: ${castUrl}`);
+              return;
+            } catch (hrefError) {
+              console.warn('⚠️ [OPEN] window.top.location.href failed, trying window.top.location.replace:', hrefError);
+            }
+            
+            // Метод 2: window.top.location.replace (может работать, если href заблокирован)
+            try {
+              window.top.location.replace(castUrl);
+              console.log(`✅ [OPEN] Link opened via window.top.location.replace on iOS: ${castUrl}`);
+              return;
+            } catch (replaceError) {
+              console.warn('⚠️ [OPEN] window.top.location.replace failed, trying window.top.location.assign:', replaceError);
+            }
+            
+            // Метод 3: window.top.location.assign
+            try {
+              window.top.location.assign(castUrl);
+              console.log(`✅ [OPEN] Link opened via window.top.location.assign on iOS: ${castUrl}`);
+              return;
+            } catch (assignError) {
+              console.warn('⚠️ [OPEN] All window.top.location methods failed, trying SDK:', assignError);
+            }
           } catch (topLocationError) {
-            console.warn('⚠️ [OPEN] window.top.location failed, trying SDK:', topLocationError);
+            console.warn('⚠️ [OPEN] window.top.location access blocked, trying SDK:', topLocationError);
           }
         }
         

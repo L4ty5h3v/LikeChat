@@ -21,12 +21,30 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
         // КРИТИЧНО: На iOS внутри iframe нужно использовать window.top.location для выхода из iframe
         if (isIOS && window.top && window.top !== window.self) {
           try {
-            console.log('📱 [TASKCARD] iOS detected in iframe, using window.top.location to exit iframe');
-            window.top.location.href = url;
-            console.log(`✅ [TASKCARD] Link opened via window.top.location on iOS: ${url}`);
-            return;
+            console.log('📱 [TASKCARD] iOS detected in iframe, trying window.top.location to exit iframe');
+            
+            // Пробуем разные методы для выхода из iframe на iOS
+            try {
+              window.top.location.href = url;
+              console.log(`✅ [TASKCARD] Link opened via window.top.location.href on iOS: ${url}`);
+              return;
+            } catch (hrefError) {
+              try {
+                window.top.location.replace(url);
+                console.log(`✅ [TASKCARD] Link opened via window.top.location.replace on iOS: ${url}`);
+                return;
+              } catch (replaceError) {
+                try {
+                  window.top.location.assign(url);
+                  console.log(`✅ [TASKCARD] Link opened via window.top.location.assign on iOS: ${url}`);
+                  return;
+                } catch (assignError) {
+                  console.warn('⚠️ [TASKCARD] All window.top.location methods failed, trying SDK:', assignError);
+                }
+              }
+            }
           } catch (topLocationError) {
-            console.warn('⚠️ [TASKCARD] window.top.location failed, trying SDK:', topLocationError);
+            console.warn('⚠️ [TASKCARD] window.top.location access blocked, trying SDK:', topLocationError);
           }
         }
         

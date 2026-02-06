@@ -39,12 +39,30 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
         // КРИТИЧНО: На iOS внутри iframe нужно использовать window.top.location для выхода из iframe
         if (isIOS && window.top && window.top !== window.self) {
           try {
-            console.log('📱 [LINKCARD] iOS detected in iframe, using window.top.location to exit iframe');
-            window.top.location.href = url;
-            console.log(`✅ [LINKCARD] Link opened via window.top.location on iOS: ${url}`);
-            return;
+            console.log('📱 [LINKCARD] iOS detected in iframe, trying window.top.location to exit iframe');
+            
+            // Пробуем разные методы для выхода из iframe на iOS
+            try {
+              window.top.location.href = url;
+              console.log(`✅ [LINKCARD] Link opened via window.top.location.href on iOS: ${url}`);
+              return;
+            } catch (hrefError) {
+              try {
+                window.top.location.replace(url);
+                console.log(`✅ [LINKCARD] Link opened via window.top.location.replace on iOS: ${url}`);
+                return;
+              } catch (replaceError) {
+                try {
+                  window.top.location.assign(url);
+                  console.log(`✅ [LINKCARD] Link opened via window.top.location.assign on iOS: ${url}`);
+                  return;
+                } catch (assignError) {
+                  console.warn('⚠️ [LINKCARD] All window.top.location methods failed, trying SDK:', assignError);
+                }
+              }
+            }
           } catch (topLocationError) {
-            console.warn('⚠️ [LINKCARD] window.top.location failed, trying SDK:', topLocationError);
+            console.warn('⚠️ [LINKCARD] window.top.location access blocked, trying SDK:', topLocationError);
           }
         }
         
