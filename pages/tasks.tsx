@@ -702,60 +702,6 @@ export default function Tasks() {
       });
       
       if (isInFarcasterFrame) {
-        // КРИТИЧНО: На iOS внутри iframe SDK openUrl открывает ссылку внутри iframe
-        // Нужно использовать прямой выход из iframe БЕЗ SDK на iOS
-        if (isIOS) {
-          console.log('📱 [OPEN] iOS detected in iframe, using direct iframe exit methods');
-          
-          // Метод 1: Пробуем window.top.location.href (самый надежный для iOS)
-          if (window.top && window.top !== window.self) {
-            try {
-              window.top.location.href = castUrl;
-              console.log(`✅ [OPEN] Link opened via window.top.location.href on iOS: ${castUrl}`);
-              return;
-            } catch (hrefError: any) {
-              console.warn('⚠️ [OPEN] window.top.location.href blocked:', hrefError?.message);
-            }
-          }
-          
-          // Метод 2: Пробуем window.top.location.replace
-          if (window.top && window.top !== window.self) {
-            try {
-              window.top.location.replace(castUrl);
-              console.log(`✅ [OPEN] Link opened via window.top.location.replace on iOS: ${castUrl}`);
-              return;
-            } catch (replaceError: any) {
-              console.warn('⚠️ [OPEN] window.top.location.replace blocked:', replaceError?.message);
-            }
-          }
-          
-          // Метод 3: Пробуем создать временную ссылку и кликнуть (работает на iOS)
-          try {
-            const link = document.createElement('a');
-            link.href = castUrl;
-            link.target = '_blank';
-            link.rel = 'noopener noreferrer';
-            link.style.display = 'none';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            console.log(`✅ [OPEN] Link opened via temporary link click on iOS: ${castUrl}`);
-            return;
-          } catch (linkError: any) {
-            console.warn('⚠️ [OPEN] Temporary link click failed:', linkError?.message);
-          }
-          
-          // Метод 4: Пробуем window.open (может работать на iOS в некоторых случаях)
-          try {
-            window.open(castUrl, '_blank', 'noopener,noreferrer');
-            console.log(`✅ [OPEN] Link opened via window.open on iOS: ${castUrl}`);
-            return;
-          } catch (openError: any) {
-            console.warn('⚠️ [OPEN] window.open failed:', openError?.message);
-          }
-        }
-        
-        // Для не-iOS используем SDK
         const { sdk } = await import('@farcaster/miniapp-sdk');
         
         // Убеждаемся, что SDK готов
@@ -768,7 +714,20 @@ export default function Tasks() {
           }
         }
         
-        // Метод: Используем SDK openUrl (работает на Android и веб)
+        // КРИТИЧНО: Используем viewCast для открытия кастов (правильный метод SDK)
+        // viewCast работает на всех платформах, включая iOS, и открывает каст в Farcaster
+        if (sdk?.actions?.viewCast && typeof sdk.actions.viewCast === 'function') {
+          try {
+            // viewCast принимает URL каста
+            await sdk.actions.viewCast({ url: castUrl });
+            console.log(`✅ [OPEN] Cast opened via SDK viewCast: ${castUrl}`);
+            return;
+          } catch (viewCastError: any) {
+            console.warn('⚠️ [OPEN] SDK viewCast failed, trying openUrl:', viewCastError?.message || viewCastError);
+          }
+        }
+        
+        // Fallback: Используем openUrl если viewCast недоступен
         if (sdk?.actions?.openUrl) {
           try {
             await sdk.actions.openUrl({ url: castUrl });

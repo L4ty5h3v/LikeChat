@@ -18,60 +18,6 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
       const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
       
       if (isInFarcasterFrame) {
-        // КРИТИЧНО: На iOS внутри iframe SDK openUrl открывает ссылку внутри iframe
-        // Нужно использовать прямой выход из iframe БЕЗ SDK на iOS
-        if (isIOS) {
-          console.log('📱 [TASKCARD] iOS detected in iframe, using direct iframe exit methods');
-          
-          // Метод 1: window.top.location.href
-          if (window.top && window.top !== window.self) {
-            try {
-              window.top.location.href = url;
-              console.log(`✅ [TASKCARD] Link opened via window.top.location.href on iOS: ${url}`);
-              return;
-            } catch (hrefError: any) {
-              console.warn('⚠️ [TASKCARD] window.top.location.href blocked:', hrefError?.message);
-            }
-          }
-          
-          // Метод 2: window.top.location.replace
-          if (window.top && window.top !== window.self) {
-            try {
-              window.top.location.replace(url);
-              console.log(`✅ [TASKCARD] Link opened via window.top.location.replace on iOS: ${url}`);
-              return;
-            } catch (replaceError: any) {
-              console.warn('⚠️ [TASKCARD] window.top.location.replace blocked:', replaceError?.message);
-            }
-          }
-          
-          // Метод 3: Временная ссылка с кликом
-          try {
-            const link = document.createElement('a');
-            link.href = url;
-            link.target = '_blank';
-            link.rel = 'noopener noreferrer';
-            link.style.display = 'none';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            console.log(`✅ [TASKCARD] Link opened via temporary link click on iOS: ${url}`);
-            return;
-          } catch (linkError: any) {
-            console.warn('⚠️ [TASKCARD] Temporary link click failed:', linkError?.message);
-          }
-          
-          // Метод 4: window.open
-          try {
-            window.open(url, '_blank', 'noopener,noreferrer');
-            console.log(`✅ [TASKCARD] Link opened via window.open on iOS: ${url}`);
-            return;
-          } catch (openError: any) {
-            console.warn('⚠️ [TASKCARD] window.open failed:', openError?.message);
-          }
-        }
-        
-        // Для не-iOS используем SDK
         const { sdk } = await import('@farcaster/miniapp-sdk');
         
         if (sdk?.actions?.ready && typeof sdk.actions.ready === 'function') {
@@ -82,10 +28,22 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
           }
         }
         
+        // КРИТИЧНО: Используем viewCast для открытия кастов (правильный метод SDK)
+        if (sdk?.actions?.viewCast && typeof sdk.actions.viewCast === 'function') {
+          try {
+            await sdk.actions.viewCast({ url });
+            console.log(`✅ [TASKCARD] Cast opened via SDK viewCast: ${url}`);
+            return;
+          } catch (viewCastError: any) {
+            console.warn('⚠️ [TASKCARD] SDK viewCast failed, trying openUrl:', viewCastError?.message || viewCastError);
+          }
+        }
+        
+        // Fallback: Используем openUrl если viewCast недоступен
         if (sdk?.actions?.openUrl) {
           try {
             await sdk.actions.openUrl({ url });
-            console.log(`✅ [TASKCARD] Link opened via SDK: ${url}`);
+            console.log(`✅ [TASKCARD] Link opened via SDK openUrl: ${url}`);
             return;
           } catch (openUrlError) {
             console.warn('⚠️ [TASKCARD] SDK openUrl failed:', openUrlError);
