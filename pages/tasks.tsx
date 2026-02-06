@@ -693,12 +693,27 @@ export default function Tasks() {
     try {
       // Проверяем, что мы в Farcaster Mini App
       const isInFarcasterFrame = typeof window !== 'undefined' && window.self !== window.top;
+      const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+      
       console.log(`🔍 [OPEN] Opening link: ${castUrl}`, {
         isInFarcasterFrame,
+        isIOS,
         userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
       });
       
       if (isInFarcasterFrame) {
+        // КРИТИЧНО: На iOS внутри iframe нужно использовать window.top.location для выхода из iframe
+        if (isIOS && window.top && window.top !== window.self) {
+          try {
+            console.log('📱 [OPEN] iOS detected in iframe, using window.top.location to exit iframe');
+            window.top.location.href = castUrl;
+            console.log(`✅ [OPEN] Link opened via window.top.location on iOS: ${castUrl}`);
+            return;
+          } catch (topLocationError) {
+            console.warn('⚠️ [OPEN] window.top.location failed, trying SDK:', topLocationError);
+          }
+        }
+        
         const { sdk } = await import('@farcaster/miniapp-sdk');
         
         // Убеждаемся, что SDK готов
@@ -711,7 +726,7 @@ export default function Tasks() {
           }
         }
         
-        // Метод 1: Используем SDK openUrl (предпочтительный метод)
+        // Метод 1: Используем SDK openUrl (предпочтительный метод для не-iOS)
         if (sdk?.actions?.openUrl) {
           try {
             await sdk.actions.openUrl({ url: castUrl });

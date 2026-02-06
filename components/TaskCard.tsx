@@ -15,8 +15,21 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
     // Используем SDK для открытия ссылки в Farcaster (работает на всех платформах, включая iOS)
     try {
       const isInFarcasterFrame = typeof window !== 'undefined' && window.self !== window.top;
+      const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
       
       if (isInFarcasterFrame) {
+        // КРИТИЧНО: На iOS внутри iframe нужно использовать window.top.location для выхода из iframe
+        if (isIOS && window.top && window.top !== window.self) {
+          try {
+            console.log('📱 [TASKCARD] iOS detected in iframe, using window.top.location to exit iframe');
+            window.top.location.href = url;
+            console.log(`✅ [TASKCARD] Link opened via window.top.location on iOS: ${url}`);
+            return;
+          } catch (topLocationError) {
+            console.warn('⚠️ [TASKCARD] window.top.location failed, trying SDK:', topLocationError);
+          }
+        }
+        
         const { sdk } = await import('@farcaster/miniapp-sdk');
         
         // Убеждаемся, что SDK готов
