@@ -714,7 +714,62 @@ export default function Tasks() {
       });
       
       if (isInFarcasterFrame) {
-        // Используем SDK с target: 'top' для выхода из iframe
+        // КРИТИЧНО: На iOS SDK openUrl открывает ссылку внутри iframe
+        // Используем прямой выход из iframe через window.top.location
+        if (isIOS) {
+          console.log('📱 [OPEN] iOS detected in iframe, using direct iframe exit');
+          
+          // Метод 1: window.top.location.href (самый надежный для iOS)
+          if (window.top && window.top !== window.self) {
+            try {
+              window.top.location.href = castUrl;
+              console.log(`✅ [OPEN] iOS: Opened via window.top.location.href: ${castUrl}`);
+              return;
+            } catch (e: any) {
+              console.warn('⚠️ [OPEN] iOS: window.top.location.href blocked, trying replace');
+              try {
+                window.top.location.replace(castUrl);
+                console.log(`✅ [OPEN] iOS: Opened via window.top.location.replace: ${castUrl}`);
+                return;
+              } catch (e2: any) {
+                console.warn('⚠️ [OPEN] iOS: window.top.location.replace blocked, trying window.open');
+              }
+            }
+          }
+          
+          // Метод 2: window.open с _top
+          try {
+            const newWindow = window.open(castUrl, '_top');
+            if (newWindow) {
+              console.log(`✅ [OPEN] iOS: Opened via window.open(_top): ${castUrl}`);
+              return;
+            }
+          } catch (e: any) {
+            console.warn('⚠️ [OPEN] iOS: window.open(_top) failed');
+          }
+          
+          // Метод 3: Временная ссылка с target="_top"
+          try {
+            const link = document.createElement('a');
+            link.href = castUrl;
+            link.target = '_top';
+            link.rel = 'noopener noreferrer';
+            link.style.cssText = 'position:fixed;top:-9999px;left:-9999px;';
+            document.body.appendChild(link);
+            link.click();
+            setTimeout(() => {
+              try {
+                document.body.removeChild(link);
+              } catch {}
+            }, 100);
+            console.log(`✅ [OPEN] iOS: Opened via temporary link(_top): ${castUrl}`);
+            return;
+          } catch (e: any) {
+            console.warn('⚠️ [OPEN] iOS: Temporary link failed');
+          }
+        }
+        
+        // Для не-iOS используем SDK методы
         const { sdk } = await import('@farcaster/miniapp-sdk');
         
         try {
@@ -725,28 +780,7 @@ export default function Tasks() {
           // Игнорируем ошибку ready()
         }
         
-        // КРИТИЧНО: Используем openUrl с target: 'top' для выхода из iframe
-        // Это стандартный способ открытия внешних ссылок в мини-аппах
-        if (sdk?.actions?.openUrl) {
-          try {
-            // Пробуем с target: 'top' для выхода из iframe
-            await sdk.actions.openUrl({ url: castUrl, target: 'top' });
-            console.log(`✅ [OPEN] Opened via openUrl with target='top': ${castUrl}`);
-            return;
-          } catch (e: any) {
-            console.warn('⚠️ [OPEN] openUrl with target=top failed:', e?.message);
-            // Fallback: пробуем без target
-            try {
-              await sdk.actions.openUrl({ url: castUrl });
-              console.log(`✅ [OPEN] Opened via openUrl (fallback): ${castUrl}`);
-              return;
-            } catch (e2: any) {
-              console.warn('⚠️ [OPEN] openUrl fallback failed:', e2?.message);
-            }
-          }
-        }
-        
-        // Fallback: viewCast с hash (для кастов Farcaster)
+        // Пробуем viewCast с hash (для кастов Farcaster - открывает в приложении)
         if (sdk?.actions?.viewCast) {
           try {
             const { extractCastHash } = await import('@/lib/neynar');
@@ -761,17 +795,14 @@ export default function Tasks() {
           }
         }
         
-        // Последний fallback для iOS: прямой выход из iframe
-        if (isIOS) {
-          console.log('📱 [OPEN] iOS: Trying direct iframe exit as last resort');
-          if (window.top && window.top !== window.self) {
-            try {
-              window.top.location.href = castUrl;
-              console.log(`✅ [OPEN] iOS: Opened via window.top.location.href: ${castUrl}`);
-              return;
-            } catch (e: any) {
-              console.warn('⚠️ [OPEN] iOS: window.top.location.href blocked');
-            }
+        // Fallback: openUrl (может открыть внутри iframe на iOS)
+        if (sdk?.actions?.openUrl) {
+          try {
+            await sdk.actions.openUrl({ url: castUrl });
+            console.log(`✅ [OPEN] Opened via openUrl: ${castUrl}`);
+            return;
+          } catch (e: any) {
+            console.warn('⚠️ [OPEN] openUrl failed:', e?.message);
           }
         }
       }
