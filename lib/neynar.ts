@@ -630,7 +630,24 @@ export async function checkUserTaskByHash(
 // ОБРАТНАЯ СОВМЕСТИМОСТЬ
 // ----------------------------
 export function extractCastHash(url: string): string | null {
-  return extractFullHashFromUrl(url);
+  if (!url) return null;
+  
+  // Сначала пробуем извлечь полный hash (40 символов)
+  const fullHash = extractFullHashFromUrl(url);
+  if (fullHash) return fullHash;
+  
+  // Если не нашли, пробуем любой hash (6-40 символов)
+  const anyHash = extractAnyHash(url);
+  if (anyHash) return anyHash;
+  
+  // Если hash не найден в URL, пробуем извлечь из пути
+  // Например: /vitalik/0x1234567890abcdef
+  const pathMatch = url.match(/\/(?:[^\/]+\/)?(0x[a-fA-F0-9]{6,64})/);
+  if (pathMatch && pathMatch[1]) {
+    return pathMatch[1].toLowerCase();
+  }
+  
+  return null;
 }
 
 // ----------------------------

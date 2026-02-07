@@ -36,47 +36,13 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
       const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
       
       if (isInFarcasterFrame) {
-        // КРИТИЧНО: На iOS SDK openUrl открывает ссылку внутри iframe
-        // Используем прямой выход из iframe
-        if (isIOS) {
-          if (window.top && window.top !== window.self) {
-            try {
-              window.top.location.href = url;
-              return;
-            } catch {
-              try {
-                window.top.location.replace(url);
-                return;
-              } catch {
-                try {
-                  window.open(url, '_top');
-                  return;
-                } catch {
-                  const link = document.createElement('a');
-                  link.href = url;
-                  link.target = '_top';
-                  link.style.cssText = 'position:fixed;top:-9999px;';
-                  document.body.appendChild(link);
-                  link.click();
-                  setTimeout(() => {
-                    try {
-                      document.body.removeChild(link);
-                    } catch {}
-                  }, 100);
-                  return;
-                }
-              }
-            }
-          }
-        }
-        
-        // Для не-iOS используем SDK
+        // КРИТИЧНО: Сначала пробуем SDK методы - они должны работать правильно
         const { sdk } = await import('@farcaster/miniapp-sdk');
         try {
           if (sdk?.actions?.ready) await sdk.actions.ready();
         } catch {}
         
-        // Пробуем viewCast с hash (для кастов Farcaster)
+        // Метод 1: viewCast с hash (для кастов Farcaster - открывает в приложении)
         if (sdk?.actions?.viewCast) {
           try {
             const { extractCastHash } = await import('@/lib/neynar');
@@ -88,12 +54,43 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
           } catch {}
         }
         
-        // Fallback: openUrl
+        // Метод 2: openUrl через SDK
         if (sdk?.actions?.openUrl) {
           try {
             await sdk.actions.openUrl({ url });
             return;
           } catch {}
+        }
+        
+        // Метод 3: Для iOS - прямой выход из iframe (только если SDK не сработал)
+        if (isIOS && window.top && window.top !== window.self) {
+          try {
+            window.top.location.href = url;
+            return;
+          } catch {
+            try {
+              window.top.location.replace(url);
+              return;
+            } catch {
+              try {
+                window.open(url, '_top');
+                return;
+              } catch {
+                const link = document.createElement('a');
+                link.href = url;
+                link.target = '_top';
+                link.style.cssText = 'position:fixed;top:-9999px;';
+                document.body.appendChild(link);
+                link.click();
+                setTimeout(() => {
+                  try {
+                    document.body.removeChild(link);
+                  } catch {}
+                }, 100);
+                return;
+              }
+            }
+          }
         }
       }
     } catch (error) {
