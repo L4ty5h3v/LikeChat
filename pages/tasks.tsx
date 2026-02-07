@@ -695,74 +695,26 @@ export default function Tasks() {
       const isInFarcasterFrame = typeof window !== 'undefined' && window.self !== window.top;
       const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
       
+      // Проверяем sandbox атрибуты iframe (если доступны)
+      let iframeSandbox = null;
+      try {
+        if (typeof window !== 'undefined' && window.frameElement) {
+          const iframe = window.frameElement as HTMLIFrameElement;
+          iframeSandbox = iframe.getAttribute('sandbox');
+        }
+      } catch (e) {
+        // Игнорируем ошибки доступа к frameElement (CORS)
+      }
+      
       console.log(`🔍 [OPEN] Opening link: ${castUrl}`, {
         isInFarcasterFrame,
         isIOS,
         userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
+        iframeSandbox: iframeSandbox || 'not accessible (CORS)',
       });
       
       if (isInFarcasterFrame) {
-        // КРИТИЧНО: На iOS внутри iframe SDK методы открывают ссылку внутри iframe
-        // Используем прямой выход из iframe через window.top.location
-        
-        if (isIOS) {
-          console.log('📱 [OPEN] iOS detected in iframe, using direct iframe exit');
-          
-          // Метод 1: window.top.location.href (самый надежный)
-          if (window.top && window.top !== window.self) {
-            try {
-              window.top.location.href = castUrl;
-              console.log(`✅ [OPEN] iOS: Opened via window.top.location.href: ${castUrl}`);
-              return;
-            } catch (e: any) {
-              console.warn('⚠️ [OPEN] iOS: window.top.location.href blocked, trying replace');
-            }
-          }
-          
-          // Метод 2: window.top.location.replace
-          if (window.top && window.top !== window.self) {
-            try {
-              window.top.location.replace(castUrl);
-              console.log(`✅ [OPEN] iOS: Opened via window.top.location.replace: ${castUrl}`);
-              return;
-            } catch (e: any) {
-              console.warn('⚠️ [OPEN] iOS: window.top.location.replace blocked, trying window.open');
-            }
-          }
-          
-          // Метод 3: window.open с _blank (может открыть в Safari на iOS)
-          try {
-            const newWindow = window.open(castUrl, '_blank', 'noopener,noreferrer');
-            if (newWindow) {
-              console.log(`✅ [OPEN] iOS: Opened via window.open: ${castUrl}`);
-              return;
-            }
-          } catch (e: any) {
-            console.warn('⚠️ [OPEN] iOS: window.open failed, trying temporary link');
-          }
-          
-          // Метод 4: Временная ссылка с кликом (последний fallback)
-          try {
-            const link = document.createElement('a');
-            link.href = castUrl;
-            link.target = '_blank';
-            link.rel = 'noopener noreferrer';
-            link.style.cssText = 'position:fixed;top:-9999px;left:-9999px;';
-            document.body.appendChild(link);
-            link.click();
-            setTimeout(() => {
-              try {
-                document.body.removeChild(link);
-              } catch {}
-            }, 100);
-            console.log(`✅ [OPEN] iOS: Opened via temporary link: ${castUrl}`);
-            return;
-          } catch (e: any) {
-            console.error('❌ [OPEN] iOS: All methods failed:', e?.message);
-          }
-        }
-        
-        // Для не-iOS (Android, Web) используем SDK
+        // Используем SDK с target: 'top' для выхода из iframe
         const { sdk } = await import('@farcaster/miniapp-sdk');
         
         try {
@@ -773,7 +725,28 @@ export default function Tasks() {
           // Игнорируем ошибку ready()
         }
         
-        // Пробуем viewCast с hash
+        // КРИТИЧНО: Используем openUrl с target: 'top' для выхода из iframe
+        // Это стандартный способ открытия внешних ссылок в мини-аппах
+        if (sdk?.actions?.openUrl) {
+          try {
+            // Пробуем с target: 'top' для выхода из iframe
+            await sdk.actions.openUrl({ url: castUrl, target: 'top' });
+            console.log(`✅ [OPEN] Opened via openUrl with target='top': ${castUrl}`);
+            return;
+          } catch (e: any) {
+            console.warn('⚠️ [OPEN] openUrl with target=top failed:', e?.message);
+            // Fallback: пробуем без target
+            try {
+              await sdk.actions.openUrl({ url: castUrl });
+              console.log(`✅ [OPEN] Opened via openUrl (fallback): ${castUrl}`);
+              return;
+            } catch (e2: any) {
+              console.warn('⚠️ [OPEN] openUrl fallback failed:', e2?.message);
+            }
+          }
+        }
+        
+        // Fallback: viewCast с hash (для кастов Farcaster)
         if (sdk?.actions?.viewCast) {
           try {
             const { extractCastHash } = await import('@/lib/neynar');
@@ -788,14 +761,17 @@ export default function Tasks() {
           }
         }
         
-        // Fallback: openUrl
-        if (sdk?.actions?.openUrl) {
-          try {
-            await sdk.actions.openUrl({ url: castUrl });
-            console.log(`✅ [OPEN] Opened via openUrl: ${castUrl}`);
-            return;
-          } catch (e: any) {
-            console.warn('⚠️ [OPEN] openUrl failed:', e?.message);
+        // Последний fallback для iOS: прямой выход из iframe
+        if (isIOS) {
+          console.log('📱 [OPEN] iOS: Trying direct iframe exit as last resort');
+          if (window.top && window.top !== window.self) {
+            try {
+              window.top.location.href = castUrl;
+              console.log(`✅ [OPEN] iOS: Opened via window.top.location.href: ${castUrl}`);
+              return;
+            } catch (e: any) {
+              console.warn('⚠️ [OPEN] iOS: window.top.location.href blocked');
+            }
           }
         }
       }

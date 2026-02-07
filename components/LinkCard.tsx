@@ -36,46 +36,27 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
       const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
       
       if (isInFarcasterFrame) {
-        if (isIOS) {
-          // iOS: прямой выход из iframe
-          if (window.top && window.top !== window.self) {
-            try {
-              window.top.location.href = url;
-              return;
-            } catch {
-              try {
-                window.top.location.replace(url);
-                return;
-              } catch {
-                try {
-                  window.open(url, '_blank', 'noopener,noreferrer');
-                  return;
-                } catch {
-                  const link = document.createElement('a');
-                  link.href = url;
-                  link.target = '_blank';
-                  link.rel = 'noopener noreferrer';
-                  link.style.cssText = 'position:fixed;top:-9999px;';
-                  document.body.appendChild(link);
-                  link.click();
-                  setTimeout(() => {
-                    try {
-                      document.body.removeChild(link);
-                    } catch {}
-                  }, 100);
-                  return;
-                }
-              }
-            }
-          }
-        }
-        
-        // Не-iOS: используем SDK
+        // Используем SDK с target: 'top' для выхода из iframe
         const { sdk } = await import('@farcaster/miniapp-sdk');
         try {
           if (sdk?.actions?.ready) await sdk.actions.ready();
         } catch {}
         
+        // КРИТИЧНО: Используем openUrl с target: 'top' для выхода из iframe
+        if (sdk?.actions?.openUrl) {
+          try {
+            await sdk.actions.openUrl({ url, target: 'top' });
+            return;
+          } catch {
+            // Fallback: без target
+            try {
+              await sdk.actions.openUrl({ url });
+              return;
+            } catch {}
+          }
+        }
+        
+        // Fallback: viewCast с hash
         if (sdk?.actions?.viewCast) {
           try {
             const { extractCastHash } = await import('@/lib/neynar');
@@ -87,9 +68,10 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
           } catch {}
         }
         
-        if (sdk?.actions?.openUrl) {
+        // Последний fallback для iOS: прямой выход из iframe
+        if (isIOS && window.top && window.top !== window.self) {
           try {
-            await sdk.actions.openUrl({ url });
+            window.top.location.href = url;
             return;
           } catch {}
         }
