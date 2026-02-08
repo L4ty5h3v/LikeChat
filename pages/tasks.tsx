@@ -725,33 +725,60 @@ export default function Tasks() {
           // Игнорируем ошибку ready()
         }
         
-        // Метод 1: viewCast с hash (для кастов Farcaster - открывает в приложении, работает на всех платформах)
+        // Определяем версию iOS для совместимости со старыми версиями
+        const iosVersion = isIOS ? (() => {
+          const match = navigator.userAgent.match(/OS (\d+)_(\d+)/);
+          return match ? parseFloat(`${match[1]}.${match[2]}`) : null;
+        })() : null;
+        
+        // Метод 1: viewCast с hash (для кастов Farcaster - открывает в приложении, лучше для iOS)
+        // Приоритет для кастов Farcaster, особенно на iOS 16 и ниже (где deep linking глючит)
         if (sdk?.actions?.viewCast) {
           try {
-            const { extractCastHash } = await import('@/lib/neynar');
-            const castHash = extractCastHash(castUrl);
+            const { extractCastHash, getFullCastHash } = await import('@/lib/neynar');
+            // Сначала пробуем извлечь hash напрямую
+            let castHash = extractCastHash(castUrl);
+            // Если не нашли, пробуем разрешить через API
+            if (!castHash) {
+              console.log(`🔍 [OPEN] Hash not found in URL, trying to resolve via API: ${castUrl}`);
+              castHash = await getFullCastHash(castUrl);
+            }
             if (castHash) {
-              console.log(`🔍 [OPEN] Trying viewCast with hash: ${castHash}`);
+              console.log(`🔍 [OPEN] Trying viewCast with hash: ${castHash} (iOS version: ${iosVersion || 'unknown'})`);
               await (sdk.actions.viewCast as any)({ hash: castHash });
               console.log(`✅ [OPEN] Opened via viewCast: ${castHash}`);
               return;
             } else {
-              console.warn(`⚠️ [OPEN] Could not extract cast hash from URL: ${castUrl}`);
+              console.warn(`⚠️ [OPEN] Could not extract or resolve cast hash from URL: ${castUrl}`);
             }
           } catch (e: any) {
             console.warn('⚠️ [OPEN] viewCast failed:', e?.message);
           }
         }
         
-        // Метод 2: openUrl через SDK (должен работать правильно)
+        // Метод 2: openUrl через SDK с target для выхода из iframe на iOS
         if (sdk?.actions?.openUrl) {
           try {
-            console.log(`🔍 [OPEN] Trying SDK openUrl: ${castUrl}`);
-            await sdk.actions.openUrl({ url: castUrl });
+            // Для iOS используем target: 'system' чтобы открыть в системном браузере/приложении
+            // Это выводит ссылку за пределы iframe, где Farcaster app может её подхватить
+            const target = isIOS ? 'system' : undefined;
+            console.log(`🔍 [OPEN] Trying SDK openUrl with target: ${target || 'default'} (iOS version: ${iosVersion || 'unknown'})`);
+            await sdk.actions.openUrl({ url: castUrl, ...(target && { target }) });
             console.log(`✅ [OPEN] Opened via SDK openUrl: ${castUrl}`);
             return;
           } catch (e: any) {
-            console.warn('⚠️ [OPEN] SDK openUrl failed:', e?.message);
+            console.warn('⚠️ [OPEN] SDK openUrl failed, trying fallback:', e?.message);
+            // Если target: 'system' не сработал, пробуем 'top'
+            if (isIOS) {
+              try {
+                console.log(`🔍 [OPEN] Trying openUrl with target: 'top' as fallback`);
+                await sdk.actions.openUrl({ url: castUrl, target: 'top' });
+                console.log(`✅ [OPEN] Opened via SDK openUrl with target:top: ${castUrl}`);
+                return;
+              } catch (e2: any) {
+                console.warn('⚠️ [OPEN] SDK openUrl with target:top failed:', e2?.message);
+              }
+            }
           }
         }
         

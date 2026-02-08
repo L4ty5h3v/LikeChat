@@ -35,6 +35,12 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
       const isInFarcasterFrame = typeof window !== 'undefined' && window.self !== window.top;
       const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
       
+      // Определяем версию iOS для совместимости со старыми версиями
+      const iosVersion = isIOS ? (() => {
+        const match = navigator.userAgent.match(/OS (\d+)_(\d+)/);
+        return match ? parseFloat(`${match[1]}.${match[2]}`) : null;
+      })() : null;
+      
       if (isInFarcasterFrame) {
         // КРИТИЧНО: Сначала пробуем SDK методы - они должны работать правильно
         const { sdk } = await import('@farcaster/miniapp-sdk');
@@ -42,24 +48,48 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
           if (sdk?.actions?.ready) await sdk.actions.ready();
         } catch {}
         
-        // Метод 1: viewCast с hash (для кастов Farcaster - открывает в приложении)
+        // Метод 1: viewCast с hash (для кастов Farcaster - открывает в приложении, лучше для iOS)
+        // Приоритет для кастов Farcaster, особенно на iOS 16 и ниже
         if (sdk?.actions?.viewCast) {
           try {
-            const { extractCastHash } = await import('@/lib/neynar');
-            const hash = extractCastHash(url);
+            const { extractCastHash, getFullCastHash } = await import('@/lib/neynar');
+            // Сначала пробуем извлечь hash напрямую
+            let hash = extractCastHash(url);
+            // Если не нашли, пробуем разрешить через API
+            if (!hash) {
+              hash = await getFullCastHash(url);
+            }
             if (hash) {
+              console.log(`🔍 [LINKCARD] Using viewCast for cast hash: ${hash}`);
               await (sdk.actions.viewCast as any)({ hash });
               return;
             }
-          } catch {}
+          } catch (e: any) {
+            console.warn('⚠️ [LINKCARD] viewCast failed:', e?.message);
+          }
         }
         
-        // Метод 2: openUrl через SDK
+        // Метод 2: openUrl через SDK с target для выхода из iframe на iOS
         if (sdk?.actions?.openUrl) {
           try {
-            await sdk.actions.openUrl({ url });
+            // Для iOS используем target: 'system' чтобы открыть в системном браузере/приложении
+            // Это выводит ссылку за пределы iframe, где Farcaster app может её подхватить
+            const target = isIOS ? 'system' : undefined;
+            console.log(`🔍 [LINKCARD] Using openUrl with target: ${target || 'default'}`);
+            await sdk.actions.openUrl({ url, ...(target && { target }) });
             return;
-          } catch {}
+          } catch (e: any) {
+            console.warn('⚠️ [LINKCARD] openUrl failed, trying fallback:', e?.message);
+            // Если target: 'system' не сработал, пробуем 'top'
+            if (isIOS) {
+              try {
+                await sdk.actions.openUrl({ url, target: 'top' });
+                return;
+              } catch (e2: any) {
+                console.warn('⚠️ [LINKCARD] openUrl with target:top failed:', e2?.message);
+              }
+            }
+          }
         }
         
         // Метод 3: Для iOS - прямой выход из iframe (только если SDK не сработал)
