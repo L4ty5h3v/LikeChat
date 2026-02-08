@@ -52,12 +52,25 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
         // Приоритет для кастов Farcaster, особенно на iOS 16 и ниже
         if (sdk?.actions?.viewCast) {
           try {
-            const { extractCastHash, getFullCastHash } = await import('@/lib/neynar');
+            const { extractCastHash } = await import('@/lib/neynar');
             // Сначала пробуем извлечь hash напрямую
             let hash = extractCastHash(url);
-            // Если не нашли, пробуем разрешить через API
-            if (!hash) {
-              hash = await getFullCastHash(url);
+            const isFullHash = (h: string | null) => !!h && /^0x[a-fA-F0-9]{64}$/.test(h);
+            // viewCast требует полный hash (0x + 64 hex). Если получили короткий — резолвим через API.
+            if (!isFullHash(hash)) {
+              try {
+                const resp = await fetch('/api/resolve-cast-hash', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ castUrl: url }),
+                });
+                const data = await resp.json();
+                if (data?.success && typeof data.hash === 'string') {
+                  hash = data.hash;
+                }
+              } catch (e: any) {
+                console.warn('⚠️ [LINKCARD] Server hash resolution failed:', e?.message || e);
+              }
             }
             if (hash) {
               console.log(`🔍 [LINKCARD] Using viewCast for cast hash: ${hash}`);

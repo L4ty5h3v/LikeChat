@@ -9,118 +9,6 @@ interface TaskCardProps {
 }
 
 const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
-  const handleLinkClick = async (e: React.MouseEvent<HTMLAnchorElement>, url: string) => {
-    e.preventDefault();
-    
-    // Используем SDK для открытия ссылки в Farcaster (работает на всех платформах, включая iOS)
-    try {
-      const isInFarcasterFrame = typeof window !== 'undefined' && window.self !== window.top;
-      const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-      
-      // Определяем версию iOS для совместимости со старыми версиями
-      const iosVersion = isIOS ? (() => {
-        const match = navigator.userAgent.match(/OS (\d+)_(\d+)/);
-        return match ? parseFloat(`${match[1]}.${match[2]}`) : null;
-      })() : null;
-      
-      if (isInFarcasterFrame) {
-        // КРИТИЧНО: Сначала пробуем SDK методы - они должны работать правильно
-        const { sdk } = await import('@farcaster/miniapp-sdk');
-        try {
-          if (sdk?.actions?.ready) await sdk.actions.ready();
-        } catch {}
-        
-        // Метод 1: viewCast с hash (для кастов Farcaster - открывает в приложении, лучше для iOS)
-        // Приоритет для кастов Farcaster, особенно на iOS 16 и ниже
-        if (sdk?.actions?.viewCast) {
-          try {
-            const { extractCastHash, getFullCastHash } = await import('@/lib/neynar');
-            // Сначала пробуем извлечь hash напрямую
-            let hash = extractCastHash(url);
-            // Если не нашли, пробуем разрешить через API
-            if (!hash) {
-              hash = await getFullCastHash(url);
-            }
-            if (hash) {
-              console.log(`🔍 [TASKCARD] Using viewCast for cast hash: ${hash}`);
-              await (sdk.actions.viewCast as any)({ hash });
-              return;
-            }
-          } catch (e: any) {
-            console.warn('⚠️ [TASKCARD] viewCast failed:', e?.message);
-          }
-        }
-        
-        // Метод 2: openUrl через SDK с target для выхода из iframe на iOS
-        if (sdk?.actions?.openUrl) {
-          try {
-            // Для iOS используем target: 'system' чтобы открыть в системном браузере/приложении
-            // Это выводит ссылку за пределы iframe, где Farcaster app может её подхватить
-            const target = isIOS ? 'system' : undefined;
-            console.log(`🔍 [TASKCARD] Using openUrl with target: ${target || 'default'}`);
-            await (sdk.actions.openUrl as any)({ url, ...(target && { target }) });
-            return;
-          } catch (e: any) {
-            console.warn('⚠️ [TASKCARD] openUrl failed, trying fallback:', e?.message);
-            // Если target: 'system' не сработал, пробуем 'top'
-            if (isIOS) {
-              try {
-                await (sdk.actions.openUrl as any)({ url, target: 'top' });
-                return;
-              } catch (e2: any) {
-                console.warn('⚠️ [TASKCARD] openUrl with target:top failed:', e2?.message);
-              }
-            }
-          }
-        }
-        
-        // Метод 3: Для iOS - прямой выход из iframe (только если SDK не сработал)
-        if (isIOS && window.top && window.top !== window.self) {
-          try {
-            window.top.location.href = url;
-            return;
-          } catch {
-            try {
-              window.top.location.replace(url);
-              return;
-            } catch {
-              try {
-                window.open(url, '_top');
-                return;
-              } catch {
-                const link = document.createElement('a');
-                link.href = url;
-                link.target = '_top';
-                link.style.cssText = 'position:fixed;top:-9999px;';
-                document.body.appendChild(link);
-                link.click();
-                setTimeout(() => {
-                  try {
-                    document.body.removeChild(link);
-                  } catch {}
-                }, 100);
-                return;
-              }
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.warn('⚠️ [TASKCARD] Failed to open via SDK/postMessage, falling back:', error);
-    }
-    
-    // Fallback: если SDK недоступен, используем обычное открытие
-    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-    if (isIOS) {
-      const farcasterDeeplink = `farcaster://cast?url=${encodeURIComponent(url)}`;
-      window.location.href = farcasterDeeplink;
-      setTimeout(() => {
-        window.open(url, '_blank');
-      }, 1000);
-    } else {
-      window.open(url, '_blank');
-    }
-  };
   return (
     <div
         className={`
@@ -184,7 +72,10 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, onOpen }) => {
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-purple-600 hover:text-purple-700 hover:underline break-all block truncate cursor-pointer"
-              onClick={(e) => handleLinkClick(e, task.cast_url!)}
+              onClick={(e) => {
+                e.preventDefault();
+                onOpen();
+              }}
             >
               {task.cast_url}
             </a>

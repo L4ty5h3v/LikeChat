@@ -735,13 +735,30 @@ export default function Tasks() {
         // Приоритет для кастов Farcaster, особенно на iOS 16 и ниже (где deep linking глючит)
         if (sdk?.actions?.viewCast) {
           try {
-            const { extractCastHash, getFullCastHash } = await import('@/lib/neynar');
-            // Сначала пробуем извлечь hash напрямую
+            const { extractCastHash } = await import('@/lib/neynar');
+            const isFullHash = (h: string | null) => !!h && /^0x[a-fA-F0-9]{64}$/.test(h);
+
+            // Сначала пробуем извлечь hash напрямую (если URL уже содержит полный 0x…64).
             let castHash = extractCastHash(castUrl);
-            // Если не нашли, пробуем разрешить через API
-            if (!castHash) {
-              console.log(`🔍 [OPEN] Hash not found in URL, trying to resolve via API: ${castUrl}`);
-              castHash = await getFullCastHash(castUrl);
+
+            // Важно: на клиенте нет NEYNAR_API_KEY, поэтому резолвим через сервер.
+            if (!isFullHash(castHash)) {
+              console.log(`🔍 [OPEN] Hash is missing or not full, resolving via server API: ${castUrl}`, { extracted: castHash });
+              try {
+                const resp = await fetch('/api/resolve-cast-hash', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ castUrl }),
+                });
+                const data = await resp.json();
+                if (data?.success && typeof data.hash === 'string') {
+                  castHash = data.hash;
+                } else {
+                  console.warn('⚠️ [OPEN] Server hash resolution failed:', data?.error || data);
+                }
+              } catch (e: any) {
+                console.warn('⚠️ [OPEN] Server hash resolution request failed:', e?.message || e);
+              }
             }
             if (castHash) {
               console.log(`🔍 [OPEN] Trying viewCast with hash: ${castHash} (iOS version: ${iosVersion || 'unknown'})`);

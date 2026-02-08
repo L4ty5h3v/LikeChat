@@ -24,7 +24,8 @@ export function normalizeUrl(input: string): string {
 // ИЗВЛЕЧЕНИЕ ПОЛНОГО ХЭША
 // ----------------------------
 export function extractFullHashFromUrl(url: string): string | null {
-  const match = url.match(/0x[a-fA-F0-9]{40}/);
+  // Farcaster cast hash is 32 bytes => 64 hex chars (plus 0x prefix)
+  const match = url.match(/0x[a-fA-F0-9]{64}/);
   return match ? match[0].toLowerCase() : null;
 }
 
@@ -32,7 +33,8 @@ export function extractFullHashFromUrl(url: string): string | null {
 // ИЗВЛЕЧЕНИЕ ЛЮБОГО ХЭША (короткого)
 // ----------------------------
 export function extractAnyHash(url: string): string | null {
-  const match = url.match(/0x[a-fA-F0-9]{6,40}/);
+  // Some sources may include shortened hashes; keep it permissive but allow full 64 too.
+  const match = url.match(/0x[a-fA-F0-9]{6,64}/);
   return match ? match[0].toLowerCase() : null;
 }
 
@@ -632,11 +634,11 @@ export async function checkUserTaskByHash(
 export function extractCastHash(url: string): string | null {
   if (!url) return null;
   
-  // Сначала пробуем извлечь полный hash (40 символов)
+  // Сначала пробуем извлечь полный hash (64 символа)
   const fullHash = extractFullHashFromUrl(url);
   if (fullHash) return fullHash;
   
-  // Если не нашли, пробуем любой hash (6-40 символов)
+  // Если не нашли, пробуем любой hash (6-64 символов)
   const anyHash = extractAnyHash(url);
   if (anyHash) return anyHash;
   
