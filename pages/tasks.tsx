@@ -20,6 +20,8 @@ export default function Tasks() {
   const [completedCount, setCompletedCount] = useState(0);
   const [showPublishedSuccess, setShowPublishedSuccess] = useState(false);
   const [verificationMessages, setVerificationMessages] = useState<Array<{ linkId: string; message: string; neynarUrl?: string }>>([]);
+  const [apiAccessBlocked, setApiAccessBlocked] = useState(false);
+  const [apiAccessBlockedMessage, setApiAccessBlockedMessage] = useState<string | null>(null);
   // Состояние openedTasks только в памяти (не сохраняется в localStorage)
   // Сбрасывается при каждой загрузке страницы, чтобы можно было открывать ссылки снова
   const [openedTasks, setOpenedTasks] = useState<Record<string, boolean>>({});
@@ -93,20 +95,31 @@ export default function Tasks() {
         loadTasks(user.fid, true);
       }
       
-      // Обновляем список задач каждые 2 секунды (быстрее для более оперативного отображения новых ссылок)
-      // ⚠️ КРИТИЧНО: loadTasks сохраняет состояние verified заданий, поэтому можно безопасно обновлять
-      // ⚠️ КРИТИЧНО: Интервал обновления не перезаписывает verified состояние благодаря логике в loadTasks
-      const interval = setInterval(() => {
+      // Обновляем список задач с более щадящим интервалом.
+      // Частые запросы могут триггерить Vercel Security Checkpoint (403 + HTML), который ломает API внутри miniapp iframe.
+      const REFRESH_MS = 15000; // 15 секунд
+
+      const tick = () => {
+        if (apiAccessBlocked) return;
+        if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
         loadTasks(user.fid, false);
-      }, 2000);
+      };
+
+      const interval = setInterval(tick, REFRESH_MS);
+      const onVis = () => tick();
+      document.addEventListener('visibilitychange', onVis);
       
-      return () => clearInterval(interval);
+      return () => {
+        clearInterval(interval);
+        document.removeEventListener('visibilitychange', onVis);
+      };
     }
-  }, [router, user, authLoading, isInitialized]);
+  }, [router, user, authLoading, isInitialized, apiAccessBlocked]);
 
   // ⚠️ КРИТИЧНО: Автоматически запускаем polling для всех открытых заданий после загрузки
   useEffect(() => {
     if (!user?.fid || !activity || tasks.length === 0) return;
+    if (apiAccessBlocked) return;
 
     // Запускаем polling для всех открытых заданий, которые еще не выполнены
     tasks.forEach((task) => {
@@ -127,9 +140,10 @@ export default function Tasks() {
         }
       }
     });
-  }, [tasks, user?.fid, activity, openedTasks]);
+  }, [tasks, user?.fid, activity, openedTasks, apiAccessBlocked]);
 
   const loadTasks = async (userFid: number, showLoading: boolean = true) => {
+    if (apiAccessBlocked) return;
     if (showLoading) {
       setLoading(true);
     }
@@ -139,13 +153,47 @@ export default function Tasks() {
       
       // Fetch links from API endpoint (server-side) с фильтрацией по taskType
       const taskTypeParam = currentActivity ? `&taskType=${currentActivity}` : '';
+      const parseJsonOrCheckpoint = async (res: Response, label: string) => {
+        const ct = res.headers.get('content-type') || '';
+        const isCheckpoint =
+          res.status === 403 &&
+          (res.headers.get('x-vercel-mitigated') === 'challenge' ||
+            res.headers.has('x-vercel-challenge-token') ||
+            ct.includes('text/html'));
+
+        if (isCheckpoint) {
+          setApiAccessBlocked(true);
+          setApiAccessBlockedMessage(
+            '⚠️ API blocked by Vercel Security Checkpoint (bot/challenge protection). This breaks tasks loading and verification inside Farcaster miniapp iframe.\n\nFix in Vercel Dashboard: disable bot/challenge protection OR add an allow rule for /api/*.'
+          );
+          console.error(`🚫 [TASKS] Vercel Security Checkpoint blocking ${label}:`, {
+            status: res.status,
+            contentType: ct,
+            vercelMitigated: res.headers.get('x-vercel-mitigated'),
+          });
+          return null;
+        }
+
+        if (!res.ok) {
+          const txt = await res.text().catch(() => '');
+          throw new Error(`[${label}] HTTP ${res.status}. ${txt.slice(0, 120)}`);
+        }
+        if (!ct.includes('application/json')) {
+          const txt = await res.text().catch(() => '');
+          throw new Error(`[${label}] Non-JSON response (${ct}). ${txt.slice(0, 120)}`);
+        }
+        return await res.json();
+      };
+
       const linksResponse = await fetch(`/api/tasks?t=${Date.now()}${taskTypeParam}`);
-      const linksData = await linksResponse.json();
+      const linksData = await parseJsonOrCheckpoint(linksResponse, '/api/tasks');
+      if (!linksData) return;
       const links = linksData.links || [];
       
       // Получаем прогресс пользователя через API endpoint
       const progressResponse = await fetch(`/api/user-progress?userFid=${userFid}&t=${Date.now()}`);
-      const progressData = await progressResponse.json();
+      const progressData = await parseJsonOrCheckpoint(progressResponse, '/api/user-progress');
+      if (!progressData) return;
       const progress = progressData.progress || null;
       const completedLinks = progress?.completed_links || [];
       
@@ -945,6 +993,35 @@ export default function Tasks() {
 
       console.log('[CLIENT] verifyActivity: Response status:', response.status, response.statusText);
 
+      const ct = response.headers.get('content-type') || '';
+      const isCheckpoint =
+        response.status === 403 &&
+        (response.headers.get('x-vercel-mitigated') === 'challenge' ||
+          response.headers.has('x-vercel-challenge-token') ||
+          ct.includes('text/html'));
+
+      if (isCheckpoint) {
+        setApiAccessBlocked(true);
+        setApiAccessBlockedMessage(
+          '⚠️ Verification API blocked by Vercel Security Checkpoint (bot/challenge protection).\n\nFix in Vercel Dashboard: disable bot/challenge protection OR add an allow rule for /api/*.'
+        );
+        return {
+          completed: false,
+          userMessage:
+            'Verification service is blocked by Vercel Security Checkpoint. Please disable Vercel bot/challenge protection (or allow /api/*), then retry.',
+          isError: true,
+        };
+      }
+
+      if (!ct.includes('application/json')) {
+        return {
+          completed: false,
+          userMessage: `Error checking activity (status ${response.status}).`,
+          isError: true,
+          neynarExplorerUrl: castUrl ? `https://explorer.neynar.com/search?q=${encodeURIComponent(castUrl)}` : undefined,
+        };
+      }
+
       const data = await response.json();
       
       // Если HTTP ошибка (не 200) - это реальная ошибка
@@ -1439,6 +1516,13 @@ export default function Tasks() {
               </span>
             </p>
           </div>
+
+          {apiAccessBlocked && apiAccessBlockedMessage && (
+            <div className="mb-8 bg-red-600/90 text-white rounded-2xl shadow-2xl p-6 border-2 border-white/30">
+              <div className="font-black text-xl mb-2">🚫 API BLOCKED</div>
+              <div className="text-sm md:text-base whitespace-pre-line">{apiAccessBlockedMessage}</div>
+            </div>
+          )}
 
 
 
