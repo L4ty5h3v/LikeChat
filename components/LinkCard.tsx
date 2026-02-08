@@ -76,14 +76,14 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
             // Это выводит ссылку за пределы iframe, где Farcaster app может её подхватить
             const target = isIOS ? 'system' : undefined;
             console.log(`🔍 [LINKCARD] Using openUrl with target: ${target || 'default'}`);
-            await sdk.actions.openUrl({ url, ...(target && { target }) });
+            await (sdk.actions.openUrl as any)({ url, ...(target && { target }) });
             return;
           } catch (e: any) {
             console.warn('⚠️ [LINKCARD] openUrl failed, trying fallback:', e?.message);
             // Если target: 'system' не сработал, пробуем 'top'
             if (isIOS) {
               try {
-                await sdk.actions.openUrl({ url, target: 'top' });
+                await (sdk.actions.openUrl as any)({ url, target: 'top' });
                 return;
               } catch (e2: any) {
                 console.warn('⚠️ [LINKCARD] openUrl with target:top failed:', e2?.message);

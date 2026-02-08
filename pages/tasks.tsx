@@ -763,7 +763,7 @@ export default function Tasks() {
             // Это выводит ссылку за пределы iframe, где Farcaster app может её подхватить
             const target = isIOS ? 'system' : undefined;
             console.log(`🔍 [OPEN] Trying SDK openUrl with target: ${target || 'default'} (iOS version: ${iosVersion || 'unknown'})`);
-            await sdk.actions.openUrl({ url: castUrl, ...(target && { target }) });
+            await (sdk.actions.openUrl as any)({ url: castUrl, ...(target && { target }) });
             console.log(`✅ [OPEN] Opened via SDK openUrl: ${castUrl}`);
             return;
           } catch (e: any) {
@@ -772,7 +772,7 @@ export default function Tasks() {
             if (isIOS) {
               try {
                 console.log(`🔍 [OPEN] Trying openUrl with target: 'top' as fallback`);
-                await sdk.actions.openUrl({ url: castUrl, target: 'top' });
+                await (sdk.actions.openUrl as any)({ url: castUrl, target: 'top' });
                 console.log(`✅ [OPEN] Opened via SDK openUrl with target:top: ${castUrl}`);
                 return;
               } catch (e2: any) {
