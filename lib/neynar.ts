@@ -24,8 +24,8 @@ export function normalizeUrl(input: string): string {
 // ИЗВЛЕЧЕНИЕ ПОЛНОГО ХЭША
 // ----------------------------
 export function extractFullHashFromUrl(url: string): string | null {
-  // Farcaster cast hash is 32 bytes => 64 hex chars (plus 0x prefix)
-  const match = url.match(/0x[a-fA-F0-9]{64}/);
+  // Farcaster cast hash is 20 bytes => 40 hex chars (plus 0x prefix)
+  const match = url.match(/0x[a-fA-F0-9]{40}/);
   return match ? match[0].toLowerCase() : null;
 }
 
@@ -33,8 +33,8 @@ export function extractFullHashFromUrl(url: string): string | null {
 // ИЗВЛЕЧЕНИЕ ЛЮБОГО ХЭША (короткого)
 // ----------------------------
 export function extractAnyHash(url: string): string | null {
-  // Some sources may include shortened hashes; keep it permissive but allow full 64 too.
-  const match = url.match(/0x[a-fA-F0-9]{6,64}/);
+  // Some sources may include shortened hashes; keep it permissive.
+  const match = url.match(/0x[a-fA-F0-9]{6,40}/);
   return match ? match[0].toLowerCase() : null;
 }
 
@@ -98,15 +98,15 @@ export async function resolveCastUrl(url: string): Promise<string | null> {
 export async function getFullCastHash(shortUrl: string): Promise<string | null> {
   if (!shortUrl) return null;
 
-  // 1. Если уже полный хеш 0x... (64 символа) — возвращаем как есть
-  const fullHashMatch = shortUrl.match(/^0x[a-fA-F0-9]{64}$/);
+  // 1. Если уже полный хеш 0x... (40 символов) — возвращаем как есть
+  const fullHashMatch = shortUrl.match(/^0x[a-fA-F0-9]{40}$/);
   if (fullHashMatch) {
-    console.log("[neynar] getFullCastHash: already full hash (64 chars)", shortUrl);
+    console.log("[neynar] getFullCastHash: already full hash (40 chars)", shortUrl);
     return shortUrl.toLowerCase();
   }
 
   // 2. Проверяем, есть ли полный хеш внутри URL
-  const hashInUrl = shortUrl.match(/0x[a-fA-F0-9]{64}/);
+  const hashInUrl = shortUrl.match(/0x[a-fA-F0-9]{40}/);
   if (hashInUrl) {
     console.log("[neynar] getFullCastHash: found full hash in URL", hashInUrl[0]);
     return hashInUrl[0].toLowerCase();

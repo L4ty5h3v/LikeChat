@@ -17,7 +17,7 @@ export interface LinkSubmission {
   username: string;
   pfp_url: string;
   cast_url: string;
-  /** Full Farcaster cast hash (0x + 64 hex). Optional for older records. */
+  /** Farcaster cast hash (0x + 40 hex). Optional for older records. */
   cast_hash?: string;
   task_type: TaskType;
   created_at: string;

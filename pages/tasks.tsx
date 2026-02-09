@@ -843,7 +843,7 @@ export default function Tasks() {
         if (sdk?.actions?.viewCast) {
           try {
             const { extractCastHash } = await import('@/lib/neynar');
-            const isFullHash = (h: string | null) => !!h && /^0x[a-fA-F0-9]{64}$/.test(h);
+            const isFullHash = (h: string | null) => !!h && /^0x[a-fA-F0-9]{40}$/.test(h);
 
             // Сначала пробуем извлечь hash напрямую (если URL уже содержит полный 0x…64).
             let castHash = castHashFromTask || extractCastHash(castUrl);
