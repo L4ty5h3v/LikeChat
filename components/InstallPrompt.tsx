@@ -9,6 +9,8 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
   const [isInstalled, setIsInstalled] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   
   // Для отладки: глобальная функция для принудительного показа модального окна
   useEffect(() => {
@@ -41,17 +43,19 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
           return;
         }
 
-        // Проверяем, что мы в iframe Farcaster Mini App
-        const isInFarcasterFrame = window.self !== window.top;
-        if (!isInFarcasterFrame) {
-          console.log('ℹ️ [INSTALL] Not in Farcaster frame');
+        // Импортируем SDK
+        const { sdk } = await import('@farcaster/miniapp-sdk');
+        await sdk.actions?.ready?.();
+
+        // Проверяем, что мы реально внутри Farcaster Mini App окружения (на iOS/веб это не всегда iframe)
+        try {
+          await sdk.context;
+        } catch (e) {
+          console.log('ℹ️ [INSTALL] Not in Farcaster Mini App environment (no sdk.context)', e);
           setIsInstalled(null);
           setIsLoading(false);
           return;
         }
-
-        // Импортируем SDK
-        const { sdk } = await import('@farcaster/miniapp-sdk');
 
         // Получаем username из SDK context или localStorage для проверки (делаем это ДО проверки установки)
         let currentUsername: string | null = null;
@@ -170,16 +174,20 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
         return;
       }
 
-      // Проверяем, что мы в iframe Farcaster Mini App
-      const isInFarcasterFrame = window.self !== window.top;
-      if (!isInFarcasterFrame) {
-        console.warn('⚠️ [INSTALL] Not in Farcaster frame, install may not work');
-        setShowModal(false);
-        return;
-      }
-
       console.log('📦 [INSTALL] Importing SDK...');
       const { sdk } = await import('@farcaster/miniapp-sdk');
+      await sdk.actions?.ready?.();
+      setActionError(null);
+      setActionMessage(null);
+
+      // Проверяем окружение Farcaster
+      try {
+        await sdk.context;
+      } catch (e) {
+        console.warn('⚠️ [INSTALL] Not in Farcaster Mini App environment, aborting install', e);
+        setActionError('Install is available only inside Farcaster/Warpcast Mini Apps.');
+        return;
+      }
       
       console.log('🔍 [INSTALL] SDK loaded:', {
         hasSDK: !!sdk,
@@ -251,62 +259,12 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
         }
       }
 
-      // Метод 4: Попробуем через openUrl с текущим URL (может триггерить установку)
-      if (!installSuccess && actions?.openUrl && typeof actions.openUrl === 'function') {
-        try {
-          console.log('🔄 [INSTALL] Trying openUrl with current URL...');
-          await actions.openUrl({ url: window.location.href });
-          console.log('✅ [INSTALL] openUrl completed');
-          installSuccess = true;
-        } catch (error: any) {
-          console.error('❌ [INSTALL] Error with openUrl:', {
-            error,
-            message: error?.message
-          });
-        }
-      }
-
-      // Метод 5: Попробуем через postMessage к родительскому окну
-      if (!installSuccess && isInFarcasterFrame) {
-        try {
-          console.log('🔄 [INSTALL] Trying postMessage to parent window...');
-          window.parent.postMessage({
-            type: 'farcaster:install',
-            url: window.location.href
-          }, '*');
-          console.log('✅ [INSTALL] postMessage sent');
-          // Не считаем успешным, так как не получили ответ
-        } catch (error: any) {
-          console.error('❌ [INSTALL] Error with postMessage:', {
-            error,
-            message: error?.message
-          });
-        }
-      }
-
-      // Метод 6: Попробуем использовать window.location для перезагрузки (может триггерить установку)
-      if (!installSuccess) {
-        try {
-          console.log('🔄 [INSTALL] Trying to trigger install via page interaction...');
-          // Пробуем вызвать событие, которое может триггерить установку
-          const event = new CustomEvent('farcaster:install-request', {
-            detail: { url: window.location.href }
-          });
-          window.dispatchEvent(event);
-          console.log('✅ [INSTALL] Custom event dispatched');
-        } catch (error: any) {
-          console.error('❌ [INSTALL] Error dispatching custom event:', {
-            error,
-            message: error?.message
-          });
-        }
-      }
-
       // Если ни один метод не сработал, просто закрываем модальное окно
       // Farcaster может показать свою собственную кнопку установки внизу экрана
       if (!installSuccess) {
         console.log('ℹ️ [INSTALL] No install method worked, closing modal. Farcaster may show native install button.');
         console.log('ℹ️ [INSTALL] User should look for the native "Add" button at the bottom of the screen.');
+        setActionMessage('If nothing happened, look for the native "Add" button at the bottom of the Farcaster screen.');
       }
 
       // Закрываем модальное окно в любом случае
@@ -325,6 +283,50 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
       });
       // В случае ошибки все равно закрываем модальное окно
       setShowModal(false);
+    }
+  };
+
+  const handleEnableNotifications = async () => {
+    try {
+      if (typeof window === 'undefined') return;
+      setActionError(null);
+      setActionMessage(null);
+
+      const { sdk } = await import('@farcaster/miniapp-sdk');
+      await sdk.actions?.ready?.();
+
+      try {
+        await sdk.context;
+      } catch (e) {
+        setActionError('Notifications can be enabled only inside Farcaster/Warpcast Mini Apps.');
+        return;
+      }
+
+      const actions = sdk.actions as any;
+      console.log('🔔 [NOTIFICATIONS] Available actions:', actions ? Object.keys(actions) : []);
+
+      const candidates: Array<{ name: string; fn?: (...args: any[]) => Promise<any> | any; args?: any[] }> = [
+        { name: 'requestNotificationPermission', fn: actions?.requestNotificationPermission, args: [] },
+        { name: 'requestNotificationPermissions', fn: actions?.requestNotificationPermissions, args: [] },
+        { name: 'requestPushNotificationPermission', fn: actions?.requestPushNotificationPermission, args: [] },
+        { name: 'enableNotifications', fn: actions?.enableNotifications, args: [] },
+        { name: 'subscribeToNotifications', fn: actions?.subscribeToNotifications, args: [] },
+        { name: 'subscribeNotifications', fn: actions?.subscribeNotifications, args: [] },
+      ];
+
+      for (const c of candidates) {
+        if (typeof c.fn === 'function') {
+          console.log(`✅ [NOTIFICATIONS] Trying ${c.name}()...`);
+          await c.fn(...(c.args ?? []));
+          setActionMessage('Notifications request sent. Please confirm in Farcaster.');
+          return;
+        }
+      }
+
+      setActionMessage('Notifications are not supported by this Farcaster client / SDK version.');
+    } catch (e: any) {
+      console.error('❌ [NOTIFICATIONS] Error enabling notifications:', e);
+      setActionError(e?.message || 'Failed to enable notifications');
     }
   };
 
@@ -404,24 +406,39 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
 
             {/* Options */}
             <div className="space-y-3 mb-6">
-              <div className="flex items-center gap-4 p-4 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20 hover:bg-white/15 transition-colors">
+              <button
+                type="button"
+                onClick={handleInstall}
+                className="w-full text-left flex items-center gap-4 p-4 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20 hover:bg-white/15 transition-colors"
+              >
                 <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center border border-white/30">
                   <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
                   </svg>
                 </div>
                 <span className="text-white font-medium">Add to Farcaster</span>
-              </div>
+              </button>
 
-              <div className="flex items-center gap-4 p-4 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20 hover:bg-white/15 transition-colors">
+              <button
+                type="button"
+                onClick={handleEnableNotifications}
+                className="w-full text-left flex items-center gap-4 p-4 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20 hover:bg-white/15 transition-colors"
+              >
                 <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center border border-white/30">
                   <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                   </svg>
                 </div>
                 <span className="text-white font-medium">Enable notifications</span>
-              </div>
+              </button>
             </div>
+
+            {(actionMessage || actionError) && (
+              <div className="mb-4 px-2">
+                {actionError && <p className="text-red-100 text-sm text-center">{actionError}</p>}
+                {actionMessage && <p className="text-white/90 text-sm text-center">{actionMessage}</p>}
+              </div>
+            )}
 
             {/* Info text */}
             <div className="mb-4 px-2">
