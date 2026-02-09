@@ -32,6 +32,25 @@ export default function Tasks() {
   // ⚠️ КРИТИЧНО: Храним verified задания в ref, чтобы они не терялись при обновлениях
   const verifiedTasksRef = useRef<Set<string>>(new Set());
 
+  const stopAllPolling = () => {
+    Object.values(pollingIntervalsRef.current).forEach((intervalId) => {
+      if (typeof intervalId === 'number') {
+        clearInterval(intervalId);
+      } else {
+        clearTimeout(intervalId as any);
+      }
+    });
+    pollingIntervalsRef.current = {};
+  };
+
+  useEffect(() => {
+    if (!apiAccessBlocked) return;
+    stopAllPolling();
+    // Снимаем "verifying" чтобы UI не зависал
+    setTasks(prev => prev.map(t => ({ ...t, verifying: false })));
+    setVerifying(false);
+  }, [apiAccessBlocked]);
+
   // Загрузка данных
   useEffect(() => {
     console.log('🔍 [TASKS] Component mounted, checking auth...', {
@@ -465,6 +484,7 @@ export default function Tasks() {
 
   // Polling для автоматической проверки активности после открытия ссылки
   const startPollingForActivity = (castUrl: string, linkId: string, activityType: TaskType) => {
+    if (apiAccessBlocked) return;
     if (!user?.fid) return;
 
     // ⚠️ КРИТИЧНО: Проверяем, не выполнено ли уже задание - если да, проверки прекращаем
@@ -491,6 +511,11 @@ export default function Tasks() {
       const pollInterval = 30000; // Проверяем каждые 30 секунд
       
       const pollIntervalId = setInterval(async () => {
+        if (apiAccessBlocked) {
+          clearInterval(pollIntervalId);
+          delete pollingIntervalsRef.current[linkId];
+          return;
+        }
         pollCount++;
         console.log(`🔄 [POLLING] Poll attempt ${pollCount}/${maxPolls} for link ${linkId}`);
         
@@ -561,6 +586,14 @@ export default function Tasks() {
               try {
                 // Проверяем прогресс через API напрямую
                 const progressResponse = await fetch(`/api/user-progress?userFid=${user.fid}&t=${Date.now()}`);
+                const progressCt = progressResponse.headers.get('content-type') || '';
+                if (!progressResponse.ok || !progressCt.includes('application/json')) {
+                  console.warn('[POLLING] Progress response is not JSON / not OK, skipping completion check', {
+                    status: progressResponse.status,
+                    contentType: progressCt,
+                  });
+                  return;
+                }
                 const progressData = await progressResponse.json();
                 const progress = progressData.progress || null;
                 const completedLinks = progress?.completed_links || [];
@@ -569,6 +602,14 @@ export default function Tasks() {
                 const currentActivity = activity || (typeof window !== 'undefined' ? localStorage.getItem('selected_activity') : null);
                 const taskTypeParam = currentActivity ? `&taskType=${currentActivity}` : '';
                 const linksResponse = await fetch(`/api/tasks?t=${Date.now()}${taskTypeParam}`);
+                const linksCt = linksResponse.headers.get('content-type') || '';
+                if (!linksResponse.ok || !linksCt.includes('application/json')) {
+                  console.warn('[POLLING] Links response is not JSON / not OK, skipping completion check', {
+                    status: linksResponse.status,
+                    contentType: linksCt,
+                  });
+                  return;
+                }
                 const linksData = await linksResponse.json();
                 const links = linksData.links || [];
                 
@@ -624,6 +665,20 @@ export default function Tasks() {
             // 1. Если проверка через API не прошла (result.isError) → зеленая кнопка (считаем выполненной)
             // 2. Если проверка прошла (!result.isError), но лайка нет (!result.completed) → красная кнопка (ошибка)
             if (result.isError) {
+              // Если API заблокирован чекпоинтом — НЕ помечаем как completed и не продолжаем бомбить API
+              if ((result as any).blocked || apiAccessBlocked) {
+                console.warn(`🚫 [POLLING] API blocked for link ${linkId}. Stopping polling without marking completed.`);
+                clearInterval(pollIntervalId);
+                delete pollingIntervalsRef.current[linkId];
+                setTasks(prevTasks =>
+                  prevTasks.map(task =>
+                    task.link_id === linkId
+                      ? { ...task, verifying: false, error: false }
+                      : task
+                  )
+                );
+                return;
+              }
               // Проверка через API не прошла (ошибка API), но ссылка открыта → зеленая кнопка
               console.log(`✅ [POLLING] Task ${linkId} is opened, but API check failed. Marking as completed (green).`);
               delete taskErrorsRef.current[linkId];
@@ -722,6 +777,9 @@ export default function Tasks() {
 
   // Открыть ссылку
   const handleOpenLink = async (castUrl: string, linkId: string) => {
+    if (apiAccessBlocked) {
+      console.warn('🚫 [OPEN] API is blocked; skipping polling start to avoid extra requests');
+    }
     // ⚠️ КРИТИЧНО: Проверяем, не выполнено ли уже задание - если да, не запускаем polling
     const currentTask = tasks.find(t => t.link_id === linkId);
     if (currentTask?.completed && currentTask?.verified) {
@@ -732,7 +790,7 @@ export default function Tasks() {
       markOpened(linkId);
       
       // Запускаем polling для автоматической проверки
-      if (activity) {
+      if (activity && !apiAccessBlocked) {
         startPollingForActivity(castUrl, linkId, activity);
       }
     }
@@ -965,7 +1023,7 @@ export default function Tasks() {
     castUrl?: string;
     activityType: TaskType;
     viewerFid: number;
-  }): Promise<{ completed: boolean; userMessage?: string; hashWarning?: string; isError?: boolean; neynarExplorerUrl?: string }> => {
+  }): Promise<{ completed: boolean; userMessage?: string; hashWarning?: string; isError?: boolean; blocked?: boolean; neynarExplorerUrl?: string }> => {
     try {
       // Добавляем небольшую задержку для обновления данных в Neynar API после unlike+like
       // Это особенно важно для лайков, так как API может обновляться с задержкой
@@ -1010,6 +1068,7 @@ export default function Tasks() {
           userMessage:
             'Verification service is blocked by Vercel Security Checkpoint. Please disable Vercel bot/challenge protection (or allow /api/*), then retry.',
           isError: true,
+          blocked: true,
         };
       }
 
