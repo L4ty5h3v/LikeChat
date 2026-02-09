@@ -2,6 +2,7 @@ import '@/styles/globals.css';
 import type { AppProps } from 'next/app';
 import Head from 'next/head';
 import { useEffect } from 'react';
+import { useRouter } from 'next/router';
 import { base } from 'wagmi/chains';
 import { OnchainKitProvider } from '@coinbase/onchainkit';
 import { FarcasterAuthProvider } from '@/contexts/FarcasterAuthContext';
@@ -9,6 +10,8 @@ import { AuthSync } from '@/components/AuthSync';
 import InstallPrompt from '@/components/InstallPrompt';
 
 export default function App({ Component, pageProps }: AppProps) {
+  const router = useRouter();
+
   // Глобальный обработчик ошибок для отлова неперехваченных ошибок
   useEffect(() => {
     const handleError = (event: ErrorEvent) => {
@@ -111,31 +114,43 @@ export default function App({ Component, pageProps }: AppProps) {
     };
   }, []);
 
+  // OnchainKit (and its internal providers like Privy) can produce CORS failures in some Farcaster web contexts
+  // (e.g. origin `wallet.farcaster.xyz`). Only mount it on pages that actually need it.
+  const needsOnchainKit = router.pathname === '/buyToken';
+
   return (
     <>
       <Head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
       </Head>
-      <OnchainKitProvider
-        chain={base} // КРИТИЧНО: base из wagmi/chains имеет chainId 8453
-        config={{
-          appearance: {
-            name: 'Multi Like',
-            logo: '/mrs-crypto.png',
-            theme: 'default',
-            mode: 'auto',
-          },
-        }}
-        miniKit={{
-          enabled: false, // Отключаем MiniKit для Farcaster Mini App (чтобы не определялось как Base App)
-        }}
-      >
+      {needsOnchainKit ? (
+        <OnchainKitProvider
+          chain={base} // КРИТИЧНО: base из wagmi/chains имеет chainId 8453
+          config={{
+            appearance: {
+              name: 'Multi Like',
+              logo: '/mrs-crypto.png',
+              theme: 'default',
+              mode: 'auto',
+            },
+          }}
+          miniKit={{
+            enabled: false, // Отключаем MiniKit для Farcaster Mini App (чтобы не определялось как Base App)
+          }}
+        >
+          <FarcasterAuthProvider>
+            <AuthSync />
+            <Component {...pageProps} />
+            <InstallPrompt />
+          </FarcasterAuthProvider>
+        </OnchainKitProvider>
+      ) : (
         <FarcasterAuthProvider>
           <AuthSync />
           <Component {...pageProps} />
           <InstallPrompt />
         </FarcasterAuthProvider>
-      </OnchainKitProvider>
+      )}
     </>
   );
 }
