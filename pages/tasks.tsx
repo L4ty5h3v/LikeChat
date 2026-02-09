@@ -1488,7 +1488,8 @@ export default function Tasks() {
         }
         
         console.warn(message);
-        alert(message);
+        // NOTE: Do not show a blocking popup on mobile (iOS in particular).
+        // Users reported this alert prevents smooth navigation; keep details in console only.
       }
     } catch (error: any) {
       console.error('❌ Error verifying tasks:', error);
