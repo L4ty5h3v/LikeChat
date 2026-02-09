@@ -1,4 +1,19 @@
 {
+  "miniapp": {
+    "version": "1",
+    "name": "MULTI LIKE",
+    "iconUrl": "https://likechat-farcaster.vercel.app/images/icon.png",
+    "homeUrl": "https://likechat-farcaster.vercel.app/",
+    "imageUrl": "https://likechat-farcaster.vercel.app/images/image%20(3).png",
+    "heroImageUrl": "https://likechat-farcaster.vercel.app/images/image%20(3).png",
+    "splashImageUrl": "https://likechat-farcaster.vercel.app/images/image%20(3).png",
+    "splashBackgroundColor": "#C71585",
+    "subtitle": "You like, they like back",
+    "description": "Gain likes and recasts through mutual activity.",
+    "primaryCategory": "social"
+  }
+}
+{
   "accountAssociation": {
     "header": "eyJmaWQiOjQzOTY5OSwidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweDhjM2M0N0U0NTM4YzZmQzU4Y0NhQjk0OTM0OGMxRTVmOTkwMDRkZjgifQ",
     "payload": "eyJkb21haW4iOiJsaWtlY2hhdC1mYXJjYXN0ZXIudmVyY2VsLmFwcCJ9",
