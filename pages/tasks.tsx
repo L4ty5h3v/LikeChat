@@ -262,7 +262,8 @@ export default function Tasks() {
       });
       
       const taskList: TaskProgress[] = filteredLinks.map((link: LinkSubmission, index: number) => {
-        const castHash = extractCastHash(link.cast_url) || '';
+        // Prefer server-resolved full hash when available; fall back to extracting from URL.
+        const castHash = (link as any).cast_hash || extractCastHash(link.cast_url) || '';
         const isCompleted = completedLinks.includes(link.id);
         const isOpened = openedTasks[link.id] === true;
         
@@ -776,7 +777,7 @@ export default function Tasks() {
   }, []);
 
   // Открыть ссылку
-  const handleOpenLink = async (castUrl: string, linkId: string) => {
+  const handleOpenLink = async (castUrl: string, linkId: string, castHashFromTask?: string) => {
     if (apiAccessBlocked) {
       console.warn('🚫 [OPEN] API is blocked; skipping polling start to avoid extra requests');
     }
@@ -845,7 +846,7 @@ export default function Tasks() {
             const isFullHash = (h: string | null) => !!h && /^0x[a-fA-F0-9]{64}$/.test(h);
 
             // Сначала пробуем извлечь hash напрямую (если URL уже содержит полный 0x…64).
-            let castHash = extractCastHash(castUrl);
+            let castHash = castHashFromTask || extractCastHash(castUrl);
 
             // Важно: на клиенте нет NEYNAR_API_KEY, поэтому резолвим через сервер.
             if (!isFullHash(castHash)) {
@@ -1617,7 +1618,7 @@ export default function Tasks() {
                     key={task.link_id}
                     task={taskWithOpened}
                     index={index}
-                    onOpen={() => handleOpenLink(task.cast_url, task.link_id)}
+                    onOpen={() => handleOpenLink(task.cast_url, task.link_id, task.cast_hash)}
                   />
                 );
               })

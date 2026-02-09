@@ -54,7 +54,7 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
           try {
             const { extractCastHash } = await import('@/lib/neynar');
             // Сначала пробуем извлечь hash напрямую
-            let hash = extractCastHash(url);
+            let hash = (link as any).cast_hash || extractCastHash(url);
             const isFullHash = (h: string | null) => !!h && /^0x[a-fA-F0-9]{64}$/.test(h);
             // viewCast требует полный hash (0x + 64 hex). Если получили короткий — резолвим через API.
             if (!isFullHash(hash)) {

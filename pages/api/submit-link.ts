@@ -1,7 +1,7 @@
 // API endpoint для публикации ссылки
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { submitLink, getAllLinks, getUserProgress } from '@/lib/db-config';
-import { extractCastHash } from '@/lib/neynar';
+import { extractCastHash, getFullCastHash } from '@/lib/neynar';
 
 // Функция валидации URL - только ссылки на посты (casts)
 function validateCastUrl(url: string): boolean {
@@ -136,12 +136,27 @@ export default async function handler(
       }
     }
 
+    // ✅ Улучшение для iOS открытия: стараемся заранее резолвить полный cast hash (0x…64) и сохранять в БД.
+    // Это позволяет вызывать sdk.actions.viewCast без дополнительных запросов в момент клика.
+    let fullCastHash: string | null = null;
+    try {
+      fullCastHash = await getFullCastHash(castUrl);
+      if (fullCastHash) {
+        console.log('✅ [SUBMIT-LINK] Resolved full cast hash:', fullCastHash);
+      } else {
+        console.warn('⚠️ [SUBMIT-LINK] Could not resolve full cast hash (will fall back to runtime resolve):', castUrl);
+      }
+    } catch (e: any) {
+      console.warn('⚠️ [SUBMIT-LINK] getFullCastHash failed:', e?.message || e);
+    }
+
     const result = await submitLink(
       userFid,
       username,
       pfpUrl || '',
       castUrl,
-      finalTaskType
+      finalTaskType,
+      fullCastHash || undefined
     );
 
     if (!result) {
