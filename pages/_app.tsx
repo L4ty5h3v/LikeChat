@@ -4,10 +4,24 @@ import Head from 'next/head';
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { base } from 'wagmi/chains';
+import { WagmiProvider, createConfig, http } from 'wagmi';
+import { injected } from 'wagmi/connectors';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { OnchainKitProvider } from '@coinbase/onchainkit';
 import { FarcasterAuthProvider } from '@/contexts/FarcasterAuthContext';
 import { AuthSync } from '@/components/AuthSync';
 import InstallPrompt from '@/components/InstallPrompt';
+
+const wagmiConfig = createConfig({
+  chains: [base],
+  connectors: [injected()],
+  transports: {
+    [base.id]: http(),
+  },
+  ssr: true,
+});
+
+const queryClient = new QueryClient();
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter();
@@ -123,34 +137,38 @@ export default function App({ Component, pageProps }: AppProps) {
       <Head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
       </Head>
-      {needsOnchainKit ? (
-        <OnchainKitProvider
-          chain={base} // КРИТИЧНО: base из wagmi/chains имеет chainId 8453
-          config={{
-            appearance: {
-              name: 'Multi Like',
-              logo: '/mrs-crypto.png',
-              theme: 'default',
-              mode: 'auto',
-            },
-          }}
-          miniKit={{
-            enabled: false, // Отключаем MiniKit для Farcaster Mini App (чтобы не определялось как Base App)
-          }}
-        >
-          <FarcasterAuthProvider>
-            <AuthSync />
-            <Component {...pageProps} />
-            <InstallPrompt />
-          </FarcasterAuthProvider>
-        </OnchainKitProvider>
-      ) : (
-        <FarcasterAuthProvider>
-          <AuthSync />
-          <Component {...pageProps} />
-          <InstallPrompt />
-        </FarcasterAuthProvider>
-      )}
+      <WagmiProvider config={wagmiConfig}>
+        <QueryClientProvider client={queryClient}>
+          {needsOnchainKit ? (
+            <OnchainKitProvider
+              chain={base} // КРИТИЧНО: base из wagmi/chains имеет chainId 8453
+              config={{
+                appearance: {
+                  name: 'Multi Like',
+                  logo: '/mrs-crypto.png',
+                  theme: 'default',
+                  mode: 'auto',
+                },
+              }}
+              miniKit={{
+                enabled: false, // Отключаем MiniKit для Farcaster Mini App (чтобы не определялось как Base App)
+              }}
+            >
+              <FarcasterAuthProvider>
+                <AuthSync />
+                <Component {...pageProps} />
+                <InstallPrompt />
+              </FarcasterAuthProvider>
+            </OnchainKitProvider>
+          ) : (
+            <FarcasterAuthProvider>
+              <AuthSync />
+              <Component {...pageProps} />
+              <InstallPrompt />
+            </FarcasterAuthProvider>
+          )}
+        </QueryClientProvider>
+      </WagmiProvider>
     </>
   );
 }
