@@ -820,7 +820,8 @@ export default function Tasks() {
         iframeSandbox: iframeSandbox || 'not accessible (CORS)',
       });
       
-      if (isInFarcasterFrame) {
+      // Важно: на iOS Farcaster miniapp может быть НЕ в iframe. Поэтому пробуем SDK всегда.
+      {
         // КРИТИЧНО: Сначала пробуем SDK методы - они должны работать правильно
         const { sdk } = await import('@farcaster/miniapp-sdk');
         
@@ -907,7 +908,7 @@ export default function Tasks() {
         }
         
         // Метод 3: Для iOS - прямой выход из iframe (только если SDK не сработал)
-        if (isIOS) {
+        if (isIOS && isInFarcasterFrame) {
           console.log('📱 [OPEN] iOS: SDK methods failed, trying direct iframe exit');
           
           // Попробуем window.top.location.href

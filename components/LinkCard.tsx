@@ -41,7 +41,8 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
         return match ? parseFloat(`${match[1]}.${match[2]}`) : null;
       })() : null;
       
-      if (isInFarcasterFrame) {
+      // Важно: на iOS Farcaster miniapp может быть НЕ в iframe. Поэтому пробуем SDK всегда.
+      {
         // КРИТИЧНО: Сначала пробуем SDK методы - они должны работать правильно
         const { sdk } = await import('@farcaster/miniapp-sdk');
         try {
@@ -106,7 +107,7 @@ const LinkCard: React.FC<LinkCardProps> = ({ link }) => {
         }
         
         // Метод 3: Для iOS - прямой выход из iframe (только если SDK не сработал)
-        if (isIOS && window.top && window.top !== window.self) {
+        if (isIOS && isInFarcasterFrame && window.top && window.top !== window.self) {
           try {
             window.top.location.href = url;
             return;
