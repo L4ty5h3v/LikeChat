@@ -404,7 +404,7 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
   });
 
   return (
-    <div className="fixed inset-0 z-50 pointer-events-none">
+    <div className="fixed inset-0 z-50 pointer-events-auto">
       {/* Overlay */}
       <div 
         className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto"
@@ -417,7 +417,10 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
         style={{ top: '30vh', maxHeight: '60vh', overflowY: 'auto' }}
       >
         {/* Градиентный фон */}
-        <div className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient" style={{ backgroundSize: '300% 300%' }}></div>
+        <div
+          className="absolute inset-0 bg-gradient-to-br from-primary via-secondary to-accent animate-gradient pointer-events-none"
+          style={{ backgroundSize: '300% 300%' }}
+        />
         
         {/* Стеклянный эффект */}
         <div className="relative bg-white/10 backdrop-blur-md border border-white/30 rounded-3xl">
@@ -509,7 +512,7 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
                 }`}
               >
                 <span className="relative z-10">{isActionBusy ? 'Working…' : 'Add'}</span>
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 pointer-events-none"></div>
               </button>
             </div>
           </div>
