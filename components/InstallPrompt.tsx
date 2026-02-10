@@ -174,6 +174,12 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
         return;
       }
 
+      const isRejectedByUser = (err: any) => {
+        const name = String(err?.name || '');
+        const msg = String(err?.message || '');
+        return name.includes('RejectedByUser') || msg.includes('RejectedByUser');
+      };
+
       console.log('📦 [INSTALL] Importing SDK...');
       const { sdk } = await import('@farcaster/miniapp-sdk');
       await sdk.actions?.ready?.();
@@ -220,6 +226,11 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
           console.log('✅ [INSTALL] install() completed:', result);
           installSuccess = true;
         } catch (error: any) {
+          if (isRejectedByUser(error)) {
+            console.log('ℹ️ [INSTALL] User rejected install request');
+            setActionError('You cancelled the Add request. Please tap "Add" (native prompt) to confirm installation.');
+            return;
+          }
           console.error('❌ [INSTALL] Error calling install():', {
             error,
             message: error?.message,
@@ -237,6 +248,11 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
           console.log('✅ [INSTALL] requestInstall() completed:', result);
           installSuccess = true;
         } catch (error: any) {
+          if (isRejectedByUser(error)) {
+            console.log('ℹ️ [INSTALL] User rejected requestInstall()');
+            setActionError('You cancelled the Add request. Please tap "Add" (native prompt) to confirm installation.');
+            return;
+          }
           console.error('❌ [INSTALL] Error calling requestInstall():', {
             error,
             message: error?.message
@@ -252,6 +268,11 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
           console.log('✅ [INSTALL] addToHomeScreen() completed:', result);
           installSuccess = true;
         } catch (error: any) {
+          if (isRejectedByUser(error)) {
+            console.log('ℹ️ [INSTALL] User rejected addToHomeScreen()');
+            setActionError('You cancelled the Add request. Please tap "Add" (native prompt) to confirm installation.');
+            return;
+          }
           console.error('❌ [INSTALL] Error calling addToHomeScreen():', {
             error,
             message: error?.message
@@ -259,20 +280,19 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
         }
       }
 
-      // Если ни один метод не сработал, просто закрываем модальное окно
+      // Если ни один метод не сработал — НЕ закрываем модалку, чтобы пользователь мог повторить
       // Farcaster может показать свою собственную кнопку установки внизу экрана
       if (!installSuccess) {
-        console.log('ℹ️ [INSTALL] No install method worked, closing modal. Farcaster may show native install button.');
+        console.log('ℹ️ [INSTALL] No install method worked. Farcaster may show native install button.');
         console.log('ℹ️ [INSTALL] User should look for the native "Add" button at the bottom of the screen.');
         setActionMessage('If nothing happened, look for the native "Add" button at the bottom of the Farcaster screen.');
+        return;
       }
-
-      // Закрываем модальное окно в любом случае
-      setShowModal(false);
       
       // Если установка прошла успешно, обновляем состояние
       if (installSuccess) {
         setIsInstalled(true);
+        setShowModal(false);
       }
     } catch (error: any) {
       console.error('❌ [INSTALL] Error installing app:', {
@@ -281,8 +301,7 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
         stack: error?.stack,
         name: error?.name
       });
-      // В случае ошибки все равно закрываем модальное окно
-      setShowModal(false);
+      setActionError(error?.message || 'Failed to send Add request. Please try again.');
     }
   };
 

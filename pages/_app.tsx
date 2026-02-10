@@ -1,13 +1,12 @@
 import '@/styles/globals.css';
 import type { AppProps } from 'next/app';
 import Head from 'next/head';
-import { useEffect } from 'react';
+import React, { useEffect, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/router';
 import { base } from 'wagmi/chains';
 import { WagmiProvider, createConfig, http } from 'wagmi';
 import { injected } from 'wagmi/connectors';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { OnchainKitProvider } from '@coinbase/onchainkit';
 import { FarcasterAuthProvider } from '@/contexts/FarcasterAuthContext';
 import { AuthSync } from '@/components/AuthSync';
 import InstallPrompt from '@/components/InstallPrompt';
@@ -140,26 +139,14 @@ export default function App({ Component, pageProps }: AppProps) {
       <WagmiProvider config={wagmiConfig}>
         <QueryClientProvider client={queryClient}>
           {needsOnchainKit ? (
-            <OnchainKitProvider
-              chain={base} // КРИТИЧНО: base из wagmi/chains имеет chainId 8453
-              config={{
-                appearance: {
-                  name: 'Multi Like',
-                  logo: '/mrs-crypto.png',
-                  theme: 'default',
-                  mode: 'auto',
-                },
-              }}
-              miniKit={{
-                enabled: false, // Отключаем MiniKit для Farcaster Mini App (чтобы не определялось как Base App)
-              }}
-            >
-              <FarcasterAuthProvider>
-                <AuthSync />
+            <FarcasterAuthProvider>
+              <AuthSync />
+              {/* Dynamically import OnchainKit to avoid Privy side-effects (CORS) on non-buy pages */}
+              <DynamicOnchainKitProvider>
                 <Component {...pageProps} />
                 <InstallPrompt />
-              </FarcasterAuthProvider>
-            </OnchainKitProvider>
+              </DynamicOnchainKitProvider>
+            </FarcasterAuthProvider>
           ) : (
             <FarcasterAuthProvider>
               <AuthSync />
@@ -170,5 +157,47 @@ export default function App({ Component, pageProps }: AppProps) {
         </QueryClientProvider>
       </WagmiProvider>
     </>
+  );
+}
+
+// --- Dynamic OnchainKit loader (no side effects unless mounted) ---
+function DynamicOnchainKitProvider({ children }: { children: ReactNode }) {
+  const [Provider, setProvider] = useState<null | React.ComponentType<any>>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const mod = await import('@coinbase/onchainkit');
+        if (!mounted) return;
+        setProvider(() => (mod as any).OnchainKitProvider);
+      } catch (e) {
+        console.error('❌ [_APP] Failed to dynamically import OnchainKitProvider:', e);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  if (!Provider) return <>{children}</>;
+
+  return (
+    <Provider
+      chain={base}
+      config={{
+        appearance: {
+          name: 'Multi Like',
+          logo: '/mrs-crypto.png',
+          theme: 'default',
+          mode: 'auto',
+        },
+      }}
+      miniKit={{
+        enabled: false,
+      }}
+    >
+      {children}
+    </Provider>
   );
 }
