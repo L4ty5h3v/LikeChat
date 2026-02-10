@@ -231,14 +231,20 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
         if (typeof c.fn !== 'function') continue;
         try {
           console.log(`✅ [INSTALL] Trying ${c.name}()...`);
+          // UX: don't stack our modal on top of Farcaster's native confirmation dialog.
+          // Close our modal immediately so the user sees only the native "Confirm" UI.
+          setActionMessage('Check the native Farcaster prompt and tap "Confirm" to install.');
+          setShowModal(false);
           const result = await c.fn(...(c.args ?? []));
           console.log(`✅ [INSTALL] ${c.name}() completed:`, result);
           installSuccess = true;
         } catch (error: any) {
           if (isRejectedByUser(error)) {
             console.log(`ℹ️ [INSTALL] User rejected ${c.name}()`);
-            setActionError('You cancelled the Add request. Please confirm the native "Add" prompt to install.');
+            // Re-open our modal with a clear message.
+            setActionError('You cancelled the Add request. Please tap "Add" again and confirm in the native prompt.');
             setActionMessage(null);
+            setShowModal(true);
             return;
           }
           console.error(`❌ [INSTALL] Error calling ${c.name}():`, {
@@ -247,6 +253,8 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
             stack: error?.stack,
             name: error?.name,
           });
+          // If the method failed (not user-cancel), keep our modal open to show the error.
+          setShowModal(true);
         }
       }
 
