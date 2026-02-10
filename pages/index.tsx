@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
 import Layout from '@/components/Layout';
+import { TASK_LINKS_LIMIT } from '@/lib/task-limits';
 import ActivityButton from '@/components/ActivityButton';
 import Button from '@/components/Button';
 import { setUserActivity } from '@/lib/db-config';
@@ -665,7 +666,7 @@ export default function Home() {
                   SELECT TASK TYPE
                 </h2>
                 <p className="text-base sm:text-xl md:text-2xl text-gray-700 mb-6 sm:mb-8 text-center font-bold px-4">
-                  You will perform this task on all 10 links
+                  You will perform this task on all {TASK_LINKS_LIMIT} links
                 </p>
 
                 {/* Стеклянные кнопки активности в стиле glassmorphism */}
@@ -742,7 +743,7 @@ export default function Home() {
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
                   <span className="text-3xl font-black text-accent">02</span>
-                  <span className="font-bold text-xl">Complete tasks on 10 participants links</span>
+                  <span className="font-bold text-xl">Complete tasks on {TASK_LINKS_LIMIT} participants links</span>
                 </div>
               </div>
               <div className="space-y-3">

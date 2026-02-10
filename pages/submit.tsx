@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
 import Layout from '@/components/Layout';
+import { TASK_LINKS_LIMIT } from '@/lib/task-limits';
 import Button from '@/components/Button';
 import { getUserProgress, getAllLinks } from '@/lib/db-config';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
@@ -678,7 +679,9 @@ export default function Submit() {
         
         // Если ошибка связана с недостаточным количеством выполненных заданий
         if (data.completedCount !== undefined && data.requiredCount !== undefined) {
-          const errorMessage = data.error || `You can submit your link only after completing 10 tasks. Completed: ${data.completedCount}/10`;
+          const errorMessage =
+            data.error ||
+            `You can submit your link only after completing ${TASK_LINKS_LIMIT} tasks. Completed: ${data.completedCount}/${TASK_LINKS_LIMIT}`;
           setError(errorMessage);
           setLoading(false);
           // Редиректим на страницу заданий через 3 секунды
@@ -690,7 +693,9 @@ export default function Submit() {
         
         // Если ошибка связана с недостаточным количеством ссылок от других пользователей
         if (data.otherLinksCount !== undefined && data.requiredCount !== undefined) {
-          const errorMessage = data.error || `You can submit your link only after 10 other links have been submitted to the chat. Submitted by other users: ${data.otherLinksCount}/10`;
+          const errorMessage =
+            data.error ||
+            `You can submit your link only after ${TASK_LINKS_LIMIT} other links have been submitted to the chat. Submitted by other users: ${data.otherLinksCount}/${TASK_LINKS_LIMIT}`;
           setError(errorMessage);
           setLoading(false);
           // Редиректим на страницу заданий через 3 секунды
@@ -904,7 +909,7 @@ export default function Submit() {
       setLoading(false); // Разблокируем форму только при ошибке
       
       // Если ошибка связана с недостаточным количеством выполненных заданий или ссылок от других пользователей, редиректим на /tasks
-      if (errorMessage.includes('10 заданий') || errorMessage.includes('10 других ссылок') || 
+      if (errorMessage.includes('5 заданий') || errorMessage.includes('5 других ссылок') || 
           errorMessage.includes('completedCount') || errorMessage.includes('otherLinksCount') || 
           errorMessage.includes('других пользователей')) {
         setTimeout(() => {
@@ -970,7 +975,7 @@ export default function Submit() {
                 </p>
                 <div className="bg-gradient-to-r from-red-500/10 via-purple-600/10 to-pink-500/10 rounded-2xl p-6 mb-8 border border-red-500/20">
                   <p className="text-base text-gray-700">
-                    <strong>The next 10 users</strong> who choose the same task will perform that task on your cast.
+                    <strong>The next {TASK_LINKS_LIMIT} users</strong> who choose the same task will perform that task on your cast.
                   </p>
                 </div>
                 <Button
@@ -1165,7 +1170,7 @@ export default function Submit() {
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-white bg-opacity-20 rounded-xl">
                   <span className="text-3xl font-black text-accent">02</span>
-                  <span className="font-bold text-xl">Next 10 users will complete your link</span>
+                  <span className="font-bold text-xl">Next {TASK_LINKS_LIMIT} users will complete your link</span>
                 </div>
               </div>
               <div className="space-y-3">

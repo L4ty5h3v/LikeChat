@@ -1,4 +1,4 @@
-// Страница задач: прохождение 10 ссылок
+// Страница задач: прохождение ссылок (лимит задается на сервере)
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Image from 'next/image';

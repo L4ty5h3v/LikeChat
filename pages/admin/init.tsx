@@ -1,6 +1,7 @@
 // Страница для инициализации начальных ссылок
 import { useState } from 'react';
 import Layout from '@/components/Layout';
+import { TASK_LINKS_LIMIT } from '@/lib/task-limits';
 import Button from '@/components/Button';
 
 export default function InitLinks() {
@@ -117,7 +118,7 @@ export default function InitLinks() {
             Information
           </h2>
           <p className="text-gray-600 mb-4">
-            This page allows you to initialize the system with 20 initial links (10 for each activity type: like, recast).
+            This page allows you to initialize the system with {TASK_LINKS_LIMIT * 2} initial links ({TASK_LINKS_LIMIT} for each activity type: like, recast).
           </p>
           <ul className="list-disc list-inside text-gray-600 mb-6 space-y-2">
             <li>https://farcaster.xyz/svs-smm/0xf9660a16</li>
@@ -168,7 +169,7 @@ export default function InitLinks() {
                   variant="secondary"
                   className="text-base py-3"
                 >
-                  {addLinksLoading.like ? 'Adding...' : '➕ Add 10 links for LIKE'}
+                  {addLinksLoading.like ? 'Adding...' : `➕ Add ${TASK_LINKS_LIMIT} links for LIKE`}
                 </Button>
                 <Button
                   onClick={() => performAddLinks('recast')}
@@ -176,7 +177,7 @@ export default function InitLinks() {
                   variant="secondary"
                   className="text-base py-3"
                 >
-                  {addLinksLoading.recast ? 'Adding...' : '➕ Add 10 links for RECAST'}
+                  {addLinksLoading.recast ? 'Adding...' : `➕ Add ${TASK_LINKS_LIMIT} links for RECAST`}
                 </Button>
               </div>
             </div>
@@ -217,11 +218,11 @@ export default function InitLinks() {
             ⚠️ Warning
           </h3>
           <p className="text-yellow-700 mb-2">
-            <strong>System Initialization:</strong> This operation adds 20 initial links to the system (10 for like, 10 for recast). 
+            <strong>System Initialization:</strong> This operation adds {TASK_LINKS_LIMIT * 2} initial links to the system ({TASK_LINKS_LIMIT} for like, {TASK_LINKS_LIMIT} for recast). 
             If the system is already initialized, old links will be deleted before adding new ones.
           </p>
           <p className="text-yellow-700">
-            <strong>Adding links by type:</strong> These buttons add 10 links only for the specified type (like or recast) 
+            <strong>Adding links by type:</strong> These buttons add {TASK_LINKS_LIMIT} links only for the specified type (like or recast) 
             WITHOUT deleting existing links. This is a safe way to fill empty sections.
           </p>
           <p className="text-yellow-700 mt-2">

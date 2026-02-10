@@ -1,6 +1,7 @@
 import { Redis } from '@upstash/redis';
 import type { LinkSubmission, UserProgress, TaskType } from '@/types';
 import { getCastAuthor, getUserByUsername } from '@/lib/neynar';
+import { TASK_LINKS_LIMIT } from '@/lib/task-limits';
 
 // Инициализация Redis клиента
 let redis: Redis | null = null;
@@ -62,8 +63,8 @@ export async function getLastTenLinks(taskType?: TaskType): Promise<LinkSubmissi
       console.log(`📊 Total links: ${parsedLinks.length}, Filtered: ${filteredLinks.length} (strict filtering - no mixing)`);
     }
     
-    // Берем первые 10 ссылок после фильтрации (может быть меньше 10, если нет достаточного количества)
-    const result = filteredLinks.slice(0, 10);
+    // Берем первые N ссылок после фильтрации (может быть меньше, если нет достаточного количества)
+    const result = filteredLinks.slice(0, TASK_LINKS_LIMIT);
     
     // Логируем данные для диагностики
     console.log(`📖 Loaded ${result.length} links from Redis${taskType ? ` (filtered by ${taskType})` : ' (all tasks)'}:`, 
@@ -336,7 +337,7 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
       await clearAllLinks();
     }
 
-    // Список начальных ссылок - по 10 для каждого типа активности (всего 30 ссылок)
+    // Список начальных ссылок (берем первые TASK_LINKS_LIMIT для каждого типа активности)
     const baseLinks = [
       'https://farcaster.xyz/gladness/0xaa4214bf',
       'https://farcaster.xyz/svs-smm/0xf17842cb',
@@ -349,6 +350,7 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
       'https://farcaster.xyz/svs-smm/0x31157f15',
       'https://farcaster.xyz/svs-smm/0xd4a09fb3',
     ];
+    const baseLinksToUse = baseLinks.slice(0, TASK_LINKS_LIMIT);
 
     // Получаем реальные данные авторов кастов через Neynar API
     const taskTypes: TaskType[] = ['like', 'recast'];
@@ -356,13 +358,13 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
     const linksToAdd: LinkSubmission[] = [];
     const userCache = new Map<string, { fid: number; username: string; pfp_url: string }>();
 
-    // Создаем по 10 ссылок для каждого типа активности (всего 30 ссылок)
+    // Создаем ссылки для каждого типа активности
     for (let taskIndex = 0; taskIndex < taskTypes.length; taskIndex++) {
       const taskType = taskTypes[taskIndex];
       
-      for (let linkIndex = 0; linkIndex < baseLinks.length; linkIndex++) {
-        const castUrl = baseLinks[linkIndex];
-        const index = taskIndex * baseLinks.length + linkIndex;
+      for (let linkIndex = 0; linkIndex < baseLinksToUse.length; linkIndex++) {
+        const castUrl = baseLinksToUse[linkIndex];
+        const index = taskIndex * baseLinksToUse.length + linkIndex;
         
         console.log(`🔍 Fetching cast author data for: ${castUrl} [${taskType}]`);
         
@@ -386,10 +388,10 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
             completed_by: [],
             created_at: new Date().toISOString(),
           });
-          console.log(`✅ [${index + 1}/${baseLinks.length * taskTypes.length}] Loaded real data for @${authorData.username} (FID: ${authorData.fid}) [${taskType}]`);
+          console.log(`✅ [${index + 1}/${baseLinksToUse.length * taskTypes.length}] Loaded real data for @${authorData.username} (FID: ${authorData.fid}) [${taskType}]`);
         } else {
           // Если не удалось получить данные из каста, пытаемся получить данные пользователя по username из URL
-          console.warn(`⚠️ [${index + 1}/${baseLinks.length * taskTypes.length}] Failed to get author data from cast for ${castUrl}`);
+          console.warn(`⚠️ [${index + 1}/${baseLinksToUse.length * taskTypes.length}] Failed to get author data from cast for ${castUrl}`);
           console.warn(`⚠️ Author data received:`, authorData);
           console.warn(`⚠️ Cast may not exist in Neynar API, trying to get user by username from URL...`);
           
@@ -410,10 +412,10 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
 
           if (usernameFromUrl && !cachedUser) {
             try {
-              console.log(`🔍 [${index + 1}/${baseLinks.length * taskTypes.length}] Trying to get user data by username: ${usernameFromUrl}`);
+              console.log(`🔍 [${index + 1}/${baseLinksToUse.length * taskTypes.length}] Trying to get user data by username: ${usernameFromUrl}`);
               userData = await getUserByUsername(usernameFromUrl);
               
-              console.log(`🔍 [${index + 1}/${baseLinks.length * taskTypes.length}] getUserByUsername returned:`, {
+              console.log(`🔍 [${index + 1}/${baseLinksToUse.length * taskTypes.length}] getUserByUsername returned:`, {
                 hasData: !!userData,
                 fid: userData?.fid,
                 username: userData?.username,
@@ -424,10 +426,10 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
               });
               
               if (userData && userData.fid) {
-                console.log(`✅ [${index + 1}/${baseLinks.length * taskTypes.length}] Got user data by username: @${userData.username || userData.display_name} (FID: ${userData.fid})`);
+                console.log(`✅ [${index + 1}/${baseLinksToUse.length * taskTypes.length}] Got user data by username: @${userData.username || userData.display_name} (FID: ${userData.fid})`);
               } else {
-                console.warn(`⚠️ [${index + 1}/${baseLinks.length * taskTypes.length}] User data not found or invalid for username: ${usernameFromUrl}`);
-                console.warn(`⚠️ [${index + 1}/${baseLinks.length * taskTypes.length}] UserData received:`, userData);
+                console.warn(`⚠️ [${index + 1}/${baseLinksToUse.length * taskTypes.length}] User data not found or invalid for username: ${usernameFromUrl}`);
+                console.warn(`⚠️ [${index + 1}/${baseLinksToUse.length * taskTypes.length}] UserData received:`, userData);
               }
 
               if (userData && userData.fid && userData.username) {
@@ -446,7 +448,7 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
               });
             }
           } else {
-            console.warn(`⚠️ [${index + 1}/${baseLinks.length * taskTypes.length}] No username extracted from URL: ${castUrl}`);
+            console.warn(`⚠️ [${index + 1}/${baseLinksToUse.length * taskTypes.length}] No username extracted from URL: ${castUrl}`);
           }
           
           // Если username из URL не найден, но это может быть реальный пользователь,
@@ -497,7 +499,7 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
               completed_by: [],
               created_at: new Date().toISOString(),
             });
-            console.log(`✅ [${index + 1}/${baseLinks.length * taskTypes.length}] Loaded real user data by username: @${userData.username || (userDataAny.display_name)} (FID: ${userData.fid}, pfp: ${pfpUrl}) [${taskType}]`);
+            console.log(`✅ [${index + 1}/${baseLinksToUse.length * taskTypes.length}] Loaded real user data by username: @${userData.username || (userDataAny.display_name)} (FID: ${userData.fid}, pfp: ${pfpUrl}) [${taskType}]`);
           } else {
             // Если не удалось получить данные пользователя, используем fallback
             linksToAdd.push({
@@ -510,11 +512,11 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
               completed_by: [],
               created_at: new Date().toISOString(),
             });
-            console.log(`⚠️ [${index + 1}/${baseLinks.length * taskTypes.length}] Using fallback data for ${castUrl} (username: ${usernameFromUrl || `user_${index + 1}`}) [${taskType}]`);
+            console.log(`⚠️ [${index + 1}/${baseLinksToUse.length * taskTypes.length}] Using fallback data for ${castUrl} (username: ${usernameFromUrl || `user_${index + 1}`}) [${taskType}]`);
           }
         }
       } catch (error: any) {
-        console.error(`❌ [${index + 1}/${baseLinks.length * taskTypes.length}] Error fetching author data for ${castUrl}:`, error);
+        console.error(`❌ [${index + 1}/${baseLinksToUse.length * taskTypes.length}] Error fetching author data for ${castUrl}:`, error);
         console.error(`❌ Error details:`, {
           message: error.message,
           stack: error.stack,
@@ -590,7 +592,7 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
             completed_by: [],
             created_at: new Date().toISOString(),
           });
-          console.log(`✅ [${index + 1}/${baseLinks.length * taskTypes.length}] Loaded real user data after error: @${userData.username || (userDataAny.display_name)} (FID: ${userData.fid}, pfp: ${pfpUrl}) [${taskType}]`);
+          console.log(`✅ [${index + 1}/${baseLinksToUse.length * taskTypes.length}] Loaded real user data after error: @${userData.username || (userDataAny.display_name)} (FID: ${userData.fid}, pfp: ${pfpUrl}) [${taskType}]`);
         } else {
           // Если не удалось получить данные пользователя, используем fallback
           linksToAdd.push({
@@ -603,13 +605,13 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
             completed_by: [],
             created_at: new Date().toISOString(),
           });
-          console.log(`⚠️ [${index + 1}/${baseLinks.length * taskTypes.length}] Using fallback data due to error for ${castUrl} (username: ${usernameFromUrl || `user_${index + 1}`}) [${taskType}]`);
+          console.log(`⚠️ [${index + 1}/${baseLinksToUse.length * taskTypes.length}] Using fallback data due to error for ${castUrl} (username: ${usernameFromUrl || `user_${index + 1}`}) [${taskType}]`);
         }
       }
       
       // Задержка между запросами, чтобы не перегружать API и избежать rate limiting
       const delay = 500;
-      if (index < baseLinks.length * taskTypes.length - 1) {
+      if (index < baseLinksToUse.length * taskTypes.length - 1) {
         await new Promise(resolve => setTimeout(resolve, delay));
       }
       }
@@ -629,8 +631,8 @@ export async function initializeLinks(): Promise<{ success: boolean; count: numb
       await redis.lpush(KEYS.LINKS, JSON.stringify(link));
     }
 
-    // Устанавливаем счетчик (всего должно быть 20 ссылок: 10 like + 10 recast)
-    await redis.set(KEYS.TOTAL_LINKS_COUNT, baseLinks.length * taskTypes.length);
+    // Устанавливаем счетчик
+    await redis.set(KEYS.TOTAL_LINKS_COUNT, baseLinksToUse.length * taskTypes.length);
 
     console.log(`✅ Successfully initialized ${linksToAdd.length} links`);
     return { success: true, count: linksToAdd.length };
@@ -670,14 +672,15 @@ export async function addLinksForTaskType(taskType: TaskType): Promise<{ success
       'https://farcaster.xyz/svs-smm/0x31157f15',
       'https://farcaster.xyz/svs-smm/0xd4a09fb3',
     ];
+    const baseLinksToUse = baseLinks.slice(0, TASK_LINKS_LIMIT);
 
     const baseTimestamp = Date.now();
     const linksToAdd: LinkSubmission[] = [];
     const userCache = new Map<string, { fid: number; username: string; pfp_url: string }>();
 
-    // Создаем 10 ссылок для указанного типа
-    for (let linkIndex = 0; linkIndex < baseLinks.length; linkIndex++) {
-      const castUrl = baseLinks[linkIndex];
+    // Создаем ссылки для указанного типа
+    for (let linkIndex = 0; linkIndex < baseLinksToUse.length; linkIndex++) {
+      const castUrl = baseLinksToUse[linkIndex];
       const index = linkIndex;
       
       console.log(`🔍 [ADD-LINKS] Fetching cast author data for: ${castUrl} [${taskType}]`);
@@ -702,10 +705,10 @@ export async function addLinksForTaskType(taskType: TaskType): Promise<{ success
             completed_by: [],
             created_at: new Date().toISOString(),
           });
-          console.log(`✅ [ADD-LINKS] [${index + 1}/${baseLinks.length}] Loaded real data for @${authorData.username} (FID: ${authorData.fid}) [${taskType}]`);
+          console.log(`✅ [ADD-LINKS] [${index + 1}/${baseLinksToUse.length}] Loaded real data for @${authorData.username} (FID: ${authorData.fid}) [${taskType}]`);
         } else {
           // Если не удалось получить данные из каста, пытаемся получить данные пользователя по username из URL
-          console.warn(`⚠️ [ADD-LINKS] [${index + 1}/${baseLinks.length}] Failed to get author data from cast for ${castUrl}`);
+          console.warn(`⚠️ [ADD-LINKS] [${index + 1}/${baseLinksToUse.length}] Failed to get author data from cast for ${castUrl}`);
           
           const castHash = castUrl.match(/0x[a-fA-F0-9]+/)?.[0] || `hash_${index}`;
           const urlMatch = castUrl.match(/farcaster\.xyz\/([^\/]+)/);
@@ -719,7 +722,7 @@ export async function addLinksForTaskType(taskType: TaskType): Promise<{ success
 
           if (usernameFromUrl && !cachedUser) {
             try {
-              console.log(`🔍 [ADD-LINKS] [${index + 1}/${baseLinks.length}] Trying to get user data by username: ${usernameFromUrl}`);
+              console.log(`🔍 [ADD-LINKS] [${index + 1}/${baseLinksToUse.length}] Trying to get user data by username: ${usernameFromUrl}`);
               userData = await getUserByUsername(usernameFromUrl);
               
               if (userData && userData.fid && userData.username) {
@@ -730,7 +733,7 @@ export async function addLinksForTaskType(taskType: TaskType): Promise<{ success
                 });
               }
             } catch (userError: any) {
-              console.error(`❌ [ADD-LINKS] [${index + 1}/${baseLinks.length}] Failed to get user by username:`, userError?.message);
+              console.error(`❌ [ADD-LINKS] [${index + 1}/${baseLinksToUse.length}] Failed to get user by username:`, userError?.message);
             }
           } else if (cachedUser) {
             userData = cachedUser;

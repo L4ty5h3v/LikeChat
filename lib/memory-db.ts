@@ -2,6 +2,7 @@
 // Позже заменим на Upstash Redis
 
 import type { LinkSubmission, UserProgress, TaskType } from '@/types';
+import { TASK_LINKS_LIMIT } from '@/lib/task-limits';
 
 // In-memory storage
 const linkSubmissions: LinkSubmission[] = [];
@@ -27,7 +28,7 @@ function generateTestData() {
     
     const taskTypes: TaskType[] = ['like', 'recast'];
     
-    // Создаем по 10 ссылок для каждого типа задачи (всего 30)
+    // Создаем тестовые ссылки для каждого типа задачи
     taskTypes.forEach((taskType, typeIndex) => {
       baseLinks.forEach((castUrl, linkIndex) => {
         const index = typeIndex * baseLinks.length + linkIndex;
@@ -48,7 +49,7 @@ function generateTestData() {
   }
 }
 
-// Получить последние 10 ссылок
+// Получить последние ссылки (лимит для задач)
 export async function getLastTenLinks(taskType?: TaskType): Promise<LinkSubmission[]> {
   generateTestData();
   
@@ -66,8 +67,8 @@ export async function getLastTenLinks(taskType?: TaskType): Promise<LinkSubmissi
     console.log(`📊 [MEMORY-DB] Total links: ${sortedLinks.length}, Filtered: ${filteredLinks.length}`);
   }
   
-  // Берем первые 10 ссылок (может быть меньше 10, если нет достаточного количества)
-  return filteredLinks.slice(0, 10);
+  // Берем первые N ссылок (может быть меньше, если нет достаточного количества)
+  return filteredLinks.slice(0, TASK_LINKS_LIMIT);
 }
 
 // Получить прогресс пользователя
