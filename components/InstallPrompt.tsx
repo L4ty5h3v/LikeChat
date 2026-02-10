@@ -23,6 +23,16 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
         setIsInstalled(false);
       };
       console.log('🔧 [INSTALL] Added window.showInstallModal() function for testing');
+
+      // Allow reopening the modal from anywhere in the app (e.g., header button)
+      const onShow = () => {
+        console.log('🔧 [INSTALL] Force showing modal via likechat:showInstallModal event');
+        setActionError(null);
+        setActionMessage(null);
+        setShowModal(true);
+        setIsLoading(false);
+      };
+      window.addEventListener('likechat:showInstallModal', onShow as any);
       
       // Также проверяем URL параметр
       const urlParams = new URLSearchParams(window.location.search);
@@ -34,6 +44,10 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
           setIsInstalled(false);
         }, 500);
       }
+
+      return () => {
+        window.removeEventListener('likechat:showInstallModal', onShow as any);
+      };
     }
   }, []);
 

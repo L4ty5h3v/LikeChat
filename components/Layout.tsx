@@ -42,6 +42,20 @@ const Layout: React.FC<LayoutProps> = ({ children, title = 'Like Chat 💌' }) =
       }
     });
   };
+
+  const handleOpenInstall = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (typeof window === 'undefined') return;
+    try {
+      window.dispatchEvent(new CustomEvent('likechat:showInstallModal'));
+    } catch (err) {
+      // very old webviews fallback
+      try {
+        (window as any).showInstallModal?.();
+      } catch {}
+    }
+  };
   return (
     <>
       <Head>
@@ -87,6 +101,17 @@ const Layout: React.FC<LayoutProps> = ({ children, title = 'Like Chat 💌' }) =
         <header className="absolute top-0 right-0 z-50 p-4">
           <div className="flex items-center justify-end">
             <div className="flex items-center gap-3 sm:gap-4">
+              {mounted && (
+                <button
+                  onClick={handleOpenInstall}
+                  type="button"
+                  className="px-3 py-2 rounded-full bg-white/20 backdrop-blur-md border border-white/30 text-white font-bold text-sm hover:bg-white/30 transition-all focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2"
+                  style={{ pointerEvents: 'auto' }}
+                  aria-label="Open install modal"
+                >
+                  Add
+                </button>
+              )}
               {mounted && (
                 <button
                   onClick={handleAvatarClick}
