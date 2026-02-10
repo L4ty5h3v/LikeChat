@@ -11,6 +11,7 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
   const [showModal, setShowModal] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [isActionBusy, setIsActionBusy] = useState(false);
   
   // Для отладки: глобальная функция для принудительного показа модального окна
   useEffect(() => {
@@ -81,30 +82,6 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
           }
         }
         
-        // Список пользователей, которым всегда показываем модальное окно (для тестирования)
-        const testUsers = ['svs-smm', 'svs-smr'];
-        const isTestUser = currentUsername && testUsers.includes(currentUsername.toLowerCase());
-        
-        console.log('🧪 [INSTALL] User check:', {
-          currentUsername,
-          usernameLowercase: currentUsername?.toLowerCase(),
-          testUsers,
-          isTestUser
-        });
-        
-        // Для тестовых пользователей ВСЕГДА показываем модальное окно, независимо от других условий
-        if (isTestUser) {
-          console.log('🧪 [INSTALL] Test user detected, ALWAYS showing modal');
-          setIsInstalled(false);
-          setIsLoading(false);
-          // Небольшая задержка для лучшего UX
-          setTimeout(() => {
-            console.log('✅ [INSTALL] Showing install prompt modal for test user');
-            setShowModal(true);
-          }, 1000);
-          return; // Выходим раньше, не проверяем установку
-        }
-        
         // Для обычных пользователей проверяем установку
         let installed = false;
         const actions = sdk.actions as any;
@@ -168,12 +145,14 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
 
   const handleInstall = async () => {
     console.log('🔧 [INSTALL] handleInstall called');
+    if (isActionBusy) return;
     try {
       if (typeof window === 'undefined') {
         console.error('❌ [INSTALL] window is undefined');
         return;
       }
 
+      setIsActionBusy(true);
       const isRejectedByUser = (err: any) => {
         const name = String(err?.name || '');
         const msg = String(err?.message || '');
@@ -184,14 +163,19 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
       const { sdk } = await import('@farcaster/miniapp-sdk');
       await sdk.actions?.ready?.();
       setActionError(null);
-      setActionMessage(null);
+      setActionMessage('Sending Add request…');
 
       // Проверяем окружение Farcaster
       try {
-        await sdk.context;
+        // context can be flaky in some Farcaster web shells; fail fast with a timeout
+        await Promise.race([
+          sdk.context,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('SDK_CONTEXT_TIMEOUT')), 2000)),
+        ]);
       } catch (e) {
         console.warn('⚠️ [INSTALL] Not in Farcaster Mini App environment, aborting install', e);
         setActionError('Install is available only inside Farcaster/Warpcast Mini Apps.');
+        setActionMessage(null);
         return;
       }
       
@@ -285,7 +269,29 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
       if (!installSuccess) {
         console.log('ℹ️ [INSTALL] No install method worked. Farcaster may show native install button.');
         console.log('ℹ️ [INSTALL] User should look for the native "Add" button at the bottom of the screen.');
-        setActionMessage('If nothing happened, look for the native "Add" button at the bottom of the Farcaster screen.');
+        setActionMessage(
+          'If nothing happened, look for the native "Add" button at the bottom of the Farcaster screen. If you already tapped it, wait a moment…'
+        );
+
+        // If Farcaster shows a native install bar, the actual install can happen outside our JS call.
+        // Re-check installation status a few times and close the modal if it becomes installed.
+        if (typeof actions?.isInstalled === 'function') {
+          const delays = [800, 2000, 4000];
+          for (const d of delays) {
+            await new Promise(resolve => setTimeout(resolve, d));
+            try {
+              const installed = await actions.isInstalled();
+              if (installed) {
+                setIsInstalled(true);
+                setShowModal(false);
+                return;
+              }
+            } catch (e) {
+              // ignore and keep modal open
+            }
+          }
+        }
+
         return;
       }
       
@@ -302,22 +308,31 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
         name: error?.name
       });
       setActionError(error?.message || 'Failed to send Add request. Please try again.');
+      setActionMessage(null);
+    } finally {
+      setIsActionBusy(false);
     }
   };
 
   const handleEnableNotifications = async () => {
+    if (isActionBusy) return;
     try {
       if (typeof window === 'undefined') return;
+      setIsActionBusy(true);
       setActionError(null);
-      setActionMessage(null);
+      setActionMessage('Requesting notifications…');
 
       const { sdk } = await import('@farcaster/miniapp-sdk');
       await sdk.actions?.ready?.();
 
       try {
-        await sdk.context;
+        await Promise.race([
+          sdk.context,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('SDK_CONTEXT_TIMEOUT')), 2000)),
+        ]);
       } catch (e) {
         setActionError('Notifications can be enabled only inside Farcaster/Warpcast Mini Apps.');
+        setActionMessage(null);
         return;
       }
 
@@ -338,6 +353,8 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
           console.log(`✅ [NOTIFICATIONS] Trying ${c.name}()...`);
           await c.fn(...(c.args ?? []));
           setActionMessage('Notifications request sent. Please confirm in Farcaster.');
+          // Close the modal shortly after success (user asked for this behavior)
+          setTimeout(() => setShowModal(false), 800);
           return;
         }
       }
@@ -346,6 +363,9 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
     } catch (e: any) {
       console.error('❌ [NOTIFICATIONS] Error enabling notifications:', e);
       setActionError(e?.message || 'Failed to enable notifications');
+      setActionMessage(null);
+    } finally {
+      setIsActionBusy(false);
     }
   };
 
@@ -428,7 +448,10 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
               <button
                 type="button"
                 onClick={handleInstall}
-                className="w-full text-left flex items-center gap-4 p-4 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20 hover:bg-white/15 transition-colors"
+                disabled={isActionBusy}
+                className={`w-full text-left flex items-center gap-4 p-4 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20 transition-colors ${
+                  isActionBusy ? 'opacity-60 cursor-not-allowed' : 'hover:bg-white/15'
+                }`}
               >
                 <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center border border-white/30">
                   <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -441,7 +464,10 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
               <button
                 type="button"
                 onClick={handleEnableNotifications}
-                className="w-full text-left flex items-center gap-4 p-4 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20 hover:bg-white/15 transition-colors"
+                disabled={isActionBusy}
+                className={`w-full text-left flex items-center gap-4 p-4 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20 transition-colors ${
+                  isActionBusy ? 'opacity-60 cursor-not-allowed' : 'hover:bg-white/15'
+                }`}
               >
                 <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center border border-white/30">
                   <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -470,15 +496,19 @@ const InstallPrompt: React.FC<InstallPromptProps> = ({ onDismiss }) => {
             <div className="flex gap-3">
               <button
                 onClick={handleDismiss}
+                disabled={isActionBusy}
                 className="flex-1 px-6 py-3 bg-white/10 backdrop-blur-sm text-white font-semibold rounded-xl border border-white/20 hover:bg-white/20 transition-all hover:scale-105"
               >
                 Not now
               </button>
               <button
                 onClick={handleInstall}
-                className="flex-1 px-6 py-3 btn-gold-glow font-bold text-white rounded-xl hover:scale-105 transition-all relative overflow-hidden group"
+                disabled={isActionBusy}
+                className={`flex-1 px-6 py-3 btn-gold-glow font-bold text-white rounded-xl transition-all relative overflow-hidden group ${
+                  isActionBusy ? 'opacity-70 cursor-not-allowed' : 'hover:scale-105'
+                }`}
               >
-                <span className="relative z-10">Add</span>
+                <span className="relative z-10">{isActionBusy ? 'Working…' : 'Add'}</span>
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
               </button>
             </div>
