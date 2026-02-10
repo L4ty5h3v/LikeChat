@@ -1,7 +1,7 @@
 import '@/styles/globals.css';
 import type { AppProps } from 'next/app';
 import Head from 'next/head';
-import React, { useEffect, useState, type ReactNode } from 'react';
+import React, { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { base } from 'wagmi/chains';
 import { WagmiProvider, createConfig, http } from 'wagmi';
@@ -129,7 +129,9 @@ export default function App({ Component, pageProps }: AppProps) {
 
   // OnchainKit (and its internal providers like Privy) can produce CORS failures in some Farcaster web contexts
   // (e.g. origin `wallet.farcaster.xyz`). Only mount it on pages that actually need it.
-  const needsOnchainKit = router.pathname === '/buyToken';
+  // NOTE: We no longer mount OnchainKit at all to avoid Privy CORS issues in Farcaster shells.
+  // If we ever need it again, it must be loaded behind a user gesture on a dedicated page.
+  const needsOnchainKit = false;
 
   return (
     <>
@@ -141,11 +143,8 @@ export default function App({ Component, pageProps }: AppProps) {
           {needsOnchainKit ? (
             <FarcasterAuthProvider>
               <AuthSync />
-              {/* Dynamically import OnchainKit to avoid Privy side-effects (CORS) on non-buy pages */}
-              <DynamicOnchainKitProvider>
-                <Component {...pageProps} />
-                <InstallPrompt />
-              </DynamicOnchainKitProvider>
+              <Component {...pageProps} />
+              <InstallPrompt />
             </FarcasterAuthProvider>
           ) : (
             <FarcasterAuthProvider>
@@ -157,47 +156,5 @@ export default function App({ Component, pageProps }: AppProps) {
         </QueryClientProvider>
       </WagmiProvider>
     </>
-  );
-}
-
-// --- Dynamic OnchainKit loader (no side effects unless mounted) ---
-function DynamicOnchainKitProvider({ children }: { children: ReactNode }) {
-  const [Provider, setProvider] = useState<null | React.ComponentType<any>>(null);
-
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const mod = await import('@coinbase/onchainkit');
-        if (!mounted) return;
-        setProvider(() => (mod as any).OnchainKitProvider);
-      } catch (e) {
-        console.error('❌ [_APP] Failed to dynamically import OnchainKitProvider:', e);
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  if (!Provider) return <>{children}</>;
-
-  return (
-    <Provider
-      chain={base}
-      config={{
-        appearance: {
-          name: 'Multi Like',
-          logo: '/mrs-crypto.png',
-          theme: 'default',
-          mode: 'auto',
-        },
-      }}
-      miniKit={{
-        enabled: false,
-      }}
-    >
-      {children}
-    </Provider>
   );
 }
