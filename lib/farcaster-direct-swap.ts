@@ -44,6 +44,30 @@ const ERC20_ABI = [
   'function allowance(address owner, address spender) view returns (uint256)',
 ];
 
+async function waitForAllowance(opts: {
+  tokenAddress: string;
+  owner: string;
+  spender: string;
+  minAllowance: bigint;
+  readProvider: ethers.JsonRpcProvider;
+  timeoutMs?: number;
+}): Promise<boolean> {
+  const { tokenAddress, owner, spender, minAllowance, readProvider, timeoutMs = 60_000 } = opts;
+  const token = new ethers.Contract(tokenAddress, ERC20_ABI, readProvider);
+  const started = Date.now();
+
+  while (Date.now() - started < timeoutMs) {
+    try {
+      const allowance: bigint = await token.allowance(owner, spender);
+      if (allowance >= minAllowance) return true;
+    } catch {
+      // ignore and retry
+    }
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  return false;
+}
+
 // Получить цену ETH в USD
 async function getEthPriceUsd(): Promise<number> {
   try {
@@ -253,18 +277,28 @@ export async function buyTokenViaDirectSwap(
         
         console.log('✅ Approval transaction sent:', approveTx.hash);
         // Farcaster provider may not support eth_getTransactionReceipt; confirm via public RPC instead.
+        // IMPORTANT: do not proceed to swap until allowance is visible onchain, otherwise swap can revert.
         try {
-          const receipt = await readProvider.waitForTransaction(approveTx.hash, 1, 120_000);
-          if (receipt?.status === 1) {
-            console.log('✅ Approval confirmed (via public RPC)');
-          } else if (receipt?.status === 0) {
+          const receipt = await readProvider.waitForTransaction(approveTx.hash, 1, 180_000);
+          if (receipt?.status === 0) {
             throw new Error('Approval transaction failed');
-          } else {
-            console.log('ℹ️ Approval pending (no receipt yet). Continuing...');
           }
         } catch (e) {
-          console.warn('⚠️ Approval confirmation via public RPC failed/timed out. Continuing...', e);
+          console.warn('⚠️ Approval receipt wait failed/timed out, will still poll allowance...', e);
         }
+
+        const ok = await waitForAllowance({
+          tokenAddress: tokenInAddress,
+          owner: userAddress,
+          spender: UNISWAP_V3_ROUTER,
+          minAllowance: amountIn,
+          readProvider,
+          timeoutMs: 90_000,
+        });
+        if (!ok) {
+          throw new Error('Approval is still pending. Please try again in a few seconds.');
+        }
+        console.log('✅ Approval visible onchain (allowance updated)');
       } else {
         console.log('✅ USDC already approved');
       }
@@ -275,9 +309,9 @@ export async function buyTokenViaDirectSwap(
     
     const deadline = Math.floor(Date.now() / 1000) + 60 * 20; // 20 минут
     
-    // Fee tiers для пулов (1% = 10000 - это пул MCT/ETH на Uniswap!)
-    // Пробуем сначала 1%, потом 0.3%, потом 0.05%
-    const feeTiers = [10000, 3000, 500];
+    // Fee tiers for Uniswap V3 pools
+    // Common tiers: 0.01% (100), 0.05% (500), 0.3% (3000), 1% (10000)
+    const feeTiers = [10000, 3000, 500, 100];
     let lastError: any = null;
     
     // Slippage:
@@ -483,6 +517,60 @@ export async function buyTokenViaDirectSwap(
         // Если это не ошибка ликвидности, пробуем следующий fee tier
         if (!swapError.message?.includes('STF') && !swapError.message?.includes('SPL')) {
           continue;
+        }
+      }
+    }
+
+    // USDC fallback: try multi-hop USDC -> WETH -> MCT (direct pool may not exist)
+    if (paymentToken === 'USDC') {
+      console.warn('⚠️ Direct USDC->MCT failed for all fee tiers, trying multi-hop via WETH...');
+      const feeTiersUsdcWeth = [100, 500, 3000, 10000]; // majors usually low tiers
+      const feeTiersWethMct = [10000, 3000, 500, 100];  // niche often high tier
+
+      for (const fee1 of feeTiersUsdcWeth) {
+        for (const fee2 of feeTiersWethMct) {
+          try {
+            const path = ethers.solidityPacked(
+              ['address', 'uint24', 'address', 'uint24', 'address'],
+              [USDC_ADDRESS, fee1, WRAPPED_ETH_ADDRESS, fee2, tokenOutAddress]
+            );
+
+            console.log(`🔄 Trying multi-hop USDC -> WETH -> MCT (fees: ${fee1 / 10000}% -> ${fee2 / 10000}%)...`);
+
+            const tx = await router.exactInput(
+              {
+                path,
+                recipient: userAddress,
+                deadline,
+                amountIn,
+                amountOutMinimum,
+              },
+              {
+                value: 0,
+                gasLimit: 700000,
+              }
+            );
+
+            console.log('✅ Multi-hop USDC swap transaction sent:', tx.hash);
+            const receipt = await readProvider.waitForTransaction(tx.hash, 1, 180_000);
+
+            if (receipt?.status === 1) {
+              console.log('✅ Multi-hop USDC swap confirmed');
+              return {
+                success: true,
+                txHash: tx.hash,
+                verified: true,
+              };
+            } else if (receipt?.status === 0) {
+              throw new Error('Transaction failed');
+            } else {
+              console.log('ℹ️ Swap pending (no receipt yet). Returning tx hash.');
+              return { success: true, txHash: tx.hash, verified: false };
+            }
+          } catch (e: any) {
+            lastError = e;
+            continue;
+          }
         }
       }
     }
