@@ -7,13 +7,13 @@ import Button from '@/components/Button';
 import { useAccount, useBalance, useConnect, useDisconnect, useBlockNumber } from 'wagmi';
 import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector';
 import { injected } from 'wagmi/connectors';
-import { useSwapToken } from '@coinbase/onchainkit/minikit';
-import { getTokenInfo, getTokenSalePriceEth, getMCTAmountForPurchase } from '@/lib/web3';
+import { getTokenInfo } from '@/lib/web3';
 import { markTokenPurchased, getUserProgress } from '@/lib/db-config';
 import { formatUnits, parseUnits } from 'viem';
 import type { FarcasterUser } from '@/types';
 import { sendTokenPurchaseNotification } from '@/lib/farcaster-notifications';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
+import { buyTokenViaDirectSwap } from '@/lib/farcaster-direct-swap';
 
 const PURCHASE_AMOUNT_USDC = 0.10; // Покупаем MCT на 0.10 USDC
 const USDC_CONTRACT_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // USDC на Base (6 decimals) - правильный адрес
@@ -138,13 +138,6 @@ export default function BuyToken() {
       enabled: !!walletAddress,
     },
   });
-  // Получаем весь объект из useSwapToken для установки параметров
-  const swapHookResult = useSwapToken();
-  const swapTokenAsync = typeof swapHookResult === 'function' 
-    ? swapHookResult 
-    : (swapHookResult as any)?.swapTokenAsync;
-  
-
   const [loading, setLoading] = useState(false);
   const { user, isLoading: authLoading, isInitialized } = useFarcasterAuth(); // Используем контекст вместо localStorage
   const [txHash, setTxHash] = useState<string>('');
@@ -269,43 +262,10 @@ export default function BuyToken() {
       const info = await getTokenInfo();
       setTokenInfo(info);
 
-      // Загружаем цену со смарт-контракта
-      // Quote API can be flaky. Don't spam it before wallet connect.
-      let priceEth: string | null = null;
-      if (walletAddress) {
-        try {
-          priceEth = await getTokenSalePriceEth();
-        } catch (e) {
-          console.warn('[BUY-TOKEN] Price quote failed:', e);
-        }
-      }
-      setTokenPriceEth(priceEth);
-
-      if (priceEth && parseFloat(priceEth) > 0) {
-        // Для USDC цена уже в USD (1 USDC = 1 USD), для ETH конвертируем
-        if (useUSDC) {
-          // Цена уже в USDC, напрямую используем как USD
-          setTokenPriceUsd(parseFloat(priceEth).toFixed(2));
-        } else {
-          // Для ETH: цена уже должна быть в USDC (onchain quote через Uniswap)
-          // Если цена не в USDC, используем как есть или null
-          setTokenPriceUsd(null);
-        }
-      } else {
-        // Если цена 0 или не установлена, показываем "Free"
-        setTokenPriceUsd('0.00');
-        setTokenPriceEth('0');
-      }
-
-      // Рассчитываем количество MCT для покупки
-      try {
-        if (walletAddress) {
-          const amount = await getMCTAmountForPurchase();
-          setMctAmountForPurchase(amount);
-        }
-      } catch (err) {
-        console.warn('Could not calculate MCT amount for purchase:', err);
-      }
+      // Avoid quote APIs entirely (can be rate-limited / blocked). Price is fixed UX: $0.10.
+      setTokenPriceEth(null);
+      setTokenPriceUsd(PURCHASE_AMOUNT_USDC.toFixed(2));
+      setMctAmountForPurchase(null);
     } catch (err: any) {
       console.error('Error loading wallet info:', err);
       // Устанавливаем значения по умолчанию при ошибке
@@ -625,165 +585,32 @@ export default function BuyToken() {
     setLastError(null);
 
     try {
-      // КРИТИЧНО: sellAmount должен быть в wei формате (6 decimals для USDC)
-      // Согласно документации OnchainKit: "Amount to sell, formatted as a numeric string including decimals"
-      // Пример: "1 USDC (1_000_000)" -> для 0.10 USDC это "100000"
-      const usdcAmountWei = parseUnits(PURCHASE_AMOUNT_USDC.toString(), 6); // 0.10 USDC = 100000
-      const usdcAmountStr = usdcAmountWei.toString(); // "100000"
-
       // Сохраняем текущий баланс для сравнения
       const currentBalance = mctBalance ? parseFloat(formatUnits(mctBalance.value, mctBalance.decimals)) : 0;
       setOldBalanceBeforeSwap(currentBalance);
 
-      // Используем useSwapToken для one-tap swap через Farcaster
       const attemptInfo = isRetry ? ` (Retry ${retryCount}/${MAX_RETRIES})` : '';
-      console.log(`🔄 Starting token swap via Farcaster SDK for FID: ${user.fid}${attemptInfo}`);
-      console.log(`💱 Swapping ${PURCHASE_AMOUNT_USDC} USDC to MCT...`);
+      console.log(`🔄 Starting direct swap via provider for FID: ${user.fid}${attemptInfo}`);
+      console.log(`💱 Swapping ${PURCHASE_AMOUNT_USDC} USDC to MCT (direct swap)...`);
       console.log(`📊 Current MCT balance: ${currentBalance}`);
 
       // Запускаем swap и начинаем отслеживать баланс
       setIsSwapping(true);
       setSwapInitiatedAt(Date.now());
 
-      // Таймаут для swap - 60 секунд
-      const timeoutId = setTimeout(() => {
-        console.warn(`⏱️ Swap timeout: ${SWAP_TIMEOUT_MS / 1000} seconds elapsed without response`);
-        handleSwapError(new Error(`Timeout: swap не завершился за ${SWAP_TIMEOUT_MS / 1000} секунд`), true);
-      }, SWAP_TIMEOUT_MS);
-      setSwapTimeoutId(timeoutId);
-      
-      // Запускаем таймер ожидания для UI
-      setSwapWaitTime(0);
-
-      // Проверяем, что swapTokenAsync готов перед вызовом
-      if (!swapTokenAsync) {
-        throw new Error('Swap function not ready. Please try again.');
-      }
-
-      // Небольшая задержка для инициализации swap функции (особенно при первом вызове)
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      let result;
-      try {
-        // Проверяем, что FID доступен для логирования
-        console.log(`🔍 [SWAP] User FID: ${user.fid}, Wallet context should be set by onchainkit`);
-        // Логирование будет после создания swapParams
-
-        // КРИТИЧНО: Согласно тестам OnchainKit, sellAmount должен быть в wei формате
-        // Тест показывает: sellAmount: '1000000' для 1 USDC (6 decimals)
-        // Для 0.10 USDC: 0.10 * 10^6 = 100000
-        // В типах Farcaster: "Sell token amount, as numeric string. For example, 1 USDC: 1000000"
-        const swapParams: {
-          sellToken: string;
-          buyToken: string;
-          sellAmount: string;
-        } = {
-          sellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`, // USDC на Base
-          buyToken: `eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`, // MCT Token на Base
-          sellAmount: usdcAmountStr, // "100000" - wei формат (0.10 USDC с 6 decimals)
-        };
-        
-        console.log('🔍 [SWAP] Final params (wei format according to tests):', {
-          ...swapParams,
-          sellAmountWei: usdcAmountStr,
-          sellAmountFormatted: `${PURCHASE_AMOUNT_USDC} USDC`,
-          calculation: `0.10 USDC * 10^6 = ${usdcAmountStr}`,
-          note: 'According to OnchainKit tests, sellAmount must be in wei format (numeric string)',
-        });
-
-        console.log(`🚀 [SWAP] Calling swapTokenAsync NOW with exact params:`, {
-          ...swapParams,
-          paramsStringified: JSON.stringify(swapParams),
-          timestamp: new Date().toISOString(),
-        });
-        
-        // КРИТИЧНО: Логируем что именно передается в Farcaster SDK
-        console.log('📤 [SWAP] Parameters being sent to sdk.actions.swapToken:', {
-          sellToken: swapParams.sellToken,
-          buyToken: swapParams.buyToken,
-          sellAmount: swapParams.sellAmount,
-          sellAmountType: typeof swapParams.sellAmount,
-          sellAmountLength: swapParams.sellAmount.length,
-          isNumeric: !isNaN(Number(swapParams.sellAmount)),
-          expectedFormat: 'wei format: "100000" for 0.10 USDC (6 decimals)',
-        });
-        
-        result = await swapTokenAsync(swapParams);
-        
-        console.log('📥 [SWAP] swapTokenAsync returned:', {
-          result,
-          resultType: typeof result,
-          resultKeys: result ? Object.keys(result) : [],
-          resultStringified: JSON.stringify(result),
-          note: 'If result is undefined/null, form opened but amount may not be pre-filled',
-        });
-        
-        // Очищаем таймаут при успешном запуске
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-          setSwapTimeoutId(null);
-        }
-      } catch (swapError: any) {
-        // Очищаем таймаут при ошибке
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-          setSwapTimeoutId(null);
-        }
-        
-        console.error('❌ [SWAP] Swap error:', {
-          message: swapError?.message,
-          code: swapError?.code,
-          name: swapError?.name,
-          stack: swapError?.stack,
-        });
-        throw swapError;
-      }
-
-      // Детальное логирование результата swap
-      console.log('📊 [SWAP] Swap result:', {
-        success: !!result,
-        result: result,
-        resultType: typeof result,
-        resultKeys: result ? Object.keys(result) : [],
-        userFid: user.fid,
-        sellAmount: `${PURCHASE_AMOUNT_USDC} USDC (${usdcAmountStr} wei)`,
-        sellToken: USDC_CONTRACT_ADDRESS,
-        buyToken: MCT_CONTRACT_ADDRESS,
-      });
-
-      // Пытаемся извлечь txHash из результата (если доступен)
-      // swapTokenAsync может вернуть объект с txHash или просто открыть форму в кошельке
-      let extractedTxHash: string | undefined = undefined;
-      if (result) {
-        if (typeof result === 'string') {
-          // Если result - это строка, возможно это txHash
-          extractedTxHash = result;
-        } else if (typeof result === 'object') {
-          // Пробуем разные возможные поля
-          extractedTxHash = (result as any).txHash || 
-                           (result as any).hash || 
-                           (result as any).transactionHash ||
-                           (result as any).tx?.hash ||
-                           (result as any).transaction?.hash;
-        }
-      }
-
-      if (extractedTxHash) {
-        console.log('✅ [SWAP] Transaction hash extracted from result:', extractedTxHash);
-        setTxHash(extractedTxHash);
-      } else {
-        console.log('ℹ️ [SWAP] No txHash in result - swap form opened in wallet, will wait for balance update');
-      }
-
-      // useSwapToken открывает swap форму в Farcaster кошельке
-      // Пользователь завершает swap в кошельке
-      // После завершения баланс обновится автоматически через wagmi hooks (refetchInterval)
-      
+      // Direct swap (no Privy / no OnchainKit)
+      const direct = await buyTokenViaDirectSwap(user.fid, 'USDC');
+      if (!direct.success) throw new Error(direct.error || 'Swap failed');
+      if (direct.txHash) setTxHash(direct.txHash);
       setLoading(false);
-      setRetryCount(0); // Сбрасываем счетчик при успешном запуске swap
-      
-      // Начинаем периодически обновлять баланс для проверки завершения swap
-      refetchMCTBalance();
+      setRetryCount(0);
+      // Balance watcher will pick up completion; also mark DB immediately
+      try {
+        await markTokenPurchased(user.fid, direct.txHash || undefined);
+      } catch (e) {
+        console.warn('[DB] Failed to mark purchase:', e);
+      }
+      setTimeout(() => router.replace('/submit'), 1200);
 
     } catch (err: any) {
       handleSwapError(err, false);

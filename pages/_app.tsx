@@ -4,10 +4,30 @@ import Head from 'next/head';
 import React, { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { base } from 'wagmi/chains';
-import { OnchainKitProvider } from '@coinbase/onchainkit';
+import { WagmiProvider, createConfig, http } from 'wagmi';
+import { injected } from 'wagmi/connectors';
+import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { FarcasterAuthProvider } from '@/contexts/FarcasterAuthContext';
 import { AuthSync } from '@/components/AuthSync';
 import InstallPrompt from '@/components/InstallPrompt';
+
+// IMPORTANT: Do NOT mount OnchainKit/Privy globally: it triggers CORS failures in Farcaster web contexts
+// (origin `wallet.farcaster.xyz` -> `auth.privy.io`) and can break page scripts (Tasks stuck loading).
+const wagmiConfig = createConfig({
+  chains: [base],
+  connectors: [
+    // Prefer Farcaster wallet when available, but allow injected fallback on desktop
+    farcasterMiniApp(),
+    injected(),
+  ],
+  transports: {
+    [base.id]: http(),
+  },
+  ssr: true,
+});
+
+const queryClient = new QueryClient();
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter();
@@ -114,37 +134,20 @@ export default function App({ Component, pageProps }: AppProps) {
     };
   }, []);
 
-  // OnchainKit (and its internal providers like Privy) can produce CORS failures in some Farcaster web contexts
-  // (e.g. origin `wallet.farcaster.xyz`). Only mount it on pages that actually need it.
-  // NOTE: We no longer mount OnchainKit at all to avoid Privy CORS issues in Farcaster shells.
-  // If we ever need it again, it must be loaded behind a user gesture on a dedicated page.
-  const needsOnchainKit = false;
-
   return (
     <>
       <Head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
       </Head>
-      <OnchainKitProvider
-        chain={base}
-        config={{
-          appearance: {
-            name: 'Multi Like',
-            logo: '/mrs-crypto.png',
-            theme: 'default',
-            mode: 'auto',
-          },
-        }}
-        miniKit={{
-          enabled: true,
-        }}
-      >
-        <FarcasterAuthProvider>
-          <AuthSync />
-          <Component {...pageProps} />
-          <InstallPrompt />
-        </FarcasterAuthProvider>
-      </OnchainKitProvider>
+      <WagmiProvider config={wagmiConfig}>
+        <QueryClientProvider client={queryClient}>
+          <FarcasterAuthProvider>
+            <AuthSync />
+            <Component {...pageProps} />
+            <InstallPrompt />
+          </FarcasterAuthProvider>
+        </QueryClientProvider>
+      </WagmiProvider>
     </>
   );
 }
