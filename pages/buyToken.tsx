@@ -269,14 +269,15 @@ export default function BuyToken() {
 
       // Загружаем цену со смарт-контракта
       // Quote API can be flaky. Don't spam it before wallet connect.
+      let priceEth: string | null = null;
       if (walletAddress) {
         try {
-          const priceEth = await getTokenSalePriceEth();
-          setTokenPriceEth(priceEth);
+          priceEth = await getTokenSalePriceEth();
         } catch (e) {
           console.warn('[BUY-TOKEN] Price quote failed:', e);
         }
       }
+      setTokenPriceEth(priceEth);
 
       if (priceEth && parseFloat(priceEth) > 0) {
         // Для USDC цена уже в USD (1 USDC = 1 USD), для ETH конвертируем
