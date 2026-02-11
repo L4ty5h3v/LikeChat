@@ -31,15 +31,24 @@ const publicClient = createPublicClient({
   }),
 });
 
-// ABI for Uniswap V3 QuoterV2 (Base). QuoterV2 returns multiple values.
+// ABI for Uniswap V3 QuoterV2 (Base).
+// IMPORTANT: On Base, QuoterV2's `quoteExactInputSingle` expects a single tuple param (`params`),
+// NOT 5 separate arguments. Passing 5 args will revert.
 const quoterAbi = [
   {
     inputs: [
-      { internalType: 'address', name: 'tokenIn', type: 'address' },
-      { internalType: 'address', name: 'tokenOut', type: 'address' },
-      { internalType: 'uint24', name: 'fee', type: 'uint24' },
-      { internalType: 'uint256', name: 'amountIn', type: 'uint256' },
-      { internalType: 'uint160', name: 'sqrtPriceLimitX96', type: 'uint160' },
+      {
+        internalType: 'struct IQuoterV2.QuoteExactInputSingleParams',
+        name: 'params',
+        type: 'tuple',
+        components: [
+          { internalType: 'address', name: 'tokenIn', type: 'address' },
+          { internalType: 'address', name: 'tokenOut', type: 'address' },
+          { internalType: 'uint256', name: 'amountIn', type: 'uint256' },
+          { internalType: 'uint24', name: 'fee', type: 'uint24' },
+          { internalType: 'uint160', name: 'sqrtPriceLimitX96', type: 'uint160' },
+        ],
+      },
     ],
     name: 'quoteExactInputSingle',
     outputs: [
@@ -111,11 +120,13 @@ export default async function handler(
             abi: quoterAbi,
             functionName: 'quoteExactInputSingle',
             args: [
-              MCT_ADDRESS as `0x${string}`,
-              WETH_ADDRESS as `0x${string}`,
-              feeMctWeth,
-              oneToken,
-              0n,
+              {
+                tokenIn: MCT_ADDRESS as `0x${string}`,
+                tokenOut: WETH_ADDRESS as `0x${string}`,
+                amountIn: oneToken,
+                fee: feeMctWeth,
+                sqrtPriceLimitX96: 0n,
+              },
             ],
           });
 
@@ -160,11 +171,13 @@ export default async function handler(
               abi: quoterAbi,
               functionName: 'quoteExactInputSingle',
               args: [
-                WETH_ADDRESS as `0x${string}`,
-                USDC_ADDRESS_ON_BASE as `0x${string}`,
-                feeWethUsdc,
-                ethAmount!,
-                0n,
+                {
+                  tokenIn: WETH_ADDRESS as `0x${string}`,
+                  tokenOut: USDC_ADDRESS_ON_BASE as `0x${string}`,
+                  amountIn: ethAmount!,
+                  fee: feeWethUsdc,
+                  sqrtPriceLimitX96: 0n,
+                },
               ],
             });
 
@@ -236,11 +249,13 @@ export default async function handler(
             abi: quoterAbi,
             functionName: 'quoteExactInputSingle',
             args: [
-              USDC_ADDRESS_ON_BASE as `0x${string}`,
-              WETH_ADDRESS as `0x${string}`,
-              feeUsdcWeth,
-              usdcAmountWei,
-              0n,
+              {
+                tokenIn: USDC_ADDRESS_ON_BASE as `0x${string}`,
+                tokenOut: WETH_ADDRESS as `0x${string}`,
+                amountIn: usdcAmountWei,
+                fee: feeUsdcWeth,
+                sqrtPriceLimitX96: 0n,
+              },
             ],
           });
 
@@ -285,11 +300,13 @@ export default async function handler(
               abi: quoterAbi,
               functionName: 'quoteExactInputSingle',
               args: [
-                WETH_ADDRESS as `0x${string}`,
-                MCT_ADDRESS as `0x${string}`,
-                feeWethMct,
-                ethAmount!,
-                0n,
+                {
+                  tokenIn: WETH_ADDRESS as `0x${string}`,
+                  tokenOut: MCT_ADDRESS as `0x${string}`,
+                  amountIn: ethAmount!,
+                  fee: feeWethMct,
+                  sqrtPriceLimitX96: 0n,
+                },
               ],
             });
 
