@@ -321,7 +321,7 @@ export async function buyTokenViaDirectSwap(
           // Wait for confirmation via public RPC (Farcaster provider may not support receipts)
           const receipt = await readProvider.waitForTransaction(tx.hash, 1, 180_000);
 
-          if (receipt.status === 1) {
+          if (receipt?.status === 1) {
             console.log('✅ Direct swap confirmed');
             
             // Проверяем баланс токенов
@@ -338,8 +338,17 @@ export async function buyTokenViaDirectSwap(
               verified: true,
               tokenAmount: ethers.formatUnits(tokenAmountOut, DEFAULT_TOKEN_DECIMALS),
             };
+          } else if (receipt?.status === 0) {
+            throw new Error('Transaction failed');
           } else {
-            throw new Error('Transaction was not confirmed');
+            // No receipt yet (timeout) — treat as pending; UI can verify by balance later.
+            console.log('ℹ️ Swap pending (no receipt yet). Returning tx hash.');
+            return {
+              success: true,
+              txHash: tx.hash,
+              verified: false,
+              tokenAmount: tokenAmountOut > 0n ? ethers.formatUnits(tokenAmountOut, DEFAULT_TOKEN_DECIMALS) : undefined,
+            };
           }
         } catch (swapError: any) {
           console.warn(`⚠️ Direct swap failed with fee ${fee}:`, swapError.message);
@@ -387,7 +396,7 @@ export async function buyTokenViaDirectSwap(
           console.log('✅ Multi-hop swap transaction sent:', tx.hash);
         const receipt = await readProvider.waitForTransaction(tx.hash, 1, 180_000);
 
-          if (receipt.status === 1) {
+        if (receipt?.status === 1) {
             console.log('✅ Multi-hop swap confirmed');
             return {
               success: true,
@@ -395,6 +404,16 @@ export async function buyTokenViaDirectSwap(
               verified: true,
               tokenAmount: ethers.formatUnits(tokenAmountOut, DEFAULT_TOKEN_DECIMALS),
             };
+        } else if (receipt?.status === 0) {
+          throw new Error('Transaction failed');
+        } else {
+          console.log('ℹ️ Swap pending (no receipt yet). Returning tx hash.');
+          return {
+            success: true,
+            txHash: tx.hash,
+            verified: false,
+            tokenAmount: tokenAmountOut > 0n ? ethers.formatUnits(tokenAmountOut, DEFAULT_TOKEN_DECIMALS) : undefined,
+          };
           }
         } catch (multiHopError: any) {
           console.warn(`⚠️ Multi-hop swap failed:`, multiHopError.message);
@@ -431,7 +450,7 @@ export async function buyTokenViaDirectSwap(
         // Wait for confirmation via public RPC (Farcaster provider may not support receipts)
         const receipt = await readProvider.waitForTransaction(tx.hash, 1, 180_000);
 
-        if (receipt.status === 1) {
+        if (receipt?.status === 1) {
           console.log('✅ Swap transaction confirmed');
           
           // Проверяем баланс токенов
@@ -447,8 +466,15 @@ export async function buyTokenViaDirectSwap(
             txHash: tx.hash,
             verified: true,
           };
+        } else if (receipt?.status === 0) {
+          throw new Error('Transaction failed');
         } else {
-          throw new Error('Transaction was not confirmed');
+          console.log('ℹ️ Swap pending (no receipt yet). Returning tx hash.');
+          return {
+            success: true,
+            txHash: tx.hash,
+            verified: false,
+          };
         }
       } catch (swapError: any) {
         console.warn(`⚠️ Swap failed with fee ${fee}:`, swapError.message);
