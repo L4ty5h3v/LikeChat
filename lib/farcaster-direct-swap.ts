@@ -117,7 +117,7 @@ export async function buyTokenViaDirectSwap(
     if (typeof window === 'undefined') {
       return {
         success: false,
-        error: 'Swap доступен только на клиенте',
+        error: 'Swap is only available on the client',
       };
     }
 
@@ -128,7 +128,7 @@ export async function buyTokenViaDirectSwap(
     if (!miniProvider) {
       return {
         success: false,
-        error: 'Farcaster Wallet не найден. Откройте приложение в Farcaster Mini App.',
+        error: 'Farcaster Wallet not found. Open this inside the Farcaster Mini App.',
       };
     }
 
@@ -174,7 +174,12 @@ export async function buyTokenViaDirectSwap(
         });
 
         if (!response.ok) {
-          throw new Error('Failed to get quote from API');
+          let details = '';
+          try {
+            const bodyText = await response.text();
+            details = bodyText ? ` - ${bodyText}` : '';
+          } catch {}
+          throw new Error(`Quote API request failed (HTTP ${response.status})${details}`);
         }
 
         const data = await response.json();
@@ -183,15 +188,15 @@ export async function buyTokenViaDirectSwap(
           tokenAmountOut = BigInt(data.mctAmount);
           console.log(`💰 API Quote: ${ethers.formatUnits(amountIn, 6)} USDC → ${ethers.formatUnits(tokenAmountOut, DEFAULT_TOKEN_DECIMALS)} MCT`);
         } else {
-          throw new Error(data.error || 'Failed to get quote from API');
+          throw new Error(data.error || 'Quote API returned an error');
         }
       } catch (error: any) {
         console.error('❌ Error getting quote from API:', error);
-        throw new Error('Не удалось получить котировку от Uniswap через API: ' + (error.message || error));
+        throw new Error('Failed to get a Uniswap quote via API: ' + (error.message || error));
       }
       
       if (tokenAmountOut === BigInt(0)) {
-        throw new Error('Не удалось получить котировку от Uniswap');
+        throw new Error('Quote returned zero output');
       }
     } else {
       // Для ETH: получаем цену ETH в USD и рассчитываем amountIn
@@ -306,7 +311,7 @@ export async function buyTokenViaDirectSwap(
               tokenAmount: ethers.formatUnits(tokenAmountOut, DEFAULT_TOKEN_DECIMALS),
             };
           } else {
-            throw new Error('Транзакция не была подтверждена');
+            throw new Error('Transaction was not confirmed');
           }
         } catch (swapError: any) {
           console.warn(`⚠️ Direct swap failed with fee ${fee}:`, swapError.message);
@@ -415,7 +420,7 @@ export async function buyTokenViaDirectSwap(
             verified: true,
           };
         } else {
-          throw new Error('Транзакция не была подтверждена');
+          throw new Error('Transaction was not confirmed');
         }
       } catch (swapError: any) {
         console.warn(`⚠️ Swap failed with fee ${fee}:`, swapError.message);
@@ -454,7 +459,7 @@ export async function buyTokenViaDirectSwap(
 // Переключить сеть на Base
 async function switchToBaseNetwork(): Promise<void> {
   if (typeof window === 'undefined' || !(window as any).ethereum) {
-    throw new Error('Ethereum provider не найден');
+    throw new Error('Ethereum provider not found');
   }
 
   const ethereum = (window as any).ethereum;

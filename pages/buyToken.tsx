@@ -32,7 +32,7 @@ async function publishSwapCastWithTxHash(
     if (typeof window === 'undefined') {
       return {
         success: false,
-        error: 'SDK доступен только на клиенте',
+        error: 'SDK is only available on the client',
       };
     }
 
@@ -706,7 +706,7 @@ export default function BuyToken() {
     setBlocksSinceSwap(0);
     setSwapWaitTime(0);
     setLoading(false);
-    setError('Состояние транзакции сброшено. Попробуйте снова.');
+    setError('Transaction state reset. Please try again.');
   };
 
   // Очистка таймаутов при размонтировании
@@ -834,8 +834,8 @@ export default function BuyToken() {
               </p>
                   {/* Показываем retry только для определенных типов ошибок и если не превышен лимит */}
                   {lastError && 
-                   !lastError.includes('отменена пользователем') && 
-                   !lastError.includes('Недостаточно USDC') &&
+                   !lastError.toLowerCase().includes('cancelled by user') && 
+                   !lastError.toLowerCase().includes('insufficient usdc') &&
                    !lastError.includes('Slippage') &&
                    retryCount < MAX_RETRIES && (
                     <div className="mt-4">

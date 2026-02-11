@@ -233,7 +233,7 @@ export async function approveUSDC(
   try {
     const provider = await getProvider();
     if (!provider) {
-      throw new Error('Farcaster Wallet не найден. Откройте приложение в Farcaster Mini App.');
+      throw new Error('Farcaster Wallet not found. Open this inside the Farcaster Mini App.');
     }
 
     // Проверяем, что адрес контракта валидный (не пустой и не только пробелы)
@@ -242,7 +242,7 @@ export async function approveUSDC(
       console.warn('[web3] Token sale contract address not configured or invalid');
       return {
         success: false,
-        error: 'Адрес смарт-контракта продажи не настроен. Установите NEXT_PUBLIC_TOKEN_SALE_CONTRACT_ADDRESS.',
+        error: 'Token sale contract address is not configured. Set NEXT_PUBLIC_TOKEN_SALE_CONTRACT_ADDRESS.',
       };
     }
 
@@ -278,15 +278,15 @@ export async function approveUSDC(
         txHash: tx.hash,
       };
     } else {
-      throw new Error('Транзакция одобрения не была подтверждена');
+      throw new Error('Approval transaction was not confirmed');
     }
   } catch (error: any) {
     console.error('Error approving USDC:', error);
     
-    let errorMessage = 'Ошибка при одобрении USDC';
+    let errorMessage = 'Error approving USDC';
     
     if (error.message?.includes('user rejected')) {
-      errorMessage = 'Транзакция одобрения отменена пользователем';
+      errorMessage = 'Approval transaction cancelled by user';
     } else if (error.message) {
       errorMessage = error.message;
     }
@@ -317,7 +317,7 @@ export async function buyToken(userFid: number): Promise<{
     // Используем смарт-контракт (старый способ)
     const provider = await getProvider();
     if (!provider) {
-      throw new Error('Farcaster Wallet не найден. Откройте приложение в Farcaster Mini App.');
+      throw new Error('Farcaster Wallet not found. Open this inside the Farcaster Mini App.');
     }
 
     // Определяем, какой контракт использовать
@@ -336,7 +336,7 @@ export async function buyToken(userFid: number): Promise<{
       console.warn('[web3] Token sale contract address not configured or invalid');
       return {
         success: false,
-        error: 'Адрес смарт-контракта продажи не настроен. Установите NEXT_PUBLIC_TOKEN_SALE_CONTRACT_ADDRESS или NEXT_PUBLIC_TOKEN_SALE_USDC_CONTRACT_ADDRESS.',
+        error: 'Token sale contract address is not configured. Set NEXT_PUBLIC_TOKEN_SALE_CONTRACT_ADDRESS (and/or NEXT_PUBLIC_TOKEN_SALE_USDC_CONTRACT_ADDRESS).',
       };
     }
 
@@ -353,7 +353,7 @@ export async function buyToken(userFid: number): Promise<{
     // Рассчитываем количество MCT, которое можно купить за 0.10 USDC через Uniswap
     const tokenAmount = await getMCTAmountForPurchase();
     if (!tokenAmount || tokenAmount === 0n) {
-      throw new Error('Не удалось рассчитать количество MCT для покупки через Uniswap');
+      throw new Error('Failed to calculate MCT amount for purchase via Uniswap');
     }
 
     const tokenDecimals = DEFAULT_TOKEN_DECIMALS;
@@ -422,14 +422,14 @@ async function buyTokenWithETH(
   console.log(`💰 Purchase cost: ${costEth} ETH for ${tokenAmountFormatted} MCT`);
 
   if (costWei <= 0n) {
-    throw new Error('Цена покупки возвращает ноль. Проверьте контракт продажи.');
+    throw new Error('Purchase price returned zero. Check the token sale contract.');
   }
 
   // Проверяем баланс ETH
   const provider = signer.provider!;
   const ethBalance = await provider.getBalance(buyerAddress);
   if (ethBalance < costWei) {
-    throw new Error(`Недостаточно ETH. Требуется: ${costEth} ETH`);
+    throw new Error(`Insufficient ETH. Required: ${costEth} ETH`);
   }
 
   // Покупаем токен через смарт-контракт используя buyTokensWithETH
@@ -450,7 +450,7 @@ async function buyTokenWithETH(
     const isValidPurchase = await verifyTokenPurchase(tx.hash, buyerAddress);
     
     if (!isValidPurchase) {
-      throw new Error('Покупка не была верифицирована через контракт продажи');
+      throw new Error('Purchase could not be verified via the token sale contract');
     }
     
     return {
@@ -459,7 +459,7 @@ async function buyTokenWithETH(
       verified: true,
     };
   } else {
-    throw new Error('Транзакция не была подтверждена');
+    throw new Error('Transaction was not confirmed');
   }
 }
 
@@ -493,7 +493,7 @@ async function buyTokenWithUSDC(
   console.log(`💰 Purchase cost: ${costUSDCFormatted} USDC for ${tokenAmountFormatted} MCT`);
 
   if (costUSDC <= 0n) {
-    throw new Error('Цена покупки возвращает ноль. Проверьте контракт продажи.');
+    throw new Error('Purchase price returned zero. Check the token sale contract.');
   }
 
   // Для чтения данных используем Base RPC (Farcaster Wallet не поддерживает eth_call)
@@ -504,7 +504,7 @@ async function buyTokenWithUSDC(
   // Проверяем баланс USDC используя Base RPC
   const usdcBalance = await usdcContractRead.balanceOf(buyerAddress);
   if (usdcBalance < costUSDC) {
-    throw new Error(`Недостаточно USDC. Требуется: ${costUSDCFormatted} USDC`);
+    throw new Error(`Insufficient USDC. Required: ${costUSDCFormatted} USDC`);
   }
   console.log(`✅ USDC balance check: ${ethers.formatUnits(usdcBalance, 6)} USDC available`);
 
@@ -526,7 +526,7 @@ async function buyTokenWithUSDC(
     const approveReceipt = await approveTx.wait();
     
     if (approveReceipt.status !== 1) {
-      throw new Error('Транзакция одобрения не была подтверждена');
+      throw new Error('Approval transaction was not confirmed');
     }
     
     console.log('✅ USDC approved successfully');
@@ -551,7 +551,7 @@ async function buyTokenWithUSDC(
     const isValidPurchase = await verifyTokenPurchaseUSDC(tx.hash, buyerAddress);
     
     if (!isValidPurchase) {
-      throw new Error('Покупка не была верифицирована через контракт продажи');
+      throw new Error('Purchase could not be verified via the token sale contract');
     }
     
     return {
@@ -560,7 +560,7 @@ async function buyTokenWithUSDC(
       verified: true,
     };
   } else {
-    throw new Error('Транзакция не была подтверждена');
+    throw new Error('Transaction was not confirmed');
   }
 }
 
