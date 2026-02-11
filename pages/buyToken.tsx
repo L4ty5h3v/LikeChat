@@ -1,10 +1,10 @@
 // Страница покупки токена Миссис Крипто
-import { useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
 import Layout from '@/components/Layout';
 import Button from '@/components/Button';
-import { useAccount, useBalance, useConnect, useBlockNumber } from 'wagmi';
+import { useAccount, useBalance, useConnect, useDisconnect, useBlockNumber } from 'wagmi';
 import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector';
 import { useSwapToken } from '@coinbase/onchainkit/minikit';
 import { getTokenInfo, getTokenSalePriceEth, getMCTAmountForPurchase } from '@/lib/web3';
@@ -93,7 +93,11 @@ async function publishSwapCastWithTxHash(
 export default function BuyToken() {
   const router = useRouter();
   const { address: walletAddress, isConnected } = useAccount();
-  const { connect, isPending: isConnecting } = useConnect();
+  const { connectAsync, isPending: isConnecting } = useConnect();
+  const { disconnect } = useDisconnect();
+  const farcasterConnector = useMemo(() => farcasterMiniApp(), []);
+  const [connectError, setConnectError] = useState<string | null>(null);
+  const [isConnectBusy, setIsConnectBusy] = useState(false);
   const [isSwapping, setIsSwapping] = useState(false);
   const [swapInitiatedAt, setSwapInitiatedAt] = useState<number | null>(null);
   const [oldBalanceBeforeSwap, setOldBalanceBeforeSwap] = useState<number | null>(null);
@@ -106,6 +110,7 @@ export default function BuyToken() {
   const MAX_RETRIES = 3;
   const BLOCKS_TO_CHECK = 4; // Проверяем каждые 4 блока (~12 секунд на Base)
   const SWAP_TIMEOUT_MS = 60000; // Увеличиваем таймаут до 60 секунд
+  const CONNECT_TIMEOUT_MS = 20000;
   
   // Real-time block listener для проверки баланса
   const { data: blockNumber } = useBlockNumber({
@@ -263,8 +268,15 @@ export default function BuyToken() {
       setTokenInfo(info);
 
       // Загружаем цену со смарт-контракта
-      const priceEth = await getTokenSalePriceEth();
-      setTokenPriceEth(priceEth);
+      // Quote API can be flaky. Don't spam it before wallet connect.
+      if (walletAddress) {
+        try {
+          const priceEth = await getTokenSalePriceEth();
+          setTokenPriceEth(priceEth);
+        } catch (e) {
+          console.warn('[BUY-TOKEN] Price quote failed:', e);
+        }
+      }
 
       if (priceEth && parseFloat(priceEth) > 0) {
         // Для USDC цена уже в USD (1 USDC = 1 USD), для ETH конвертируем
@@ -284,8 +296,10 @@ export default function BuyToken() {
 
       // Рассчитываем количество MCT для покупки
       try {
-        const amount = await getMCTAmountForPurchase();
-        setMctAmountForPurchase(amount);
+        if (walletAddress) {
+          const amount = await getMCTAmountForPurchase();
+          setMctAmountForPurchase(amount);
+        }
       } catch (err) {
         console.warn('Could not calculate MCT amount for purchase:', err);
       }
@@ -298,6 +312,38 @@ export default function BuyToken() {
         address: MCT_CONTRACT_ADDRESS,
         decimals: 18,
       });
+    }
+  };
+
+  const handleConnectWallet = async () => {
+    try {
+      setConnectError(null);
+      setIsConnectBusy(true);
+
+      // Fail-fast if Farcaster provider isn't available (avoid hanging forever)
+      try {
+        const { getEthereumProvider } = await import('@farcaster/miniapp-sdk/dist/ethereumProvider');
+        const fcProvider = await getEthereumProvider();
+        if (!fcProvider) {
+          throw new Error('Farcaster Wallet provider not available. Open this inside the Farcaster Mini App.');
+        }
+      } catch (e: any) {
+        throw new Error(e?.message || 'Farcaster Wallet provider not available');
+      }
+
+      await Promise.race([
+        connectAsync({ connector: farcasterConnector }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Connection timed out. Please try again.')), CONNECT_TIMEOUT_MS)
+        ),
+      ]);
+    } catch (e: any) {
+      setConnectError(e?.message || 'Failed to connect wallet');
+      try {
+        disconnect();
+      } catch {}
+    } finally {
+      setIsConnectBusy(false);
     }
   };
 
@@ -843,23 +889,28 @@ export default function BuyToken() {
           {!walletAddress && (
             <div className="mb-6">
               <div className="text-center">
+                {connectError && (
+                  <div className="mb-4 bg-red-50 border border-red-200 text-red-800 rounded-xl p-3 text-sm">
+                    {connectError}
+                  </div>
+                )}
                 <button
-                  onClick={() => connect({ connector: farcasterMiniApp() })}
-                  disabled={isConnecting}
+                  onClick={handleConnectWallet}
+                  disabled={isConnectBusy}
                   className={`btn-gold-glow w-full text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold text-white group ${
-                    isConnecting ? 'disabled' : ''
+                    isConnectBusy ? 'disabled' : ''
                   }`}
                 >
                   {/* Переливающийся эффект */}
-                  {!isConnecting && (
+                  {!isConnectBusy && (
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
                   )}
                   {/* Внутреннее свечение */}
-                  {!isConnecting && (
+                  {!isConnectBusy && (
                     <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
                   )}
                   <span className="relative z-20 drop-shadow-lg">
-                  {isConnecting ? (
+                  {isConnectBusy ? (
                     <div className="flex items-center justify-center gap-2">
                       <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                       <span>CONNECTING...</span>
