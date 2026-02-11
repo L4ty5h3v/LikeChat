@@ -4,23 +4,10 @@ import Head from 'next/head';
 import React, { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { base } from 'wagmi/chains';
-import { WagmiProvider, createConfig, http } from 'wagmi';
-import { injected } from 'wagmi/connectors';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { OnchainKitProvider } from '@coinbase/onchainkit';
 import { FarcasterAuthProvider } from '@/contexts/FarcasterAuthContext';
 import { AuthSync } from '@/components/AuthSync';
 import InstallPrompt from '@/components/InstallPrompt';
-
-const wagmiConfig = createConfig({
-  chains: [base],
-  connectors: [injected()],
-  transports: {
-    [base.id]: http(),
-  },
-  ssr: true,
-});
-
-const queryClient = new QueryClient();
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter();
@@ -138,23 +125,26 @@ export default function App({ Component, pageProps }: AppProps) {
       <Head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
       </Head>
-      <WagmiProvider config={wagmiConfig}>
-        <QueryClientProvider client={queryClient}>
-          {needsOnchainKit ? (
-            <FarcasterAuthProvider>
-              <AuthSync />
-              <Component {...pageProps} />
-              <InstallPrompt />
-            </FarcasterAuthProvider>
-          ) : (
-            <FarcasterAuthProvider>
-              <AuthSync />
-              <Component {...pageProps} />
-              <InstallPrompt />
-            </FarcasterAuthProvider>
-          )}
-        </QueryClientProvider>
-      </WagmiProvider>
+      <OnchainKitProvider
+        chain={base}
+        config={{
+          appearance: {
+            name: 'Multi Like',
+            logo: '/mrs-crypto.png',
+            theme: 'default',
+            mode: 'auto',
+          },
+        }}
+        miniKit={{
+          enabled: true,
+        }}
+      >
+        <FarcasterAuthProvider>
+          <AuthSync />
+          <Component {...pageProps} />
+          <InstallPrompt />
+        </FarcasterAuthProvider>
+      </OnchainKitProvider>
     </>
   );
 }
