@@ -17,6 +17,11 @@ const UNISWAP_V3_ROUTER = '0x2626664c2603336E57B271c5C0b26F421741e481';
 // Uniswap V3 Quoter на Base (для получения цены)
 const UNISWAP_V3_QUOTER = '0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a';
 
+// Base public RPC for READ calls (Farcaster wallet provider may not support eth_call reliably)
+const BASE_READ_RPC_URL =
+  process.env.NEXT_PUBLIC_BASE_RPC_URL ||
+  'https://base-rpc.publicnode.com';
+
 // ABI для Uniswap V3 Router
 const UNISWAP_ROUTER_ABI = [
   'function exactInputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96)) external payable returns (uint256 amountOut)',
@@ -136,6 +141,9 @@ export async function buyTokenViaDirectSwap(
     const signer = await provider.getSigner();
     const userAddress = await signer.getAddress();
 
+    // Use a public RPC for read-only calls (allowance/balance/decimals)
+    const readProvider = new ethers.JsonRpcProvider(BASE_READ_RPC_URL);
+
     // Проверяем сеть
     const network = await provider.getNetwork();
     if (Number(network.chainId) !== BASE_CHAIN_ID) {
@@ -232,11 +240,13 @@ export async function buyTokenViaDirectSwap(
 
     // Для USDC: проверяем и делаем approve
     if (paymentToken === 'USDC') {
-      const tokenInContract = new ethers.Contract(tokenInAddress, ERC20_ABI, signer);
-      const currentAllowance = await tokenInContract.allowance(userAddress, UNISWAP_V3_ROUTER);
+      // IMPORTANT: allowance() is a read (eth_call). Use public RPC, not Farcaster wallet provider.
+      const tokenInRead = new ethers.Contract(tokenInAddress, ERC20_ABI, readProvider);
+      const currentAllowance = await tokenInRead.allowance(userAddress, UNISWAP_V3_ROUTER);
       
       if (currentAllowance < amountIn) {
         console.log(`🔄 Approving USDC spending...`);
+        const tokenInContract = new ethers.Contract(tokenInAddress, ERC20_ABI, signer);
         const approveTx = await tokenInContract.approve(UNISWAP_V3_ROUTER, ethers.MaxUint256, {
           gasLimit: 100000,
         });
@@ -304,7 +314,7 @@ export async function buyTokenViaDirectSwap(
             console.log('✅ Direct swap confirmed');
             
             // Проверяем баланс токенов
-            const tokenOutContract = new ethers.Contract(tokenOutAddress, ERC20_ABI, provider);
+            const tokenOutContract = new ethers.Contract(tokenOutAddress, ERC20_ABI, readProvider);
             const balance = await tokenOutContract.balanceOf(userAddress);
             const decimals = await tokenOutContract.decimals().catch(() => DEFAULT_TOKEN_DECIMALS);
             const balanceFormatted = ethers.formatUnits(balance, decimals);
@@ -414,7 +424,7 @@ export async function buyTokenViaDirectSwap(
           console.log('✅ Swap transaction confirmed');
           
           // Проверяем баланс токенов
-          const tokenOutContract = new ethers.Contract(tokenOutAddress, ERC20_ABI, provider);
+          const tokenOutContract = new ethers.Contract(tokenOutAddress, ERC20_ABI, readProvider);
           const balance = await tokenOutContract.balanceOf(userAddress);
           const decimals = await tokenOutContract.decimals().catch(() => DEFAULT_TOKEN_DECIMALS);
           const balanceFormatted = ethers.formatUnits(balance, decimals);

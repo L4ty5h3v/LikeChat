@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { createPublicClient, http, encodeFunctionData, decodeAbiParameters } from 'viem';
+import { createPublicClient, http, fallback, encodeFunctionData, decodeAbiParameters } from 'viem';
 import { base } from 'viem/chains';
 
 // Константы
@@ -15,20 +15,31 @@ const USDC_DECIMALS = 6;
 // Создаем public client для Base (используем надежный RPC)
 // Приоритет: Alchemy > BASE_RPC_URL > BASERPCURL > дефолтный Base RPC
 // ⚠️ ВАЖНО: Используем надежный RPC для стабильности (Alchemy рекомендуется)
-const BASE_RPC_URL = process.env.ALCHEMY_BASE_RPC_URL || 
-                      process.env.BASE_RPC_URL || 
-                      process.env.BASERPCURL || 
-                      'https://mainnet.base.org';
+const RPC_URLS = [
+  process.env.ALCHEMY_BASE_RPC_URL,
+  process.env.BASE_RPC_URL,
+  process.env.BASERPCURL,
+  'https://mainnet.base.org',
+  'https://base.llamarpc.com',
+  'https://base-rpc.publicnode.com',
+].filter(Boolean) as string[];
 
-console.log('🔗 [QUOTE-API] Using RPC endpoint:', BASE_RPC_URL.replace(/\/\/.*@/, '//***@')); // Скрываем ключи в логах
+console.log(
+  '🔗 [QUOTE-API] RPC endpoints:',
+  RPC_URLS.map((u) => u.replace(/\/\/.*@/, '//***@'))
+);
 
 const publicClient = createPublicClient({
   chain: base,
-  transport: http(BASE_RPC_URL, {
-    timeout: 15000, // 15 секунд таймаут
-    retryCount: 1, // 1 попытка при ошибке (чтобы не усугублять rate limiting)
-    retryDelay: 2000, // 2 секунды задержка между попытками
-  }),
+  transport: fallback(
+    RPC_URLS.map((url) =>
+      http(url, {
+        timeout: 15000,
+        retryCount: 1,
+        retryDelay: 2000,
+      })
+    )
+  ),
 });
 
 // ABI for Uniswap V3 QuoterV2 (Base).
