@@ -6,6 +6,7 @@ import Layout from '@/components/Layout';
 import Button from '@/components/Button';
 import { useAccount, useBalance, useConnect, useDisconnect, useBlockNumber } from 'wagmi';
 import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector';
+import { injected } from 'wagmi/connectors';
 import { useSwapToken } from '@coinbase/onchainkit/minikit';
 import { getTokenInfo, getTokenSalePriceEth, getMCTAmountForPurchase } from '@/lib/web3';
 import { markTokenPurchased, getUserProgress } from '@/lib/db-config';
@@ -96,6 +97,7 @@ export default function BuyToken() {
   const { connectAsync, isPending: isConnecting } = useConnect();
   const { disconnect } = useDisconnect();
   const farcasterConnector = useMemo(() => farcasterMiniApp(), []);
+  const injectedConnector = useMemo(() => injected(), []);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [isConnectBusy, setIsConnectBusy] = useState(false);
   const [isSwapping, setIsSwapping] = useState(false);
@@ -332,12 +334,24 @@ export default function BuyToken() {
         throw new Error(e?.message || 'Farcaster Wallet provider not available');
       }
 
-      await Promise.race([
-        connectAsync({ connector: farcasterConnector }),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Connection timed out. Please try again.')), CONNECT_TIMEOUT_MS)
-        ),
-      ]);
+      try {
+        await Promise.race([
+          connectAsync({ connector: farcasterConnector }),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Connection timed out. Please try again.')), CONNECT_TIMEOUT_MS)
+          ),
+        ]);
+      } catch (e: any) {
+        // In Farcaster web client, Farcaster wallet connect can hang due to cross-site restrictions.
+        // Fallback to browser wallet so the user can still buy (matches "worked yesterday" for desktop).
+        console.warn('[BUY-TOKEN] Farcaster connect failed, falling back to injected wallet:', e?.message || e);
+        await Promise.race([
+          connectAsync({ connector: injectedConnector }),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Browser wallet connection timed out.')), CONNECT_TIMEOUT_MS)
+          ),
+        ]);
+      }
     } catch (e: any) {
       setConnectError(e?.message || 'Failed to connect wallet');
       try {
