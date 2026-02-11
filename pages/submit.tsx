@@ -909,7 +909,7 @@ export default function Submit() {
       setLoading(false); // Разблокируем форму только при ошибке
       
       // Если ошибка связана с недостаточным количеством выполненных заданий или ссылок от других пользователей, редиректим на /tasks
-      if (errorMessage.includes('5 заданий') || errorMessage.includes('5 других ссылок') || 
+      if (errorMessage.includes('10 заданий') || errorMessage.includes('10 других ссылок') || 
           errorMessage.includes('completedCount') || errorMessage.includes('otherLinksCount') || 
           errorMessage.includes('других пользователей')) {
         setTimeout(() => {
