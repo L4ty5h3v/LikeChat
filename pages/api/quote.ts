@@ -31,7 +31,7 @@ const publicClient = createPublicClient({
   }),
 });
 
-// ABI для Uniswap V3 Quoter (упрощенный формат)
+// ABI for Uniswap V3 QuoterV2 (Base). QuoterV2 returns multiple values.
 const quoterAbi = [
   {
     inputs: [
@@ -42,11 +42,30 @@ const quoterAbi = [
       { internalType: 'uint160', name: 'sqrtPriceLimitX96', type: 'uint160' },
     ],
     name: 'quoteExactInputSingle',
-    outputs: [{ internalType: 'uint256', name: 'amountOut', type: 'uint256' }],
+    outputs: [
+      { internalType: 'uint256', name: 'amountOut', type: 'uint256' },
+      { internalType: 'uint160', name: 'sqrtPriceX96After', type: 'uint160' },
+      { internalType: 'uint32', name: 'initializedTicksCrossed', type: 'uint32' },
+      { internalType: 'uint256', name: 'gasEstimate', type: 'uint256' },
+    ],
     stateMutability: 'nonpayable',
     type: 'function',
   },
 ] as const;
+
+function decodeQuoterAmountOut(data: `0x${string}`): bigint {
+  // QuoterV2 returns: (uint256 amountOut, uint160, uint32, uint256)
+  const decoded = decodeAbiParameters(
+    [
+      { type: 'uint256', name: 'amountOut' },
+      { type: 'uint160', name: 'sqrtPriceX96After' },
+      { type: 'uint32', name: 'initializedTicksCrossed' },
+      { type: 'uint256', name: 'gasEstimate' },
+    ],
+    data
+  );
+  return (decoded[0] as bigint) || 0n;
+}
 
 // Типы для запроса/ответа
 type QuoteRequest = {
@@ -109,11 +128,7 @@ export default async function handler(
             continue;
           }
 
-          const decoded = decodeAbiParameters(
-            [{ type: 'uint256', name: 'amountOut' }],
-            mctToWethResult.data
-          );
-          ethAmount = (decoded[0] as bigint) || 0n;
+          ethAmount = decodeQuoterAmountOut(mctToWethResult.data as `0x${string}`);
 
           if (!ethAmount || ethAmount === 0n) {
             continue;
@@ -162,11 +177,7 @@ export default async function handler(
               continue;
             }
 
-            const decoded = decodeAbiParameters(
-              [{ type: 'uint256', name: 'amountOut' }],
-              wethToUsdcResult.data
-            );
-            const usdcOut = (decoded[0] as bigint) || 0n;
+            const usdcOut = decodeQuoterAmountOut(wethToUsdcResult.data as `0x${string}`);
 
             if (!usdcOut || usdcOut === 0n) {
               continue;
@@ -242,11 +253,7 @@ export default async function handler(
             continue;
           }
 
-          const decoded = decodeAbiParameters(
-            [{ type: 'uint256', name: 'amountOut' }],
-            usdcToWethResult.data
-          );
-          ethAmount = (decoded[0] as bigint) || 0n;
+          ethAmount = decodeQuoterAmountOut(usdcToWethResult.data as `0x${string}`);
 
           if (!ethAmount || ethAmount === 0n) {
             continue;
@@ -295,11 +302,7 @@ export default async function handler(
               continue;
             }
 
-            const decoded = decodeAbiParameters(
-              [{ type: 'uint256', name: 'amountOut' }],
-              wethToMctResult.data
-            );
-            const mctAmount = (decoded[0] as bigint) || 0n;
+            const mctAmount = decodeQuoterAmountOut(wethToMctResult.data as `0x${string}`);
 
             if (!mctAmount || mctAmount === 0n) {
               continue;

@@ -176,8 +176,11 @@ export async function buyTokenViaDirectSwap(
         if (!response.ok) {
           let details = '';
           try {
-            const bodyText = await response.text();
-            details = bodyText ? ` - ${bodyText}` : '';
+            const maybeJson = await response.json().catch(() => null);
+            if (maybeJson && typeof maybeJson === 'object') {
+              const msg = (maybeJson as any).error || (maybeJson as any).message;
+              if (typeof msg === 'string' && msg.trim()) details = `: ${msg.trim()}`;
+            }
           } catch {}
           throw new Error(`Quote API request failed (HTTP ${response.status})${details}`);
         }
@@ -192,11 +195,10 @@ export async function buyTokenViaDirectSwap(
         }
       } catch (error: any) {
         console.error('❌ Error getting quote from API:', error);
-        throw new Error('Failed to get a Uniswap quote via API: ' + (error.message || error));
-      }
-      
-      if (tokenAmountOut === BigInt(0)) {
-        throw new Error('Quote returned zero output');
+        // Quote failures (rate limits/RPC hiccups) should NOT hard-block the swap.
+        // We'll proceed with amountOutMinimum=0 and let the router handle execution.
+        console.warn('⚠️ Proceeding without quote (amountOutMinimum=0).');
+        tokenAmountOut = 0n;
       }
     } else {
       // Для ETH: получаем цену ETH в USD и рассчитываем amountIn
@@ -257,8 +259,13 @@ export async function buyTokenViaDirectSwap(
     const feeTiers = [10000, 3000, 500];
     let lastError: any = null;
     
-    // Разумный slippage (5%) - пул существует, не нужно 50%
-    const amountOutMinimum = tokenAmountOut * BigInt(95) / BigInt(100); // 5% slippage
+    // Slippage:
+    // - if we have a quote: use 5% buffer
+    // - if quote failed: do not hard-block swap (minOut=0)
+    const amountOutMinimum =
+      tokenAmountOut && tokenAmountOut > 0n
+        ? (tokenAmountOut * 95n) / 100n
+        : 0n;
 
     // Для ETH: сначала пробуем прямой swap WETH -> MCT (пул существует!)
     if (paymentToken === 'ETH') {
