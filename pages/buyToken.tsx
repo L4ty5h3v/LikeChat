@@ -6,7 +6,6 @@ import Layout from '@/components/Layout';
 import Button from '@/components/Button';
 import { useAccount, useBalance, useConnect, useDisconnect, useBlockNumber } from 'wagmi';
 import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector';
-import { injected } from 'wagmi/connectors';
 import { getTokenInfo, getTokenSalePriceEth, getMCTAmountForPurchase } from '@/lib/web3';
 import { markTokenPurchased, getUserProgress } from '@/lib/db-config';
 import { formatUnits, parseUnits } from 'viem';
@@ -96,8 +95,7 @@ export default function BuyToken() {
   const { address: walletAddress, isConnected } = useAccount();
   const { connectAsync, isPending: isConnecting } = useConnect();
   const { disconnect } = useDisconnect();
-  const injectedConnector = useMemo(() => injected(), []);
-  // Keep the Farcaster connector around for future experimentation, but prefer injected+window.ethereum for reliability
+  // Use Farcaster mini-app connector to avoid picking random browser extensions (MetaMask/Phantom).
   const farcasterConnector = useMemo(() => farcasterMiniApp(), []);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [isConnectBusy, setIsConnectBusy] = useState(false);
@@ -314,21 +312,20 @@ export default function BuyToken() {
       setConnectError(null);
       setIsConnectBusy(true);
 
-      // Prefer Farcaster's EIP-1193 provider (works in Farcaster shells) and bridge it into window.ethereum
-      // so wagmi's injected connector can connect deterministically.
+      // If Farcaster provider isn't available, fail fast with a clear message (instead of prompting extensions).
       try {
         const { getEthereumProvider } = await import('@farcaster/miniapp-sdk/dist/ethereumProvider');
         const fcProvider = await getEthereumProvider();
-        if (fcProvider && typeof window !== 'undefined') {
-          (window as any).ethereum = fcProvider;
+        if (!fcProvider) {
+          throw new Error('Farcaster Wallet provider not available. Open this inside the Farcaster Mini App.');
         }
-      } catch (e) {
-        console.warn('[BUY-TOKEN] Failed to load Farcaster ethereumProvider:', e);
+      } catch (e: any) {
+        throw new Error(e?.message || 'Farcaster Wallet provider not available');
       }
 
       // Hard timeout to avoid infinite "CONNECTING..." state in Farcaster web client
       await Promise.race([
-        connectAsync({ connector: injectedConnector }),
+        connectAsync({ connector: farcasterConnector }),
         new Promise((_, reject) => {
           setTimeout(() => reject(new Error('Connection timed out. Please try again.')), CONNECT_TIMEOUT_MS);
         }),
