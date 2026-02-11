@@ -5,7 +5,6 @@ import React, { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { base } from 'wagmi/chains';
 import { WagmiProvider, createConfig, http } from 'wagmi';
-import { injected } from 'wagmi/connectors';
 import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { FarcasterAuthProvider } from '@/contexts/FarcasterAuthContext';
@@ -17,9 +16,8 @@ import InstallPrompt from '@/components/InstallPrompt';
 const wagmiConfig = createConfig({
   chains: [base],
   connectors: [
-    // Prefer Farcaster wallet when available, but allow injected fallback on desktop
+    // Only Farcaster wallet (avoid triggering browser extensions like Phantom/MetaMask)
     farcasterMiniApp(),
-    injected(),
   ],
   transports: {
     [base.id]: http(),
