@@ -384,6 +384,18 @@ export default function BuyToken() {
     
     // Определяем тип ошибки с конкретными подсказками
     const errorLower = errorMessage.toLowerCase();
+
+    // EIP-1193 provider limitations (common in Farcaster wallet providers)
+    if (
+      errorLower.includes('does not support the requested method') ||
+      errorLower.includes('eth_gettransactionreceipt') ||
+      errorLower.includes('missing revert data') ||
+      errorLower.includes('call_exception')
+    ) {
+      errorType = 'network';
+      errorMessage = 'Wallet provider limitation while checking transaction status';
+      helpfulMessage = '💡 Please wait a bit and check your token balance again. If needed, try the purchase again.';
+    }
     
     if (errorLower.includes('user rejected') || 
         errorLower.includes('cancel') ||

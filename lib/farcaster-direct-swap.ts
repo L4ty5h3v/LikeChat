@@ -252,8 +252,19 @@ export async function buyTokenViaDirectSwap(
         });
         
         console.log('✅ Approval transaction sent:', approveTx.hash);
-        await approveTx.wait();
-        console.log('✅ Approval confirmed');
+        // Farcaster provider may not support eth_getTransactionReceipt; confirm via public RPC instead.
+        try {
+          const receipt = await readProvider.waitForTransaction(approveTx.hash, 1, 120_000);
+          if (receipt?.status === 1) {
+            console.log('✅ Approval confirmed (via public RPC)');
+          } else if (receipt?.status === 0) {
+            throw new Error('Approval transaction failed');
+          } else {
+            console.log('ℹ️ Approval pending (no receipt yet). Continuing...');
+          }
+        } catch (e) {
+          console.warn('⚠️ Approval confirmation via public RPC failed/timed out. Continuing...', e);
+        }
       } else {
         console.log('✅ USDC already approved');
       }
@@ -307,8 +318,8 @@ export async function buyTokenViaDirectSwap(
           console.log('✅ Direct swap transaction sent:', tx.hash);
           console.log('📋 Transaction will be visible in Farcaster wallet history');
 
-          // Ждем подтверждения
-          const receipt = await tx.wait();
+          // Wait for confirmation via public RPC (Farcaster provider may not support receipts)
+          const receipt = await readProvider.waitForTransaction(tx.hash, 1, 180_000);
 
           if (receipt.status === 1) {
             console.log('✅ Direct swap confirmed');
@@ -374,7 +385,7 @@ export async function buyTokenViaDirectSwap(
           );
 
           console.log('✅ Multi-hop swap transaction sent:', tx.hash);
-          const receipt = await tx.wait();
+        const receipt = await readProvider.waitForTransaction(tx.hash, 1, 180_000);
 
           if (receipt.status === 1) {
             console.log('✅ Multi-hop swap confirmed');
@@ -417,8 +428,8 @@ export async function buyTokenViaDirectSwap(
 
         console.log('✅ Swap transaction sent:', tx.hash);
 
-        // Ждем подтверждения
-        const receipt = await tx.wait();
+        // Wait for confirmation via public RPC (Farcaster provider may not support receipts)
+        const receipt = await readProvider.waitForTransaction(tx.hash, 1, 180_000);
 
         if (receipt.status === 1) {
           console.log('✅ Swap transaction confirmed');
