@@ -6,6 +6,7 @@ import Layout from '@/components/Layout';
 import Button from '@/components/Button';
 import { useAccount, useBalance, useConnect, useDisconnect, useBlockNumber } from 'wagmi';
 import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector';
+import { injected } from 'wagmi/connectors';
 import { getTokenInfo, getTokenSalePriceEth, getMCTAmountForPurchase } from '@/lib/web3';
 import { markTokenPurchased, getUserProgress } from '@/lib/db-config';
 import { formatUnits, parseUnits } from 'viem';
@@ -95,8 +96,11 @@ export default function BuyToken() {
   const { address: walletAddress, isConnected } = useAccount();
   const { connectAsync, isPending: isConnecting } = useConnect();
   const { disconnect } = useDisconnect();
+  const injectedConnector = useMemo(() => injected(), []);
+  // Keep the Farcaster connector around for future experimentation, but prefer injected+window.ethereum for reliability
   const farcasterConnector = useMemo(() => farcasterMiniApp(), []);
   const [connectError, setConnectError] = useState<string | null>(null);
+  const [isConnectBusy, setIsConnectBusy] = useState(false);
   const [isSwapping, setIsSwapping] = useState(false);
   const [swapInitiatedAt, setSwapInitiatedAt] = useState<number | null>(null);
   const [oldBalanceBeforeSwap, setOldBalanceBeforeSwap] = useState<number | null>(null);
@@ -308,9 +312,23 @@ export default function BuyToken() {
   const handleConnectWallet = async () => {
     try {
       setConnectError(null);
+      setIsConnectBusy(true);
+
+      // Prefer Farcaster's EIP-1193 provider (works in Farcaster shells) and bridge it into window.ethereum
+      // so wagmi's injected connector can connect deterministically.
+      try {
+        const { getEthereumProvider } = await import('@farcaster/miniapp-sdk/dist/ethereumProvider');
+        const fcProvider = await getEthereumProvider();
+        if (fcProvider && typeof window !== 'undefined') {
+          (window as any).ethereum = fcProvider;
+        }
+      } catch (e) {
+        console.warn('[BUY-TOKEN] Failed to load Farcaster ethereumProvider:', e);
+      }
+
       // Hard timeout to avoid infinite "CONNECTING..." state in Farcaster web client
       await Promise.race([
-        connectAsync({ connector: farcasterConnector }),
+        connectAsync({ connector: injectedConnector }),
         new Promise((_, reject) => {
           setTimeout(() => reject(new Error('Connection timed out. Please try again.')), CONNECT_TIMEOUT_MS);
         }),
@@ -322,6 +340,8 @@ export default function BuyToken() {
         // Best-effort reset of wagmi state if it got stuck mid-connection
         disconnect();
       } catch {}
+    } finally {
+      setIsConnectBusy(false);
     }
   };
 
@@ -829,9 +849,9 @@ export default function BuyToken() {
                 )}
                 <button
                   onClick={handleConnectWallet}
-                  disabled={isConnecting}
+                  disabled={isConnectBusy}
                   className={`btn-gold-glow w-full text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold text-white group ${
-                    isConnecting ? 'disabled' : ''
+                    isConnectBusy ? 'disabled' : ''
                   }`}
                 >
                   {/* Переливающийся эффект */}
@@ -843,7 +863,7 @@ export default function BuyToken() {
                     <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
                   )}
                   <span className="relative z-20 drop-shadow-lg">
-                  {isConnecting ? (
+                  {isConnectBusy ? (
                     <div className="flex items-center justify-center gap-2">
                       <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                       <span>CONNECTING...</span>
