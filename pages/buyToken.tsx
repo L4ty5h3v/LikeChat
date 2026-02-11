@@ -1,10 +1,10 @@
 // Страница покупки токена Миссис Крипто
-import { useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
 import Layout from '@/components/Layout';
 import Button from '@/components/Button';
-import { useAccount, useBalance, useConnect, useBlockNumber } from 'wagmi';
+import { useAccount, useBalance, useConnect, useDisconnect, useBlockNumber } from 'wagmi';
 import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector';
 import { getTokenInfo, getTokenSalePriceEth, getMCTAmountForPurchase } from '@/lib/web3';
 import { markTokenPurchased, getUserProgress } from '@/lib/db-config';
@@ -93,7 +93,10 @@ async function publishSwapCastWithTxHash(
 export default function BuyToken() {
   const router = useRouter();
   const { address: walletAddress, isConnected } = useAccount();
-  const { connect, isPending: isConnecting } = useConnect();
+  const { connectAsync, isPending: isConnecting } = useConnect();
+  const { disconnect } = useDisconnect();
+  const farcasterConnector = useMemo(() => farcasterMiniApp(), []);
+  const [connectError, setConnectError] = useState<string | null>(null);
   const [isSwapping, setIsSwapping] = useState(false);
   const [swapInitiatedAt, setSwapInitiatedAt] = useState<number | null>(null);
   const [oldBalanceBeforeSwap, setOldBalanceBeforeSwap] = useState<number | null>(null);
@@ -147,6 +150,7 @@ export default function BuyToken() {
   const [tokenPriceEth, setTokenPriceEth] = useState<string | null>(null);
   const [tokenPriceUsd, setTokenPriceUsd] = useState<string | null>(null);
   const [mctAmountForPurchase, setMctAmountForPurchase] = useState<bigint | null>(null);
+  const CONNECT_TIMEOUT_MS = 20000;
 
   // Конфигурация (используем USDC для покупки)
   const useUSDC = true; // false = ETH, true = USDC
@@ -257,7 +261,13 @@ export default function BuyToken() {
       setTokenInfo(info);
 
       // Загружаем цену со смарт-контракта
-      const priceEth = await getTokenSalePriceEth();
+      // Quote API can be flaky/rate-limited; do not block the page (or spam errors) if it fails.
+      let priceEth: string | null = null;
+      try {
+        priceEth = await getTokenSalePriceEth();
+      } catch (e) {
+        console.warn('[BUY-TOKEN] Failed to fetch token price via quote API:', e);
+      }
       setTokenPriceEth(priceEth);
 
       if (priceEth && parseFloat(priceEth) > 0) {
@@ -292,6 +302,26 @@ export default function BuyToken() {
         address: MCT_CONTRACT_ADDRESS,
         decimals: 18,
       });
+    }
+  };
+
+  const handleConnectWallet = async () => {
+    try {
+      setConnectError(null);
+      // Hard timeout to avoid infinite "CONNECTING..." state in Farcaster web client
+      await Promise.race([
+        connectAsync({ connector: farcasterConnector }),
+        new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Connection timed out. Please try again.')), CONNECT_TIMEOUT_MS);
+        }),
+      ]);
+    } catch (e: any) {
+      const message = e?.message || 'Failed to connect wallet';
+      setConnectError(message);
+      try {
+        // Best-effort reset of wagmi state if it got stuck mid-connection
+        disconnect();
+      } catch {}
     }
   };
 
@@ -792,8 +822,13 @@ export default function BuyToken() {
           {!walletAddress && (
             <div className="mb-6">
               <div className="text-center">
+                {connectError && (
+                  <div className="mb-4 bg-red-50 border border-red-200 text-red-800 rounded-xl p-3 text-sm">
+                    {connectError}
+                  </div>
+                )}
                 <button
-                  onClick={() => connect({ connector: farcasterMiniApp() })}
+                  onClick={handleConnectWallet}
                   disabled={isConnecting}
                   className={`btn-gold-glow w-full text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold text-white group ${
                     isConnecting ? 'disabled' : ''
