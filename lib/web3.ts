@@ -6,7 +6,7 @@ const TOKEN_CONTRACT_ADDRESS = '0x04d388da70c32fc5876981097c536c51c8d3d236'; // 
 // Обрезаем пробелы и переносы строк из адреса контракта
 const TOKEN_SALE_CONTRACT_ADDRESS: string = (process.env.NEXT_PUBLIC_TOKEN_SALE_CONTRACT_ADDRESS || '0x3FD7a1D5C9C3163E873Df212006cB81D7178f3b4').trim().replace(/[\r\n]/g, ''); // Адрес контракта продажи
 const TOKEN_SALE_USDC_CONTRACT_ADDRESS: string = (process.env.NEXT_PUBLIC_TOKEN_SALE_USDC_CONTRACT_ADDRESS || '').trim().replace(/[\r\n]/g, ''); // Адрес контракта продажи USDC (если используется)
-const USDC_CONTRACT_ADDRESS = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'; // USDC на Base (6 decimals) - правильный адрес
+const USDC_CONTRACT_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // USDC на Base (6 decimals) - правильный адрес Base
 const USE_USDC_FOR_PURCHASE = true; // Использовать USDC вместо ETH
 const USE_FARCASTER_SWAP = false; // Использовать смарт-контракт продажи вместо Uniswap swap
 const DEFAULT_TOKEN_DECIMALS = 18;
@@ -14,8 +14,13 @@ const PURCHASE_AMOUNT_USDC = 0.10; // Покупаем MCT на 0.10 USDC (ко�
 const BASE_CHAIN_ID = 8453; // Base mainnet
 const BASE_CHAIN_ID_HEX = '0x2105'; // Base mainnet hex
 
-// Base Network RPC endpoints
-const BASE_RPC_URL = 'https://mainnet.base.org';
+// Base Network RPC endpoints (с fallback для избежания rate limits)
+const BASE_RPC_URLS = [
+  'https://mainnet.base.org',
+  'https://base-mainnet.g.alchemy.com/v2/demo', // Fallback через Alchemy
+  'https://base.publicnode.com', // Public RPC fallback
+];
+const BASE_RPC_URL = BASE_RPC_URLS[0]; // Основной endpoint
 
 // Base Network Configuration
 const BASE_NETWORK = {
@@ -90,9 +95,26 @@ export async function getProvider(): Promise<ethers.BrowserProvider | null> {
   return await ensureMiniAppProvider();
 }
 
-// Получить провайдер для Base (с RPC fallback)
+// Получить провайдер для Base (с RPC fallback при rate limits)
+let baseProviderCache: ethers.JsonRpcProvider | null = null;
+let currentRpcIndex = 0;
+
 export function getBaseProvider(): ethers.JsonRpcProvider {
-  return new ethers.JsonRpcProvider(BASE_RPC_URL);
+  // Используем кешированный провайдер если он еще работает
+  if (baseProviderCache) {
+    return baseProviderCache;
+  }
+  
+  const provider = new ethers.JsonRpcProvider(BASE_RPC_URLS[currentRpcIndex]);
+  baseProviderCache = provider;
+  return provider;
+}
+
+// Функция для переключения на следующий RPC endpoint при ошибках
+export function switchToNextRpcProvider(): void {
+  currentRpcIndex = (currentRpcIndex + 1) % BASE_RPC_URLS.length;
+  baseProviderCache = null; // Сбрасываем кеш
+  console.log(`🔄 Switched to RPC endpoint: ${BASE_RPC_URLS[currentRpcIndex]}`);
 }
 
 // Переключить сеть на Base
@@ -516,18 +538,63 @@ async function buyTokenWithUSDC(
 
   // Для чтения данных используем Base RPC (Farcaster Wallet не поддерживает eth_call)
   // Для записи (approve, transfer) используем signer с Farcaster Wallet
-  const usdcContractRead = new ethers.Contract(USDC_CONTRACT_ADDRESS, ERC20_ABI, baseProvider);
+  let usdcContractRead = new ethers.Contract(USDC_CONTRACT_ADDRESS, ERC20_ABI, baseProvider);
   const usdcContract = new ethers.Contract(USDC_CONTRACT_ADDRESS, ERC20_ABI, signer);
   
-  // Проверяем баланс USDC используя Base RPC
-  const usdcBalance = await usdcContractRead.balanceOf(buyerAddress);
-  if (usdcBalance < costUSDC) {
+  // Проверяем баланс USDC используя Base RPC (с retry при rate limit/BAD_DATA)
+  let usdcBalance: bigint;
+  let retries = 0;
+  const maxRpcRetries = BASE_RPC_URLS.length;
+  
+  while (retries < maxRpcRetries) {
+    try {
+      usdcBalance = await usdcContractRead.balanceOf(buyerAddress);
+      break; // Успешно получили баланс
+    } catch (error: any) {
+      const errorCode = error?.code || '';
+      const errorMessage = error?.message || '';
+      
+      // Если это BAD_DATA или rate limit, пробуем следующий RPC
+      if ((errorCode === 'BAD_DATA' || errorCode === 'SERVER_ERROR' || errorMessage.includes('429') || errorMessage.includes('rate limit')) && retries < maxRpcRetries - 1) {
+        retries++;
+        switchToNextRpcProvider();
+        const newBaseProvider = getBaseProvider();
+        usdcContractRead = new ethers.Contract(USDC_CONTRACT_ADDRESS, ERC20_ABI, newBaseProvider);
+        console.log(`⚠️ RPC error, retrying with next endpoint (attempt ${retries + 1}/${maxRpcRetries})...`);
+        continue;
+      }
+      // Если это не rate limit или мы исчерпали retries, пробрасываем ошибку
+      throw error;
+    }
+  }
+  
+  if (typeof usdcBalance === 'undefined' || usdcBalance < costUSDC) {
     throw new Error(`Insufficient USDC. Required: ${costUSDCFormatted} USDC`);
   }
   console.log(`✅ USDC balance check: ${ethers.formatUnits(usdcBalance, 6)} USDC available`);
 
-  // Проверяем allowance (одобрение) используя Base RPC
-  const currentAllowance = await usdcContractRead.allowance(buyerAddress, cleanContractAddress);
+  // Проверяем allowance (одобрение) используя Base RPC (с тем же retry механизмом)
+  let currentAllowance: bigint;
+  retries = 0;
+  while (retries < maxRpcRetries) {
+    try {
+      currentAllowance = await usdcContractRead.allowance(buyerAddress, cleanContractAddress);
+      break;
+    } catch (error: any) {
+      const errorCode = error?.code || '';
+      const errorMessage = error?.message || '';
+      
+      if ((errorCode === 'BAD_DATA' || errorCode === 'SERVER_ERROR' || errorMessage.includes('429') || errorMessage.includes('rate limit')) && retries < maxRpcRetries - 1) {
+        retries++;
+        switchToNextRpcProvider();
+        const newBaseProvider = getBaseProvider();
+        usdcContractRead = new ethers.Contract(USDC_CONTRACT_ADDRESS, ERC20_ABI, newBaseProvider);
+        console.log(`⚠️ RPC error on allowance check, retrying with next endpoint (attempt ${retries + 1}/${maxRpcRetries})...`);
+        continue;
+      }
+      throw error;
+    }
+  }
   
   if (currentAllowance < costUSDC) {
     console.log(`🔄 Approving USDC spending: ${costUSDCFormatted} USDC`);
@@ -588,11 +655,34 @@ export async function checkTokenBalance(address: string): Promise<string> {
     // Всегда используем Base RPC, так как Farcaster Wallet не поддерживает eth_call
     const provider = getBaseProvider();
     
-    const contract = new ethers.Contract(TOKEN_CONTRACT_ADDRESS, ERC20_ABI, provider);
-    const balance = await contract.balanceOf(address);
+    // Retry с переключением RPC при ошибках
+    let balance: bigint;
+    let contract = new ethers.Contract(TOKEN_CONTRACT_ADDRESS, ERC20_ABI, provider);
+    let retries = 0;
+    const maxRpcRetries = BASE_RPC_URLS.length;
+    
+    while (retries < maxRpcRetries) {
+      try {
+        balance = await contract.balanceOf(address);
+        break;
+      } catch (error: any) {
+        const errorCode = error?.code || '';
+        const errorMessage = error?.message || '';
+        
+        if ((errorCode === 'BAD_DATA' || errorCode === 'SERVER_ERROR' || errorMessage.includes('429') || errorMessage.includes('rate limit')) && retries < maxRpcRetries - 1) {
+          retries++;
+          switchToNextRpcProvider();
+          const newProvider = getBaseProvider();
+          contract = new ethers.Contract(TOKEN_CONTRACT_ADDRESS, ERC20_ABI, newProvider);
+          continue;
+        }
+        throw error;
+      }
+    }
+    
     const decimals = await contract.decimals().catch(() => DEFAULT_TOKEN_DECIMALS);
     
-    return ethers.formatUnits(balance, decimals);
+    return ethers.formatUnits(balance!, decimals);
   } catch (error) {
     console.error('Error checking token balance:', error);
     return '0';
