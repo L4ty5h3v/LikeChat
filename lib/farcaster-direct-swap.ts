@@ -97,6 +97,32 @@ async function getAvailableFeeTiers(opts: {
   return available;
 }
 
+async function simulateRouterCall(opts: {
+  readProvider: ethers.JsonRpcProvider;
+  from: string;
+  to: string;
+  data: string;
+  value?: bigint;
+}): Promise<{ ok: boolean; error?: string }> {
+  const { readProvider, from, to, data, value = 0n } = opts;
+  try {
+    await readProvider.call({
+      from,
+      to,
+      data,
+      value,
+    });
+    return { ok: true };
+  } catch (error: any) {
+    const message =
+      error?.reason ||
+      error?.shortMessage ||
+      error?.message ||
+      'Simulation failed';
+    return { ok: false, error: String(message) };
+  }
+}
+
 // Получить цену ETH в USD
 async function getEthPriceUsd(): Promise<number> {
   try {
@@ -526,6 +552,19 @@ export async function buyTokenViaDirectSwap(
 
           console.log(`🔄 Trying swap with fee tier ${fee} (${fee / 10000}%)...`);
 
+          // Preflight simulate with user's address to avoid opening failing wallet tx dialogs.
+          const directCalldata = router.interface.encodeFunctionData('exactInputSingle', [swapParams]);
+          const directSim = await simulateRouterCall({
+            readProvider,
+            from: userAddress,
+            to: UNISWAP_V3_ROUTER,
+            data: directCalldata,
+            value: 0n,
+          });
+          if (!directSim.ok) {
+            throw new Error(`Preflight failed for direct route fee ${fee}: ${directSim.error}`);
+          }
+
           // Отправляем транзакцию
           const tx = await router.exactInputSingle(swapParams, {
             value: paymentToken === 'USDC' ? 0 : amountIn, // Для USDC value = 0, для ETH = amountIn
@@ -609,14 +648,30 @@ export async function buyTokenViaDirectSwap(
 
             console.log(`🔄 Trying multi-hop USDC -> WETH -> MCT (fees: ${fee1 / 10000}% -> ${fee2 / 10000}%)...`);
 
+            // Preflight simulate with the actual sender to avoid repeated failing confirmations in wallet.
+            const multiHopParams = {
+              path,
+              recipient: userAddress,
+              deadline,
+              amountIn,
+              amountOutMinimum,
+            };
+            const multiHopCalldata = router.interface.encodeFunctionData('exactInput', [multiHopParams]);
+            const multiHopSim = await simulateRouterCall({
+              readProvider,
+              from: userAddress,
+              to: UNISWAP_V3_ROUTER,
+              data: multiHopCalldata,
+              value: 0n,
+            });
+            if (!multiHopSim.ok) {
+              throw new Error(
+                `Preflight failed for USDC->WETH->MCT (${fee1}/${fee2}): ${multiHopSim.error}`
+              );
+            }
+
             const tx = await router.exactInput(
-              {
-                path,
-                recipient: userAddress,
-                deadline,
-                amountIn,
-                amountOutMinimum,
-              },
+              multiHopParams,
               {
                 value: 0,
                 gasLimit: 700000,
