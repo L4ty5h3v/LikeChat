@@ -6,7 +6,8 @@ import Layout from '@/components/Layout';
 import Button from '@/components/Button';
 import { useAccount, useBalance, useConnect, useBlockNumber } from 'wagmi';
 import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector';
-import { getTokenInfo, buyToken as buyTokenViaSaleContract } from '@/lib/web3';
+import { getTokenInfo } from '@/lib/web3';
+import { buyTokenViaDirectSwap } from '@/lib/farcaster-direct-swap';
 import { markTokenPurchased, getUserProgress } from '@/lib/db-config';
 import { formatUnits, parseUnits } from 'viem';
 import type { FarcasterUser } from '@/types';
@@ -568,15 +569,15 @@ export default function BuyToken() {
       setIsSwapping(true);
       setSwapInitiatedAt(Date.now());
 
-      // Stable contract purchase path (avoids flaky swap-route simulation in Farcaster wallet)
-      const direct = await buyTokenViaSaleContract(user.fid);
-      if (!direct.success) throw new Error(direct.error || 'Swap failed');
-      if (direct.txHash) setTxHash(direct.txHash);
+      // Direct swap через Uniswap (как в рабочей версии) - не требует approve
+      const directResult = await buyTokenViaDirectSwap(user.fid, 'USDC');
+      if (!directResult.success) throw new Error(directResult.error || 'Swap failed');
+      if (directResult.txHash) setTxHash(directResult.txHash);
       setLoading(false);
       setRetryCount(0);
       // Balance watcher will pick up completion; also mark DB immediately
       try {
-        await markTokenPurchased(user.fid, direct.txHash || undefined);
+        await markTokenPurchased(user.fid, directResult.txHash || undefined);
       } catch (e) {
         console.warn('[DB] Failed to mark purchase:', e);
       }
