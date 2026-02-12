@@ -111,7 +111,7 @@ export default function BuyToken() {
   const BLOCKS_TO_CHECK = 4; // Проверяем каждые 4 блока (~12 секунд на Base)
   const SWAP_TIMEOUT_MS = 60000; // Увеличиваем таймаут до 60 секунд
   const CONNECT_TIMEOUT_MS = 20000;
-  const FARCASTER_REQUEST_TIMEOUT_MS = 45000;
+  const FARCASTER_REQUEST_TIMEOUT_MS = 12000;
   const effectiveWalletAddress = (walletAddress || fallbackWalletAddress || undefined) as `0x${string}` | undefined;
   const isWalletConnected = Boolean(effectiveWalletAddress);
   
@@ -325,11 +325,26 @@ export default function BuyToken() {
         console.warn('⚠️ [BUYTOKEN] Wagmi connector timed out, trying direct provider request...', connectorError);
       }
 
-      const accounts = await withTimeout(
-        fcProvider.request({ method: 'eth_requestAccounts' }) as Promise<string[]>,
-        FARCASTER_REQUEST_TIMEOUT_MS,
-        'Connection timed out. Confirm wallet connection in Farcaster and try again.'
-      );
+      // First try silent fetch (no prompt). In some Farcaster hosts this returns immediately.
+      let accounts: string[] = [];
+      try {
+        accounts = await withTimeout(
+          fcProvider.request({ method: 'eth_accounts' }) as Promise<string[]>,
+          5000,
+          'eth_accounts timed out'
+        );
+      } catch (accountsError) {
+        console.warn('⚠️ [BUYTOKEN] eth_accounts timed out, will request accounts interactively...', accountsError);
+      }
+
+      // If no account is exposed yet, request explicitly with a short timeout (avoid UI freeze).
+      if (!accounts || accounts.length === 0) {
+        accounts = await withTimeout(
+          fcProvider.request({ method: 'eth_requestAccounts' }) as Promise<string[]>,
+          FARCASTER_REQUEST_TIMEOUT_MS,
+          'Connection timed out. Confirm wallet connection in Farcaster Wallet and try again.'
+        );
+      }
 
       const first = accounts?.[0];
       if (!first) {
