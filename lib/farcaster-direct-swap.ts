@@ -373,32 +373,20 @@ export async function buyTokenViaDirectSwap(
     
     const deadline = Math.floor(Date.now() / 1000) + 60 * 20; // 20 минут
     
-    // Fee tiers for Uniswap V3 pools
-    // Common tiers: 0.01% (100), 0.05% (500), 0.3% (3000), 1% (10000)
-    const feeTiers = [10000, 3000, 500, 100];
+    // Fee tiers для пулов (как в рабочей версии)
+    // Пробуем сначала 1%, потом 0.3%, потом 0.05%
+    const feeTiers = [10000, 3000, 500];
     let lastError: any = null;
     
-    // For a micro order (0.10 USDC), strict minOut can frequently revert due volatility/fee-on-transfer
-    // in niche pools. We prioritize execution reliability over quote locking here.
-    const amountOutMinimum = 0n;
+    // Разумный slippage (5%) - как в рабочей версии
+    const amountOutMinimum = tokenAmountOut > 0n ? tokenAmountOut * BigInt(95) / BigInt(100) : 0n; // 5% slippage
 
-    // Для ETH: сначала пробуем прямой swap WETH -> MCT (пул существует!)
+    // Для ETH: сначала пробуем прямой swap WETH -> MCT (как в рабочей версии)
     if (paymentToken === 'ETH') {
       console.log('🔄 Trying direct swap: WETH -> MCT (pool exists on Uniswap V3 with 1% fee)...');
 
-      // Probe pools first to avoid sending transactions that wallet knows will fail.
-      const wethMctFees = await getAvailableFeeTiers({
-        tokenA: WRAPPED_ETH_ADDRESS,
-        tokenB: tokenOutAddress,
-        feeCandidates: feeTiers,
-        readProvider,
-      });
-      if (wethMctFees.length === 0) {
-        throw new Error('No WETH/MCT pool found on Uniswap V3 Base');
-      }
-
-      // Пробуем прямой swap только по существующим fee tiers
-      for (const fee of wethMctFees) {
+      // Пробуем прямой swap по fee tiers (как в рабочей версии - без проверки пулов заранее)
+      for (const fee of feeTiers) {
         try {
           const swapParams = {
             tokenIn: WRAPPED_ETH_ADDRESS, // WETH
@@ -413,7 +401,7 @@ export async function buyTokenViaDirectSwap(
 
           console.log(`🔄 Trying direct swap WETH -> MCT with fee tier ${fee} (${fee / 10000}%)...`);
 
-          // Отправляем транзакцию через Farcaster провайдер
+          // Отправляем транзакцию через Farcaster провайдер (как в рабочей версии)
           // Это покажет окно транзакции в Farcaster кошельке
           const tx = await router.exactInputSingle(swapParams, {
             value: amountIn, // Отправляем ETH, который конвертируется в WETH
@@ -423,14 +411,14 @@ export async function buyTokenViaDirectSwap(
           console.log('✅ Direct swap transaction sent:', tx.hash);
           console.log('📋 Transaction will be visible in Farcaster wallet history');
 
-          // Wait for confirmation via public RPC (Farcaster provider may not support receipts)
-          const receipt = await readProvider.waitForTransaction(tx.hash, 1, 180_000);
+          // Ждем подтверждения через signer (как в рабочей версии)
+          const receipt = await tx.wait();
 
-          if (receipt?.status === 1) {
+          if (receipt.status === 1) {
             console.log('✅ Direct swap confirmed');
             
-            // Проверяем баланс токенов
-            const tokenOutContract = new ethers.Contract(tokenOutAddress, ERC20_ABI, readProvider);
+            // Проверяем баланс токенов через provider (как в рабочей версии)
+            const tokenOutContract = new ethers.Contract(tokenOutAddress, ERC20_ABI, provider);
             const balance = await tokenOutContract.balanceOf(userAddress);
             const decimals = await tokenOutContract.decimals().catch(() => DEFAULT_TOKEN_DECIMALS);
             const balanceFormatted = ethers.formatUnits(balance, decimals);
@@ -443,17 +431,8 @@ export async function buyTokenViaDirectSwap(
               verified: true,
               tokenAmount: ethers.formatUnits(tokenAmountOut, DEFAULT_TOKEN_DECIMALS),
             };
-          } else if (receipt?.status === 0) {
-            throw new Error('Transaction failed');
           } else {
-            // No receipt yet (timeout) — treat as pending; UI can verify by balance later.
-            console.log('ℹ️ Swap pending (no receipt yet). Returning tx hash.');
-            return {
-              success: true,
-              txHash: tx.hash,
-              verified: false,
-              tokenAmount: tokenAmountOut > 0n ? ethers.formatUnits(tokenAmountOut, DEFAULT_TOKEN_DECIMALS) : undefined,
-            };
+            throw new Error('Transaction was not confirmed');
           }
         } catch (swapError: any) {
           console.warn(`⚠️ Direct swap failed with fee ${fee}:`, swapError.message);
@@ -499,9 +478,9 @@ export async function buyTokenViaDirectSwap(
           );
 
           console.log('✅ Multi-hop swap transaction sent:', tx.hash);
-        const receipt = await readProvider.waitForTransaction(tx.hash, 1, 180_000);
+          const receipt = await tx.wait(); // Как в рабочей версии
 
-        if (receipt?.status === 1) {
+          if (receipt.status === 1) {
             console.log('✅ Multi-hop swap confirmed');
             return {
               success: true,
@@ -509,16 +488,8 @@ export async function buyTokenViaDirectSwap(
               verified: true,
               tokenAmount: ethers.formatUnits(tokenAmountOut, DEFAULT_TOKEN_DECIMALS),
             };
-        } else if (receipt?.status === 0) {
-          throw new Error('Transaction failed');
-        } else {
-          console.log('ℹ️ Swap pending (no receipt yet). Returning tx hash.');
-          return {
-            success: true,
-            txHash: tx.hash,
-            verified: false,
-            tokenAmount: tokenAmountOut > 0n ? ethers.formatUnits(tokenAmountOut, DEFAULT_TOKEN_DECIMALS) : undefined,
-          };
+          } else {
+            throw new Error('Transaction was not confirmed');
           }
         } catch (multiHopError: any) {
           console.warn(`⚠️ Multi-hop swap failed:`, multiHopError.message);
@@ -528,16 +499,9 @@ export async function buyTokenViaDirectSwap(
       }
     }
 
-    // Для USDC: пробуем прямой swap USDC -> MCT
-    const usdcMctDirectFees = await getAvailableFeeTiers({
-      tokenA: tokenInAddress,
-      tokenB: tokenOutAddress,
-      feeCandidates: feeTiers,
-      readProvider,
-    });
-
-    if (usdcMctDirectFees.length > 0) {
-      for (const fee of usdcMctDirectFees) {
+    // Для USDC: пробуем прямой swap USDC -> MCT (как в рабочей версии - без проверки пулов заранее)
+    if (paymentToken === 'USDC') {
+      for (const fee of feeTiers) {
         try {
           const swapParams = {
             tokenIn: tokenInAddress,
@@ -552,37 +516,22 @@ export async function buyTokenViaDirectSwap(
 
           console.log(`🔄 Trying swap with fee tier ${fee} (${fee / 10000}%)...`);
 
-          // Preflight simulate with user's address to avoid opening failing wallet tx dialogs.
-          // Но preflight может быть неточным, поэтому не блокируем транзакцию если он падает
-          const directCalldata = router.interface.encodeFunctionData('exactInputSingle', [swapParams]);
-          const directSim = await simulateRouterCall({
-            readProvider,
-            from: userAddress,
-            to: UNISWAP_V3_ROUTER,
-            data: directCalldata,
-            value: 0n,
-          });
-          if (!directSim.ok) {
-            console.warn(`⚠️ Preflight warning for direct route fee ${fee}: ${directSim.error}. Proceeding anyway - wallet will validate.`);
-            // Не бросаем ошибку, пробуем отправить транзакцию
-          }
-
-          // Отправляем транзакцию
+          // Отправляем транзакцию напрямую (как в рабочей версии - без preflight)
           const tx = await router.exactInputSingle(swapParams, {
-            value: paymentToken === 'USDC' ? 0 : amountIn, // Для USDC value = 0, для ETH = amountIn
+            value: 0, // Для USDC value = 0
             gasLimit: 500000,
           });
 
           console.log('✅ Swap transaction sent:', tx.hash);
 
-          // Wait for confirmation via public RPC (Farcaster provider may not support receipts)
-          const receipt = await readProvider.waitForTransaction(tx.hash, 1, 180_000);
+          // Ждем подтверждения через signer (как в рабочей версии)
+          const receipt = await tx.wait();
 
-          if (receipt?.status === 1) {
+          if (receipt.status === 1) {
             console.log('✅ Swap transaction confirmed');
             
-            // Проверяем баланс токенов
-            const tokenOutContract = new ethers.Contract(tokenOutAddress, ERC20_ABI, readProvider);
+            // Проверяем баланс токенов через provider (как в рабочей версии)
+            const tokenOutContract = new ethers.Contract(tokenOutAddress, ERC20_ABI, provider);
             const balance = await tokenOutContract.balanceOf(userAddress);
             const decimals = await tokenOutContract.decimals().catch(() => DEFAULT_TOKEN_DECIMALS);
             const balanceFormatted = ethers.formatUnits(balance, decimals);
@@ -594,15 +543,8 @@ export async function buyTokenViaDirectSwap(
               txHash: tx.hash,
               verified: true,
             };
-          } else if (receipt?.status === 0) {
-            throw new Error('Transaction failed');
           } else {
-            console.log('ℹ️ Swap pending (no receipt yet). Returning tx hash.');
-            return {
-              success: true,
-              txHash: tx.hash,
-              verified: false,
-            };
+            throw new Error('Transaction was not confirmed');
           }
         } catch (swapError: any) {
           console.warn(`⚠️ Swap failed with fee ${fee}:`, swapError.message);
@@ -614,93 +556,55 @@ export async function buyTokenViaDirectSwap(
           }
         }
       }
-    } else if (paymentToken === 'USDC') {
-      console.log('ℹ️ No direct USDC/MCT pool found. Skipping direct route and trying multi-hop via WETH.');
-    }
+      
+      // Если все fee tiers не сработали, пробуем multi-hop (как в рабочей версии)
+      console.warn('⚠️ All direct USDC->MCT swap attempts failed, trying multi-hop via WETH...');
+      const feeCombinations = [
+        [10000, 10000], // 1% -> 1%
+        [3000, 10000],  // 0.3% -> 1%
+        [10000, 3000],  // 1% -> 0.3%
+      ];
 
-    // USDC fallback: try multi-hop USDC -> WETH -> MCT (direct pool may not exist)
-    if (paymentToken === 'USDC') {
-      console.warn('⚠️ Direct USDC->MCT failed for all fee tiers, trying multi-hop via WETH...');
-      const feeTiersUsdcWethCandidates = [100, 500, 3000, 10000]; // majors usually low tiers
-      const feeTiersWethMctCandidates = [10000, 3000, 500, 100];  // niche often high tier
-      const feeTiersUsdcWeth = await getAvailableFeeTiers({
-        tokenA: USDC_ADDRESS,
-        tokenB: WRAPPED_ETH_ADDRESS,
-        feeCandidates: feeTiersUsdcWethCandidates,
-        readProvider,
-      });
-      const feeTiersWethMct = await getAvailableFeeTiers({
-        tokenA: WRAPPED_ETH_ADDRESS,
-        tokenB: tokenOutAddress,
-        feeCandidates: feeTiersWethMctCandidates,
-        readProvider,
-      });
+      for (const [fee1, fee2] of feeCombinations) {
+        try {
+          console.log(`🔄 Trying multi-hop swap: USDC -> WETH -> MCT (fees: ${fee1/10000}% -> ${fee2/10000}%)...`);
+          
+          const path = ethers.solidityPacked(
+            ['address', 'uint24', 'address', 'uint24', 'address'],
+            [USDC_ADDRESS, fee1, WRAPPED_ETH_ADDRESS, fee2, tokenOutAddress]
+          );
 
-      if (feeTiersUsdcWeth.length === 0 || feeTiersWethMct.length === 0) {
-        throw new Error('No valid USDC->WETH->MCT pool route found on Uniswap V3 Base');
-      }
-
-      for (const fee1 of feeTiersUsdcWeth) {
-        for (const fee2 of feeTiersWethMct) {
-          try {
-            const path = ethers.solidityPacked(
-              ['address', 'uint24', 'address', 'uint24', 'address'],
-              [USDC_ADDRESS, fee1, WRAPPED_ETH_ADDRESS, fee2, tokenOutAddress]
-            );
-
-            console.log(`🔄 Trying multi-hop USDC -> WETH -> MCT (fees: ${fee1 / 10000}% -> ${fee2 / 10000}%)...`);
-
-            // Preflight simulate with the actual sender to avoid repeated failing confirmations in wallet.
-            const multiHopParams = {
-              path,
+          const tx = await router.exactInput(
+            {
+              path: path,
               recipient: userAddress,
-              deadline,
-              amountIn,
-              amountOutMinimum,
+              deadline: deadline,
+              amountIn: amountIn,
+              amountOutMinimum: amountOutMinimum,
+            },
+            {
+              value: 0,
+              gasLimit: 700000,
+            }
+          );
+
+          console.log('✅ Multi-hop swap transaction sent:', tx.hash);
+          const receipt = await tx.wait(); // Как в рабочей версии
+
+          if (receipt.status === 1) {
+            console.log('✅ Multi-hop swap confirmed');
+            return {
+              success: true,
+              txHash: tx.hash,
+              verified: true,
             };
-            const multiHopCalldata = router.interface.encodeFunctionData('exactInput', [multiHopParams]);
-            const multiHopSim = await simulateRouterCall({
-              readProvider,
-              from: userAddress,
-              to: UNISWAP_V3_ROUTER,
-              data: multiHopCalldata,
-              value: 0n,
-            });
-            // Preflight может быть неточным (особенно для малых сумм), поэтому не блокируем транзакцию
-            // Если preflight падает, пробуем отправить транзакцию напрямую - кошелек сам проверит
-            if (!multiHopSim.ok) {
-              console.warn(`⚠️ Preflight warning for USDC->WETH->MCT (${fee1}/${fee2}): ${multiHopSim.error}. Proceeding anyway - wallet will validate.`);
-              // Не бросаем ошибку, пробуем отправить транзакцию
-            }
-
-            const tx = await router.exactInput(
-              multiHopParams,
-              {
-                value: 0,
-                gasLimit: 700000,
-              }
-            );
-
-            console.log('✅ Multi-hop USDC swap transaction sent:', tx.hash);
-            const receipt = await readProvider.waitForTransaction(tx.hash, 1, 180_000);
-
-            if (receipt?.status === 1) {
-              console.log('✅ Multi-hop USDC swap confirmed');
-              return {
-                success: true,
-                txHash: tx.hash,
-                verified: true,
-              };
-            } else if (receipt?.status === 0) {
-              throw new Error('Transaction failed');
-            } else {
-              console.log('ℹ️ Swap pending (no receipt yet). Returning tx hash.');
-              return { success: true, txHash: tx.hash, verified: false };
-            }
-          } catch (e: any) {
-            lastError = e;
-            continue;
+          } else {
+            throw new Error('Transaction was not confirmed');
           }
+        } catch (multiHopError: any) {
+          console.warn(`⚠️ Multi-hop swap failed:`, multiHopError.message);
+          lastError = multiHopError;
+          continue;
         }
       }
     }

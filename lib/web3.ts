@@ -600,11 +600,87 @@ async function buyTokenWithUSDC(
     throw new Error('Failed to check USDC allowance after retries');
   }
   
+  // Если approve нет, используем батч транзакций (approve + buy) через wallet_sendCalls
+  // Это объединяет две транзакции в одну для пользователя
   if (currentAllowance < costUSDC) {
+    console.log(`🔄 Combining approve + purchase in one transaction via wallet_sendCalls...`);
+    
+    try {
+      // Получаем Farcaster провайдер напрямую для wallet_sendCalls
+      if (typeof window !== 'undefined') {
+        const { getEthereumProvider } = await import('@farcaster/miniapp-sdk/dist/ethereumProvider');
+        const miniProvider = await getEthereumProvider();
+        
+        if (miniProvider && miniProvider.request && typeof miniProvider.request === 'function') {
+        const usdcIface = new ethers.Interface(ERC20_ABI);
+        const saleIface = new ethers.Interface(TOKEN_SALE_USDC_ABI);
+        
+        // Одобряем максимальную сумму для будущих покупок
+        const MAX_UINT256 = BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
+        const approveData = usdcIface.encodeFunctionData('approve', [cleanContractAddress, MAX_UINT256]);
+        const buyData = saleIface.encodeFunctionData('buyTokensWithUSDC', [tokenAmount]);
+        
+        // Батч: approve + buyTokensWithUSDC
+        const calls = [
+          {
+            to: USDC_CONTRACT_ADDRESS,
+            value: '0x0',
+            data: approveData,
+          },
+          {
+            to: cleanContractAddress,
+            value: '0x0',
+            data: buyData,
+          },
+        ];
+        
+          // Пробуем использовать wallet_sendCalls
+          const result = await (miniProvider.request as any)({
+            method: 'wallet_sendCalls',
+            params: [
+              {
+                version: '1.0',
+                chainId: `eip155:${BASE_CHAIN_ID}`,
+                calls: calls,
+              },
+            ],
+          });
+        
+        console.log('✅ Batch transaction (approve + buy) sent via wallet_sendCalls:', result);
+        
+        // wallet_sendCalls возвращает массив хешей или один хеш
+        const txHashes = Array.isArray(result) ? result : [result];
+        const txHash = txHashes[txHashes.length - 1]; // Используем последнюю транзакцию (покупка)
+        
+        // Дождаться подтверждения через публичный RPC
+        const baseProvider = getBaseProvider();
+        const receipt = await baseProvider.waitForTransaction(txHash, 1, 180_000);
+        
+        if (receipt?.status === 1) {
+          const isValidPurchase = await verifyTokenPurchaseUSDC(txHash, buyerAddress);
+          
+          if (!isValidPurchase) {
+            throw new Error('Purchase could not be verified via the token sale contract');
+          }
+          
+          return {
+            success: true,
+            txHash: txHash,
+            verified: true,
+          };
+        } else {
+          throw new Error('Batch transaction was not confirmed');
+        }
+        }
+      }
+    } catch (batchError: any) {
+      // Если wallet_sendCalls не поддерживается или ошибка, fallback на обычный approve + buy
+      console.log('⚠️ wallet_sendCalls not available, using separate approve + buy:', batchError?.message);
+    }
+    
+    // Fallback: обычный approve отдельно, потом покупка
     console.log(`🔄 Approving USDC spending (one-time, large amount to avoid future approves)...`);
     
-    // Одобряем максимальную сумму один раз, чтобы не делать approve каждый раз
-    // Max uint256 для USDC (6 decimals) = 79228162514264337593543950335
     const MAX_UINT256 = BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
     const approveTx = await usdcContract.approve(cleanContractAddress, MAX_UINT256, {
       gasLimit: 100000,
@@ -612,7 +688,6 @@ async function buyTokenWithUSDC(
     
     console.log('✅ Approval transaction sent (max amount):', approveTx.hash);
     
-    // Дождаться подтверждения одобрения
     const approveReceipt = await approveTx.wait();
     
     if (approveReceipt.status !== 1) {
