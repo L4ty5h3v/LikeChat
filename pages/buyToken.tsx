@@ -6,13 +6,12 @@ import Layout from '@/components/Layout';
 import Button from '@/components/Button';
 import { useAccount, useBalance, useConnect, useDisconnect, useBlockNumber } from 'wagmi';
 import { metaMask } from 'wagmi/connectors';
-import { getTokenInfo } from '@/lib/web3';
+import { getTokenInfo, buyToken as buyTokenViaSaleContract } from '@/lib/web3';
 import { markTokenPurchased, getUserProgress } from '@/lib/db-config';
 import { formatUnits, parseUnits } from 'viem';
 import type { FarcasterUser } from '@/types';
 import { sendTokenPurchaseNotification } from '@/lib/farcaster-notifications';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
-import { buyTokenViaDirectSwap } from '@/lib/farcaster-direct-swap';
 
 const PURCHASE_AMOUNT_USDC = 0.10; // Покупаем MCT на 0.10 USDC
 const USDC_CONTRACT_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // USDC на Base (6 decimals) - правильный адрес
@@ -646,16 +645,16 @@ export default function BuyToken() {
       setOldBalanceBeforeSwap(currentBalance);
 
       const attemptInfo = isRetry ? ` (Retry ${retryCount}/${MAX_RETRIES})` : '';
-      console.log(`🔄 Starting direct swap via provider for FID: ${user.fid}${attemptInfo}`);
-      console.log(`💱 Swapping ${PURCHASE_AMOUNT_USDC} USDC to MCT (direct swap)...`);
+      console.log(`🔄 Starting token purchase via sale contract for FID: ${user.fid}${attemptInfo}`);
+      console.log(`💱 Purchasing token with USDC (sale contract path)...`);
       console.log(`📊 Current MCT balance: ${currentBalance}`);
 
       // Запускаем swap и начинаем отслеживать баланс
       setIsSwapping(true);
       setSwapInitiatedAt(Date.now());
 
-      // Direct swap (no Privy / no OnchainKit)
-      const direct = await buyTokenViaDirectSwap(user.fid, 'USDC');
+      // Stable contract purchase path (avoids flaky swap-route simulation in Farcaster wallet)
+      const direct = await buyTokenViaSaleContract(user.fid);
       if (!direct.success) throw new Error(direct.error || 'Swap failed');
       if (direct.txHash) setTxHash(direct.txHash);
       setLoading(false);
@@ -927,7 +926,7 @@ export default function BuyToken() {
           {effectiveWalletAddress && !purchased && (
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
               <p className="text-sm text-blue-800 text-center">
-                <span className="font-semibold">💡 Tip:</span> When the swap form opens, enter <span className="font-bold">0.10 USDC</span> as the amount to swap
+                <span className="font-semibold">💡 Tip:</span> Confirm the purchase transaction in Farcaster Wallet and keep <span className="font-bold">USDC + a little ETH for gas</span> in your wallet
               </p>
             </div>
           )}
