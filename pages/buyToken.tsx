@@ -96,6 +96,7 @@ export default function BuyToken() {
   const { connectAsync, connectors } = useConnect();
   const { disconnect } = useDisconnect();
   const metaMaskConnector = useMemo(() => metaMask(), []);
+  const [fallbackWalletAddress, setFallbackWalletAddress] = useState<`0x${string}` | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [isConnectBusy, setIsConnectBusy] = useState(false);
   const [isSwapping, setIsSwapping] = useState(false);
@@ -111,29 +112,32 @@ export default function BuyToken() {
   const BLOCKS_TO_CHECK = 4; // Проверяем каждые 4 блока (~12 секунд на Base)
   const SWAP_TIMEOUT_MS = 60000; // Увеличиваем таймаут до 60 секунд
   const CONNECT_TIMEOUT_MS = 20000;
+  const FARCASTER_REQUEST_TIMEOUT_MS = 45000;
+  const effectiveWalletAddress = (walletAddress || fallbackWalletAddress || undefined) as `0x${string}` | undefined;
+  const isWalletConnected = Boolean(effectiveWalletAddress);
   
   // Real-time block listener для проверки баланса
   const { data: blockNumber } = useBlockNumber({
     watch: isSwapping, // Включаем только при swap
     query: {
-      enabled: isSwapping && !!walletAddress,
+      enabled: isSwapping && !!effectiveWalletAddress,
     },
   });
   
   const { data: mctBalance, refetch: refetchMCTBalance } = useBalance({
-    address: walletAddress,
+    address: effectiveWalletAddress,
     token: MCT_CONTRACT_ADDRESS as `0x${string}`,
     query: {
-      enabled: !!walletAddress,
+      enabled: !!effectiveWalletAddress,
       // Базовое обновление каждые 30 секунд, но реальное обновление через блоки
       refetchInterval: false, // Отключаем интервальное обновление, используем блоки
     },
   });
   const { data: usdcBalance } = useBalance({
-    address: walletAddress,
+    address: effectiveWalletAddress,
     token: USDC_CONTRACT_ADDRESS as `0x${string}`,
     query: {
-      enabled: !!walletAddress,
+      enabled: !!effectiveWalletAddress,
     },
   });
   const [loading, setLoading] = useState(false);
@@ -281,10 +285,18 @@ export default function BuyToken() {
       setConnectError(null);
       setIsConnectBusy(true);
 
+      const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> => {
+        return Promise.race([
+          promise,
+          new Promise<T>((_, reject) => setTimeout(() => reject(new Error(message)), timeoutMs)),
+        ]);
+      };
+
       // Fail-fast if Farcaster provider isn't available (avoid hanging forever)
+      let fcProvider: any;
       try {
         const { getEthereumProvider } = await import('@farcaster/miniapp-sdk/dist/ethereumProvider');
-        const fcProvider = await getEthereumProvider();
+        fcProvider = await getEthereumProvider();
         if (!fcProvider) {
           throw new Error('Farcaster Wallet provider not available. Open this inside the Farcaster Mini App.');
         }
@@ -303,16 +315,33 @@ export default function BuyToken() {
         throw new Error('Farcaster connector is not ready. Reload Mini App and try again.');
       }
 
-      await Promise.race([
-        connectAsync({ connector: farcasterConnector }),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Connection timed out. Please open this Mini App inside Farcaster mobile and try again.')), CONNECT_TIMEOUT_MS)
-        ),
-      ]);
+      try {
+        await withTimeout(
+          connectAsync({ connector: farcasterConnector }),
+          CONNECT_TIMEOUT_MS,
+          'Farcaster connector timed out'
+        );
+      } catch (connectorError) {
+        // Connector may hang in some hosts; fallback to direct provider account request.
+        console.warn('⚠️ [BUYTOKEN] Wagmi connector timed out, trying direct provider request...', connectorError);
+      }
+
+      const accounts = await withTimeout(
+        fcProvider.request({ method: 'eth_requestAccounts' }) as Promise<string[]>,
+        FARCASTER_REQUEST_TIMEOUT_MS,
+        'Connection timed out. Confirm wallet connection in Farcaster and try again.'
+      );
+
+      const first = accounts?.[0];
+      if (!first) {
+        throw new Error('No wallet account returned by Farcaster Wallet.');
+      }
+      setFallbackWalletAddress(first as `0x${string}`);
+      setConnectError(null);
     } catch (e: any) {
       setConnectError(e?.message || 'Failed to connect wallet');
       try {
-        disconnect();
+        if (isConnected) disconnect();
       } catch {}
     } finally {
       setIsConnectBusy(false);
@@ -347,7 +376,7 @@ export default function BuyToken() {
     }
 
     // Проверяем подключение кошелька
-    if (!walletAddress || !isConnected) {
+    if (!effectiveWalletAddress) {
       setError('Please connect wallet to purchase token');
       return;
     }
@@ -584,7 +613,7 @@ export default function BuyToken() {
       return;
     }
 
-    if (!walletAddress) {
+    if (!effectiveWalletAddress) {
       setError('Кошелек не подключен');
       setLastError('Кошелек не подключен');
       return;
@@ -738,12 +767,12 @@ export default function BuyToken() {
           {/* Модная карточка покупки */}
           <div className="bg-white bg-opacity-95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 sm:p-12 mb-12 border border-white border-opacity-20 mt-6 sm:mt-12">
           {/* Информация о кошельке */}
-          {walletAddress && (
+          {effectiveWalletAddress && (
             <div className="bg-gradient-to-r from-primary/10 via-secondary/10 to-accent/10 rounded-xl p-6 mb-6 border border-primary/20">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-lg text-gray-700 font-semibold">Your wallet:</span>
                 <span className="font-mono text-lg font-bold text-primary">
-                  {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                  {effectiveWalletAddress.slice(0, 6)}...{effectiveWalletAddress.slice(-4)}
                 </span>
               </div>
               <div className="flex items-center justify-between">
@@ -755,7 +784,7 @@ export default function BuyToken() {
             </div>
           )}
 
-          {!walletAddress && (
+          {!effectiveWalletAddress && (
             <div className="mb-6">
               <div className="text-center">
                 {connectError && (
@@ -895,7 +924,7 @@ export default function BuyToken() {
           )}
 
           {/* Информация о сумме покупки */}
-          {walletAddress && !purchased && (
+          {effectiveWalletAddress && !purchased && (
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
               <p className="text-sm text-blue-800 text-center">
                 <span className="font-semibold">💡 Tip:</span> When the swap form opens, enter <span className="font-bold">0.10 USDC</span> as the amount to swap
@@ -905,22 +934,22 @@ export default function BuyToken() {
 
           {/* Кнопка покупки */}
           {(() => {
-            console.log('🔍 [BUYTOKEN] Render check - purchased:', purchased, 'walletAddress:', !!walletAddress);
+            console.log('🔍 [BUYTOKEN] Render check - purchased:', purchased, 'walletAddress:', !!effectiveWalletAddress);
             return !purchased;
           })() ? (
             <button
               onClick={handleBuyToken}
-              disabled={loading || isSwapping || !walletAddress}
+              disabled={loading || isSwapping || !effectiveWalletAddress}
               className={`btn-gold-glow w-full text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold text-white group ${
-                loading || isSwapping || !walletAddress ? 'disabled' : ''
+                loading || isSwapping || !effectiveWalletAddress ? 'disabled' : ''
               }`}
             >
               {/* Переливающийся эффект */}
-              {!loading && !isSwapping && walletAddress && (
+              {!loading && !isSwapping && effectiveWalletAddress && (
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
               )}
               {/* Внутреннее свечение */}
-              {!loading && !isSwapping && walletAddress && (
+              {!loading && !isSwapping && effectiveWalletAddress && (
                 <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
               )}
               <span className="relative z-10 drop-shadow-lg">
