@@ -205,9 +205,18 @@ export async function buyTokenViaDirectSwap(
       };
     }
 
-    // Получаем Farcaster провайдер
-    const { getEthereumProvider } = await import('@farcaster/miniapp-sdk/dist/ethereumProvider');
-    const miniProvider = await getEthereumProvider();
+    // Получаем Farcaster провайдер через SDK (рекомендуемый способ для Mini Apps)
+    // Документация: miniapps.farcaster.xyz/docs/guides/wallets
+    const { sdk } = await import('@farcaster/miniapp-sdk');
+    
+    // Убеждаемся, что SDK готов
+    if (sdk.actions && typeof sdk.actions.ready === 'function') {
+      await sdk.actions.ready();
+    }
+    
+    // Используем sdk.wallet.ethProvider (EIP-1193 совместимый провайдер)
+    // Это рекомендуемый способ для Mini Apps на Base/Optimism
+    const miniProvider = sdk.wallet?.ethProvider;
     
     if (!miniProvider) {
       return {
@@ -215,6 +224,8 @@ export async function buyTokenViaDirectSwap(
         error: 'Farcaster Wallet not found. Open this inside the Farcaster Mini App.',
       };
     }
+    
+    console.log('✅ Using Farcaster SDK wallet.ethProvider (recommended for Mini Apps)');
 
     const provider = new ethers.BrowserProvider(miniProvider as any);
     const signer = await provider.getSigner();
