@@ -601,15 +601,16 @@ async function buyTokenWithUSDC(
   }
   
   if (currentAllowance < costUSDC) {
-    console.log(`🔄 Approving USDC spending: ${costUSDCFormatted} USDC`);
+    console.log(`🔄 Approving USDC spending (one-time, large amount to avoid future approves)...`);
     
-    // Одобряем трату USDC (одобряем немного больше для комиссий)
-    const approveAmount = costUSDC * 2n; // Одобряем в 2 раза больше для запаса
-    const approveTx = await usdcContract.approve(cleanContractAddress, approveAmount, {
+    // Одобряем максимальную сумму один раз, чтобы не делать approve каждый раз
+    // Max uint256 для USDC (6 decimals) = 79228162514264337593543950335
+    const MAX_UINT256 = BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
+    const approveTx = await usdcContract.approve(cleanContractAddress, MAX_UINT256, {
       gasLimit: 100000,
     });
     
-    console.log('✅ Approval transaction sent:', approveTx.hash);
+    console.log('✅ Approval transaction sent (max amount):', approveTx.hash);
     
     // Дождаться подтверждения одобрения
     const approveReceipt = await approveTx.wait();
@@ -618,7 +619,7 @@ async function buyTokenWithUSDC(
       throw new Error('Approval transaction was not confirmed');
     }
     
-    console.log('✅ USDC approved successfully');
+    console.log('✅ USDC approved successfully (max amount - no more approves needed)');
   } else {
     console.log('✅ USDC already approved');
   }
