@@ -45,6 +45,7 @@ const UNISWAP_FACTORY_ABI = [
 const ERC20_ABI = [
   'function balanceOf(address owner) view returns (uint256)',
   'function decimals() view returns (uint8)',
+  'function symbol() view returns (string)',
   'function approve(address spender, uint256 amount) returns (bool)',
   'function allowance(address owner, address spender) view returns (uint256)',
 ];
@@ -294,6 +295,15 @@ export async function buyTokenViaDirectSwap(
     if (paymentToken === 'USDC') {
       // IMPORTANT: allowance() is a read (eth_call). Use public RPC, not Farcaster wallet provider.
       const tokenInRead = new ethers.Contract(tokenInAddress, ERC20_ABI, readProvider);
+      const tokenSymbol = await tokenInRead.symbol().catch(() => 'USDC');
+      const currentTokenBalance: bigint = await tokenInRead.balanceOf(userAddress);
+
+      if (currentTokenBalance < amountIn) {
+        throw new Error(
+          `Insufficient ${tokenSymbol}. Required: ${ethers.formatUnits(amountIn, 6)}, available: ${ethers.formatUnits(currentTokenBalance, 6)}`
+        );
+      }
+
       const currentAllowance = await tokenInRead.allowance(userAddress, UNISWAP_V3_ROUTER);
       
       if (currentAllowance < amountIn) {
@@ -342,13 +352,9 @@ export async function buyTokenViaDirectSwap(
     const feeTiers = [10000, 3000, 500, 100];
     let lastError: any = null;
     
-    // Slippage:
-    // - if we have a quote: use 5% buffer
-    // - if quote failed: do not hard-block swap (minOut=0)
-    const amountOutMinimum =
-      tokenAmountOut && tokenAmountOut > 0n
-        ? (tokenAmountOut * 95n) / 100n
-        : 0n;
+    // For a micro order (0.10 USDC), strict minOut can frequently revert due volatility/fee-on-transfer
+    // in niche pools. We prioritize execution reliability over quote locking here.
+    const amountOutMinimum = 0n;
 
     // Для ETH: сначала пробуем прямой swap WETH -> MCT (пул существует!)
     if (paymentToken === 'ETH') {

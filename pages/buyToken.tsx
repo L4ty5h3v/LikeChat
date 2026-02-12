@@ -353,6 +353,10 @@ export default function BuyToken() {
     }
 
     // Проверяем баланс USDC
+    if (useUSDC && !usdcBalance) {
+      setError('Unable to load USDC balance. Please wait a moment and try again.');
+      return;
+    }
     if (useUSDC && usdcBalance) {
       const usdcAmount = parseUnits(PURCHASE_AMOUNT_USDC.toString(), 6); // USDC имеет 6 decimals
       if (usdcBalance.value < usdcAmount) {
@@ -587,6 +591,12 @@ export default function BuyToken() {
     }
 
     // Проверяем баланс USDC перед каждой попыткой
+    if (useUSDC && !usdcBalance) {
+      const errorMsg = 'Unable to load USDC balance. Please wait a moment and try again.';
+      setError(errorMsg);
+      setLastError(errorMsg);
+      return;
+    }
     if (useUSDC && usdcBalance) {
       const usdcAmount = parseUnits(PURCHASE_AMOUNT_USDC.toString(), 6);
       if (usdcBalance.value < usdcAmount) {
