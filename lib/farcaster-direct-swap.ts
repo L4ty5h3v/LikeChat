@@ -282,10 +282,11 @@ export async function buyTokenViaDirectSwap(
         }
       } catch (error: any) {
         console.error('❌ Error getting quote from API:', error);
-        // Quote failures (rate limits/RPC hiccups) should NOT hard-block the swap.
-        // We'll proceed with amountOutMinimum=0 and let the router handle execution.
-        console.warn('⚠️ Proceeding without quote (amountOutMinimum=0).');
-        tokenAmountOut = 0n;
+        throw new Error('Failed to get a Uniswap quote via API: ' + (error.message || error));
+      }
+      
+      if (tokenAmountOut === BigInt(0)) {
+        throw new Error('Quote returned zero output');
       }
     } else {
       // Для ETH: получаем цену ETH в USD и рассчитываем amountIn
@@ -378,8 +379,8 @@ export async function buyTokenViaDirectSwap(
     const feeTiers = [10000, 3000, 500];
     let lastError: any = null;
     
-    // Разумный slippage (5%) - как в рабочей версии
-    const amountOutMinimum = tokenAmountOut > 0n ? tokenAmountOut * BigInt(95) / BigInt(100) : 0n; // 5% slippage
+    // Разумный slippage (5%) - как в рабочей версии (БЕЗ проверки на 0, так как quote обязателен)
+    const amountOutMinimum = tokenAmountOut * BigInt(95) / BigInt(100); // 5% slippage
 
     // Для ETH: сначала пробуем прямой swap WETH -> MCT (как в рабочей версии)
     if (paymentToken === 'ETH') {
