@@ -223,11 +223,17 @@ export async function buyTokenViaDirectSwap(
     // Use a public RPC for read-only calls (allowance/balance/decimals)
     const readProvider = new ethers.JsonRpcProvider(BASE_READ_RPC_URL);
 
-    // Проверяем сеть
+    // Проверяем сеть через Farcaster провайдер
     const network = await provider.getNetwork();
     if (Number(network.chainId) !== BASE_CHAIN_ID) {
-      await switchToBaseNetwork();
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log(`🔄 Current chainId: ${network.chainId}, switching to Base (${BASE_CHAIN_ID})...`);
+      await switchToBaseNetwork(miniProvider);
+      // Перепроверяем сеть после переключения
+      const newNetwork = await provider.getNetwork();
+      if (Number(newNetwork.chainId) !== BASE_CHAIN_ID) {
+        throw new Error(`Failed to switch to Base network. Current chainId: ${newNetwork.chainId}`);
+      }
+      console.log('✅ Switched to Base network');
     }
 
     // Адреса токенов
@@ -379,8 +385,11 @@ export async function buyTokenViaDirectSwap(
     const feeTiers = [10000, 3000, 500];
     let lastError: any = null;
     
-    // Разумный slippage (5%) - как в рабочей версии (БЕЗ проверки на 0, так как quote обязателен)
-    const amountOutMinimum = tokenAmountOut * BigInt(95) / BigInt(100); // 5% slippage
+    // Slippage: для USDC multi-hop нужен больший slippage из-за двух хопов и комиссий
+    // Для ETH прямого swap достаточно 5%, для USDC multi-hop используем 10%
+    const amountOutMinimum = paymentToken === 'USDC' 
+      ? tokenAmountOut * BigInt(90) / BigInt(100) // 10% slippage для multi-hop
+      : tokenAmountOut * BigInt(95) / BigInt(100); // 5% slippage для прямого swap
 
     // Для ETH: сначала пробуем прямой swap WETH -> MCT (как в рабочей версии)
     if (paymentToken === 'ETH') {
@@ -587,36 +596,38 @@ export async function buyTokenViaDirectSwap(
   }
 }
 
-// Переключить сеть на Base
-async function switchToBaseNetwork(): Promise<void> {
-  if (typeof window === 'undefined' || !(window as any).ethereum) {
-    throw new Error('Ethereum provider not found');
-  }
-
-  const ethereum = (window as any).ethereum;
+// Переключить сеть на Base через Farcaster провайдер
+async function switchToBaseNetwork(provider: any): Promise<void> {
   const BASE_CHAIN_ID_HEX = '0x2105';
 
   try {
-    await ethereum.request({
+    // Используем Farcaster провайдер для переключения сети
+    await provider.request({
       method: 'wallet_switchEthereumChain',
       params: [{ chainId: BASE_CHAIN_ID_HEX }],
     });
   } catch (switchError: any) {
-    if (switchError.code === 4902) {
-      await ethereum.request({
-        method: 'wallet_addEthereumChain',
-        params: [{
-          chainId: BASE_CHAIN_ID_HEX,
-          chainName: 'Base',
-          nativeCurrency: {
-            name: 'Ethereum',
-            symbol: 'ETH',
-            decimals: 18,
-          },
-          rpcUrls: ['https://mainnet.base.org'],
-          blockExplorerUrls: ['https://basescan.org'],
-        }],
-      });
+    // Если сеть не добавлена (код 4902), добавляем её
+    if (switchError.code === 4902 || switchError.code === -32603) {
+      try {
+        await provider.request({
+          method: 'wallet_addEthereumChain',
+          params: [{
+            chainId: BASE_CHAIN_ID_HEX,
+            chainName: 'Base',
+            nativeCurrency: {
+              name: 'Ethereum',
+              symbol: 'ETH',
+              decimals: 18,
+            },
+            rpcUrls: ['https://mainnet.base.org'],
+            blockExplorerUrls: ['https://basescan.org'],
+          }],
+        });
+      } catch (addError: any) {
+        console.error('Error adding Base network:', addError);
+        throw new Error('Failed to add Base network to Farcaster wallet');
+      }
     } else {
       throw switchError;
     }
