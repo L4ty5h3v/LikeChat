@@ -17,8 +17,8 @@ const BASE_CHAIN_ID_HEX = '0x2105'; // Base mainnet hex
 // Base Network RPC endpoints (с fallback для избежания rate limits)
 const BASE_RPC_URLS = [
   'https://mainnet.base.org',
-  'https://base-mainnet.g.alchemy.com/v2/demo', // Fallback через Alchemy
   'https://base.publicnode.com', // Public RPC fallback
+  'https://base.llamarpc.com', // LlamaRPC fallback
 ];
 const BASE_RPC_URL = BASE_RPC_URLS[0]; // Основной endpoint
 
@@ -542,7 +542,7 @@ async function buyTokenWithUSDC(
   const usdcContract = new ethers.Contract(USDC_CONTRACT_ADDRESS, ERC20_ABI, signer);
   
   // Проверяем баланс USDC используя Base RPC (с retry при rate limit/BAD_DATA)
-  let usdcBalance: bigint;
+  let usdcBalance: bigint | undefined;
   let retries = 0;
   const maxRpcRetries = BASE_RPC_URLS.length;
   
@@ -568,13 +568,13 @@ async function buyTokenWithUSDC(
     }
   }
   
-  if (typeof usdcBalance === 'undefined' || usdcBalance < costUSDC) {
+  if (!usdcBalance || usdcBalance < costUSDC) {
     throw new Error(`Insufficient USDC. Required: ${costUSDCFormatted} USDC`);
   }
   console.log(`✅ USDC balance check: ${ethers.formatUnits(usdcBalance, 6)} USDC available`);
 
   // Проверяем allowance (одобрение) используя Base RPC (с тем же retry механизмом)
-  let currentAllowance: bigint;
+  let currentAllowance: bigint | undefined;
   retries = 0;
   while (retries < maxRpcRetries) {
     try {
@@ -594,6 +594,10 @@ async function buyTokenWithUSDC(
       }
       throw error;
     }
+  }
+  
+  if (typeof currentAllowance === 'undefined') {
+    throw new Error('Failed to check USDC allowance after retries');
   }
   
   if (currentAllowance < costUSDC) {
@@ -656,7 +660,7 @@ export async function checkTokenBalance(address: string): Promise<string> {
     const provider = getBaseProvider();
     
     // Retry с переключением RPC при ошибках
-    let balance: bigint;
+    let balance: bigint | undefined;
     let contract = new ethers.Contract(TOKEN_CONTRACT_ADDRESS, ERC20_ABI, provider);
     let retries = 0;
     const maxRpcRetries = BASE_RPC_URLS.length;
@@ -680,9 +684,13 @@ export async function checkTokenBalance(address: string): Promise<string> {
       }
     }
     
+    if (!balance) {
+      throw new Error('Failed to get token balance after retries');
+    }
+    
     const decimals = await contract.decimals().catch(() => DEFAULT_TOKEN_DECIMALS);
     
-    return ethers.formatUnits(balance!, decimals);
+    return ethers.formatUnits(balance, decimals);
   } catch (error) {
     console.error('Error checking token balance:', error);
     return '0';
