@@ -1,12 +1,11 @@
 // Страница покупки токена Миссис Крипто
-import { useMemo, useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
 import Layout from '@/components/Layout';
 import Button from '@/components/Button';
-import { useAccount, useBalance, useConnect, useDisconnect, useBlockNumber } from 'wagmi';
-import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector';
-import { getTokenInfo, buyToken as buyTokenViaSaleContract } from '@/lib/web3';
+import { useAccount, useBalance, useBlockNumber } from 'wagmi';
+import { getTokenInfo, buyToken as buyTokenViaSaleContract, getProvider } from '@/lib/web3';
 import { markTokenPurchased, getUserProgress } from '@/lib/db-config';
 import { formatUnits, parseUnits } from 'viem';
 import type { FarcasterUser } from '@/types';
@@ -91,12 +90,11 @@ async function publishSwapCastWithTxHash(
 
 export default function BuyToken() {
   const router = useRouter();
-  const { address: walletAddress, isConnected } = useAccount();
-  const { connectAsync } = useConnect();
-  const { disconnect } = useDisconnect();
-  const farcasterConnector = useMemo(() => farcasterMiniApp(), []);
+  const { address: walletAddress } = useAccount();
+  const [detectedWalletAddress, setDetectedWalletAddress] = useState<`0x${string}` | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [isConnectBusy, setIsConnectBusy] = useState(false);
+  const [miniAppCapabilities, setMiniAppCapabilities] = useState<string[] | null>(null);
   const [isSwapping, setIsSwapping] = useState(false);
   const [swapInitiatedAt, setSwapInitiatedAt] = useState<number | null>(null);
   const [oldBalanceBeforeSwap, setOldBalanceBeforeSwap] = useState<number | null>(null);
@@ -110,29 +108,36 @@ export default function BuyToken() {
   const BLOCKS_TO_CHECK = 4; // Проверяем каждые 4 блока (~12 секунд на Base)
   const SWAP_TIMEOUT_MS = 60000; // Увеличиваем таймаут до 60 секунд
   const CONNECT_TIMEOUT_MS = 10000;
+  const effectiveWalletAddress = (walletAddress || detectedWalletAddress || undefined) as `0x${string}` | undefined;
+  const isWalletConnected = Boolean(effectiveWalletAddress);
+  const hasWalletCapability = Boolean(
+    miniAppCapabilities?.includes('wallet.getEthereumProvider') ||
+      miniAppCapabilities?.includes('wallet.getEvmProvider')
+  );
+  const hasSwapCapability = Boolean(miniAppCapabilities?.includes('actions.swapToken'));
   
   // Real-time block listener для проверки баланса
   const { data: blockNumber } = useBlockNumber({
     watch: isSwapping, // Включаем только при swap
     query: {
-      enabled: isSwapping && !!walletAddress,
+      enabled: isSwapping && !!effectiveWalletAddress,
     },
   });
   
   const { data: mctBalance, refetch: refetchMCTBalance } = useBalance({
-    address: walletAddress,
+    address: effectiveWalletAddress,
     token: MCT_CONTRACT_ADDRESS as `0x${string}`,
     query: {
-      enabled: !!walletAddress,
+      enabled: !!effectiveWalletAddress,
       // Базовое обновление каждые 30 секунд, но реальное обновление через блоки
       refetchInterval: false, // Отключаем интервальное обновление, используем блоки
     },
   });
   const { data: usdcBalance } = useBalance({
-    address: walletAddress,
+    address: effectiveWalletAddress,
     token: USDC_CONTRACT_ADDRESS as `0x${string}`,
     query: {
-      enabled: !!walletAddress,
+      enabled: !!effectiveWalletAddress,
     },
   });
   const [loading, setLoading] = useState(false);
@@ -190,6 +195,27 @@ export default function BuyToken() {
     checkProgress(user.fid);
     loadWalletInfo();
   }, [router, user, isInitialized]);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        if (typeof window === 'undefined') return;
+        const { sdk } = await import('@farcaster/miniapp-sdk');
+        if (!sdk?.getCapabilities) return;
+        const caps = await sdk.getCapabilities();
+        if (mounted) {
+          setMiniAppCapabilities((caps || []) as string[]);
+          console.log('🧩 [BUYTOKEN] Mini App capabilities:', caps);
+        }
+      } catch (e) {
+        console.warn('⚠️ [BUYTOKEN] Failed to read capabilities:', e);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // Перепроверяем статус покупки при изменении баланса
   useEffect(() => {
@@ -280,27 +306,79 @@ export default function BuyToken() {
       setConnectError(null);
       setIsConnectBusy(true);
 
-      await Promise.race([
-        connectAsync({ connector: farcasterConnector }),
-        new Promise((_, reject) =>
+      if (!hasWalletCapability && hasSwapCapability) {
+        throw new Error('This Farcaster view does not expose wallet connection. Tap BUY to open Farcaster swap directly.');
+      }
+
+      const provider = await getProvider();
+      if (!provider) {
+        throw new Error('Farcaster Wallet provider is unavailable in this view.');
+      }
+
+      const accounts = (await Promise.race([
+        provider.send('eth_requestAccounts', []) as Promise<string[]>,
+        new Promise<string[]>((_, reject) =>
           setTimeout(
             () =>
               reject(
                 new Error(
-                  'Farcaster wallet did not respond in this view. Reopen the Mini App in Farcaster and try again.'
+                  'Farcaster wallet did not respond in this view. Reopen the Mini App and try again.'
                 )
               ),
             CONNECT_TIMEOUT_MS
           )
         ),
-      ]);
+      ])) as string[];
+
+      const firstAccount = accounts?.[0];
+      if (!firstAccount) {
+        throw new Error('No wallet account returned by Farcaster Wallet.');
+      }
+
+      setDetectedWalletAddress(firstAccount as `0x${string}`);
     } catch (e: any) {
       setConnectError(e?.message || 'Failed to connect wallet');
-      try {
-        if (isConnected) disconnect();
-      } catch {}
     } finally {
       setIsConnectBusy(false);
+    }
+  };
+
+  const buyViaMiniAppSwap = async () => {
+    if (!user) {
+      setError('Please authorize through Farcaster');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setLastError(null);
+
+    try {
+      const { sdk } = await import('@farcaster/miniapp-sdk');
+      const sellAmount = parseUnits(PURCHASE_AMOUNT_USDC.toString(), 6).toString(); // 0.10 USDC in base units
+
+      const result = await sdk.actions.swapToken({
+        sellToken: `eip155:8453/erc20:${USDC_CONTRACT_ADDRESS}`,
+        buyToken: `eip155:8453/erc20:${MCT_CONTRACT_ADDRESS}`,
+        sellAmount,
+      });
+
+      if (!result?.success) {
+        throw new Error(result?.error?.message || result?.reason || 'Swap failed');
+      }
+
+      const txs = result.swap?.transactions || [];
+      const lastTx = txs.length > 0 ? txs[txs.length - 1] : '';
+      if (lastTx) setTxHash(lastTx);
+
+      setPurchased(true);
+      await markTokenPurchased(user.fid, lastTx || undefined);
+      setTimeout(() => router.replace('/submit'), 1200);
+    } catch (err: any) {
+      handleSwapError(err, false);
+    } finally {
+      setLoading(false);
+      setIsSwapping(false);
     }
   };
 
@@ -312,7 +390,11 @@ export default function BuyToken() {
     }
 
     // Проверяем подключение кошелька
-    if (!walletAddress || !isConnected) {
+    if (!isWalletConnected) {
+      if (hasSwapCapability) {
+        await buyViaMiniAppSwap();
+        return;
+      }
       setError('Please connect wallet to purchase token');
       return;
     }
@@ -350,6 +432,8 @@ export default function BuyToken() {
     
     // Определяем тип ошибки с конкретными подсказками
     const errorLower = errorMessage.toLowerCase();
+    const requiredUsdc = parseUnits(PURCHASE_AMOUNT_USDC.toString(), 6);
+    const hasEnoughUsdcForPurchase = !!usdcBalance && usdcBalance.value >= requiredUsdc;
     
     if (errorLower.includes('user rejected') || 
         errorLower.includes('cancel') ||
@@ -362,14 +446,24 @@ export default function BuyToken() {
                errorLower.includes('insufficient balance') ||
                (errorLower.includes('insufficient') && errorLower.includes('usdc'))) {
       errorType = 'insufficient_funds';
-      errorMessage = `Insufficient USDC for purchase`;
-      helpfulMessage = `💡 Add more USDC to wallet. Minimum ${PURCHASE_AMOUNT_USDC} USDC + ETH for gas required`;
+      if (hasEnoughUsdcForPurchase) {
+        errorMessage = 'Insufficient ETH for gas';
+        helpfulMessage = '💡 Your USDC is enough, but you need a little ETH on Base to pay network gas.';
+      } else {
+        errorMessage = `Insufficient USDC for purchase`;
+        helpfulMessage = `💡 Add more USDC to wallet. Minimum ${PURCHASE_AMOUNT_USDC} USDC + ETH for gas required`;
+      }
     } else if (errorLower.includes('insufficient') || 
                errorLower.includes('balance') ||
                (errorLower.includes('amount') && !errorLower.includes('slippage'))) {
       errorType = 'insufficient_balance';
-      errorMessage = 'Insufficient funds to execute swap';
-      helpfulMessage = `💡 Check USDC balance in wallet. Available: ${usdcBalance ? formatUnits(usdcBalance.value, usdcBalance.decimals) : '0'} USDC`;
+      if (hasEnoughUsdcForPurchase) {
+        errorMessage = 'Insufficient ETH for gas to execute transaction';
+        helpfulMessage = '💡 USDC balance is enough. Add a small amount of ETH on Base for gas fees.';
+      } else {
+        errorMessage = 'Insufficient funds to execute swap';
+        helpfulMessage = `💡 Check USDC balance in wallet. Available: ${usdcBalance ? formatUnits(usdcBalance.value, usdcBalance.decimals) : '0'} USDC`;
+      }
     } else if (errorLower.includes('slippage') || 
                errorLower.includes('price impact') ||
                errorLower.includes('execution reverted: dsr') ||
@@ -549,7 +643,7 @@ export default function BuyToken() {
       return;
     }
 
-    if (!walletAddress) {
+    if (!effectiveWalletAddress) {
       setError('Кошелек не подключен');
       setLastError('Кошелек не подключен');
       return;
@@ -703,12 +797,12 @@ export default function BuyToken() {
           {/* Модная карточка покупки */}
           <div className="bg-white bg-opacity-95 backdrop-blur-sm rounded-3xl shadow-2xl p-6 sm:p-12 mb-12 border border-white border-opacity-20 mt-6 sm:mt-12">
           {/* Информация о кошельке */}
-          {walletAddress && (
+          {effectiveWalletAddress && (
             <div className="bg-gradient-to-r from-primary/10 via-secondary/10 to-accent/10 rounded-xl p-6 mb-6 border border-primary/20">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-lg text-gray-700 font-semibold">Your wallet:</span>
                 <span className="font-mono text-lg font-bold text-primary">
-                  {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                  {effectiveWalletAddress.slice(0, 6)}...{effectiveWalletAddress.slice(-4)}
                 </span>
               </div>
               <div className="flex items-center justify-between">
@@ -720,7 +814,7 @@ export default function BuyToken() {
             </div>
           )}
 
-          {!walletAddress && (
+          {!effectiveWalletAddress && (
             <div className="mb-6">
               <div className="text-center">
                 {connectError && (
@@ -860,7 +954,7 @@ export default function BuyToken() {
           )}
 
           {/* Информация о сумме покупки */}
-          {walletAddress && !purchased && (
+          {effectiveWalletAddress && !purchased && (
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
               <p className="text-sm text-blue-800 text-center">
                 <span className="font-semibold">💡 Tip:</span> Confirm the purchase transaction in Farcaster Wallet and keep <span className="font-bold">USDC + a little ETH for gas</span> in your wallet
@@ -870,22 +964,22 @@ export default function BuyToken() {
 
           {/* Кнопка покупки */}
           {(() => {
-            console.log('🔍 [BUYTOKEN] Render check - purchased:', purchased, 'walletAddress:', !!walletAddress);
+            console.log('🔍 [BUYTOKEN] Render check - purchased:', purchased, 'walletAddress:', !!effectiveWalletAddress);
             return !purchased;
           })() ? (
             <button
               onClick={handleBuyToken}
-              disabled={loading || isSwapping || !walletAddress}
+              disabled={loading || isSwapping || (!effectiveWalletAddress && !hasSwapCapability)}
               className={`btn-gold-glow w-full text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold text-white group ${
-                loading || isSwapping || !walletAddress ? 'disabled' : ''
+                loading || isSwapping || (!effectiveWalletAddress && !hasSwapCapability) ? 'disabled' : ''
               }`}
             >
               {/* Переливающийся эффект */}
-              {!loading && !isSwapping && walletAddress && (
+              {!loading && !isSwapping && (effectiveWalletAddress || hasSwapCapability) && (
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
               )}
               {/* Внутреннее свечение */}
-              {!loading && !isSwapping && walletAddress && (
+              {!loading && !isSwapping && (effectiveWalletAddress || hasSwapCapability) && (
                 <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
               )}
               <span className="relative z-10 drop-shadow-lg">
