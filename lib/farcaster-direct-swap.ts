@@ -500,112 +500,66 @@ export async function buyTokenViaDirectSwap(
       }
     }
 
-    // Для USDC: пробуем прямой swap USDC -> MCT (как в рабочей версии - без проверки пулов заранее)
+    // Для USDC: используем multi-hop USDC -> WETH -> MCT (как в quote API, так как прямой пул может не существовать)
     if (paymentToken === 'USDC') {
-      for (const fee of feeTiers) {
-        try {
-          const swapParams = {
-            tokenIn: tokenInAddress,
-            tokenOut: tokenOutAddress,
-            fee: fee,
-            recipient: userAddress,
-            deadline: deadline,
-            amountIn: amountIn,
-            amountOutMinimum: amountOutMinimum,
-            sqrtPriceLimitX96: 0,
-          };
+      console.log('🔄 Using multi-hop swap for USDC: USDC -> WETH -> MCT (as in quote API)...');
+      
+      // Fee combinations как в quote API: USDC/WETH обычно низкие fee, WETH/MCT обычно высокие
+      const feeTiersUsdcWeth = [500, 3000, 10000]; // majors обычно низкие fee tiers
+      const feeTiersWethMct = [10000, 3000, 500]; // niche pools часто высокие fee tiers
 
-          console.log(`🔄 Trying swap with fee tier ${fee} (${fee / 10000}%)...`);
-
-          // Отправляем транзакцию напрямую (как в рабочей версии - без preflight)
-          const tx = await router.exactInputSingle(swapParams, {
-            value: 0, // Для USDC value = 0
-            gasLimit: 500000,
-          });
-
-          console.log('✅ Swap transaction sent:', tx.hash);
-
-          // Ждем подтверждения через signer (как в рабочей версии)
-          const receipt = await tx.wait();
-
-          if (receipt.status === 1) {
-            console.log('✅ Swap transaction confirmed');
+      for (const feeUsdcWeth of feeTiersUsdcWeth) {
+        for (const feeWethMct of feeTiersWethMct) {
+          try {
+            console.log(`🔄 Trying multi-hop swap: USDC -> WETH -> MCT (fees: ${feeUsdcWeth/10000}% -> ${feeWethMct/10000}%)...`);
             
-            // Проверяем баланс токенов через provider (как в рабочей версии)
-            const tokenOutContract = new ethers.Contract(tokenOutAddress, ERC20_ABI, provider);
-            const balance = await tokenOutContract.balanceOf(userAddress);
-            const decimals = await tokenOutContract.decimals().catch(() => DEFAULT_TOKEN_DECIMALS);
-            const balanceFormatted = ethers.formatUnits(balance, decimals);
-            
-            console.log(`📊 New token balance: ${balanceFormatted} MCT`);
+            const path = ethers.solidityPacked(
+              ['address', 'uint24', 'address', 'uint24', 'address'],
+              [USDC_ADDRESS, feeUsdcWeth, WRAPPED_ETH_ADDRESS, feeWethMct, tokenOutAddress]
+            );
 
-            return {
-              success: true,
-              txHash: tx.hash,
-              verified: true,
-            };
-          } else {
-            throw new Error('Transaction was not confirmed');
-          }
-        } catch (swapError: any) {
-          console.warn(`⚠️ Swap failed with fee ${fee}:`, swapError.message);
-          lastError = swapError;
-          
-          // Если это не ошибка ликвидности, пробуем следующий fee tier
-          if (!swapError.message?.includes('STF') && !swapError.message?.includes('SPL')) {
+            // Отправляем транзакцию напрямую (как в рабочей версии - без preflight)
+            const tx = await router.exactInput(
+              {
+                path: path,
+                recipient: userAddress,
+                deadline: deadline,
+                amountIn: amountIn,
+                amountOutMinimum: amountOutMinimum,
+              },
+              {
+                value: 0,
+                gasLimit: 700000,
+              }
+            );
+
+            console.log('✅ Multi-hop swap transaction sent:', tx.hash);
+            const receipt = await tx.wait(); // Как в рабочей версии
+
+            if (receipt.status === 1) {
+              console.log('✅ Multi-hop swap confirmed');
+              
+              // Проверяем баланс токенов через provider (как в рабочей версии)
+              const tokenOutContract = new ethers.Contract(tokenOutAddress, ERC20_ABI, provider);
+              const balance = await tokenOutContract.balanceOf(userAddress);
+              const decimals = await tokenOutContract.decimals().catch(() => DEFAULT_TOKEN_DECIMALS);
+              const balanceFormatted = ethers.formatUnits(balance, decimals);
+              
+              console.log(`📊 New token balance: ${balanceFormatted} MCT`);
+
+              return {
+                success: true,
+                txHash: tx.hash,
+                verified: true,
+              };
+            } else {
+              throw new Error('Transaction was not confirmed');
+            }
+          } catch (multiHopError: any) {
+            console.warn(`⚠️ Multi-hop swap failed (${feeUsdcWeth}/${feeWethMct}):`, multiHopError.message);
+            lastError = multiHopError;
             continue;
           }
-        }
-      }
-      
-      // Если все fee tiers не сработали, пробуем multi-hop (как в рабочей версии)
-      console.warn('⚠️ All direct USDC->MCT swap attempts failed, trying multi-hop via WETH...');
-      const feeCombinations = [
-        [10000, 10000], // 1% -> 1%
-        [3000, 10000],  // 0.3% -> 1%
-        [10000, 3000],  // 1% -> 0.3%
-      ];
-
-      for (const [fee1, fee2] of feeCombinations) {
-        try {
-          console.log(`🔄 Trying multi-hop swap: USDC -> WETH -> MCT (fees: ${fee1/10000}% -> ${fee2/10000}%)...`);
-          
-          const path = ethers.solidityPacked(
-            ['address', 'uint24', 'address', 'uint24', 'address'],
-            [USDC_ADDRESS, fee1, WRAPPED_ETH_ADDRESS, fee2, tokenOutAddress]
-          );
-
-          const tx = await router.exactInput(
-            {
-              path: path,
-              recipient: userAddress,
-              deadline: deadline,
-              amountIn: amountIn,
-              amountOutMinimum: amountOutMinimum,
-            },
-            {
-              value: 0,
-              gasLimit: 700000,
-            }
-          );
-
-          console.log('✅ Multi-hop swap transaction sent:', tx.hash);
-          const receipt = await tx.wait(); // Как в рабочей версии
-
-          if (receipt.status === 1) {
-            console.log('✅ Multi-hop swap confirmed');
-            return {
-              success: true,
-              txHash: tx.hash,
-              verified: true,
-            };
-          } else {
-            throw new Error('Transaction was not confirmed');
-          }
-        } catch (multiHopError: any) {
-          console.warn(`⚠️ Multi-hop swap failed:`, multiHopError.message);
-          lastError = multiHopError;
-          continue;
         }
       }
     }
