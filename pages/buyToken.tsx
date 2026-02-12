@@ -278,11 +278,8 @@ export default function BuyToken() {
       return;
     }
 
-    // Проверяем подключение кошелька
-    if (!walletAddress || !isConnected) {
-      setError('Please connect wallet to purchase token');
-      return;
-    }
+    // buyTokenViaDirectSwap использует getEthereumProvider() напрямую, не требует wagmi connect
+    // Проверка walletAddress не нужна - провайдер будет получен внутри buyTokenViaDirectSwap
 
     // Проверяем баланс USDC
     if (useUSDC && !usdcBalance) {
@@ -860,17 +857,17 @@ export default function BuyToken() {
           })() ? (
             <button
               onClick={handleBuyToken}
-              disabled={loading || isSwapping || !walletAddress}
+              disabled={loading || isSwapping}
               className={`btn-gold-glow w-full text-base sm:text-xl px-8 sm:px-16 py-4 sm:py-6 font-bold text-white group ${
-                loading || isSwapping || !walletAddress ? 'disabled' : ''
+                loading || isSwapping ? 'disabled' : ''
               }`}
             >
               {/* Переливающийся эффект */}
-              {!loading && !isSwapping && walletAddress && (
+              {!loading && !isSwapping && (
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
               )}
               {/* Внутреннее свечение */}
-              {!loading && !isSwapping && walletAddress && (
+              {!loading && !isSwapping && (
                 <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
               )}
               <span className="relative z-10 drop-shadow-lg">
