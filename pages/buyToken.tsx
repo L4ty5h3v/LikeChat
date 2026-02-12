@@ -5,7 +5,7 @@ import Image from 'next/image';
 import Layout from '@/components/Layout';
 import Button from '@/components/Button';
 import { useAccount, useBalance, useConnect, useDisconnect, useBlockNumber } from 'wagmi';
-import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector';
+import { metaMask } from 'wagmi/connectors';
 import { getTokenInfo } from '@/lib/web3';
 import { markTokenPurchased, getUserProgress } from '@/lib/db-config';
 import { formatUnits, parseUnits } from 'viem';
@@ -93,9 +93,9 @@ async function publishSwapCastWithTxHash(
 export default function BuyToken() {
   const router = useRouter();
   const { address: walletAddress, isConnected } = useAccount();
-  const { connectAsync, isPending: isConnecting } = useConnect();
+  const { connectAsync, connectors } = useConnect();
   const { disconnect } = useDisconnect();
-  const farcasterConnector = useMemo(() => farcasterMiniApp(), []);
+  const metaMaskConnector = useMemo(() => metaMask(), []);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [isConnectBusy, setIsConnectBusy] = useState(false);
   const [isSwapping, setIsSwapping] = useState(false);
@@ -292,6 +292,17 @@ export default function BuyToken() {
         throw new Error(e?.message || 'Farcaster Wallet provider not available');
       }
 
+      // Use connector instance from Wagmi config to avoid stale/duplicate connector instances.
+      const farcasterConnector = connectors.find((connector) => {
+        const id = String((connector as any)?.id || '').toLowerCase();
+        const name = String((connector as any)?.name || '').toLowerCase();
+        return id.includes('farcaster') || name.includes('farcaster') || name.includes('mini app');
+      });
+
+      if (!farcasterConnector) {
+        throw new Error('Farcaster connector is not ready. Reload Mini App and try again.');
+      }
+
       await Promise.race([
         connectAsync({ connector: farcasterConnector }),
         new Promise((_, reject) =>
@@ -300,6 +311,26 @@ export default function BuyToken() {
       ]);
     } catch (e: any) {
       setConnectError(e?.message || 'Failed to connect wallet');
+      try {
+        disconnect();
+      } catch {}
+    } finally {
+      setIsConnectBusy(false);
+    }
+  };
+
+  const handleConnectMetaMask = async () => {
+    try {
+      setConnectError(null);
+      setIsConnectBusy(true);
+      await Promise.race([
+        connectAsync({ connector: metaMaskConnector }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('MetaMask connection timed out.')), CONNECT_TIMEOUT_MS)
+        ),
+      ]);
+    } catch (e: any) {
+      setConnectError(e?.message || 'Failed to connect MetaMask');
       try {
         disconnect();
       } catch {}
