@@ -496,6 +496,24 @@ async function buyTokenWithUSDC(
     throw new Error('Purchase price returned zero. Check the token sale contract.');
   }
 
+  // Дополнительная диагностика газа/сети: "insufficient funds" часто означает недостаток ETH на Base.
+  const writeProvider = signer.provider;
+  if (writeProvider) {
+    const network = await writeProvider.getNetwork().catch(() => null);
+    const chainId = Number(network?.chainId || 0);
+    if (chainId !== BASE_CHAIN_ID) {
+      throw new Error(`Wrong network for purchase. Current chainId: ${chainId}, required: ${BASE_CHAIN_ID} (Base).`);
+    }
+
+    const nativeBalance = await writeProvider.getBalance(buyerAddress).catch(() => 0n);
+    const minGasBuffer = ethers.parseEther('0.00005'); // Safety floor for approve+buy in Base.
+    if (nativeBalance < minGasBuffer) {
+      throw new Error(
+        `Insufficient ETH for gas on Base. Available: ${ethers.formatEther(nativeBalance)} ETH, recommended minimum: ${ethers.formatEther(minGasBuffer)} ETH.`
+      );
+    }
+  }
+
   // Для чтения данных используем Base RPC (Farcaster Wallet не поддерживает eth_call)
   // Для записи (approve, transfer) используем signer с Farcaster Wallet
   const usdcContractRead = new ethers.Contract(USDC_CONTRACT_ADDRESS, ERC20_ABI, baseProvider);
