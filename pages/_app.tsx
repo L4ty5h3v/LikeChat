@@ -5,20 +5,16 @@ import React, { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { base } from 'wagmi/chains';
 import { WagmiProvider, createConfig, http } from 'wagmi';
-import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector';
+import { injected } from 'wagmi/connectors';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { FarcasterAuthProvider } from '@/contexts/FarcasterAuthContext';
 import { AuthSync } from '@/components/AuthSync';
-import InstallPrompt from '@/components/InstallPrompt';
 
 // IMPORTANT: Do NOT mount OnchainKit/Privy globally: it triggers CORS failures in Farcaster web contexts
 // (origin `wallet.farcaster.xyz` -> `auth.privy.io`) and can break page scripts (Tasks stuck loading).
 const wagmiConfig = createConfig({
   chains: [base],
-  connectors: [
-    // Only Farcaster wallet (avoid triggering browser extensions like Phantom/MetaMask)
-    farcasterMiniApp(),
-  ],
+  connectors: [injected()],
   transports: {
     [base.id]: http(),
   },
@@ -142,7 +138,6 @@ export default function App({ Component, pageProps }: AppProps) {
           <FarcasterAuthProvider>
             <AuthSync />
             <Component {...pageProps} />
-            <InstallPrompt />
           </FarcasterAuthProvider>
         </QueryClientProvider>
       </WagmiProvider>
