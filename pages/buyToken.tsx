@@ -528,10 +528,21 @@ export default function BuyToken() {
       return;
     }
 
-    if (!walletAddress) {
-      setError('Кошелек не подключен');
-      setLastError('Кошелек не подключен');
-      return;
+    // buyTokenViaDirectSwap использует getEthereumProvider() напрямую, не требует wagmi connect
+    // Но проверяем, что провайдер доступен
+    if (typeof window !== 'undefined') {
+      try {
+        const { getEthereumProvider } = await import('@farcaster/miniapp-sdk/dist/ethereumProvider');
+        const testProvider = await getEthereumProvider();
+        if (!testProvider) {
+          setError('Farcaster Wallet не найден. Откройте приложение внутри Farcaster Mini App.');
+          setLastError('Farcaster Wallet не найден');
+          return;
+        }
+      } catch (e) {
+        console.warn('⚠️ Could not check Farcaster provider:', e);
+        // Продолжаем - может быть провайдер появится позже
+      }
     }
 
     // Проверяем баланс USDC перед каждой попыткой
