@@ -553,6 +553,7 @@ export async function buyTokenViaDirectSwap(
           console.log(`🔄 Trying swap with fee tier ${fee} (${fee / 10000}%)...`);
 
           // Preflight simulate with user's address to avoid opening failing wallet tx dialogs.
+          // Но preflight может быть неточным, поэтому не блокируем транзакцию если он падает
           const directCalldata = router.interface.encodeFunctionData('exactInputSingle', [swapParams]);
           const directSim = await simulateRouterCall({
             readProvider,
@@ -562,7 +563,8 @@ export async function buyTokenViaDirectSwap(
             value: 0n,
           });
           if (!directSim.ok) {
-            throw new Error(`Preflight failed for direct route fee ${fee}: ${directSim.error}`);
+            console.warn(`⚠️ Preflight warning for direct route fee ${fee}: ${directSim.error}. Proceeding anyway - wallet will validate.`);
+            // Не бросаем ошибку, пробуем отправить транзакцию
           }
 
           // Отправляем транзакцию
@@ -664,10 +666,11 @@ export async function buyTokenViaDirectSwap(
               data: multiHopCalldata,
               value: 0n,
             });
+            // Preflight может быть неточным (особенно для малых сумм), поэтому не блокируем транзакцию
+            // Если preflight падает, пробуем отправить транзакцию напрямую - кошелек сам проверит
             if (!multiHopSim.ok) {
-              throw new Error(
-                `Preflight failed for USDC->WETH->MCT (${fee1}/${fee2}): ${multiHopSim.error}`
-              );
+              console.warn(`⚠️ Preflight warning for USDC->WETH->MCT (${fee1}/${fee2}): ${multiHopSim.error}. Proceeding anyway - wallet will validate.`);
+              // Не бросаем ошибку, пробуем отправить транзакцию
             }
 
             const tx = await router.exactInput(
