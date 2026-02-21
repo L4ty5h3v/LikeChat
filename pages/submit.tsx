@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Layout from '@/components/Layout';
 import { TASK_LINKS_LIMIT } from '@/lib/task-limits';
 import Button from '@/components/Button';
+import BuyTokenButton from '@/components/BuyTokenButton';
 import { getUserProgress, getAllLinks } from '@/lib/db-config';
 import { useFarcasterAuth } from '@/contexts/FarcasterAuthContext';
 import type { TaskType } from '@/types';
@@ -978,21 +979,29 @@ export default function Submit() {
                     <strong>The next {TASK_LINKS_LIMIT} users</strong> who choose the same task will perform that task on your cast.
                   </p>
                 </div>
-                <Button
-                  onClick={() => {
-                    console.log('🔍 [SUBMIT] Button "Close" clicked - redirecting to / (home page)');
-                    // Закрываем поздравление и сразу редиректим на главную страницу
-                    // НЕ устанавливаем setShowSuccessModal(false) перед редиректом, чтобы useEffect не сработал
-                    setLoading(false);
-                    // Редиректим на главную страницу сразу, без задержки
-                    router.replace('/');
-                  }}
-                  variant="primary"
-                  fullWidth
-                  className="text-lg py-4"
-                >
-                  Close
-                </Button>
+                <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                  <Button
+                    onClick={() => {
+                      console.log('🔍 [SUBMIT] Button "Close" clicked - redirecting to / (home page)');
+                      // Закрываем поздравление и сразу редиректим на главную страницу
+                      // НЕ устанавливаем setShowSuccessModal(false) перед редиректом, чтобы useEffect не сработал
+                      setLoading(false);
+                      // Редиректим на главную страницу сразу, без задержки
+                      router.replace('/');
+                    }}
+                    variant="primary"
+                    className="text-lg py-4 w-full sm:w-auto"
+                  >
+                    Close
+                  </Button>
+                  <BuyTokenButton
+                    onComplete={() => {
+                      // После покупки можно остаться на странице или перейти на главную
+                      console.log('✅ [SUBMIT] Token purchase completed');
+                    }}
+                    className="w-full sm:w-auto"
+                  />
+                </div>
               </div>
             </div>
           </div>
