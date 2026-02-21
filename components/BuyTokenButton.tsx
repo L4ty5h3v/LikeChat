@@ -18,25 +18,74 @@ export default function BuyTokenButton({
   showLabel = true 
 }: BuyTokenButtonProps) {
   const handleBuyToken = useCallback(async () => {
+    // Check if we're in Farcaster context
+    const isInFarcasterFrame = typeof window !== 'undefined' && window.self !== window.top;
+    console.log('🔍 [BuyTokenButton] Context check:', { isInFarcasterFrame });
+
     try {
       // Try Farcaster SDK swap (native wallet experience)
       const { sdk } = await import('@farcaster/miniapp-sdk');
-      if (sdk?.actions?.swapToken) {
-        const result = await sdk.actions.swapToken({
-          buyToken: MCT_TOKEN,
-        });
-        // Swap completed or cancelled
-        if (onComplete) {
-          onComplete();
-        }
-        return;
+      
+      console.log('🔄 [BuyTokenButton] SDK loaded:', { 
+        hasSDK: !!sdk, 
+        hasActions: !!sdk?.actions,
+        hasSwapToken: !!sdk?.actions?.swapToken,
+        actions: sdk?.actions ? Object.keys(sdk.actions) : []
+      });
+
+      if (!sdk || !sdk.actions) {
+        throw new Error('SDK or actions not available');
       }
-    } catch (e) {
+
+      // Ensure SDK is ready before using swapToken (only if not already called)
+      if (sdk.actions.ready && typeof sdk.actions.ready === 'function') {
+        try {
+          // Check if ready was already called
+          if (!(window as any).__FARCASTER_READY_CALLED__) {
+            await sdk.actions.ready();
+            (window as any).__FARCASTER_READY_CALLED__ = true;
+            console.log('✅ [BuyTokenButton] SDK ready() called');
+          } else {
+            console.log('ℹ️ [BuyTokenButton] SDK ready() already called, skipping');
+          }
+        } catch (readyError) {
+          console.warn('⚠️ [BuyTokenButton] SDK ready() failed:', readyError);
+        }
+      }
+
+      if (sdk.actions.swapToken) {
+        console.log('🪙 [BuyTokenButton] Calling swapToken with:', MCT_TOKEN);
+        try {
+          const result = await sdk.actions.swapToken({
+            buyToken: MCT_TOKEN,
+          });
+          console.log('✅ [BuyTokenButton] Swap completed:', result);
+          // Swap completed or cancelled
+          if (onComplete) {
+            onComplete();
+          }
+          return;
+        } catch (swapError: any) {
+          console.error('❌ [BuyTokenButton] swapToken call failed:', swapError);
+          // If swap was cancelled by user, don't show error
+          if (swapError?.message?.includes('cancelled') || swapError?.message?.includes('user')) {
+            console.log('ℹ️ [BuyTokenButton] Swap cancelled by user');
+            return;
+          }
+          throw swapError;
+        }
+      } else {
+        console.warn('⚠️ [BuyTokenButton] swapToken not available in SDK actions');
+        throw new Error('swapToken not available');
+      }
+    } catch (e: any) {
       // Not in Farcaster context or SDK not available
-      console.log('Farcaster SDK swap not available, falling back to Uniswap:', e);
+      console.error('❌ [BuyTokenButton] Farcaster SDK swap error:', e?.message || e);
+      console.log('🔄 [BuyTokenButton] Falling back to Uniswap');
     }
 
     // Fallback: open Uniswap in browser (for non-FC users)
+    console.log('🌐 [BuyTokenButton] Opening Uniswap:', MCT_UNISWAP_URL);
     window.open(MCT_UNISWAP_URL, '_blank');
     if (onComplete) {
       // Wait a bit before calling onComplete to allow user to interact with Uniswap
