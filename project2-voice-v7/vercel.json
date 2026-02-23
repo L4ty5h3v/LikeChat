@@ -1,10 +1,10 @@
-{
-  "git": {
-    "deploymentEnabled": {
-      "main": true
-    }
-  },
-  "buildCommand": "npm run build",
-  "outputDirectory": ".next",
-  "framework": "nextjs"
+﻿{
+    "git":  {
+                "deploymentEnabled":  {
+                                          "main":  true
+                                      }
+            },
+    "buildCommand":  "npm run build",
+    "framework":  "nextjs",
+    "outputDirectory":  ".next"
 }
