@@ -1,26 +1,29 @@
 {
   "accountAssociation": {
     "header": "eyJmaWQiOjQzOTY5OSwidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweDhjM2M0N0U0NTM4YzZmQzU4Y0NhQjk0OTM0OGMxRTVmOTkwMDRkZjgifQ",
-    "payload": "eyJkb21haW4iOiJwcm9qZWN0Mi1vbWVnYS1yb3N5LnZlcmNlbC5hcHAifQ",
-    "signature": "AQQkBOaiO7RVtgvG4i9U9cthHbw6bcbkTZy8TFSphcUg7QAn3IwQ3y95acMXz4iqbIpFVk1TF0oTBtNhyiypiRw="
+    "payload": "eyJkb21haW4iOiJsaWtlY2hhdC1mYXJjYXN0ZXIudmVyY2VsLmFwcCJ9",
+    "signature": "L8+UCEjvubB4IQ8NFCsfLQiPFm23G/YTlTvffqILQQEtEj3Ahgc7Pvn9rMG7E9WeAwUrwEH22z9nPmaSSVCbqxw="
   },
   "miniapp": {
     "version": "1",
-    "name": "FLIRTING TIPS",
-    "iconUrl": "https://project2-omega-rosy.vercel.app/icon-heart.png",
-    "homeUrl": "https://project2-omega-rosy.vercel.app/",
-    "subtitle": "Get advice from Mrs. Crypto",
-    "description": "Get personalized flirting tips and advice. Answer questions to receive customized recommendations.",
+    "name": "MULTI LIKE",
+    "iconUrl": "https://likechat-farcaster.vercel.app/images/icon.png",
+    "homeUrl": "https://likechat-farcaster.vercel.app/",
+    "subtitle": "You like, they like back",
+    "description": "Gain likes and recasts through mutual activity. Choose LIKE or RECAST mode, complete tasks on other users casts, then add your own cast link. Fair mechanics, no bots.",
     "primaryCategory": "social",
     "splashBackgroundColor": "#C71585",
-    "splashImageUrl": "https://project2-omega-rosy.vercel.app/icon-heart.png",
-    "imageUrl": "https://project2-omega-rosy.vercel.app/mrs-crypto-cover.png",
-    "buttonTitle": "GET TIPS",
-    "requiredChains": [
-      "eip155:8453"
-    ],
-    "requiredCapabilities": [
-      "actions.swapToken"
+    "splashImageUrl": "https://likechat-farcaster.vercel.app/images/image%20(3).png",
+    "imageUrl": "https://likechat-farcaster.vercel.app/images/image%20(3).png",
+    "buttonTitle": "MUTUAL LOVE",
+    "buttons": [
+      {
+        "title": "MUTUAL LOVE",
+        "action": {
+          "type": "link",
+          "target": "https://likechat-farcaster.vercel.app/"
+        }
+      }
     ]
   }
 }
