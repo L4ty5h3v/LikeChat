@@ -1,224 +1,84 @@
-# LikeChat Farcaster 💌
+# LikeChat
 
-**Multi Like: Mutual love from Mrs. Crypto**
+![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=nextdotjs&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.0%2B-3178C6?logo=typescript&logoColor=white)
+![Farcaster](https://img.shields.io/badge/Farcaster-mini%20app-8A63D2?logo=farcaster&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-Upstash-DC382D?logo=redis&logoColor=white)
+![Solidity](https://img.shields.io/badge/Solidity-contracts-363636?logo=solidity&logoColor=white)
+![Vercel](https://img.shields.io/badge/Vercel-deploy-black?logo=vercel&logoColor=white)
 
-Farcaster Mini App для взаимных лайков, рекастов и комментариев в сети Farcaster с системой токенов MCT.
+LikeChat is a Farcaster mini app for social engagement tasks, cast link submissions, and token-based rewards. The app combines a Next.js frontend, Farcaster wallet auth, Neynar-based verification, Redis-backed state, and Solidity/Hardhat tooling for the token-sale side of the project.
 
-## 📋 Описание
+## Overview
 
-LikeChat Farcaster — это интерактивное приложение, которое позволяет пользователям Farcaster выполнять задания по взаимодействию с контентом (лайки, рекасты, комментарии) и получать за это токены MCT (Mrs. Crypto Token).
+- users connect with a Farcaster wallet
+- choose a task type such as likes, recasts, or comments
+- submit Farcaster cast links for others to complete
+- verify activity through server-side checks and polling
+- reward completed actions with MCT token flows
 
-### Основные возможности
+## Tech Stack
 
-- 🔐 **Авторизация через Farcaster Wallet** — безопасный вход через официальный кошелек Farcaster
-- 📝 **Выбор типа активности** — лайки, рекасты или комментарии
-- 🔗 **Публикация ссылок** — пользователи могут публиковать свои Farcaster ссылки для выполнения заданий
-- ✅ **Автоматическая верификация** — система автоматически проверяет выполнение заданий через Neynar API
-- 🔄 **Polling механизм** — автоматическая проверка активности каждые 30 секунд после открытия ссылки
-- 💰 **Токен MCT** — получение токенов за выполнение заданий
-- 📊 **Прогресс пользователя** — отслеживание выполненных заданий и прогресса
+- Next.js 14
+- React 18
+- TypeScript
+- Farcaster Mini App SDK
+- OnchainKit
+- Neynar API
+- Upstash Redis
+- Solidity, Hardhat, Ethers, Viem, Wagmi
+- Vercel
 
-## 🚀 Технологии
+## How It Works
 
-- **Frontend:**
-  - Next.js 14.2
-  - React 18.3
-  - TypeScript
-  - Tailwind CSS
-  - Farcaster MiniApp SDK
+1. The user authenticates with a Farcaster wallet.
+2. The app loads available tasks and the user’s progress.
+3. Links are submitted through the app and stored server-side.
+4. Activity is verified with Neynar API calls and polling.
+5. Completed items update the UI and token-related flows.
 
-- **Backend:**
-  - Next.js API Routes
-  - Upstash Redis (база данных)
-  - Neynar API (верификация активности Farcaster)
+## Local Development
 
-- **Blockchain:**
-  - Ethereum
-  - Solidity (смарт-контракты)
-  - Ethers.js / Viem
-  - Wagmi
-
-## 📦 Установка
-
-### Требования
-
-- Node.js 18+ 
-- npm или yarn
-- Farcaster аккаунт
-- Neynar API ключ
-- Upstash Redis (опционально, для продакшена)
-
-### Шаги установки
-
-1. **Клонируйте репозиторий:**
 ```bash
-git clone https://github.com/your-username/likechat-farcaster.git
-cd likechat-farcaster
-```
-
-2. **Установите зависимости:**
-```bash
+git clone https://github.com/N4L34/LikeChat.git
+cd LikeChat
 npm install
-```
-
-3. **Настройте переменные окружения:**
-
-Создайте файл `.env.local`:
-```env
-# Neynar API (обязательно)
-NEYNAR_API_KEY=your_neynar_api_key
-
-# Upstash Redis (для продакшена)
-UPSTASH_REDIS_REST_URL=your_upstash_url
-UPSTASH_REDIS_REST_TOKEN=your_upstash_token
-
-# Контракт токена (опционально)
-TOKEN_CONTRACT_ADDRESS=your_token_contract_address
-NEXT_PUBLIC_TOKEN_SALE_CONTRACT_ADDRESS=your_sale_contract_address
-```
-
-4. **Запустите dev сервер:**
-```bash
+cp .env.example .env.local
 npm run dev
 ```
 
-Приложение будет доступно по адресу `http://localhost:3000`
+The app runs at `http://localhost:3000`.
 
-## 🎯 Как использовать
+Required environment variables are documented in `.env.example`.
 
-### Для пользователей
+## Deployment
 
-1. **Авторизация:**
-   - Откройте приложение в Farcaster Mini App
-   - Подключите Farcaster Wallet
-   - Разрешите доступ к вашему аккаунту
+- Vercel is the primary frontend deployment target
+- API keys and Redis credentials stay in environment variables
+- Hardhat scripts support contract compilation, deployment, and funding flows
 
-2. **Выбор активности:**
-   - Выберите тип активности: Лайки, Рекасты или Комментарии
-   - Нажмите "Начать"
+## Useful Scripts
 
-3. **Выполнение заданий:**
-   - Откройте ссылку на задание (кнопка "Open Post")
-   - Выполните действие в Warpcast/Farcaster (лайк, рекаст или комментарий)
-   - Подождите 30-60 секунд — система автоматически проверит выполнение
-   - Задание будет помечено как выполненное
+- `npm run compile`
+- `npm run deploy`
+- `npm run fund`
+- `npm run check-db`
 
-4. **Публикация ссылки:**
-   - Перейдите на страницу "Submit Link"
-   - Вставьте ссылку на ваш Farcaster cast
-   - Опубликуйте ссылку для других пользователей
+## Repository Layout
 
-### Для администраторов
-
-1. **Инициализация ссылок:**
-   - Откройте `/admin/init`
-   - Нажмите "Initialize Links" для создания начальных заданий
-
-## 🔧 API Endpoints
-
-### Публичные API
-
-- `GET /api/tasks` — получить список заданий
-- `GET /api/user-progress` — получить прогресс пользователя
-- `POST /api/submit-link` — опубликовать новую ссылку
-- `POST /api/verify-activity` — проверить выполнение задания
-- `POST /api/mark-link-completed` — отметить задание как выполненное
-
-### Административные API
-
-- `POST /api/init-links` — инициализировать начальные ссылки
-
-## 🏗️ Архитектура
-
-### Основные компоненты
-
-- **`pages/index.tsx`** — главная страница (авторизация и выбор активности)
-- **`pages/tasks.tsx`** — страница заданий с автоматической верификацией
-- **`pages/submit.tsx`** — страница публикации ссылок
-- **`lib/neynar.ts`** — интеграция с Neynar API для верификации
-- **`lib/upstash-db.ts`** — работа с базой данных Upstash Redis
-- **`contexts/FarcasterAuthContext.tsx`** — контекст авторизации Farcaster
-
-### Ключевые функции
-
-#### Верификация активности
-
-Приложение использует два метода проверки активности:
-
-1. **Стандартный метод** — проверка через `cast_hash` и `viewer_fid`
-2. **Метод user/reactions** — проверка через `/v2/farcaster/user/reactions` (более надежен для свежих реакций)
-
-#### Автоматический polling
-
-После открытия ссылки запускается автоматическая проверка:
-- Первая проверка через 30 секунд
-- Последующие проверки каждые 30 секунд
-- Максимум 10 проверок (5 минут)
-- Автоматическое обновление статуса при обнаружении активности
-
-#### Разрешение hash
-
-Система автоматически разрешает короткие Farcaster hash в полные:
-- Поддержка всех форматов ссылок (farcaster.xyz, warpcast.com, firefly.gg)
-- Автоматическое расширение коротких hash через Neynar API
-- Универсальная функция `getFullCastHash()` для всех типов ссылок
-
-## 🔐 Безопасность
-
-- API ключи хранятся только на сервере (не в клиентском коде)
-- Использование серверных переменных окружения
-- Валидация всех пользовательских данных
-- Проверка авторизации на каждом API endpoint
-
-## 📝 Переменные окружения
-
-### Обязательные
-
-- `NEYNAR_API_KEY` — API ключ Neynar для верификации активности
-
-### Опциональные (для продакшена)
-
-- `UPSTASH_REDIS_REST_URL` — URL Upstash Redis
-- `UPSTASH_REDIS_REST_TOKEN` — токен Upstash Redis
-- `TOKEN_CONTRACT_ADDRESS` — адрес контракта токена
-- `NEXT_PUBLIC_TOKEN_SALE_CONTRACT_ADDRESS` — адрес контракта продажи токенов
-
-## 🚢 Деплой
-
-### Vercel (рекомендуется)
-
-1. Подключите репозиторий к Vercel
-2. Добавьте переменные окружения в настройках проекта
-3. Деплой произойдет автоматически при push в main ветку
-
-### Ручной деплой
-
-```bash
-npm run build
-npm start
+```text
+components/   UI building blocks
+contexts/     Farcaster auth state
+contracts/    Solidity contracts
+lib/          API, Redis, and web3 helpers
+pages/        Next.js routes and API endpoints
+public/       static assets and Farcaster metadata
+scripts/      deployment and maintenance scripts
+styles/       global styling
 ```
 
-## 🐛 Известные проблемы
+## Notes
 
-- Задержка индексации реакций в Neynar API (1-2 минуты) — решено через polling механизм
-- Короткие hash требуют расширения — автоматически обрабатывается
-
-## 📄 Лицензия
-
-MIT
-
-## 👥 Авторы
-
-Mrs. Crypto Team
-
-## 🙏 Благодарности
-
-- Farcaster за отличную платформу
-- Neynar за API для верификации
-- Upstash за Redis сервис
-
----
-
-**Версия:** 1.0.0  
-**Последнее обновление:** 2024
-
+- The app is optimized for Farcaster mini app flows.
+- Activity verification uses server-side logic rather than client trust.
+- The repository includes both UI code and onchain support code, so it reads like a full product rather than a demo.

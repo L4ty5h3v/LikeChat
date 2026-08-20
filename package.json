@@ -1,7 +1,7 @@
 {
   "name": "likechat-farcaster",
   "version": "1.0.0",
-  "description": "Multi Like: Mutual love from Mrs. Crypto 💌",
+  "description": "Farcaster mini app for social tasks, token rewards, and cast verification.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -11,8 +11,6 @@
     "deploy": "node scripts/deploy-token-sale.js",
     "fund": "node scripts/fund-contract.js",
     "check-db": "node scripts/check-db.mjs"
-    
-    
   },
   "dependencies": {
     "@coinbase/onchainkit": "^1.1.2",
